@@ -246,7 +246,7 @@
   actor Dev as 鈴木 (エンジニア)
   participant GH as GitHub
   participant W as INDX Watch
-  participant R as Runner (Browser Rendering)
+  participant R as Runner (Browser Run)
   Dev->>GH: PR #482 を作成
   GH->>W: pull_request webhook
   W->>W: 差分から影響テストを分析 (impact)
@@ -271,7 +271,7 @@
       <pre class="mermaid">flowchart TD
   A["計画アイテムが Watch Agent に割り当て"] --> B["Queues に投入 (state: queued)"]
   B --> C["Workflow: フィクスチャ適用・環境リセット"]
-  C --> D["Browser Rendering でブラウザ起動 (state: running)"]
+  C --> D["Browser Run でブラウザ起動 (state: running)"]
   D --> E["エージェントが手順を実行 / ステップごとに証拠を保存"]
   E --> F["ジャッジ: assert / visual / llm (state: judging)"]
   F --> G{"判定ポリシー"}

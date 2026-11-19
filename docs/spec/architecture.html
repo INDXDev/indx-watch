@@ -269,7 +269,8 @@
           <tr><td><code>none</code></td><td>公開ステージング</td><td>何もしない</td><td>URL を開くだけ</td></tr>
           <tr><td><code>cf_access</code></td><td><code>staging</code> https://staging.shop.example.com</td><td>Secrets Store の <code>access_secret_ref</code> から Client ID / Secret を取り出し、<code>CF-Access-Client-Id</code> / <code>CF-Access-Client-Secret</code> を<b>対象オリジンへのリクエストにだけ</b>付ける。<code>setExtraHTTPHeaders</code> は全リクエスト（外部の決済画面や CDN も含む）に付くので使わない。<code>page.route</code> でホストを判定して付けるか、Browser Run の <code>outboundByHost</code>（対象ホスト宛ての通信を runner 内の関数経由にし、そこでヘッダーを足す）を使う</td><td>社内アカウントで Access ログイン（S09 に手順を表示）</td></tr>
           <tr><td><code>basic</code></td><td><code>uat</code> https://uat.shop.example.com</td><td><code>httpCredentials</code> を設定</td><td>S09 の「ログイン情報を表示」で確認（閲覧ログを記録）</td></tr>
-          <tr><td><code>ip_allowlist</code></td><td>社内ネットワーク限定の環境</td><td>Browser Run の送信元 IP は固定ではないため、IP 許可では入れない。閉域の環境は Workers VPC（beta）+ Cloudflare Tunnel 経由で到達させる（<code>outboundByHost</code> で対象ホスト宛てだけを VPC 経由に振る）。対象側を Access 保護に切り替えられるならそちらを優先</td><td>VPN 接続などの手順を <code>entry_guide_md</code> に書く</td></tr>
+          <tr><td><code>ip_allowlist</code></td><td>社内ネットワーク限定の環境（人だけが入る）</td><td>Browser Run の送信元 IP は固定ではないため、自動実行（agent / script）はできない。自動実行したい場合は <code>vpc</code> に切り替えるか、対象側を Access 保護にする</td><td>VPN 接続などの手順を <code>entry_guide_md</code> に書く</td></tr>
+          <tr><td><code>vpc</code></td><td>閉域の環境を自動実行でもテストする</td><td>Workers VPC（beta）+ Cloudflare Tunnel 経由で到達する。<code>outboundByHost</code> で対象ホスト宛てだけを VPC 経由に振る。M1 で疎通を実機確認する</td><td>人は社内 VPN で入る。手順を <code>entry_guide_md</code> に書く</td></tr>
         </tbody>
       </table></div>
       <ul>

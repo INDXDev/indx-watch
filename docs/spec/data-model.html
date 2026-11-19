@@ -198,7 +198,7 @@ CREATE TABLE environments (
   name               TEXT NOT NULL,               -- staging
   kind               TEXT NOT NULL CHECK (kind IN ('dev','staging','preview','uat','prod')),
   base_url           TEXT NOT NULL,
-  access_kind        TEXT NOT NULL DEFAULT 'none' CHECK (access_kind IN ('none','basic','cf_access','ip_allowlist')),
+  access_kind        TEXT NOT NULL DEFAULT 'none' CHECK (access_kind IN ('none','basic','cf_access','ip_allowlist','vpc')),  -- vpc = Workers VPC + Tunnel 経由
   access_secret_ref  TEXT,                        -- Secrets Store の名前のみ
   entry_guide_md     TEXT NOT NULL DEFAULT '',    -- 入り方ガイド（人向け）
   source_locale      TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
