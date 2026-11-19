@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>AI 実行レビュー画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .review-wrap { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .queue .row { grid-template-columns: minmax(0, 1fr); gap: 3px; font-size: 12px; }
+  .queue .row .line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .tl { display: grid; }
+  .tl-item { display: grid; grid-template-columns: 34px 92px minmax(0, 1fr) 150px; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); align-items: start; font-size: 12px; }
+  .tl-item:last-child { border-bottom: 0; }
+  .tl-item.flag { background: var(--review-soft); }
+  .act { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent); }
+  .obs { color: var(--fg-muted); }
+  .tl-item .shot { aspect-ratio: 16/10; }
+  .judge .row { grid-template-columns: 90px 110px 90px minmax(0, 1fr); font-size: 12px; }
+  .reason { border-left: 3px solid var(--review); padding: 6px 10px; background: var(--surface-2); font-size: 12px; display: grid; gap: 4px; }
+  .confirm { display: grid; gap: 8px; }
+  .confirm textarea { font: inherit; font-size: 12.5px; min-height: 50px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); resize: none; width: 100%; }
+  .confirm label { font-size: 11.5px; font-weight: 700; display: grid; gap: 3px; }
+  .meter { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; }
+  .meter .bar { width: 70px; min-width: 70px; height: 6px; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S06 AI 実行ビューア・レビューキュー</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S06 · 画面</div>
+    <h1>AI 実行ビューア・レビューキュー</h1>
+    <p class="lead">AI ブラウザエージェントが何をして何を見たかを、行動と観測のタイムラインとスクリーンショットで確認する画面です。判定ポリシーで確定できなかった実行（needs_review）は左のレビューキューに並び、人が理由を添えて合否を確定します。</p>
+    <div class="meta-row">
+      <span>ルート <code>/p/[key]/runs/[n]</code>・<code>/review</code></span>
+      <span>主な利用者 <b>manager・tester（レビュー担当）</b></span>
+      <span>関連フロー <a href="../spec/ux.html#flow-agent">AI 実行結果をレビューする</a> · <a href="../spec/ai.html">AI ネイティブ設計</a></span>
+    </div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/review?run=SHOP-RUN-1033</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a href="#">マイタスク <span class="count">7</span></a>
+          <a href="#" class="on">レビュー待ち <span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a href="#">リリース</a><a href="#">仕様</a><a href="#">テスト計画</a><a href="#">実行履歴</a><a href="#">フィクスチャ</a><a href="#">環境</a><a href="#">デプロイメント</a>
+          <div class="group">AI</div>
+          <a href="#">仕様取り込み</a>
+        </nav>
+        <div class="app-main">
+          <div class="review-wrap">
+            <div class="panel queue">
+              <header><span class="pin">1</span>レビュー待ち <span class="spacer" style="flex:1"></span><span class="small muted">3</span></header>
+              <div class="rows">
+                <div class="row sel">
+                  <div class="line"><span class="id">RUN-1033</span><span class="prio p0">P0</span><span class="badge st-review">要確認</span></div>
+                  <span>割引後の金額で決済が完了する</span>
+                  <span class="small muted">llm 信頼度 0.71 · 12 分前</span>
+                </div>
+                <div class="row">
+                  <div class="line"><span class="id">RUN-1036</span><span class="prio p1">P1</span><span class="badge st-review">要確認</span></div>
+                  <span>商品検索で該当なしの案内が出る</span>
+                  <span class="small muted">visual 差分 4.2% · 40 分前</span>
+                </div>
+                <div class="row">
+                  <div class="line"><span class="id">RUN-1031</span><span class="prio p0">P0</span><span class="badge st-review">要確認</span></div>
+                  <span>会員ログイン後にカートが引き継がれる</span>
+                  <span class="small muted">P0 は人の確認必須 · 1 時間前</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;gap:12px;min-width:0">
+              <div class="app-top">
+                <span class="id">RUN-1033</span>
+                <h2>割引後の金額で決済が完了する</h2>
+                <span class="id">TC-130 v2</span><span class="prio p0">P0</span><span class="tag">hybrid</span>
+                <span class="badge st-review">要確認</span>
+                <span class="spacer"></span>
+                <span class="avatar agent">AI</span><span class="small muted">Watch Agent · staging@a1b2c3d · 2 分 48 秒 · $0.21</span>
+              </div>
+
+              <div class="panel">
+                <header><span class="pin">2</span>判定の内訳 <span class="spacer" style="flex:1"></span><span class="small muted">判定ポリシー: プロジェクト既定</span></header>
+                <div class="rows judge">
+                  <div class="row head"><span>ジャッジ</span><span>結果</span><span>信頼度</span><span>内容</span></div>
+                  <div class="row"><span class="mono">assert</span><span class="badge st-pass">合格</span><span class="muted">—</span><span>URL が <code>/orders/complete</code> · 「ご注文ありがとうございます」表示 · 4 件中 4 件合格</span></div>
+                  <div class="row"><span class="mono">llm</span><span class="badge st-pass">合格</span><span class="meter"><span class="bar"><span class="review" style="width:71%"></span></span>0.71</span><span>ルーブリック 3 項目中 2 項目を確信して合格、1 項目（確認メール）は根拠が弱い</span></div>
+                  <div class="row"><span class="mono">policy</span><span class="badge st-review">要確認</span><span class="muted">—</span><span>llm の信頼度が 0.8 未満のため確定できない。また P0 のため人の確認が必須（<code>require_human_for: ["P0"]</code>）</span></div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <header><span class="pin">3</span>行動と観測 <span class="spacer" style="flex:1"></span><span class="small muted">9 アクション · <a href="#">トレース全体</a></span></header>
+                <div class="tl">
+                  <div class="tl-item"><span class="step-num mono muted">01</span><span class="act">navigate</span><span><b>/products/organic-tee</b><br><span class="obs">観測: 商品ページ表示、在庫あり（FX-7 適用済み）</span></span><div class="shot"></div></div>
+                  <div class="tl-item"><span class="step-num mono muted">02</span><span class="act">click(e41)</span><span><b>「カートに入れる」</b><br><span class="obs">観測: カート件数 0 → 1</span></span><div class="shot"></div></div>
+                  <div class="tl-item"><span class="step-num mono muted">03</span><span class="act">fill(e88)</span><span><b>クーポン欄に <code>WELCOME10</code></b>（FX-3 v4 · 2 行目）<br><span class="obs">観測: 割引行「-¥390」、合計 ¥3,510</span></span><div class="shot"><span class="hl" style="left:52%;top:58%;width:40%;height:14%"></span></div></div>
+                  <div class="tl-item"><span class="step-num mono muted">04</span><span class="act">fill(e102..e106)</span><span><b>配送先とテストカード 4242</b>（FX-9）<br><span class="obs">観測: 入力エラーなし</span></span><div class="shot"></div></div>
+                  <div class="tl-item"><span class="step-num mono muted">05</span><span class="act">click(e120)</span><span><b>「注文を確定する」</b><br><span class="obs">観測: /orders/complete に遷移、注文番号 SH-20481</span></span><div class="shot"></div></div>
+                  <div class="tl-item flag"><span class="step-num mono muted">06</span><span class="act">read_page</span><span><b>確認メールの到着を確認</b><br><span class="obs">観測: テスト用受信箱に該当メールなし（30 秒待機）。画面上の「確認メールを送信しました」文言のみ確認</span></span><div class="shot"><span class="hl" style="left:8%;top:22%;width:60%;height:12%"></span></div></div>
+                  <div class="tl-item"><span class="step-num mono muted">07</span><span class="act">finish</span><span><b>verdict: pass</b><br><span class="obs">「メールは非同期送信のため画面文言で代替確認」と自己申告</span></span><span></span></div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <header><span class="pin">4</span>LLM の判定理由 <span class="ai-tag">claude-sonnet-5-5 · judge-rubric v3</span></header>
+                <div class="body">
+                  <div class="reason">
+                    <span><b>AC-12.3-a 割引後の金額で決済されたか:</b> 合格。手順 03 の合計 ¥3,510 と完了画面の請求額 ¥3,510 が一致（<a href="#">03 のスクショ</a> / <a href="#">05 のスクショ</a>）。</span>
+                    <span><b>AC-12.3-b 決済が完了したか:</b> 合格。注文番号 SH-20481 が表示（<a href="#">05 のスクショ</a>）。</span>
+                    <span><b>AC-12.3-c 注文確認メールが届いたか:</b> 根拠不十分。受信箱で確認できず、画面文言のみ（<a href="#">06 のスクショ</a>）。</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel confirm">
+                <header><span class="pin">5</span>レビューして確定</header>
+                <div class="body">
+                  <label for="s06-reason">判定の理由（必須）<textarea id="s06-reason">staging のメール送信はキュー経由で最大 2 分遅延する。受信箱を手動確認し、11:42 に SH-20481 の確認メール到着を確認した。</textarea></label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                    <button class="btn pass">合格で確定</button>
+                    <button class="btn fail">不合格で確定</button>
+                    <button class="btn">再実行する</button>
+                    <span class="spacer" style="flex:1"></span>
+                    <span class="small muted">確定すると judge_kind = human の判定として記録</span>
+                  </div>
+                  <div class="ai-box">
+                    <div class="ai-head"><span class="pin">6</span>ルーブリック・手順の改善フィードバック</div>
+                    <span class="small">このレビューから TC-130 の改善案を作りますか？ 例: 「手順 6 の待機時間を 30 秒 → 150 秒に」「メール確認は assert（受信箱 API）に置き換え」</span>
+                    <div style="display:flex;gap:8px"><button class="btn ai">改善案を作成</button><button class="btn ghost">今回は不要</button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3><p>AI の実行を「見て納得できる」ようにし、確定できなかったものだけを人が短時間でレビューする。人の判断をルーブリックと手順の改善につなげる。</p></div>
+      <div class="card"><h3>注記</h3><ol class="notes">
+        <li><span class="pin">1</span><span>レビューキュー。<code>runs.verdict = needs_review</code> を優先度 → 古い順に並べる。プロジェクト横断の <code>/review</code> と同じ並び。</span></li>
+        <li><span class="pin">2</span><span>ジャッジごとの結果と、判定ポリシーが最終判定をどう決めたか。なぜ要確認なのかを 1 行で説明する。</span></li>
+        <li><span class="pin">3</span><span>エージェントの行動（ツール呼び出し）と観測の組。思考の要約ではなく、実際の操作と画面の変化を見せる。疑わしい行は紫で強調。</span></li>
+        <li><span class="pin">4</span><span>LLM ジャッジの理由。AC の下位項目ごとに、根拠のスクリーンショットへリンクする。</span></li>
+        <li><span class="pin">5</span><span>人の確定。理由が空だと確定できない。</span></li>
+        <li><span class="pin">6</span><span>レビュー結果から TC・ルーブリックの改善案を作る（<code>ai_suggestions.kind = triage</code>）。</span></li>
+      </ol></div>
+      <div class="card"><h3>表示データ</h3><ul class="small">
+        <li>キュー: <code>runs</code>（verdict = needs_review）+ <code>test_cases</code>（priority）</li>
+        <li>判定の内訳: <code>judgements</code>（judge_kind, verdict, confidence, reason, model, prompt_version）、<code>test_case_versions.decision_policy_json</code></li>
+        <li>タイムライン: <code>run_steps</code> と <code>evidence</code>（kind = transcript / screenshot / a11y / trace）</li>
+        <li>コスト・所要時間: <code>runs.cost_json</code>、started_at / finished_at</li>
+        <li>使用データ: <code>runs.fixture_versions_json</code></li>
+      </ul></div>
+      <div class="card"><h3>操作</h3><ul class="small">
+        <li>合格で確定 / 不合格で確定（理由必須）→ <code>judgements</code> に human を追加し <code>runs.verdict</code> を更新</li>
+        <li>再実行（同じ TC バージョン・同じデプロイで新しいランを作成）</li>
+        <li>不合格で確定時に GitHub Issue 作成（S05 と同じフォーム）</li>
+        <li>改善案の作成 → S04 の AI 提案に表示</li>
+        <li>スクリーンショットの拡大・前後比較、Playwright トレースのダウンロード</li>
+      </ul></div>
+      <div class="card"><h3>AI の役割</h3><ul class="small">
+        <li>エージェント（<code>claude-opus-5-5</code>）が自然言語手順を自前ツールで実行し、行動と観測を記録。</li>
+        <li>LLM ジャッジ（<code>claude-sonnet-5-5</code>）が証拠とルーブリックから構造化出力で判定。</li>
+        <li>人の確定理由を学習材料として、手順・待機時間・ジャッジ種類の改善案を提案。</li>
+      </ul></div>
+      <div class="card"><h3>この画面の完了条件</h3><ul class="small">
+        <li>判定の内訳に「なぜこの最終判定になったか」がポリシーのどの規則によるかとともに表示される。</li>
+        <li>LLM の理由の各項目から、根拠のスクリーンショットへ 1 クリックで移動できる。</li>
+        <li>タイムラインはツール呼び出し単位で表示し、各行にスクリーンショットのサムネイルが付く。</li>
+        <li>理由なしでは確定ボタンが無効。確定後、キューから消え、次の要確認ランが自動で開く。</li>
+        <li>確定した人・時刻・理由が <code>judgements</code> と <code>activity_log</code> に残り、後から変更しても履歴が消えない。</li>
+        <li>キュー件数が左ナビの「レビュー待ち」と一致する。</li>
+        <li>guest はこの画面を開けない。</li>
+      </ul></div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+    <div class="grid two">
+      <div class="panel">
+        <header><span class="id">RUN-1032</span> 有効クーポンで割引が反映される <span class="badge st-pass">合格</span></header>
+        <div class="rows judge">
+          <div class="row head"><span>ジャッジ</span><span>結果</span><span>信頼度</span><span>内容</span></div>
+          <div class="row"><span class="mono">assert</span><span class="badge st-pass">合格</span><span class="muted">—</span><span>割引行の存在 · 合計 ¥3,510</span></div>
+          <div class="row"><span class="mono">llm</span><span class="badge st-pass">合格</span><span class="meter"><span class="bar"><span class="pass" style="width:93%"></span></span>0.93</span><span>ルーブリック全項目合格</span></div>
+          <div class="row"><span class="mono">policy</span><span class="badge st-pass">合格</span><span class="muted">—</span><span>assert 全合格・llm 信頼度 0.8 以上で自動確定</span></div>
+        </div>
+        <div class="body"><span class="small muted">自動確定したランはキューに入らない。ビューアは閲覧のみで、「判定を覆す」（理由必須）だけ操作できる。</span></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>状態</th><th>表示</th></tr></thead>
+        <tbody>
+          <tr><td>実行中</td><td><span class="badge st-running">実行中</span> タイムラインが数秒ごとに伸びる。「停止」ボタン</td></tr>
+          <tr><td>判定中</td><td><span class="badge st-running">判定中</span> ジャッジ表に処理中の行</td></tr>
+          <tr><td>エラー</td><td><code>runs.state = error</code>。ブラウザ起動失敗・タイムアウトなどの原因と再実行ボタン。判定は付けない</td></tr>
+          <tr><td>実行不可</td><td><span class="badge st-blocked">実行不可</span> エージェントがログインやデータ不足で進めなかった。原因のステップを強調</td></tr>
+          <tr><td>キューが空</td><td>「レビュー待ちはありません。最後の確定: 佐藤 美咲 · 10 分前」</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <nav class="pager">
+    <a href="s05-manual-runner.html"><small>前へ</small>S05 テスト実行（手動ランナー）</a>
+    <a href="s07-fixtures.html" style="text-align:right"><small>次へ</small>S07 フィクスチャ管理</a>
+  </nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>環境・アクセス画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .env-guide { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: grid; gap: 8px; }
+  .env-guide h5 { margin: 0; font-size: 12.5px; }
+  .env-guide ol { padding-left: 1.3em; display: grid; gap: 2px; }
+  .mask { font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--fg-muted); }
+  .two-col { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .log { font-family: var(--font-mono); font-size: 11.5px; background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; display: grid; gap: 2px; }
+  .ok { color: var(--pass); } .ng { color: var(--fail); } .warn { color: var(--blocked); }
+  .mini-mock { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); padding: 12px; display: grid; gap: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S09 環境・アクセス</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S09 · 画面</div>
+    <h1>環境・アクセス</h1>
+    <p class="lead">テスト対象アプリの「どこで・どうやって入るか」を 1 か所にまとめる画面です。テスターはここ（またはマイタスクのリンク）から、URL・ログイン情報・データのリセット方法を迷わず確認できます。</p>
+    <div class="meta-row">
+      <span>ルート <code>/p/[key]/environments</code>、<code>/p/[key]/environments/[name]</code></span>
+      <span>主な利用者 <b>manager・エンジニア（登録）／全テスター（参照）</b></span>
+      <span>関連 <a href="../spec/ux.html">UX・ユーザーフロー</a> ・ <a href="../guides/target-onboarding.html">テスト対象の登録ガイド</a> ・ <a href="../spec/architecture.html">アーキテクチャ</a></span>
+    </div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/environments/staging</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a href="s01-my-tasks.html">マイタスク<span class="count">7</span></a>
+          <a href="s06-agent-run-review.html">レビュー待ち<span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a href="s02-release-readiness.html">リリース</a>
+          <a href="s03-spec-tree.html">仕様</a>
+          <a href="s08-plan-assign.html">テスト計画</a>
+          <a href="s06-agent-run-review.html">実行履歴</a>
+          <a href="s07-fixtures.html">フィクスチャ</a>
+          <a class="on" href="s09-environments.html">環境</a>
+          <a href="s11-github-deployments.html">デプロイメント</a>
+          <div class="group">AI</div>
+          <a href="s10-ai-import.html">仕様取り込み</a>
+        </nav>
+        <div class="app-main">
+          <div class="app-top">
+            <h2>環境</h2>
+            <span class="muted small">3 件 · 既定: staging</span>
+            <span class="spacer"></span>
+            <button class="btn" type="button">ガイドを編集</button>
+            <button class="btn primary" type="button">環境を追加</button>
+          </div>
+
+          <!-- 環境一覧 -->
+          <div class="panel">
+            <header><span class="pin">1</span>環境一覧</header>
+            <div class="rows">
+              <div class="row head" style="grid-template-columns: 110px 1.6fr 1.2fr 1fr 1.1fr 90px;">
+                <span>名前</span><span>URL</span><span>入り方</span><span>ヘルスチェック</span><span>現在のデプロイ</span><span></span>
+              </div>
+              <div class="row sel" style="grid-template-columns: 110px 1.6fr 1.2fr 1fr 1.1fr 90px;">
+                <span><b>staging</b> <span class="tag">既定</span></span>
+                <span class="mono small">staging.shop.example.com</span>
+                <span>Cloudflare Access<br><span class="muted small">サービストークン</span></span>
+                <span><span class="badge st-pass">正常</span><br><span class="muted small nums">200 · 412ms · 3分前</span></span>
+                <span><span class="id">a1b2c3d</span><br><span class="muted small">PR #482 · v2.4.0</span></span>
+                <span><button class="btn ghost" type="button">開く</button></span>
+              </div>
+              <div class="row" style="grid-template-columns: 110px 1.6fr 1.2fr 1fr 1.1fr 90px;">
+                <span><b>uat</b></span>
+                <span class="mono small">uat.shop.example.com</span>
+                <span>Basic 認証<br><span class="muted small">顧客 UAT 用</span></span>
+                <span><span class="badge st-pass">正常</span><br><span class="muted small nums">200 · 538ms · 3分前</span></span>
+                <span><span class="id">9f8e7d6</span><br><span class="muted small">v2.3.2</span></span>
+                <span><button class="btn ghost" type="button">開く</button></span>
+              </div>
+              <div class="row" style="grid-template-columns: 110px 1.6fr 1.2fr 1fr 1.1fr 90px;">
+                <span><b>preview</b> <span class="tag">PR ごと</span></span>
+                <span class="mono small">pr-{番号}.shop.example.com<br><span class="muted">稼働中 2 件: #482, #479</span></span>
+                <span>Cloudflare Access<br><span class="muted small">サービストークン</span></span>
+                <span><span class="badge st-blocked">一部失敗</span><br><span class="muted small nums">#479: 502 · 12分前</span></span>
+                <span><span class="id">a1b2c3d</span><br><span class="muted small">PR #482</span></span>
+                <span><button class="btn ghost" type="button">開く</button></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs"><span class="on">staging の詳細</span><span>実行履歴</span><span>変更履歴</span></div>
+
+          <div class="two-col">
+            <div style="display:grid; gap:14px; min-width:0;">
+              <!-- 入り方ガイド -->
+              <div class="panel">
+                <header><span class="pin">2</span>入り方ガイド <span class="spacer" style="flex:1"></span><span class="muted small" style="font-weight:400">最終更新 鈴木 翔 · 11/12</span></header>
+                <div class="body">
+                  <div class="env-guide">
+                    <h5>staging にログインしてテストを始める</h5>
+                    <ol>
+                      <li><b>https://staging.shop.example.com</b> を開く（社内 Google アカウントで Cloudflare の確認画面を通過）</li>
+                      <li>右上「ログイン」から、下の <b>テストアカウント</b> のどれかでログイン</li>
+                      <li>決済は <b>FX-9 テスト用クレジットカード</b>（4242 4242 4242 4242）を使う。本物のカードは使わない</li>
+                      <li>データがおかしくなったら、この画面の「データをリセット」を押す（約 40 秒）</li>
+                    </ol>
+                    <p class="muted small">メールは実際には送られず、<span class="mono">staging.shop.example.com/__mailbox</span> で確認できます。</p>
+                  </div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn primary" type="button">staging を新しいタブで開く</button>
+                    <button class="btn" type="button">ガイドの URL をコピー</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- テストアカウント -->
+              <div class="panel">
+                <header><span class="pin">3</span>テストアカウント <span class="id">FX-11</span> <span class="muted small" style="font-weight:400">staging 会員アカウント · v3</span></header>
+                <div class="rows">
+                  <div class="row head" style="grid-template-columns: 1.1fr 1.6fr 1.2fr 1fr;">
+                    <span>用途</span><span>ログイン ID</span><span>パスワード</span><span>状態</span>
+                  </div>
+                  <div class="row" style="grid-template-columns: 1.1fr 1.6fr 1.2fr 1fr;">
+                    <span>一般会員</span>
+                    <span class="mono small">member01@test.shop.example.com</span>
+                    <span><span class="mask">••••••••</span> <button class="btn ghost" type="button">コピー</button></span>
+                    <span><span class="badge st-pass">利用可</span></span>
+                  </div>
+                  <div class="row" style="grid-template-columns: 1.1fr 1.6fr 1.2fr 1fr;">
+                    <span>プレミアム会員</span>
+                    <span class="mono small">premium01@test.shop.example.com</span>
+                    <span><span class="mask">••••••••</span> <button class="btn ghost" type="button">コピー</button></span>
+                    <span><span class="badge st-pass">利用可</span></span>
+                  </div>
+                  <div class="row" style="grid-template-columns: 1.1fr 1.6fr 1.2fr 1fr;">
+                    <span>管理者</span>
+                    <span class="mono small">admin@test.shop.example.com</span>
+                    <span><span class="mask">••••••••</span> <span class="muted small">manager のみ</span></span>
+                    <span><span class="badge st-blocked">ロック中</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid; gap:14px; min-width:0;">
+              <!-- アクセス方式 -->
+              <div class="panel">
+                <header><span class="pin">4</span>アクセス方式</header>
+                <div class="body">
+                  <dl class="kv">
+                    <dt>方式</dt><dd>Cloudflare Access（サービストークン）</dd>
+                    <dt>Client ID</dt><dd><span class="mono small">secret: SHOP_STAGING_CF_CLIENT_ID</span></dd>
+                    <dt>Client Secret</dt><dd><span class="mono small">secret: SHOP_STAGING_CF_CLIENT_SECRET</span></dd>
+                    <dt>使う人</dt><dd>AI エージェント・スクリプト実行。人は自分の社内アカウントで通過</dd>
+                  </dl>
+                  <p class="muted small">値は Workers Secrets に保存。この画面には参照名だけを表示します。</p>
+                </div>
+              </div>
+
+              <!-- 接続テスト -->
+              <div class="panel">
+                <header><span class="pin">5</span>接続テスト <span style="flex:1"></span><button class="btn" type="button">接続テストを実行</button></header>
+                <div class="body">
+                  <div class="log">
+                    <span><span class="ok">✓</span> DNS 解決 staging.shop.example.com</span>
+                    <span><span class="ok">✓</span> Access 通過（サービストークン）</span>
+                    <span><span class="ok">✓</span> GET / → 200 · 412ms</span>
+                    <span><span class="ok">✓</span> member01 でログイン → /mypage</span>
+                    <span><span class="warn">!</span> admin はロック中（FX-11 の更新が必要）</span>
+                  </div>
+                  <span class="muted small">Browser Rendering から実行 · 11/19 10:42 · 佐藤 美咲</span>
+                </div>
+              </div>
+
+              <!-- リセットフック -->
+              <div class="panel">
+                <header><span class="pin">6</span>データのリセット・シード</header>
+                <div class="body">
+                  <dl class="kv">
+                    <dt>呼び出し</dt><dd><span class="mono small">POST /__test/reset</span></dd>
+                    <dt>認証</dt><dd><span class="mono small">secret: SHOP_STAGING_RESET_TOKEN</span></dd>
+                    <dt>本文</dt><dd><span class="mono small">{"fixtures": ["FX-7", "FX-3"]}</span></dd>
+                    <dt>タイムアウト</dt><dd class="nums">120 秒</dd>
+                    <dt>前回</dt><dd><span class="badge st-pass">成功</span> <span class="small muted nums">38 秒 · 11/19 09:58 · RUN-1032 の前処理</span></dd>
+                  </dl>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn" type="button">データをリセット</button>
+                    <button class="btn ghost" type="button">設定を編集</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong><span class="pin">7</span> preview 環境は自動で登録されます</strong>
+            <span class="small">GitHub から PR #482 の <span class="mono">deployment_status: success</span>（environment = <span class="mono">preview</span>）を受け取ると、URL <span class="mono">pr-482.shop.example.com</span> のデプロイメントを作成し、staging と同じ入り方・アカウント設定を引き継ぎます。PR がクローズされると「停止」に変わります。</span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3>
+        <p>テスト環境への入り方を属人化させない。テスターが「URL はどれ？」「ログインは？」「データが壊れたら？」を誰にも聞かずに解決できるようにする。</p>
+      </div>
+      <div class="card"><h3>注記</h3>
+        <ol class="notes">
+          <li><span class="pin">1</span><span>環境一覧。ヘルスチェックは runner の Cron が 5 分ごとに <code>GET base_url</code> を実行した最新結果。現在のデプロイは <code>deployments</code> の最新 1 件。</span></li>
+          <li><span class="pin">2</span><span><code>entry_guide_md</code> を Markdown でレンダリング。マイタスク（S01）と手動ランナー（S05）の「環境に入る」からも同じ内容を表示する。</span></li>
+          <li><span class="pin">3</span><span>kind=<code>account</code> のフィクスチャのうち、この環境に紐づくもの。パスワードは表示せず、コピー時だけサーバーから取得（監査ログに記録）。</span></li>
+          <li><span class="pin">4</span><span>秘密情報は参照名のみ。値の登録は <code>wrangler secret put</code> またはダッシュボードで行う。</span></li>
+          <li><span class="pin">5</span><span>接続テストは Browser Rendering で実際にページを開き、テストアカウントでのログインまで確認する。</span></li>
+          <li><span class="pin">6</span><span><code>reset_hook_json</code> の設定。テスト対象アプリ側に用意してもらうエンドポイント。実行前処理で自動的にも呼ばれる。</span></li>
+          <li><span class="pin">7</span><span>preview はテンプレート環境。PR ごとのデプロイメントとして扱い、環境自体は 1 行。</span></li>
+        </ol>
+      </div>
+      <div class="card"><h3>表示データ</h3>
+        <ul class="small">
+          <li><code>environments</code>: name, kind, base_url, access_kind, access_secret_ref, entry_guide_md, reset_hook_json, is_default</li>
+          <li><code>deployments</code>: environment_id ごとの最新 commit_sha, pr_number, release_id</li>
+          <li><code>fixtures</code> / <code>fixture_versions</code>: kind=account, environment_id = この環境</li>
+          <li>ヘルスチェック結果: <code>activity_log</code>（action = <code>env.health</code>）の最新</li>
+          <li>リセット結果: <code>activity_log</code>（action = <code>env.reset</code>）</li>
+        </ul>
+      </div>
+      <div class="card"><h3>操作</h3>
+        <ul class="small">
+          <li>環境を追加・編集（manager / admin）</li>
+          <li>入り方ガイドを編集（manager / tester。変更は履歴に残る）</li>
+          <li>環境を開く・ガイド URL をコピー（全員）</li>
+          <li>パスワードをコピー（tester 以上。admin アカウントは manager 以上）</li>
+          <li>接続テスト・データをリセット（tester 以上）</li>
+        </ul>
+      </div>
+      <div class="card"><h3>AI の役割</h3>
+        <ul class="small">
+          <li>接続テスト失敗時に、ログとスクリーンショットから原因候補を要約（例: 「Access のトークン期限切れの可能性」）。</li>
+          <li>リポジトリの README・docker-compose から入り方ガイドの下書きを提案（<span class="ai-tag">AI 提案</span> として表示、採用は人）。</li>
+        </ul>
+      </div>
+      <div class="card"><h3>この画面の完了条件</h3>
+        <ul class="small">
+          <li>環境一覧に名前・URL・入り方・最新ヘルスチェック（ステータスコード・応答時間・経過時間）・現在の commit が表示される。</li>
+          <li>入り方ガイドの Markdown が表示され、編集すると <code>activity_log</code> に差分が残る。</li>
+          <li>パスワード・トークンの値がページの HTML・API レスポンスに一度も含まれない（コピー操作時の専用エンドポイントのみ返す）。</li>
+          <li>guest は自分にアサインされた環境（例: uat）だけが見え、アクセス方式とリセット設定は表示されない。</li>
+          <li>「接続テスト」を押すと 60 秒以内に各チェックの成否が表示される。</li>
+          <li>「データをリセット」はリセットフックを呼び、成功 / 失敗と所要時間を表示する。実行中は二重実行できない。</li>
+          <li>preview の PR デプロイが GitHub から届くと、手動操作なしで一覧に反映される。</li>
+        </ul>
+      </div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>表示</th><th>次にやること</th></tr></thead>
+      <tbody>
+        <tr><td>環境が 0 件</td><td>「テスト対象の URL を登録しましょう」と、登録ガイド（GUIDE-02）へのリンク</td><td>[環境を追加] を強調表示</td></tr>
+        <tr><td>ヘルスチェック失敗</td><td>一覧の行に <span class="badge st-fail">停止中</span>、マイタスク上部にもバナー</td><td>この環境の計画アイテムに「環境が落ちています」と表示し、実行開始を止める</td></tr>
+        <tr><td>入り方ガイド未記入</td><td><span class="badge st-blocked">ガイドなし</span> と AI の下書き提案ボタン</td><td>manager に通知</td></tr>
+        <tr><td>リセット失敗</td><td>エラー本文（先頭 2,000 文字）とステータスコード</td><td>再実行 / 担当エンジニアに通知</td></tr>
+        <tr><td>guest（顧客）</td><td>自分の環境（uat）の URL・入り方ガイド・自分用アカウントのみ</td><td>他の環境・秘密情報の参照名は非表示</td></tr>
+        <tr><td>モバイル幅</td><td>一覧はカード表示（名前・状態・開くボタン）。詳細は 1 カラム</td><td>「開く」とパスワードコピーは片手で操作できるサイズ</td></tr>
+      </tbody>
+    </table></div>
+    <h3>guest から見た表示（例: 山本 様）</h3>
+    <div class="mini-mock" style="max-width:560px;">
+      <div style="display:flex; align-items:center; gap:8px;"><b>uat</b><span class="badge st-pass">正常</span><span class="mono small muted">uat.shop.example.com</span></div>
+      <div class="env-guide">
+        <h5>受け入れテストの始め方</h5>
+        <ol>
+          <li>URL を開き、ブラウザに表示されるユーザー名・パスワードを入力</li>
+          <li>サイト内では「株式会社サンプル 様用」アカウントでログイン</li>
+        </ol>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn primary" type="button">uat を開く</button><button class="btn" type="button">パスワードをコピー</button></div>
+    </div>
+  </section>
+
+  <nav class="pager">
+    <a href="s08-plan-assign.html"><small>前へ</small>S08 テスト計画・アサイン</a>
+    <a href="s10-ai-import.html" style="text-align:right"><small>次へ</small>S10 AI 仕様取り込み</a>
+  </nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

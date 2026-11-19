@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch アーキテクチャ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>アーキテクチャ</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#overview">全体構成</a></li>
+    <li><a href="#components">コンポーネントの責務</a></li>
+    <li><a href="#resources">Cloudflare リソース</a></li>
+    <li><a href="#wrangler">wrangler 設定例</a></li>
+    <li><a href="#auth">認証・認可</a></li>
+    <li><a href="#target-access">対象環境へのアクセス</a></li>
+    <li><a href="#pipeline">実行パイプライン</a></li>
+    <li><a href="#github">GitHub 連携</a></li>
+    <li><a href="#nfr">非機能要件</a></li>
+    <li><a href="#envs">環境とデプロイ</a></li>
+    <li><a href="#adr">主要な設計判断</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-05 · アーキテクチャ</div>
+      <h1>Cloudflare 上の構成</h1>
+      <p class="lead">INDX Watch は Worker 2 つ（UI + API の <code>indx-watch-web</code>、実行基盤の <code>indx-watch-runner</code>）と、D1・R2・Browser Rendering・Workflows・Queues・Access で構成します。自前のサーバー・コンテナは持ちません。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="data-model.html">データモデル</a> · <a href="ai.html">AI ネイティブ設計</a> · <a href="../guides/implementation.html">実装ガイド</a></span></div>
+    </header>
+
+    <section id="overview">
+      <h2>全体構成</h2>
+      <p>利用者のブラウザからのアクセスはすべて Cloudflare Access を通ります。例外は GitHub からの Webhook（署名で検証）だけです。テストの実行は web から runner にジョブを渡し、runner が Browser Rendering 上のブラウザで対象環境を操作します。</p>
+      <pre class="mermaid">flowchart LR
+  subgraph Users["利用者"]
+    U1["社内メンバー<br/>QA・エンジニア・ビジネス職"]
+    U2["顧客 guest"]
+    MC["MCP クライアント<br/>Claude Code など"]
+  end
+  GH["GitHub App"]
+  ACC["Cloudflare Access"]
+  subgraph CF["Cloudflare アカウント"]
+    WEB["indx-watch-web<br/>Next.js + OpenNext"]
+    RUN["indx-watch-runner<br/>Workflows / Queue consumer / Cron"]
+    D1[("D1 indx_watch")]
+    R2[("R2 indx-watch-files")]
+    Q[["Queue indx-watch-runs"]]
+    BR["Browser Rendering"]
+    AIG["AI Gateway"]
+    SS["Secrets Store"]
+  end
+  ANT["Anthropic API<br/>Claude"]
+  TGT["テスト対象環境<br/>staging / uat / preview"]
+
+  U1 --> ACC
+  U2 --> ACC
+  MC -- "サービストークン" --> ACC
+  ACC --> WEB
+  GH -- "Webhook HMAC 署名" --> WEB
+  WEB --> D1
+  WEB --> R2
+  WEB -- "service binding" --> RUN
+  WEB --> Q
+  Q --> RUN
+  RUN --> D1
+  RUN --> R2
+  RUN --> BR
+  RUN --> SS
+  BR --> TGT
+  WEB --> AIG
+  RUN --> AIG
+  AIG --> ANT
+  RUN -- "Check Run / Issue" --> GH
+  WEB -- "PR コメント" --> GH</pre>
+    </section>
+
+    <section id="components">
+      <h2>コンポーネントの責務</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>コンポーネント</th><th>やること</th><th>やらないこと</th></tr></thead>
+        <tbody>
+          <tr><td><code>apps/web</code><br/><span class="muted small">Worker: indx-watch-web</span></td><td>全画面（S01〜S11）の描画。Server Actions による仕様・計画・フィクスチャの更新。Access JWT の検証とロール判定。GitHub Webhook 受信。MCP サーバー（<code>/mcp</code>）。AI 仕様取り込みなど対話的な AI 呼び出し。</td><td>ブラウザ操作。長時間処理（30 秒を超えるもの）は runner に渡す。</td></tr>
+          <tr><td><code>apps/runner</code><br/><span class="muted small">Worker: indx-watch-runner</span></td><td>Queue の消費。RunWorkflow による実行の各ステップ（準備・ブラウザ操作・証拠保存・ジャッジ・確定）。Cron による定期実行。GitHub への Check Run 更新と Issue 作成。</td><td>画面の描画。利用者からの直接アクセス（公開ルートを持たない）。</td></tr>
+          <tr><td><code>packages/core</code></td><td>ドメイン型（zod）、判定ポリシー、ジャッジ（assert / visual / llm）、LLM クライアント、ID 生成、権限チェック関数。</td><td>I/O を直接持たない。D1・R2 はバインディングを引数で受け取る。</td></tr>
+          <tr><td><code>packages/db</code></td><td>Drizzle スキーマ、マイグレーション SQL、よく使うクエリ。</td><td>ビジネスルール（core に置く）。</td></tr>
+          <tr><td>D1 <code>indx_watch</code></td><td>すべてのメタデータの正（仕様・計画・実行・判定・監査ログ）。</td><td>バイナリの保存。</td></tr>
+          <tr><td>R2 <code>indx-watch-files</code></td><td>スクリーンショット・トレース・フィクスチャ本体・ベースライン画像・取り込み元ファイル。</td><td>検索用メタデータ（D1 に置く）。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="resources">
+      <h2>Cloudflare リソース一覧</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>名前</th><th>種類</th><th>バインディング</th><th>使う Worker</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>indx_watch</code></td><td>D1</td><td><code>DB</code></td><td>web / runner</td><td>メタデータ全部。Time Travel を有効化</td></tr>
+          <tr><td><code>indx-watch-files</code></td><td>R2</td><td><code>BUCKET</code></td><td>web / runner</td><td>証拠・フィクスチャ・ベースライン。署名付き URL で配信</td></tr>
+          <tr><td>Browser Rendering</td><td>Browser</td><td><code>BROWSER</code></td><td>runner</td><td>Playwright（<code>@cloudflare/playwright</code>）で対象環境を操作</td></tr>
+          <tr><td><code>run-workflow</code></td><td>Workflows</td><td><code>RUN_WORKFLOW</code></td><td>runner</td><td>1 実行 = 1 Workflow インスタンス。ステップ単位でリトライ</td></tr>
+          <tr><td><code>indx-watch-runs</code></td><td>Queues</td><td><code>RUN_QUEUE</code></td><td>web（producer）/ runner（consumer）</td><td>実行ジョブの投入と並列度の制御</td></tr>
+          <tr><td><code>indx-watch-runs-dlq</code></td><td>Queues</td><td>—</td><td>runner</td><td>リトライ上限を超えたジョブ。画面に「実行エラー」として表示</td></tr>
+          <tr><td><code>indx-watch-runner</code></td><td>Service binding</td><td><code>RUNNER</code></td><td>web</td><td>実行のキャンセル、Workflow 状態の取得</td></tr>
+          <tr><td><code>indx-watch</code></td><td>AI Gateway</td><td>環境変数 <code>AI_GATEWAY_URL</code></td><td>web / runner</td><td>Anthropic API へのプロキシ。ログ・レート制限・コスト集計</td></tr>
+          <tr><td><code>indx-watch-secrets</code></td><td>Secrets Store</td><td><code>SECRETS</code></td><td>runner</td><td>対象環境の認証情報・テストアカウントのパスワード</td></tr>
+          <tr><td>Worker Secrets</td><td>Secrets</td><td><code>ANTHROPIC_API_KEY</code> ほか</td><td>web / runner</td><td>API キー・GitHub App 秘密鍵・Webhook シークレット</td></tr>
+          <tr><td>Cron Trigger</td><td>Cron</td><td>—</td><td>runner</td><td>毎分 <code>schedules</code> を確認し、期限の来たものを投入</td></tr>
+        </tbody>
+      </table></div>
+      <h3>シークレット</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>名前</th><th>置き場所</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Worker Secret（web / runner）</td><td>Claude API キー。AI Gateway 経由で使う</td></tr>
+          <tr><td><code>GITHUB_APP_ID</code> / <code>GITHUB_APP_PRIVATE_KEY</code></td><td>Worker Secret（web / runner）</td><td>GitHub App のインストールトークン発行</td></tr>
+          <tr><td><code>GITHUB_WEBHOOK_SECRET</code></td><td>Worker Secret（web）</td><td>Webhook の HMAC 検証</td></tr>
+          <tr><td><code>CF_ACCESS_TEAM_DOMAIN</code> / <code>CF_ACCESS_AUD</code></td><td>環境変数（web）</td><td>Access JWT の検証（秘密ではない）</td></tr>
+          <tr><td><code>R2_SIGNING_KEY</code></td><td>Worker Secret（web）</td><td>証拠ファイルの短期署名 URL 発行</td></tr>
+          <tr><td><code>env/shop-staging/cf-access</code> など</td><td>Secrets Store</td><td>対象環境・テストアカウントの秘密。D1 には参照名（<code>access_secret_ref</code> / <code>secret_ref</code>）だけを保存</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="wrangler">
+      <h2>wrangler 設定例</h2>
+      <p>値は例です。ID は <code>wrangler d1 create</code> などの出力で置き換えます。</p>
+      <h3>apps/web/wrangler.jsonc</h3>
+<pre><code>{
+  "name": "indx-watch-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "routes": [{ "pattern": "watch.indx.example", "custom_domain": true }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "indx_watch", "database_id": "xxxxxxxx", "migrations_dir": "../../packages/db/migrations" }
+  ],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "indx-watch-files" }],
+  "queues": { "producers": [{ "binding": "RUN_QUEUE", "queue": "indx-watch-runs" }] },
+  "services": [{ "binding": "RUNNER", "service": "indx-watch-runner" }],
+  "vars": {
+    "CF_ACCESS_TEAM_DOMAIN": "indx.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "（Access アプリの AUD タグ）",
+    "AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/（アカウントID）/indx-watch/anthropic",
+    "APP_ORIGIN": "https://watch.indx.example"
+  },
+  "observability": { "enabled": true }
+}</code></pre>
+      <h3>apps/runner/wrangler.jsonc</h3>
+<pre><code>{
+  "name": "indx-watch-runner",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "d1_databases": [{ "binding": "DB", "database_name": "indx_watch", "database_id": "xxxxxxxx" }],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "indx-watch-files" }],
+  "browser": { "binding": "BROWSER" },
+  "workflows": [{ "name": "run-workflow", "binding": "RUN_WORKFLOW", "class_name": "RunWorkflow" }],
+  "queues": {
+    "consumers": [{
+      "queue": "indx-watch-runs",
+      "max_batch_size": 1,
+      "max_concurrency": 4,
+      "max_retries": 3,
+      "dead_letter_queue": "indx-watch-runs-dlq"
+    }]
+  },
+  "secrets_store_secrets": [
+    { "binding": "SECRETS", "store_id": "xxxxxxxx", "secret_name": "*" }
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": { "AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/（アカウントID）/indx-watch/anthropic" },
+  "observability": { "enabled": true }
+}</code></pre>
+      <div class="callout warn"><strong>並列度</strong><p><code>max_concurrency</code> は Browser Rendering の同時ブラウザ数の上限（契約プランで決まる）より小さくします。web 側の手動実行（スクリーンショット添付のみ）はブラウザを使わないので、この上限の対象外です。</p></div>
+    </section>
+
+    <section id="auth">
+      <h2>認証・認可</h2>
+      <h3>Cloudflare Access の設定</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Access アプリ</th><th>パス</th><th>ポリシー</th><th>Worker 側の検証</th></tr></thead>
+        <tbody>
+          <tr><td>INDX Watch（メイン）</td><td><code>watch.indx.example/*</code></td><td>Allow: メールドメインが社内ドメイン（IdP: Google Workspace）<br/>Allow: 招待済み顧客のメールアドレス（ワンタイム PIN）<br/>セッション 24 時間</td><td><code>Cf-Access-Jwt-Assertion</code> を検証し、<code>users</code> と突き合わせる</td></tr>
+          <tr><td>GitHub Webhook</td><td><code>watch.indx.example/api/github/webhook</code></td><td>Bypass（誰でも到達可）</td><td><code>X-Hub-Signature-256</code> を <code>GITHUB_WEBHOOK_SECRET</code> で HMAC 検証。失敗は 401</td></tr>
+          <tr><td>MCP</td><td><code>watch.indx.example/mcp</code></td><td>Service Auth: 発行したサービストークンのみ</td><td>JWT の <code>common_name</code>（サービストークン ID）を <code>users</code>（kind = agent）に対応付け、その所有者の権限で動かす</td></tr>
+        </tbody>
+      </table></div>
+      <p>顧客を招待するときは、manager が S09 から招待し、その場でメールアドレスを Access ポリシー（Access の API を使用）と <code>users</code>（role = guest）に追加します。招待を外すと両方から削除します。</p>
+
+      <h3>リクエストごとの流れ</h3>
+      <pre class="mermaid">sequenceDiagram
+  participant B as ブラウザ
+  participant A as Cloudflare Access
+  participant W as indx-watch-web
+  participant D as D1
+  B->>A: GET /p/SHOP/releases/v2.4.0
+  A->>A: IdP または OTP でログイン済みか確認
+  A->>W: リクエスト + Cf-Access-Jwt-Assertion
+  W->>W: JWT 検証（チーム証明書 certs で署名、aud = CF_ACCESS_AUD、exp）
+  W->>D: users を email で検索（なければ社内ドメインのみ tester で作成）
+  D-->>W: user（role）+ project_members
+  W->>W: 権限チェック（core/authz）
+  W-->>B: 画面（guest は自分のアサイン分だけ）</pre>
+      <ul>
+        <li>JWT 検証は <code>jose</code> の <code>createRemoteJWKSet</code> で <code>https://{CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs</code> を取得し、<code>jwtVerify</code> で <code>issuer</code> と <code>audience</code> を確認します。鍵セットは Worker のメモリにキャッシュします。</li>
+        <li>ローカル開発では <code>DEV_USER_EMAIL</code> を設定したときだけ検証をスキップします（本番ビルドでは無効）。</li>
+        <li>社内ドメイン以外のメールで <code>users</code> に存在しない場合は 403 にします（自動作成しない）。</li>
+      </ul>
+
+      <h3>ロールと権限</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>操作</th><th>admin</th><th>manager</th><th>tester</th><th>guest</th></tr></thead>
+        <tbody>
+          <tr><td>プロジェクト・環境の作成・設定</td><td>可</td><td>担当プロジェクトのみ</td><td>不可</td><td>不可</td></tr>
+          <tr><td>仕様（UC / AC / TC）の作成・編集</td><td>可</td><td>可</td><td>可（draft のみ。ready 化は manager）</td><td>不可</td></tr>
+          <tr><td>テスト計画・アサイン</td><td>可</td><td>可</td><td>自分を担当に設定のみ</td><td>不可</td></tr>
+          <tr><td>テスト実行・判定</td><td>可</td><td>可</td><td>可</td><td>自分にアサインされた項目のみ</td></tr>
+          <tr><td>レビューキューでの最終判定</td><td>可</td><td>可</td><td>可（P0 は manager 以上）</td><td>不可</td></tr>
+          <tr><td>フィクスチャの閲覧・更新</td><td>可</td><td>可</td><td>可</td><td>アサイン項目で使うものの閲覧のみ（account の秘密値は不可）</td></tr>
+          <tr><td>AI 提案の承認</td><td>可</td><td>可</td><td>可（draft 化まで）</td><td>不可</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout rule"><strong>guest の行レベル制限</strong><p>guest のクエリは必ず <code>plan_items.assignee_id = 自分</code> から辿れる行だけを返します。core の <code>scopeForUser()</code> がクエリに条件を付け、画面側で個別に絞り込まないようにします。証拠ファイルの署名 URL も同じ条件で発行します。</p></div>
+    </section>
+
+    <section id="target-access">
+      <h2>対象環境へのアクセス</h2>
+      <p>テスト対象の環境（<code>environments</code>）ごとに「どうやって入るか」を <code>access_kind</code> で持ちます。runner はブラウザを起動するときに、ここから認証情報を組み立ててブラウザコンテキストに設定します。秘密値はモデルにも画面にも出しません。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>access_kind</th><th>例</th><th>runner の処理</th><th>人がテストするとき</th></tr></thead>
+        <tbody>
+          <tr><td><code>none</code></td><td>公開ステージング</td><td>何もしない</td><td>URL を開くだけ</td></tr>
+          <tr><td><code>cf_access</code></td><td><code>staging</code> https://staging.shop.example.com</td><td>Secrets Store の <code>access_secret_ref</code> から Client ID / Secret を取り出し、<code>CF-Access-Client-Id</code> / <code>CF-Access-Client-Secret</code> を対象オリジンへのリクエストにだけ付ける（<code>extraHTTPHeaders</code> ではなく route で付与し、他ドメインに漏らさない）</td><td>社内アカウントで Access ログイン（S09 に手順を表示）</td></tr>
+          <tr><td><code>basic</code></td><td><code>uat</code> https://uat.shop.example.com</td><td><code>httpCredentials</code> を設定</td><td>S09 の「ログイン情報を表示」で確認（閲覧ログを記録）</td></tr>
+          <tr><td><code>ip_allowlist</code></td><td>社内ネットワーク限定の環境</td><td>Browser Rendering の送信元 IP は固定ではないため、原則使わない。必要なら対象側を Access 保護に切り替える</td><td>VPN 接続などの手順を <code>entry_guide_md</code> に書く</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li>テストアカウント（fixture kind = <code>account</code>）のパスワードも Secrets Store に置き、<code>fixture_versions.secret_ref</code> に参照名だけを保存します。</li>
+        <li>エージェントが入力するときは、モデルには <code>{{FX-11.password}}</code> というプレースホルダだけを見せ、<code>fill</code> ツールの実行時に runner が置き換えます（<a href="ai.html#agent">AI ネイティブ設計</a>）。</li>
+        <li>証拠のスクリーンショットでは、<code>type=password</code> の入力欄とフィクスチャで「マスク」指定した要素を塗りつぶしてから保存します。</li>
+      </ul>
+    </section>
+
+    <section id="pipeline">
+      <h2>実行パイプライン</h2>
+      <p>実行（<code>runs</code>）は手動・エージェント・スクリプトのどれでも同じ行で表します。ブラウザを使うのは agent / script / hybrid の機械実行部分だけで、manual は web 上で人が進めます。</p>
+      <pre class="mermaid">sequenceDiagram
+  participant W as web
+  participant Q as Queue
+  participant R as runner
+  participant WF as RunWorkflow
+  participant BR as Browser Rendering
+  participant T as 対象環境
+  participant AI as AI Gateway / Claude
+  participant D as D1 / R2
+  W->>D: runs を作成（state = queued）
+  W->>Q: { run_id }
+  Q->>R: メッセージ（並列度 max_concurrency）
+  R->>WF: create(run_id)
+  WF->>D: step 1 準備: TC バージョン・フィクスチャ版を解決し fixture_versions_json に固定
+  WF->>T: step 2 リセットフック（reset_hook_json）とシード投入
+  WF->>BR: step 3 ブラウザ起動（認証情報を設定）
+  loop 各ステップ
+    WF->>BR: 操作（script または エージェント）
+    BR->>T: 画面操作
+    WF->>AI: エージェントの次の行動（agent / hybrid のみ）
+    WF->>D: step 4 証拠を R2 に保存、run_steps を更新
+  end
+  WF->>AI: step 5 ジャッジ（llm）
+  WF->>D: step 6 判定ポリシーで verdict を確定（state = completed）
+  WF->>W: step 7 通知（アサイン者・Slack）と GitHub Check Run / Issue</pre>
+      <h3>Workflow のステップとリトライ</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ステップ</th><th>内容</th><th>タイムアウト</th><th>リトライ</th><th>失敗時</th></tr></thead>
+        <tbody>
+          <tr><td>prepare</td><td>TC バージョンとフィクスチャ版の解決。<code>runs.fixture_versions_json</code> に固定</td><td>30 秒</td><td>3 回（指数）</td><td>state = error</td></tr>
+          <tr><td>reset</td><td>環境のリセットフック・シード投入（HTTP 呼び出し）</td><td>2 分</td><td>2 回</td><td>verdict = blocked（理由: 前提データの準備に失敗）</td></tr>
+          <tr><td>browse</td><td>ブラウザ起動とステップ実行。ステップごとに証拠を保存</td><td>全体 15 分 / 1 操作 30 秒</td><td>ブラウザ起動のみ 2 回</td><td>途中までの証拠を残し verdict = blocked または fail（ジャッジに回す）</td></tr>
+          <tr><td>judge</td><td>assert / visual / llm ジャッジ</td><td>2 分</td><td>3 回（429 / 5xx のみ）</td><td>verdict = needs_review</td></tr>
+          <tr><td>finalize</td><td>判定ポリシー適用、<code>plan_items.latest_run_id</code> 更新、監査ログ</td><td>30 秒</td><td>3 回</td><td>state = error</td></tr>
+          <tr><td>notify</td><td>通知と GitHub 反映</td><td>1 分</td><td>5 回</td><td>結果は確定済み。通知だけ失敗として記録</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li>Workflow のステップは冪等にします（同じ <code>run_id</code> と <code>seq</code> で上書き）。</li>
+        <li>キャンセルは web から service binding 経由で Workflow インスタンスを terminate し、<code>runs.state = error</code>、verdict = <code>skipped</code> にします。</li>
+        <li>計画の一括実行（例: PLAN-4 の agent 対象 31 件）は 1 件ずつ Queue に入れ、<code>max_concurrency</code> で同時ブラウザ数を抑えます。</li>
+      </ul>
+    </section>
+
+    <section id="github">
+      <h2>GitHub 連携</h2>
+      <h3>GitHub App の権限</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>権限</th><th>レベル</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>Metadata</td><td>Read</td><td>必須</td></tr>
+          <tr><td>Contents</td><td>Read</td><td>PR 差分・変更ファイルの取得（影響分析）</td></tr>
+          <tr><td>Pull requests</td><td>Read &amp; write</td><td>影響テストの PR コメント</td></tr>
+          <tr><td>Checks</td><td>Read &amp; write</td><td>Check Run「INDX Watch」の作成・更新</td></tr>
+          <tr><td>Deployments</td><td>Read</td><td>デプロイメントの取り込み</td></tr>
+          <tr><td>Issues</td><td>Read &amp; write</td><td>失敗時の Issue 作成</td></tr>
+        </tbody>
+      </table></div>
+      <h3>受信イベント</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>イベント</th><th>条件</th><th>処理</th></tr></thead>
+        <tbody>
+          <tr><td><code>pull_request</code></td><td>opened / synchronize</td><td>差分を取得し、影響分析（<code>ai_suggestions.kind = impact</code>）を作成。PR に影響する TC の一覧をコメント（同じコメントを更新）</td></tr>
+          <tr><td><code>deployment_status</code></td><td>state = success</td><td><code>deployments</code> を作成（環境は <code>environment</code> 名で対応付け、PR 番号は ref から解決）。環境にスモーク計画が設定されていれば自動実行を投入し、Check Run を作成</td></tr>
+          <tr><td><code>release</code></td><td>published / prereleased</td><td><code>releases</code> を作成または更新（tag 名 = version）</td></tr>
+          <tr><td><code>installation</code> / <code>installation_repositories</code></td><td>—</td><td>インストール情報の記録。<code>projects.repo_full_name</code> との対応付け</td></tr>
+        </tbody>
+      </table></div>
+      <h3>出力の例</h3>
+      <div class="grid two">
+        <div class="card"><h3>Check Run（コミット a1b2c3d）</h3>
+<pre><code>INDX Watch — staging スモーク
+結果: 失敗（12 件中 pass 10 / fail 1 / needs_review 1）
+
+fail  SHOP-TC-129 期限切れクーポンでエラーが出る
+      → https://watch.indx.example/p/SHOP/runs/1029
+review SHOP-TC-130 割引後の金額で決済が完了する
+      → https://watch.indx.example/p/SHOP/runs/1033</code></pre>
+        <p class="small muted">P0 に fail があれば conclusion = failure、needs_review のみなら action_required。</p></div>
+        <div class="card"><h3>PR コメント（#482）</h3>
+<pre><code>INDX Watch: この PR で影響を受けそうなテスト（AI 推定）
+- SHOP-TC-128 有効クーポンで割引が反映される（P0・信頼度 0.91）
+- SHOP-TC-129 期限切れクーポンでエラーが出る（P1・0.88）
+- SHOP-TC-130 割引後の金額で決済が完了する（P0・0.74）
+理由: src/checkout/coupon.ts と src/checkout/total.ts の変更
+preview 環境で実行: https://watch.indx.example/p/SHOP/deployments</code></pre></div>
+        <div class="card"><h3>Issue（失敗時）</h3>
+<pre><code>[INDX Watch] SHOP-TC-129 期限切れクーポンでエラーが出る が失敗
+環境: staging@a1b2c3d / リリース v2.4.0
+失敗したステップ: 3「期限切れクーポン EXPIRED10 を入力して適用」
+期待: 「このクーポンは有効期限が切れています」と表示
+実際: エラー表示なし、割引が適用された
+証拠: スクリーンショット 2 枚（INDX Watch 上で閲覧）
+実行: https://watch.indx.example/p/SHOP/runs/1029</code></pre>
+        <p class="small muted">Issue 作成は自動ではなく、S06 / S05 の「Issue を作成」で人が実行（既定）。プロジェクト設定で P0 の fail のみ自動作成にできる。</p></div>
+      </div>
+    </section>
+
+    <section id="nfr">
+      <h2>非機能要件</h2>
+      <h3>性能目標</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>目標</th></tr></thead>
+        <tbody>
+          <tr><td>画面表示（S01 / S02 / S03、サーバー処理）</td><td>p95 500 ms 以下（D1 クエリは 1 画面 5 本以内）</td></tr>
+          <tr><td>手動ランナーのステップ記録</td><td>p95 300 ms 以下。スクリーンショット添付は R2 直接アップロード（署名 URL）</td></tr>
+          <tr><td>エージェント実行 1 件</td><td>中央値 3 分以内（10 ステップ程度の TC）</td></tr>
+          <tr><td>計画の一括実行</td><td>agent 対象 30 件を 30 分以内（並列 4）</td></tr>
+          <tr><td>データ規模の想定（初年度）</td><td>プロジェクト 10、TC 5,000、実行 月 2 万件、証拠 月 20 万ファイル</td></tr>
+        </tbody>
+      </table></div>
+      <h3>コスト見積もり（月額の目安）</h3>
+      <p class="small muted">前提: 実行 月 2 万件のうち機械実行 6,000 件（1 件 3 分・10 ステップ）、LLM ジャッジ 6,000 回、仕様取り込み 月 50 回。価格は 2026-11 時点の公開価格を元にした概算で、契約や為替で変わります。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>算出の前提</th><th>目安</th></tr></thead>
+        <tbody>
+          <tr><td>Workers（web / runner）</td><td>Workers Paid プラン、リクエスト・CPU は無料枠内に収まる想定</td><td class="nums">約 $5</td></tr>
+          <tr><td>D1</td><td>読み取り 数千万行・書き込み 数百万行、容量 2 GB 以内</td><td class="nums">$0〜$10</td></tr>
+          <tr><td>R2</td><td>保存 200 GB（180 日保持）、Class A 20 万回</td><td class="nums">約 $5</td></tr>
+          <tr><td>Browser Rendering</td><td>ブラウザ稼働 6,000 件 × 3 分 = 300 時間</td><td class="nums">約 $30</td></tr>
+          <tr><td>Workflows / Queues</td><td>6,000 インスタンス、数万メッセージ</td><td class="nums">数ドル</td></tr>
+          <tr><td>Claude（エージェント）</td><td><code>claude-opus-5-5</code>、1 件あたり入力 約 6 万 / 出力 約 4 千トークン（プロンプトキャッシュ前提）</td><td class="nums">約 $1,900</td></tr>
+          <tr><td>Claude（ジャッジ）</td><td><code>claude-sonnet-5-5</code>、1 回 入力 約 8 千 / 出力 約 500 トークン</td><td class="nums">約 $130</td></tr>
+          <tr><td>合計</td><td></td><td class="nums"><b>約 $2,100</b></td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>コストの大部分はエージェント実行</strong><p>安定した TC は script モードへ移す（AI が実行ログから Playwright スクリプトを提案）ことで、エージェント実行の件数を減らします。プロジェクトごとの月次上限を <code>projects.settings_json.ai_budget_usd</code> で設定し、超えたら agent 実行を止めて manager に通知します。</p></div>
+      <h3>監査・バックアップ・保持</h3>
+      <ul>
+        <li><b>監査ログ</b>: 仕様・計画・フィクスチャ・判定・権限の変更はすべて <code>activity_log</code> に差分付きで記録。ログイン情報の閲覧（S09）も記録します。</li>
+        <li><b>バックアップ</b>: D1 Time Travel（30 日以内の任意時点に戻せる）に加え、毎日 <code>wrangler d1 export</code> 相当のエクスポートを R2 の別バケット <code>indx-watch-backup</code> に保存（90 日保持）。</li>
+        <li><b>データ保持</b>: 証拠ファイル（<code>evidence/</code>）は R2 ライフサイクルで 180 日後に削除。D1 の <code>evidence</code> 行は残し「期限切れ」と表示。リリースの最終結果に使われた証拠は <code>retain</code> フラグで保持期間外にできます。フィクスチャとベースラインは削除しません。</li>
+        <li><b>可観測性</b>: Workers Observability（ログ・トレース）と AI Gateway のログを使い、独自の監視基盤は作りません。</li>
+      </ul>
+    </section>
+
+    <section id="envs">
+      <h2>環境とデプロイ</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>環境</th><th>用途</th><th>Cloudflare リソース</th><th>認証</th></tr></thead>
+        <tbody>
+          <tr><td>local</td><td>開発</td><td><code>wrangler dev</code> のローカル D1 / R2（Miniflare）。Browser Rendering は <code>--remote</code> 時のみ</td><td><code>DEV_USER_EMAIL</code> で疑似ログイン</td></tr>
+          <tr><td>staging</td><td>INDX Watch 自体の検証</td><td>名前に <code>-staging</code> を付けた別リソース（D1・R2・Queue）</td><td>Access（開発者のみ）</td></tr>
+          <tr><td>production</td><td>社内・顧客が使う本番</td><td>上記のリソース一覧</td><td>Access（社内ドメイン + 招待顧客）</td></tr>
+        </tbody>
+      </table></div>
+      <h3>デプロイ手順（GitHub Actions）</h3>
+      <ol class="steps">
+        <li><span><code>main</code> への push で CI: <code>pnpm install</code> → 型チェック → <code>vitest</code> → <code>opennextjs-cloudflare build</code>。</span></li>
+        <li><span>staging へ: <code>wrangler d1 migrations apply indx_watch-staging --remote</code> → <code>wrangler deploy --env staging</code>（runner → web の順）。</span></li>
+        <li><span>staging で INDX Watch 自身のスモーク計画を実行（INDX Watch で INDX Watch をテストする）。</span></li>
+        <li><span>タグ <code>watch-v*</code> の push で production へ同じ手順を実行。D1 マイグレーションは手動承認（GitHub Environments の required reviewers）を挟む。</span></li>
+      </ol>
+      <p class="small muted">Cloudflare API トークンは GitHub の Environment secret に置き、権限は Workers / D1 / R2 / Queues の編集に絞ります。</p>
+    </section>
+
+    <section id="adr">
+      <h2>主要な設計判断</h2>
+      <div class="grid two">
+        <div class="card"><span class="id">ADR-001</span><h3>Next.js + OpenNext で Workers に載せる</h3>
+          <p><b>決定</b>: UI と API を 1 つの Next.js（App Router）にまとめ、<code>@opennextjs/cloudflare</code> で Worker にする。</p>
+          <p><b>理由</b>: Server Components と Server Actions で API 層を別に書かずに済み、コード量が最も少ない。Workers のバインディング（D1 / R2 / Queue）をそのまま使える。</p>
+          <p><b>代わりに諦めること</b>: Node 専用ライブラリの一部。ブラウザ操作など重い処理は runner に分ける。</p></div>
+        <div class="card"><span class="id">ADR-002</span><h3>実行は Cloudflare Workflows</h3>
+          <p><b>決定</b>: 1 実行 = 1 Workflow インスタンスとし、準備・操作・ジャッジ・確定をステップに分ける。</p>
+          <p><b>理由</b>: 数分かかる処理を途中から再開でき、ステップ単位のリトライとタイムアウトが標準で付く。状態管理を自前で書かなくてよい。</p>
+          <p><b>代わりに諦めること</b>: ステップ間で渡せるデータは小さくする（大きなものは R2 に置いてキーだけ渡す）。</p></div>
+        <div class="card"><span class="id">ADR-003</span><h3>v1 では Durable Objects を使わない</h3>
+          <p><b>決定</b>: 実行中の進捗はポーリング（2 秒間隔、実行中の画面のみ）で表示する。</p>
+          <p><b>理由</b>: リアルタイム共同編集やロックの要件が v1 にはない。DO を入れると状態の置き場所が D1 と二重になる。</p>
+          <p><b>見直す条件</b>: 実行ビューアのライブ配信や同時編集が必要になったとき。</p></div>
+        <div class="card"><span class="id">ADR-004</span><h3>D1 を唯一の正にする</h3>
+          <p><b>決定</b>: 仕様・計画・結果は D1 が正。リポジトリへの YAML 書き出しは M3 以降に「エクスポート」として提供し、取り込みは AI 仕様取り込み経由とする。</p>
+          <p><b>理由</b>: ビジネス職がブラウザで編集でき、実行結果と同じ DB で結合できる。リポジトリと DB の双方向同期は衝突処理のコストが大きい。</p></div>
+        <div class="card"><span class="id">ADR-005</span><h3>エージェントは Playwright の自前ツールで操作する</h3>
+          <p><b>決定</b>: Claude の computer use ではなく、a11y ツリーの <code>ref</code> を使う自前ツール（navigate / click / fill など）で操作する。</p>
+          <p><b>理由</b>: DOM を直接扱えるので座標推定より安定し、トークンが少なく安い。操作ログがそのまま Playwright スクリプトに変換できる。</p>
+          <p><b>例外</b>: canvas 中心の UI だけ <code>computer_toolset_20260801</code> を検討する。</p></div>
+        <div class="card"><span class="id">ADR-006</span><h3>LLM 呼び出しは AI Gateway 経由</h3>
+          <p><b>決定</b>: Anthropic SDK の <code>baseURL</code> を AI Gateway に向ける。</p>
+          <p><b>理由</b>: 呼び出しログ・コスト集計・レート制限を自前で作らずに済む。</p></div>
+      </div>
+    </section>
+
+    <nav class="pager"><a href="data-model.html"><small>前へ</small>SPEC-04 データモデル</a><a href="ai.html"><small>次へ</small>SPEC-06 AI ネイティブ設計</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

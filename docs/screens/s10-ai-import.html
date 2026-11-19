@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>AI 仕様取り込み画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .src-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .src-pick label { border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 8px 10px; display: grid; gap: 2px; cursor: pointer; background: var(--surface); }
+  .src-pick label.on { border-color: var(--accent); background: var(--accent-soft); }
+  .src-pick small { color: var(--fg-muted); }
+  .split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.5fr); gap: 14px; align-items: start; }
+  .source-text { font-size: 12.5px; line-height: 1.8; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 6px; max-height: 420px; overflow: auto; }
+  mark { background: var(--review-soft); color: var(--fg); border-bottom: 2px solid var(--review); padding: 0 1px; }
+  .tree { display: grid; }
+  .node { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  .node:last-child { border-bottom: 0; }
+  .node.l1 { padding-left: 26px; } .node.l2 { padding-left: 42px; } .node.l3 { padding-left: 58px; }
+  .node .acts { display: flex; gap: 4px; align-items: center; }
+  .node .acts .btn { padding: 2px 8px; font-size: 11.5px; }
+  .node.dup { background: var(--blocked-soft); }
+  .node.rej { opacity: 0.55; text-decoration: line-through; }
+  .kind { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--fg-muted); }
+  .conf { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  .chk { width: 14px; height: 14px; margin-top: 3px; accent-color: var(--accent); }
+  .mini-mock { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); padding: 12px; display: grid; gap: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S10 AI 仕様取り込み</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S10 · 画面</div>
+    <h1>AI 仕様取り込み</h1>
+    <p class="lead">PRD・仕様書・スプレッドシート・GitHub の PR を読み込み、AI が機能・ユースケース・完了条件・テストケース・フィクスチャの案を出す画面です。採用した項目はすべて下書き（draft）として作られ、人が確認してから使えるようになります。</p>
+    <div class="meta-row">
+      <span>ルート <code>/p/[key]/specs/import</code>、<code>/p/[key]/specs/import/[suggestion]</code></span>
+      <span>主な利用者 <b>manager・PdM（高橋）・エンジニア</b></span>
+      <span>関連 <a href="../spec/ai.html">AI ネイティブ設計</a> ・ <a href="../spec/ux.html">UX・ユーザーフロー</a> ・ <a href="s03-spec-tree.html">S03 仕様ツリー</a></span>
+    </div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/specs/import/sug_01JD9K2X</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a href="s01-my-tasks.html">マイタスク<span class="count">7</span></a>
+          <a href="s06-agent-run-review.html">レビュー待ち<span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a href="s02-release-readiness.html">リリース</a>
+          <a href="s03-spec-tree.html">仕様</a>
+          <a href="s08-plan-assign.html">テスト計画</a>
+          <a href="s06-agent-run-review.html">実行履歴</a>
+          <a href="s07-fixtures.html">フィクスチャ</a>
+          <a href="s09-environments.html">環境</a>
+          <a href="s11-github-deployments.html">デプロイメント</a>
+          <div class="group">AI</div>
+          <a class="on" href="s10-ai-import.html">仕様取り込み</a>
+        </nav>
+        <div class="app-main">
+          <div class="app-top">
+            <h2>仕様取り込み</h2>
+            <span class="ai-tag">AI 提案</span>
+            <span class="spacer"></span>
+            <span class="muted small">履歴 12 件</span>
+          </div>
+
+          <!-- 入力 -->
+          <div class="panel">
+            <header><span class="pin">1</span>何から取り込みますか</header>
+            <div class="body">
+              <div class="src-pick">
+                <label class="on"><b>テキストを貼り付け</b><small>PRD・議事録・Notion のコピー</small></label>
+                <label><b>ファイル</b><small>PDF / Markdown / CSV（表計算の書き出し）· 20MB まで</small></label>
+                <label><b>GitHub の PR</b><small>PR 番号から差分と説明文を読む</small></label>
+              </div>
+              <div style="display:grid; grid-template-columns: minmax(0,1fr) 200px 200px auto; gap:8px; align-items:center;">
+                <span class="input" style="color:var(--fg-muted)">「v2.4.0 クーポン併用対応 PRD」本文 · 3,840 文字</span>
+                <span class="input">対象: FEAT-3 カート・決済</span>
+                <span class="input">リリース: v2.4.0</span>
+                <button class="btn ai" type="button">AI で案を作る</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 結果 -->
+          <div class="ai-box">
+            <div class="ai-head"><span class="pin">2</span>提案 16 件 · 新規 13 / 既存と重複の可能性 2 / 情報不足 1
+              <span style="flex:1"></span>
+              <span class="mono" style="font-weight:400; color:var(--fg-muted)">claude-opus-5-5 · prompt spec-import@v3 · 48 秒 · 11/19 11:05 高橋 由佳</span>
+            </div>
+          </div>
+
+          <div class="split">
+            <!-- 出典 -->
+            <div class="panel">
+              <header><span class="pin">3</span>出典（選択中の項目の根拠）</header>
+              <div class="body">
+                <div class="source-text">
+                  <p><b>3. クーポン</b></p>
+                  <p>3.1 ゲスト購入でもクーポンコードを入力できる。<mark>有効なコードを入力したら、カートの合計金額に割引額を反映し、内訳に「クーポン割引」行を表示する。</mark></p>
+                  <p>3.2 期限切れのコードは「このクーポンは有効期限が切れています」と表示し、合計は変えない。</p>
+                  <p>3.3 割引は 1 注文につき 2 枚まで併用可能。同じコードは 1 回のみ。</p>
+                  <p>3.4 割引後の金額で決済し、注文確認メールに割引額を記載する。</p>
+                  <p class="muted">3.5 キャンペーン期間中の上限金額は別途決定（TBD）。</p>
+                </div>
+                <span class="muted small">選択中: TC 案「有効クーポンで割引が反映される」← 3.1</span>
+              </div>
+            </div>
+
+            <!-- 提案ツリー -->
+            <div class="panel">
+              <header><span class="pin">4</span>提案ツリー <span style="flex:1"></span><span class="muted small" style="font-weight:400">選択 11 / 16</span></header>
+              <div class="tree">
+                <div class="node">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">機能</span> <span class="id">FEAT-3</span> カート・決済 <span class="muted small">既存に追加</span></span>
+                  <span class="acts"></span>
+                </div>
+                <div class="node l1 dup">
+                  <input class="chk" type="checkbox" aria-label="選択">
+                  <span><span class="kind">UC</span> ゲストがクーポンを使って購入する<br>
+                    <span class="badge st-blocked">UC-12 と 82% 類似</span> <span class="small muted">既存に統合を推奨</span></span>
+                  <span class="acts"><button class="btn" type="button">UC-12 に統合</button><button class="btn ghost" type="button">別に作る</button></span>
+                </div>
+                <div class="node l2">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">AC</span> 2 枚まで併用でき、同じコードは 1 回だけ使える <span class="tag">新規 → AC-12.4</span> <span class="conf">0.91</span></span>
+                  <span class="acts"><button class="btn" type="button">採用</button><button class="btn ghost" type="button">編集</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l2">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">AC</span> 注文確認メールに割引額が記載される <span class="tag">AC-12.3 に追記</span> <span class="conf">0.84</span></span>
+                  <span class="acts"><button class="btn" type="button">採用</button><button class="btn ghost" type="button">編集</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l3 sel" style="background:var(--accent-soft)">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">TC</span> 有効クーポンで割引が反映される <span class="prio p0">P0</span> <span class="tag">agent</span><br>
+                    <span class="badge st-blocked">TC-128 と 76% 類似</span> <span class="small muted">手順 5 · 期待結果 2 · FX-3 を使用</span></span>
+                  <span class="acts"><button class="btn" type="button">TC-128 を更新</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l3">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">TC</span> クーポン 2 枚を併用すると両方の割引が反映される <span class="prio p1">P1</span> <span class="tag">agent</span> <span class="conf">0.88</span></span>
+                  <span class="acts"><button class="btn" type="button">採用</button><button class="btn ghost" type="button">編集</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l3">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">TC</span> 同じコードを 2 回入力すると 2 回目はエラー <span class="prio p2">P2</span> <span class="tag">manual</span> <span class="conf">0.86</span></span>
+                  <span class="acts"><button class="btn" type="button">採用</button><button class="btn ghost" type="button">編集</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l1">
+                  <input class="chk" type="checkbox" checked aria-label="選択">
+                  <span><span class="kind">FX</span> 併用テスト用クーポン 2 種（10% / 500 円）<span class="tag">FX-3 v5 として追加</span> <span class="conf">0.80</span></span>
+                  <span class="acts"><button class="btn" type="button">採用</button><button class="btn ghost" type="button">編集</button><button class="btn ghost" type="button">却下</button></span>
+                </div>
+                <div class="node l1 rej">
+                  <input class="chk" type="checkbox" aria-label="選択">
+                  <span><span class="kind">AC</span> キャンペーン上限金額を超えると割引が上限で止まる <span class="conf">0.42</span></span>
+                  <span class="acts"><span class="small muted">却下済み</span></span>
+                </div>
+                <div class="node l1">
+                  <input class="chk" type="checkbox" aria-label="選択">
+                  <span><span class="kind">質問</span> 3.5「上限金額」が未定です。決まるまで AC を作りません <span class="badge st-review">情報不足</span></span>
+                  <span class="acts"><button class="btn ghost" type="button">担当者に質問</button></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span class="pin">5</span>
+            <span class="small">選択した 11 件を <b>下書き（draft）</b> として作成します。テストケースは仕様ツリーで「準備完了」にするまで計画に入りません。</span>
+            <span style="flex:1"></span>
+            <button class="btn" type="button">すべて却下</button>
+            <button class="btn primary" type="button">選択した 11 件を下書きで作成</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3>
+        <p>文書に書かれた要件を、手で写さずに仕様ツリー（機能 → UC → AC → TC）とフィクスチャに変換する。重複と情報不足を AI に見つけさせ、人は「採用するか」だけを判断する。</p>
+      </div>
+      <div class="card"><h3>注記</h3>
+        <ol class="notes">
+          <li><span class="pin">1</span><span>入力は 3 種類。ファイルは R2 の <code>imports/SHOP/{suggestion_id}/</code> に保存し、PR は GitHub App 経由で説明文と差分を取得。対象機能とリリースを指定すると提案の範囲が絞られる。</span></li>
+          <li><span class="pin">2</span><span>提案は <code>ai_suggestions</code>（kind=<code>spec_import</code>）1 行。モデル名・プロンプトバージョン・所要時間・実行者を必ず表示。</span></li>
+          <li><span class="pin">3</span><span>選択中の項目が根拠にした原文をハイライト。根拠のない提案は出さない（プロンプトで出典引用を必須にしている）。</span></li>
+          <li><span class="pin">4</span><span>既存の UC・TC との類似度を表示し、統合 / 更新 / 別に作る を選べる。更新を選ぶと既存 TC に新バージョンの下書きを作る。信頼度 0.5 未満は既定で未選択。</span></li>
+          <li><span class="pin">5</span><span>一括作成でも <code>origin = 'ai'</code>・<code>status = 'draft'</code>。ready への変更は S03 / S04 で人が行う。</span></li>
+        </ol>
+      </div>
+      <div class="card"><h3>表示データ</h3>
+        <ul class="small">
+          <li><code>ai_suggestions</code>: kind, source_json（入力の種類・R2 キー・PR 番号）, payload_json（提案ツリー・類似度・信頼度・出典範囲）, status, model, prompt_version</li>
+          <li>既存の <code>features</code> / <code>use_cases</code> / <code>acceptance_criteria</code> / <code>test_cases</code>（重複検出の比較対象）</li>
+          <li><code>fixtures</code>（既存フィクスチャへのバージョン追加の判定）</li>
+        </ul>
+      </div>
+      <div class="card"><h3>操作</h3>
+        <ul class="small">
+          <li>入力の種類を選び、AI で案を作る（manager / tester）</li>
+          <li>項目ごとに 採用 / 編集 / 却下、重複は 統合 / 更新 / 別に作る</li>
+          <li>選択した項目を下書きで一括作成</li>
+          <li>情報不足の質問を担当者に送る（コメントとして記録）</li>
+          <li>過去の取り込み履歴を開き、結果（採用 / 却下数）を見る</li>
+        </ul>
+      </div>
+      <div class="card"><h3>AI の役割</h3>
+        <ul class="small">
+          <li><code>claude-opus-5-5</code> で文書を構造化し、仕様ツリーとフィクスチャ案を構造化出力で返す。</li>
+          <li>既存仕様との類似度判定（埋め込みではなく、候補を絞ってから LLM で比較）。</li>
+          <li>TBD・矛盾・曖昧な箇所を「質問」として出し、勝手に補完しない。</li>
+          <li>優先度（P0〜P3）と実行モード（manual / agent など）を推定するが、確定は人。</li>
+        </ul>
+      </div>
+      <div class="card"><h3>この画面の完了条件</h3>
+        <ul class="small">
+          <li>テキスト・PDF / Markdown / CSV・PR 番号の 3 種類から提案を作れる。</li>
+          <li>提案の生成中は進捗が表示され、画面を離れても <code>ai_suggestions</code> に結果が残り、後から開ける。</li>
+          <li>すべての提案項目に出典範囲があり、選択すると原文がハイライトされる。</li>
+          <li>既存項目と類似度 70% 以上なら重複候補として表示され、統合 / 更新 / 別に作る を選べる。</li>
+          <li>一括作成で作られた UC・AC・TC・フィクスチャはすべて <code>origin = 'ai'</code>、TC は <code>status = 'draft'</code> で、<code>activity_log</code> に提案 ID とともに記録される。</li>
+          <li>却下した項目と理由は <code>payload_json</code> に残り、次回の取り込みで同じ提案を繰り返さない。</li>
+          <li>guest はこの画面にアクセスできない（404 ではなく権限エラーを表示）。</li>
+        </ul>
+      </div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>表示</th><th>次にやること</th></tr></thead>
+      <tbody>
+        <tr><td>初回（履歴なし）</td><td>入力欄と「PRD を貼り付けるだけで UC と TC の下書きができます」の説明、サンプル文書で試すボタン</td><td>入力の種類を選ぶ</td></tr>
+        <tr><td>生成中</td><td>段階表示: 読み込み → 構造化 → 既存仕様と照合 → 完了。目安 30〜90 秒</td><td>画面を離れても続行。完了をマイタスクに通知</td></tr>
+        <tr><td>提案 0 件</td><td>「テストにできる要件が見つかりませんでした」と AI の説明</td><td>範囲（機能）を指定して再実行</td></tr>
+        <tr><td>生成失敗</td><td>失敗理由（文書が大きすぎる・PR にアクセスできない・モデルの応答拒否など）</td><td>再試行 / 文書を分割</td></tr>
+        <tr><td>すべて処理済み</td><td>採用 / 却下の件数と、作成された下書きへのリンク</td><td>S03 で下書きを確認して「準備完了」に</td></tr>
+        <tr><td>モバイル幅</td><td>出典と提案ツリーを縦に並べる。採用 / 却下はボタンを行の下に配置</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <h3>一括作成後の確認（トースト）</h3>
+    <div class="mini-mock" style="max-width:560px;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"><span class="badge st-pass">作成しました</span><span class="small">下書き 11 件（AC 2 · TC 3 · TC 更新 1 · フィクスチャ 1 · ほか 4）</span></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn primary" type="button">仕様ツリーで確認</button><button class="btn ghost" type="button">取り消す（10 分以内）</button></div>
+    </div>
+  </section>
+
+  <nav class="pager">
+    <a href="s09-environments.html"><small>前へ</small>S09 環境・アクセス</a>
+    <a href="s11-github-deployments.html" style="text-align:right"><small>次へ</small>S11 GitHub・デプロイメント</a>
+  </nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>リリース準備状況画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .gate { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; border: 1px solid var(--fail); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+  .gate-verdict { display: grid; gap: 4px; align-content: center; border-right: 1px solid var(--line); padding-right: 16px; }
+  .gate-verdict b { font-size: 26px; color: var(--fail); font-family: var(--font-mono); letter-spacing: 0.02em; }
+  .conds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 16px; }
+  .cond { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 6px; align-items: baseline; font-size: 12.5px; }
+  .cond .ok { color: var(--pass); font-weight: 700; } .cond .ng { color: var(--fail); font-weight: 700; }
+  .cond .v { font-family: var(--font-mono); font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  .uc-row { padding-left: 30px !important; font-size: 12.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--fg-muted); }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S02 リリース準備状況</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S02 · 画面</div>
+    <h1>リリース準備状況</h1>
+    <p class="lead">1 つのリリースについて「出してよいか」を判断する画面です。Go / No-Go の条件ごとの充足、機能とユースケースごとの網羅と判定、デプロイメント別の結果、止まっている項目を 1 画面にまとめます。</p>
+    <div class="meta-row"><span>ルート <code>/p/[key]/releases/[version]</code></span><span>主な利用者 <b>manager</b>（例: 佐藤 美咲）・PdM・エンジニア</span><span>関連フロー <a href="../spec/ux.html#flow-manager">QA リードがリリースのテストを準備・判定する</a></span></div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/releases/v2.4.0</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a>マイタスク<span class="count">7</span></a>
+          <a>レビュー待ち<span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a class="on">リリース</a><a>仕様</a><a>テスト計画</a><a>実行履歴</a><a>フィクスチャ</a><a>環境</a><a>デプロイメント</a>
+          <div class="group">AI</div>
+          <a>仕様取り込み</a>
+        </nav>
+        <div class="app-main">
+          <div class="app-top">
+            <h2>v2.4.0</h2>
+            <span class="badge st-running">testing</span>
+            <span class="muted small">目標日 2026-12-03（あと 14 日）・計画 <span class="id">PLAN-4</span> v2.4.0 リグレッション</span>
+            <span class="spacer"></span>
+            <button class="btn" type="button">レポートを共有</button>
+            <button class="btn primary" type="button" disabled>リリース可にする</button>
+          </div>
+
+          <div class="gate">
+            <div class="gate-verdict"><span class="small muted">判定 <span class="pin">1</span></span><b>NO-GO</b><span class="small muted">6 条件中 2 つ充足</span></div>
+            <div class="conds">
+              <div class="cond"><span class="ng">×</span><span>P0 がすべて pass</span><span class="v">14 / 18</span></div>
+              <div class="cond"><span class="ng">×</span><span>P1 の合格率 95% 以上</span><span class="v">63%</span></div>
+              <div class="cond"><span class="ng">×</span><span>要確認が 0 件</span><span class="v">3 件</span></div>
+              <div class="cond"><span class="ng">×</span><span>未実行が 0 件</span><span class="v">25 件</span></div>
+              <div class="cond"><span class="ok">○</span><span>AC 網羅率 95% 以上</span><span class="v">98%</span></div>
+              <div class="cond"><span class="ok">○</span><span>最新デプロイで実行済み</span><span class="v">a1b2c3d</span></div>
+            </div>
+          </div>
+
+          <div class="ai-box">
+            <div class="ai-head"><span class="ai-tag">AI 要約</span> リスクの説明 <span class="pin">2</span><span class="muted" style="font-weight:400;margin-left:auto">claude-sonnet-5-5 ・ 11/19 09:12 時点のデータ</span></div>
+            <p>止めている要因は 3 つです。(1) P0 の <span class="id">TC-33</span> でログイン後にカートが空になる不具合が出ています（PR #482 のセッション処理変更と同時期）。(2) クーポン関連の UC-12 で <span class="id">TC-129</span> のエラー文言が仕様と違い、<span class="id">TC-130</span> は確認メールの判定が要確認です。(3) FEAT-4 返品の <span class="id">TC-152</span> はフィクスチャ <span class="id">FX-14</span> が staging に未登録でブロックされています。未実行 25 件のうち 10 件は FEAT-3 に集中しているため、田中さん・鈴木さんへの再配分を提案します。</p>
+            <div style="display:flex;gap:8px"><button class="btn ai" type="button">再配分案を見る</button><button class="btn ghost" type="button">根拠の実行を開く</button></div>
+          </div>
+
+          <div class="panel">
+            <header>機能 × ユースケースの網羅と判定 <span class="pin">3</span><span style="flex:1"></span>
+              <span class="legend"><span><i style="background:var(--pass)"></i>pass</span><span><i style="background:var(--fail)"></i>fail</span><span><i style="background:var(--blocked)"></i>blocked</span><span><i style="background:var(--review)"></i>要確認</span><span><i style="background:var(--untested-soft);border:1px solid var(--line-strong)"></i>未実行</span></span>
+            </header>
+            <div class="rows">
+              <div class="row head" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><span>機能 / ユースケース</span><span>AC 網羅</span><span>TC</span><span>最新判定の分布</span><span>状態</span></div>
+              <div class="row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><b><span class="id">FEAT-1</span> 会員登録・ログイン</b><span class="nums">15 / 15</span><span class="nums">22</span><span class="bar"><span class="pass" style="width:81.8%"></span><span class="fail" style="width:4.5%"></span></span><span class="badge st-fail">不合格あり</span></div>
+              <div class="row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><b><span class="id">FEAT-2</span> 商品検索</b><span class="nums">12 / 12</span><span class="nums">18</span><span class="bar"><span class="pass" style="width:66.7%"></span><span class="review" style="width:5.6%"></span></span><span class="badge st-review">要確認</span></div>
+              <div class="row sel" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><b><span class="id">FEAT-3</span> カート・決済 ▾</b><span class="nums">20 / 20</span><span class="nums">28</span><span class="bar"><span class="pass" style="width:50%"></span><span class="fail" style="width:7.1%"></span><span class="review" style="width:7.1%"></span></span><span class="badge st-fail">不合格あり</span></div>
+              <div class="row uc-row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><span><span class="id">UC-10</span> カートに商品を追加する</span><span class="nums">4 / 4</span><span class="nums">8</span><span class="bar"><span class="pass" style="width:87.5%"></span></span><span class="badge st-running">進行中</span></div>
+              <div class="row uc-row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><span><span class="id">UC-11</span> 会員が購入する</span><span class="nums">7 / 7</span><span class="nums">12</span><span class="bar"><span class="pass" style="width:50%"></span><span class="fail" style="width:8.3%"></span><span class="review" style="width:8.3%"></span></span><span class="badge st-fail">不合格あり</span></div>
+              <div class="row uc-row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><span><span class="id">UC-12</span> ゲストがクーポンを適用して購入する <span class="prio p0">P0</span></span><span class="nums">3 / 3</span><span class="nums">3</span><span class="bar"><span class="pass" style="width:33.3%"></span><span class="fail" style="width:33.3%"></span><span class="review" style="width:33.4%"></span></span><span class="badge st-fail">不合格あり</span></div>
+              <div class="row uc-row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><span><span class="id">UC-13</span> 配送先を変更する</span><span class="nums">6 / 6</span><span class="nums">5</span><span class="bar"></span><span class="badge st-untested">未着手</span></div>
+              <div class="row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px"><b><span class="id">FEAT-4</span> 注文履歴・返品</b><span class="nums" style="color:var(--blocked)">14 / 15</span><span class="nums">18</span><span class="bar"><span class="pass" style="width:44.4%"></span><span class="fail" style="width:5.6%"></span><span class="blocked" style="width:11.1%"></span></span><span class="badge st-blocked">ブロックあり</span></div>
+              <div class="row" style="grid-template-columns: minmax(0,1fr) 90px 50px 200px 100px; background:var(--surface-2)"><b>合計</b><b class="nums">61 / 62</b><b class="nums">86</b><span class="small muted nums">pass 52 / fail 4 / blocked 2 / 要確認 3 / 未実行 25</span><span></span></div>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <header>止まっている項目 <span class="pin">4</span></header>
+              <div class="rows">
+                <div class="row" style="grid-template-columns: 70px minmax(0,1fr) 90px"><span class="id">TC-33</span><span><span class="prio p0">P0</span> ログイン後にカートが空になる<br><span class="small muted">RUN-1011 ・ 鈴木 ・ Issue #491</span></span><span class="badge st-fail">fail</span></div>
+                <div class="row" style="grid-template-columns: 70px minmax(0,1fr) 90px"><span class="id">TC-129</span><span><span class="prio p1">P1</span> エラー文言が「クーポンが無効です」<br><span class="small muted">RUN-1029 ・ 田中 ・ Issue 未作成</span></span><span class="badge st-fail">fail</span></div>
+                <div class="row" style="grid-template-columns: 70px minmax(0,1fr) 90px"><span class="id">TC-130</span><span><span class="prio p0">P0</span> 確認メールの件名を判定できず（信頼度 0.62）<br><span class="small muted">RUN-1033 ・ Watch Agent → 確認待ち 田中</span></span><span class="badge st-review">要確認</span></div>
+                <div class="row" style="grid-template-columns: 70px minmax(0,1fr) 90px"><span class="id">TC-152</span><span><span class="prio p1">P1</span> <span class="id">FX-14</span> が staging に未登録<br><span class="small muted">田中 ・ 11/18 から</span></span><span class="badge st-blocked">blocked</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <header>デプロイメント別の結果 <span class="pin">5</span></header>
+              <div class="rows">
+                <div class="row head" style="grid-template-columns: minmax(0,1fr) 50px 130px"><span>デプロイ</span><span>実行</span><span>判定</span></div>
+                <div class="row" style="grid-template-columns: minmax(0,1fr) 50px 130px"><span><b>staging@a1b2c3d</b> <span class="tag">最新</span><br><span class="small muted">PR #482 クーポン併用に対応 ・ 11/18</span></span><span class="nums">61</span><span class="bar"><span class="pass" style="width:85%"></span><span class="fail" style="width:6.6%"></span><span class="blocked" style="width:3.3%"></span><span class="review" style="width:5.1%"></span></span></div>
+                <div class="row" style="grid-template-columns: minmax(0,1fr) 50px 130px"><span><b>preview pr-482</b><br><span class="small muted">エージェントのスモーク ・ 11/17</span></span><span class="nums">12</span><span class="bar"><span class="pass" style="width:100%"></span></span></div>
+                <div class="row" style="grid-template-columns: minmax(0,1fr) 50px 130px"><span><b>staging@9f8e7d6</b> <span class="small muted">（古い）</span><br><span class="small muted">11/14 ・ 結果は参考扱い</span></span><span class="nums">24</span><span class="bar"><span class="pass" style="width:92%"></span><span class="fail" style="width:8%"></span></span></div>
+                <div class="row" style="grid-template-columns: minmax(0,1fr) 50px 130px"><span><b>uat@a1b2c3d</b><br><span class="small muted">11/19 ・ 顧客 UAT 待ち</span></span><span class="nums">0</span><span class="small muted">未実行</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3><p>リリース判定を「感覚」ではなく条件の充足で決める。何が止めているかを、担当者と証拠つきで即座に辿れるようにする。</p></div>
+      <div class="card"><h3>注記</h3><ol class="notes">
+        <li><span class="pin">1</span><span>ゲート条件はプロジェクト設定 <code>projects.settings_json.gate</code> で定義。既定は図の 6 条件。全条件充足で GO。</span></li>
+        <li><span class="pin">2</span><span>AI 要約は表示データのみを入力に生成し、言及した TC / RUN をリンクにする。データ更新後は「古い要約」表示に変わり、再生成ボタンを出す。</span></li>
+        <li><span class="pin">3</span><span>判定は「TC ごとの、このリリースの最新デプロイに対する最新の実行」の verdict。古いデプロイの結果は数えない。AC 網羅 = 1 つ以上の ready な TC に紐づく AC 数 / AC 総数。</span></li>
+        <li><span class="pin">4</span><span>fail・blocked・needs_review を優先度順に表示。fail には Issue の有無を出し、[Issue を作成] が押せる。</span></li>
+        <li><span class="pin">5</span><span>このリリースに紐づく <code>deployments</code> を新しい順。最新以外の結果は「参考」として灰色表示。</span></li>
+      </ol></div>
+      <div class="card"><h3>表示データ</h3><ul class="small">
+        <li><code>releases</code>: version・status・target_date</li>
+        <li><code>test_plans</code> / <code>plan_items</code>（<code>release_id</code> で絞る）</li>
+        <li><code>runs</code>: plan_item ごとの <code>latest_run_id</code> の verdict</li>
+        <li><code>features</code> / <code>use_cases</code> / <code>acceptance_criteria</code> / <code>test_case_criteria</code>: 網羅率</li>
+        <li><code>deployments</code>: release_id・environment・commit_sha・pr_number</li>
+        <li><code>issues</code>: fail 実行の Issue リンク</li>
+        <li><code>ai_suggestions</code>（kind=<code>triage</code>）: 要約と再配分案</li>
+      </ul></div>
+      <div class="card"><h3>操作</h3><ul class="small">
+        <li>リリース可にする: GO のときだけ有効。<code>releases.status = ready</code>、<code>activity_log</code> に記録</li>
+        <li>NO-GO でも manager は「条件を例外承認して進める」を選べる（理由必須、記録される）</li>
+        <li>行クリック: 機能 → UC 展開、UC → S03、TC → S04、RUN → S05 / S06</li>
+        <li>レポートを共有: 読み取り専用 URL（Access 保護下）をコピー</li>
+      </ul></div>
+      <div class="card"><h3>AI の役割</h3><ul class="small">
+        <li>止めている要因をまとめ、関連する PR・変更を推定して説明する</li>
+        <li>未実行の再配分案（担当者の残件と過去実行時間から）を <code>ai_suggestions</code> として出す。適用は manager の承認後</li>
+        <li>AI は判定そのものを変えない</li>
+      </ul></div>
+      <div class="card"><h3>この画面の完了条件</h3><ul class="small">
+        <li>ゲート 6 条件の値が、同じデータを SQL で集計した値と一致する（テストで検証）</li>
+        <li>分布バーの合計がその行の TC 数と一致し、合計行が PLAN の件数と一致する</li>
+        <li>最新デプロイが変わると、それ以前の実行は判定集計から外れる</li>
+        <li>GO 以外で [リリース可にする] は押せない（例外承認を除く）。例外承認は理由なしで保存できない</li>
+        <li>AI 要約の各 TC / RUN 参照がリンクとして機能する。要約生成に失敗しても画面の他部分は表示される</li>
+        <li>guest はこの画面にアクセスできない（403）</li>
+      </ul></div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>表示</th></tr></thead>
+      <tbody>
+        <tr><td>GO</td><td>枠線が <code>--pass</code>、判定「GO」。[リリース可にする] が有効。AI 要約は「残リスク」（P2 以下の fail など）を説明する。</td></tr>
+        <tr><td>計画が未作成</td><td>ゲートの代わりに「このリリースにはテスト計画がありません」と [計画を作る（S08）]、[AI に計画を提案させる] を表示。</td></tr>
+        <tr><td>デプロイメントがない</td><td>「まだどの環境にもデプロイされていません」。GitHub 連携済みなら連携状態を表示し、未連携なら [手動でデプロイを登録] を出す。</td></tr>
+        <tr><td>released</td><td>読み取り専用。判定時点のスナップショット（日時・GO/例外承認・承認者）を上部に固定表示。</td></tr>
+        <tr><td>権限: tester</td><td>閲覧可。[リリース可にする] と例外承認は非表示。</td></tr>
+        <tr><td>モバイル幅</td><td>ゲート条件は 1 列、マトリクスは機能行のみ（タップで UC 展開）。分布バーは残す。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <nav class="pager"><a href="s01-my-tasks.html"><small>前へ</small>S01 マイタスク</a><a href="s03-spec-tree.html"><small>次へ</small>S03 仕様ツリー</a></nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

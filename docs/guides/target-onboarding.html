@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>テスト対象の登録ガイド</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#guides">ガイド</a><span class="sep">/</span><span>テスト対象の登録</span></nav>
+  <span class="layer-tag">Layer 2 · ガイド</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#purpose">このガイドの目的</a></li>
+    <li><a href="#flow">全体の流れ</a></li>
+    <li><a href="#env-checklist">環境ごとの必須情報</a></li>
+    <li><a href="#entry-guide">入り方ガイドの書き方</a></li>
+    <li><a href="#app-side">対象アプリ側に用意するもの</a></li>
+    <li><a href="#yaml">設定ファイル（任意）</a></li>
+    <li><a href="#uat">顧客 UAT 環境を開く</a></li>
+    <li><a href="#verify">動作確認チェックリスト</a></li>
+    <li><a href="#troubles">よくあるつまずき</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">GUIDE-02 · テスト対象の登録</div>
+      <h1>テスト対象（自社アプリ）の登録ガイド</h1>
+      <p class="lead">自社のアプリを INDX Watch でテストできる状態にする手順です。「どのリポジトリを・どの環境で・どうやって入って・どのデータで」テストするかを登録しておけば、テスターはマイタスクを開くだけで迷わずテストを始められます。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>対象 <b>QA リード・エンジニア</b></span><span>関連 <a href="../screens/s09-environments.html">S09 環境・アクセス</a> · <a href="../screens/s07-fixtures.html">S07 フィクスチャ管理</a></span></div>
+    </header>
+
+    <section id="purpose">
+      <h2>このガイドの目的</h2>
+      <p>テストが止まる原因の多くは、テストそのものではなく準備にあります。「staging の URL はどれ？」「ログインできない」「クーポンのテストデータがない」「前の人のデータが残っていて結果が変わる」。このガイドでは、これらを登録時に一度だけ解決します。</p>
+      <div class="grid two">
+        <div class="card"><h3>登録が終わった状態</h3><ul>
+          <li>プロジェクト（<span class="id">SHOP</span>）が GitHub リポジトリ <code>indxdev/indx-shop</code> とつながっている</li>
+          <li>環境（staging / uat / preview）ごとに URL・入り方・テストアカウントがそろっている</li>
+          <li>テストの前に環境を決まった状態に戻す手順（リセット / シード）がある</li>
+          <li>機能・ユースケース・完了条件・テストケースが登録され、スモーク計画が自動で動く</li>
+        </ul></div>
+        <div class="card"><h3>テスターから見た状態</h3><ul>
+          <li>マイタスクの各テストに「環境を開く」ボタンがあり、押すとそのまま対象画面に入れる</li>
+          <li>ログイン情報・テストカード番号・使うデータがテスト手順の横に出ている</li>
+          <li>「この環境の入り方」を読めば、VPN が要るか・誰に聞けばよいかが分かる</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2>全体の流れ</h2>
+      <p>上から順に進めます。1〜4 はエンジニア、5〜7 は QA リード（または PdM）が担当するのが基本です。SHOP の場合、合計で半日〜1 日が目安です。</p>
+      <ol class="steps">
+        <li><div>
+          <h3>プロジェクトを作り、GitHub App をインストールする</h3>
+          <p>INDX Watch で「プロジェクトを追加」→ キー（英大文字 2〜6 文字。例 <code>SHOP</code>）、名前、リポジトリ（<code>indxdev/indx-shop</code>）を入力します。続けて GitHub の組織に INDX Watch の GitHub App をインストールし、対象リポジトリへのアクセスを許可します。これでデプロイメント・PR・リリースの通知が届くようになります。</p>
+          <p class="muted small">必要な権限: Contents（読み取り）、Pull requests（読み書き）、Deployments（読み取り）、Checks（読み書き）、Issues（読み書き）、Metadata（読み取り）。</p>
+        </div></li>
+        <li><div>
+          <h3>環境を登録する（URL・入り方・アクセス方法）</h3>
+          <p><a href="../screens/s09-environments.html">S09 環境・アクセス</a> で環境を追加します。SHOP では <code>staging</code>（既定）、<code>uat</code>、<code>preview</code> の 3 つです。ベース URL、アクセス方法（<code>cf_access</code> / <code>basic</code> / <code>ip_allowlist</code> / <code>none</code>）、資格情報の参照名、入り方ガイドを入力します。必須項目は<a href="#env-checklist">次の表</a>を参照してください。</p>
+          <p class="muted small">preview は PR ごとに URL が変わるため、URL を <code>https://pr-{pr_number}.shop.example.com</code> のようにテンプレートで登録します。GitHub の deployment_status に URL が含まれていればそちらが優先されます。</p>
+        </div></li>
+        <li><div>
+          <h3>テストアカウントとフィクスチャを登録する</h3>
+          <p><a href="../screens/s07-fixtures.html">S07 フィクスチャ管理</a> で、テストに必要なデータを種類ごとに登録します。パスワードなどの秘密値は INDX Watch の画面から Secrets Store に保存され、D1 には参照名だけが残ります。</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>種類</th><th>SHOP での例</th><th>中身</th></tr></thead>
+            <tbody>
+              <tr><td><code>account</code></td><td><span class="id">FX-11</span> staging 会員アカウント</td><td>メールアドレス・パスワード（秘密値）・会員ランク。環境 staging に限定</td></tr>
+              <tr><td><code>dataset</code></td><td><span class="id">FX-3</span> クーポンセット（CSV, v4）</td><td>クーポンコード・割引額・有効期限。テストケースのパラメータとして使う</td></tr>
+              <tr><td><code>dataset</code></td><td><span class="id">FX-9</span> テスト用クレジットカード</td><td>決済サンドボックスのカード番号・有効期限・期待結果（成功 / 拒否）</td></tr>
+              <tr><td><code>seed</code></td><td><span class="id">FX-7</span> ゲスト購入用の在庫</td><td>テスト前に投入する商品と在庫数。<a href="#app-side">シード API</a> に渡す JSON</td></tr>
+              <tr><td><code>file</code></td><td><span class="id">FX-14</span> 返品用の商品画像</td><td>アップロード操作で使う画像ファイル</td></tr>
+            </tbody>
+          </table></div>
+        </div></li>
+        <li><div>
+          <h3>リセット / シードの手順を定義する</h3>
+          <p>環境ごとに「テスト前に決まった状態へ戻す方法」を <code>reset_hook_json</code> として登録します。対象アプリに<a href="#app-side">テスト用 API</a> があれば、ランナーが実行前に自動で呼びます。API がない環境では、手動の手順（例: 管理画面で注文を削除）を入り方ガイドに書き、テストケースの前提条件にリンクします。</p>
+<pre><code>{
+  "reset": { "method": "POST", "path": "/__test/reset", "timeoutSec": 60 },
+  "seed":  { "method": "POST", "path": "/__test/seed",  "timeoutSec": 60 },
+  "auth":  { "kind": "cf_access_service_token", "secretRef": "SHOP_STAGING_ACCESS" },
+  "runBefore": "each_run"
+}</code></pre>
+        </div></li>
+        <li><div>
+          <h3>機能・ユースケース・完了条件を登録する（AI 取り込み可）</h3>
+          <p><a href="../screens/s03-spec-tree.html">S03 仕様ツリー</a> に機能 → ユースケース → 完了条件の順で登録します。既存の PRD や仕様書、Notion のページがあれば <a href="../screens/s10-ai-import.html">S10 AI 仕様取り込み</a> に貼り付けると、AI が下書き（draft）を作ります。下書きは人が確認して承認するまで正式な仕様になりません。</p>
+          <p class="muted small">例: <span class="id">FEAT-3</span> カート・決済 → <span class="id">UC-12</span> ゲストがクーポンを適用して購入する → <span class="id">AC-12.1</span> 有効なクーポンを入れると割引額が注文合計に反映される</p>
+        </div></li>
+        <li><div>
+          <h3>テストケースを作る</h3>
+          <p>完了条件ごとに、それを確かめるテストケースを作ります（<a href="../screens/s04-test-case.html">S04 テストケース詳細・編集</a>）。手順は平易な日本語で書き、使うフィクスチャと実行モード（manual / agent / script / hybrid）、優先度を設定します。完了条件のうちテストケースがないものは、仕様ツリーで「未カバー」と表示されます。</p>
+          <p class="muted small">例: <span class="id">TC-128</span> 有効クーポンで割引が反映される（<span class="prio p0">P0</span>、agent、FX-3 と FX-7 を使用）</p>
+        </div></li>
+        <li><div>
+          <h3>スモーク計画と自動実行を設定する</h3>
+          <p>デプロイのたびに必ず確認したいテスト（ログイン・検索・購入など）に <code>smoke</code> タグを付け、スモーク計画を作ります。「staging へのデプロイ成功時に実行」を有効にすると、GitHub の deployment_status を受けて Watch Agent が自動で実行し、結果が PR の Check Run に表示されます。夜間に全件流す場合は定期実行（cron）を設定します。</p>
+        </div></li>
+        <li><div>
+          <h3>動作確認する</h3>
+          <p><a href="#verify">動作確認チェックリスト</a> を上から確認します。すべて通れば、テスト計画を作ってテスターにアサインできます。</p>
+        </div></li>
+      </ol>
+    </section>
+
+    <section id="env-checklist">
+      <h2>環境ごとの必須情報</h2>
+      <p>環境 1 つにつき、次の情報をそろえます。「必須」が欠けている環境は、S09 で警告が表示され、テスト計画で選べません。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>カラム</th><th>SHOP staging の例</th><th>必須 / 任意</th><th>誰が用意するか</th></tr></thead>
+        <tbody>
+          <tr><td>環境名と種類</td><td><code>name</code> / <code>kind</code></td><td><code>staging</code> / staging</td><td>必須</td><td>エンジニア</td></tr>
+          <tr><td>ベース URL</td><td><code>base_url</code></td><td>https://staging.shop.example.com</td><td>必須</td><td>エンジニア</td></tr>
+          <tr><td>アクセス方法</td><td><code>access_kind</code></td><td><code>cf_access</code>（Access サービストークン）</td><td>必須</td><td>エンジニア（インフラ担当）</td></tr>
+          <tr><td>アクセス用資格情報の参照名</td><td><code>access_secret_ref</code></td><td><code>SHOP_STAGING_ACCESS</code></td><td><code>none</code> 以外は必須</td><td>インフラ担当が Secrets Store に登録</td></tr>
+          <tr><td>入り方ガイド</td><td><code>entry_guide_md</code></td><td><a href="#entry-guide">テンプレート</a>を参照</td><td>必須</td><td>QA リード（エンジニアが確認）</td></tr>
+          <tr><td>テストアカウント</td><td>フィクスチャ <code>account</code></td><td><span class="id">FX-11</span> staging 会員アカウント</td><td>ログインがあるアプリは必須</td><td>エンジニア</td></tr>
+          <tr><td>リセット / シード手順</td><td><code>reset_hook_json</code></td><td><code>POST /__test/reset</code>、<code>POST /__test/seed</code></td><td>agent / script で実行するなら必須。manual のみなら任意（手順を入り方ガイドに書く）</td><td>エンジニア</td></tr>
+          <tr><td>既定の環境か</td><td><code>is_default</code></td><td>はい</td><td>プロジェクトに 1 つ必須</td><td>QA リード</td></tr>
+          <tr><td>メール受信の確認方法</td><td>入り方ガイド内</td><td>テスト用メールボックス API（<a href="#app-side">後述</a>）</td><td>メール送信がある場合は必須</td><td>エンジニア</td></tr>
+          <tr><td>外部サービスのサンドボックス</td><td>入り方ガイド内 / フィクスチャ</td><td>決済サンドボックス、<span class="id">FX-9</span> テスト用カード</td><td>決済・外部連携がある場合は必須</td><td>エンジニア</td></tr>
+          <tr><td>問い合わせ先</td><td>入り方ガイド内</td><td>Slack #shop-dev、担当 鈴木 翔</td><td>必須</td><td>QA リード</td></tr>
+          <tr><td>データの扱い</td><td>入り方ガイド内</td><td>本番データなし。個人情報を入力しない</td><td>任意（uat では必須）</td><td>QA リード</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="entry-guide">
+      <h2>入り方ガイドの書き方</h2>
+      <p>入り方ガイド（<code>entry_guide_md</code>）は、テスト手順の横と環境ページに表示される短い Markdown です。読む人はビジネス職や顧客かもしれません。専門用語を避け、「上から読めば入れる」順序で書きます。</p>
+      <div class="grid two">
+        <div class="card"><h3>書くこと</h3><ul>
+          <li>開く URL と、最初に表示される画面</li>
+          <li>ログイン方法（どのテストアカウントを使うか。パスワードは書かず「右の『ログイン情報』を表示」と案内）</li>
+          <li>VPN や社内ネットワークが要るか</li>
+          <li>テストカード・クーポンなど、使うデータの場所</li>
+          <li>やってはいけないこと（本物のカード番号・個人情報を入れない など）</li>
+          <li>困ったときの連絡先</li>
+        </ul></div>
+        <div class="card"><h3>書かないこと</h3><ul>
+          <li>パスワード・トークンなどの秘密値（Secrets Store に置き、画面からは権限のある人だけが表示できる）</li>
+          <li>テストケース固有の手順（テストケース側に書く）</li>
+          <li>アプリの仕様説明（仕様ツリーに書く）</li>
+        </ul></div>
+      </div>
+      <h3>テンプレート（SHOP staging の例）</h3>
+<pre><code>## staging の入り方
+
+1. 「環境を開く」を押すと https://staging.shop.example.com が開きます。
+   社内アカウントで Cloudflare のログイン画面が出たら、会社のメールアドレスでログインしてください。
+   VPN は不要です。
+2. 会員としてテストする場合は、右側の「ログイン情報」から FX-11（staging 会員アカウント）を表示し、
+   画面右上の「ログイン」から入ってください。ゲストのテストではログインしません。
+3. 決済では、本物のカードは使えません。FX-9（テスト用クレジットカード）の番号を使ってください。
+   例: 4242 4242 4242 4242 は「成功」、4000 0000 0000 0002 は「拒否」になります。
+4. クーポンコードは FX-3（クーポンセット）にあります。期限切れ用のコードも入っています。
+
+### 注意
+- staging は毎日 5:00（JST）にデータが初期化されます。前日に作った注文は残りません。
+- 注文確認メールは実際には送られません。テスト手順の「メールを確認」から受信内容を見られます。
+- 個人情報（本名・本物の住所）は入力しないでください。
+
+### 困ったとき
+Slack #shop-dev（担当: 鈴木 翔）</code></pre>
+    </section>
+
+    <section id="app-side">
+      <h2>対象アプリ側に用意するもの</h2>
+      <p>AI エージェントやスクリプトで安定してテストするには、対象アプリ側の協力が必要です。下の 4 つを staging / uat に用意してもらいます。どれも本番環境では無効にしてください。</p>
+
+      <h3>1. テスト用のリセット / シード API</h3>
+      <p>実行のたびに環境を同じ状態に戻すための API です。INDX Watch のランナーは Cloudflare Access のサービストークン（<code>CF-Access-Client-Id</code> / <code>CF-Access-Client-Secret</code> ヘッダー）を付けて呼びます。アプリ側は Access を通過したリクエストだけを受け付けてください。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>API</th><th>リクエスト</th><th>レスポンス</th><th>決まりごと</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /__test/reset</code></td><td><code>{ "scope": "all" | "orders" | "carts", "runId": "run_01J..." }</code></td><td><code>200 { "ok": true, "resetAt": "2026-11-18T05:00:00Z" }</code></td><td>冪等であること。60 秒以内に返ること。テストアカウント（FX-11）は消さない</td></tr>
+          <tr><td><code>POST /__test/seed</code></td><td><code>{ "fixture": "FX-7", "version": 3, "data": { ... }, "runId": "..." }</code></td><td><code>200 { "ok": true, "created": { "products": 3, "stock": 30 } }</code></td><td><code>data</code> はフィクスチャ本体（seed の JSON）。同じ内容を 2 回送っても重複しない（upsert）</td></tr>
+          <tr><td><code>GET /__test/health</code></td><td>なし</td><td><code>200 { "ok": true, "commit": "a1b2c3d" }</code></td><td>デプロイされているコミットを返す。実行前の確認と、デプロイメントの突き合わせに使う</td></tr>
+        </tbody>
+      </table></div>
+<pre><code>// seed の data の例（FX-7 ゲスト購入用の在庫 v3）
+{
+  "products": [
+    { "sku": "TEST-TSHIRT-M", "name": "テスト用 Tシャツ M", "price": 3000, "stock": 10 },
+    { "sku": "TEST-MUG",      "name": "テスト用マグカップ",  "price": 1500, "stock": 10 },
+    { "sku": "TEST-CAP",      "name": "テスト用キャップ",    "price": 2500, "stock": 10 }
+  ]
+}</code></pre>
+
+      <h3>2. data-testid の付与方針</h3>
+      <p>AI エージェントは画面の見た目とアクセシビリティ情報（ボタン名・ラベル）で操作するため、data-testid がなくても動きます。ただし script モードと assert ジャッジの安定性のため、次の要素には付けてください。</p>
+      <ul>
+        <li>主要な操作ボタン: <code>data-testid="checkout-submit"</code>、<code>"coupon-apply"</code></li>
+        <li>検証に使う値の表示: <code>"order-total"</code>、<code>"discount-amount"</code>、<code>"coupon-error"</code></li>
+        <li>フォーム入力: <code>"coupon-code"</code>、<code>"card-number"</code></li>
+        <li>命名は <code>{画面や領域}-{要素}</code> の kebab-case。表示文言を変えても変えない。1 画面内で一意</li>
+        <li>ボタンやフォームには見えるラベル（または <code>aria-label</code>）を必ず付ける。エージェントと人の両方が迷わなくなる</li>
+      </ul>
+
+      <h3>3. メール受信の確認方法</h3>
+      <p>「注文確認メールが届く」（<span class="id">AC-12.3</span>）のような完了条件を確かめるため、staging のメールを外部に送らず、テスト用メールボックスで受け取れるようにします。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>API</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /__test/mailbox?to=guest+{runId}@test.shop.example.com</code></td><td>宛先ごとの受信メール一覧（件名・本文テキスト・受信時刻）。新しい順</td></tr>
+          <tr><td><code>DELETE /__test/mailbox?to=...</code></td><td>受信メールの削除（reset でまとめて消えるなら不要）</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted small">宛先に <code>runId</code> を含めると、同時に動く別の実行のメールと混ざりません。メールボックス API を用意できない場合は、Mailpit などのテスト用 SMTP サーバーの API を同じ形で公開してもらいます。</p>
+
+      <h3>4. 外部決済のサンドボックス</h3>
+      <ul>
+        <li>staging / uat の決済は、決済サービスのテストモード（サンドボックス）に接続する。本番の API キーを置かない。</li>
+        <li>成功・拒否・3D セキュア要求など、結果ごとのテストカード番号を <span class="id">FX-9</span> テスト用クレジットカードに登録する。</li>
+        <li>3D セキュアの認証画面など外部ドメインに遷移する場合は、そのドメインを入り方ガイドに書く（エージェントの移動許可リストにも使う）。</li>
+      </ul>
+    </section>
+
+    <section id="yaml">
+      <h2>設定ファイル <code>.indx-watch/project.yaml</code>（任意）</h2>
+      <div class="callout"><strong>DB が正です</strong><p>プロジェクトの設定は INDX Watch のデータベースが唯一の正です。このファイルは「最初の登録をまとめて行う」ためと「環境や自動実行の設定変更を PR でレビューする」ためのインポート元です。ファイルを変更して main にマージすると、GitHub App が差分を検出して <a href="../screens/s09-environments.html">S09</a> に「設定ファイルからの変更案」を出し、管理者が承認したときだけ反映されます。DB 側で直接変えた内容がファイルに書き戻されることはありません。</p></div>
+<pre><code># .indx-watch/project.yaml（indxdev/indx-shop リポジトリ）
+project:
+  key: SHOP
+  name: INDX Shop（サンプル）
+
+environments:
+  - name: staging
+    kind: staging
+    default: true
+    base_url: https://staging.shop.example.com
+    access: { kind: cf_access, secret_ref: SHOP_STAGING_ACCESS }
+    reset_hook:
+      reset: { method: POST, path: /__test/reset }
+      seed:  { method: POST, path: /__test/seed }
+      run_before: each_run
+    entry_guide: ./entry/staging.md          # 入り方ガイド（Markdown）
+  - name: uat
+    kind: uat
+    base_url: https://uat.shop.example.com
+    access: { kind: cf_access, secret_ref: SHOP_UAT_ACCESS }
+    entry_guide: ./entry/uat.md
+  - name: preview
+    kind: preview
+    base_url: https://pr-{pr_number}.shop.example.com
+    access: { kind: cf_access, secret_ref: SHOP_STAGING_ACCESS }
+
+automation:
+  smoke:
+    tags: [smoke]                  # このタグの付いた ready のテストケースが対象
+    on_deployment: [staging, preview]
+    environment_from_deployment: true
+  nightly:
+    cron: "0 18 * * *"             # UTC。JST 3:00
+    environment: staging
+    selector: { priority: [P0, P1] }
+
+notifications:
+  github_checks: true              # PR に Check Run を付ける
+  failed_run_issue: suggest        # 失敗時に Issue 案を作る（suggest / auto / off）
+  slack_channel: "#shop-qa"</code></pre>
+      <p class="muted small">秘密値はこのファイルにも書きません。<code>secret_ref</code> の参照名だけを書きます。</p>
+    </section>
+
+    <section id="uat">
+      <h2>顧客 UAT 環境を開く</h2>
+      <p>顧客（例: 株式会社サンプルの山本様）に受け入れテストをしてもらう手順です。顧客は guest ロールで、自分にアサインされたテストだけが見えます。</p>
+      <ol class="steps">
+        <li><div><b>uat 環境を用意する</b><p class="muted small">エンジニアが uat 環境（https://uat.shop.example.com）にリリース候補をデプロイし、S09 で uat の入り方ガイドを顧客向けの言葉で書く。社内用語や Slack チャンネル名は入れず、問い合わせ先は QA リード（佐藤 美咲）のメールにする</p></div></li>
+        <li><div><b>Cloudflare Access で招待する</b><p class="muted small">インフラ担当が INDX Watch と uat 環境の両方の Access アプリケーションに、顧客のメールアドレスを許可ポリシー（ワンタイム PIN）として追加する。社外ドメインはメールアドレス単位で許可し、ドメイン全体は許可しない</p></div></li>
+        <li><div><b>INDX Watch にゲストを追加する</b><p class="muted small">管理者が SHOP の メンバーに顧客のメールアドレスを guest で追加する。初回ログイン時にメールアドレスで突き合わされる</p></div></li>
+        <li><div><b>UAT 用のテスト計画を作ってアサインする</b><p class="muted small">QA リードが「v2.4.0 受け入れテスト」計画を作り、環境 uat、担当 山本様で TC をアサインする。手順はビジネス職が読める表現になっているか、事前に高橋 由佳（PdM）が確認する</p></div></li>
+        <li><div><b>案内を送る</b><p class="muted small">INDX Watch の URL、ワンタイム PIN でのログイン方法、期限を顧客に連絡する。顧客がログインするとマイタスクに UAT 項目だけが並ぶ</p></div></li>
+        <li><div><b>終わったらアクセスを外す</b><p class="muted small">UAT 完了後、Access の許可ポリシーから顧客を外す（または期限付きで設定しておく）。INDX Watch 上の実行結果と証拠は残る</p></div></li>
+      </ol>
+    </section>
+
+    <section id="verify">
+      <h2>動作確認チェックリスト</h2>
+      <p>登録が終わったら、QA リードが次の項目を確認します。すべて満たせば、テスト計画を作ってアサインを始められます。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>確認項目</th><th>確認方法</th><th>期待する結果</th></tr></thead>
+        <tbody>
+          <tr><td>GitHub とつながっている</td><td>S11 を開く</td><td>最新のデプロイメント（例 <code>staging@a1b2c3d</code>）が表示される</td></tr>
+          <tr><td>環境に入れる</td><td>S09 で各環境の「接続を確認」</td><td>ランナーが <code>GET /__test/health</code> に 200 で到達し、コミットが表示される</td></tr>
+          <tr><td>リセット / シードが動く</td><td>S09 の「リセットを試す」</td><td>60 秒以内に完了し、activity_log に記録される</td></tr>
+          <tr><td>テストアカウントでログインできる</td><td>S07 で FX-11 の「ログインを試す」</td><td>Watch Agent がログインし、ログイン後の画面のスクリーンショットが残る</td></tr>
+          <tr><td>入り方ガイドだけで入れる</td><td>プロジェクトに初めて参加する人（例: 高橋 由佳）に S01 から 1 件実行してもらう</td><td>人に聞かずに環境に入り、ステップを記録できる</td></tr>
+          <tr><td>完了条件が網羅されている</td><td>S03 で「未カバー」フィルタ</td><td>P0 / P1 のユースケースに未カバーの完了条件がない</td></tr>
+          <tr><td>スモークが自動で動く</td><td>staging に再デプロイ（または S11 の「スモークを手動実行」）</td><td>スモーク計画が実行され、PR に Check Run が付く</td></tr>
+          <tr><td>秘密値が漏れていない</td><td>実行の証拠（スクリーンショット・ログ・エージェントの記録）を確認</td><td>パスワード・トークンが表示されず、<code>••••</code> でマスクされている</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="troubles">
+      <h2>よくあるつまずき</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>症状</th><th>よくある原因</th><th>対処</th></tr></thead>
+        <tbody>
+          <tr><td>エージェントが Cloudflare のログイン画面で止まる</td><td>サービストークンが対象環境の Access ポリシーに入っていない、または参照名の誤り</td><td>Access アプリに「Service Auth」ポリシーを追加し、S09 の <code>access_secret_ref</code> と Secrets Store の名前を一致させる</td></tr>
+          <tr><td>人は入れるがエージェントだけ 403</td><td>対象アプリが IP 制限をしている</td><td><code>access_kind</code> を <code>cf_access</code> に寄せる。IP 制限が必須なら Browser Rendering の送信元を許可する方法をインフラ担当と決める</td></tr>
+          <tr><td>同じテストが通ったり落ちたりする</td><td>前の実行のデータが残っている、または並列実行でデータが衝突している</td><td><code>run_before: each_run</code> でリセットする。メール宛先や注文メモに <code>runId</code> を含めて実行ごとに分ける</td></tr>
+          <tr><td>リセットがタイムアウトする</td><td>reset API が全テーブルを削除していて遅い</td><td><code>scope</code> で範囲を絞る。60 秒を超える場合は非同期にして <code>/__test/health</code> で完了を確認する</td></tr>
+          <tr><td>preview 環境の URL が見つからない</td><td>デプロイの仕組みが GitHub の deployment_status に URL を載せていない</td><td>デプロイワークフローで <code>environment_url</code> を設定する。できない場合は URL テンプレートを登録する</td></tr>
+          <tr><td>確認メールのテストができない</td><td>staging が実際にメールを送っている、またはメールボックス API がない</td><td>テスト用メールボックス API（またはテスト用 SMTP サーバー）を用意し、AC-12.3 のテストケースの手順をそれに合わせる</td></tr>
+          <tr><td>決済画面で外部ドメインに飛んで止まる</td><td>3D セキュアなどの外部ドメインがエージェントの移動許可リストにない</td><td>入り方ガイドとプロジェクト設定に外部ドメインを追加する。可能ならサンドボックスで 3D セキュアなしのカードを使う</td></tr>
+          <tr><td>顧客がログインできない</td><td>INDX Watch 側の Access に招待したが、uat 環境側の Access に招待していない（またはその逆）</td><td>両方の Access アプリに同じメールアドレスを追加する</td></tr>
+          <tr><td>AI 取り込みで仕様が細かすぎる / 粗すぎる</td><td>元の文書の粒度がばらばら</td><td>取り込み時に機能を 1 つ指定して分けて取り込む。下書きは承認前に統合・削除できる</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <nav class="pager">
+      <a href="implementation.html"><small>前へ</small>GUIDE-01 実装ガイド</a>
+      <a href="../screens/s01-my-tasks.html"><small>次へ</small>S01 マイタスク</a>
+    </nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

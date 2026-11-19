@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch ドメインモデル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>ドメインモデル</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#map">全体像</a></li>
+    <li><a href="#glossary">用語集</a></li>
+    <li><a href="#ids">ID と表示キー</a></li>
+    <li><a href="#priority">優先度</a></li>
+    <li><a href="#modes">実行モードとジャッジ</a></li>
+    <li><a href="#states">状態遷移</a></li>
+    <li><a href="#done">「完了」の計算</a></li>
+    <li><a href="#gate">リリース判定（Go / No-Go）</a></li>
+    <li><a href="#versioning">バージョンとスナップショット</a></li>
+    <li><a href="#fixtures">フィクスチャの種類</a></li>
+    <li><a href="#invariants">不変条件</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-02 · ドメインモデル</div>
+      <h1>ドメインモデル・用語・状態遷移</h1>
+      <p class="lead">INDX Watch に出てくる言葉の定義と、それぞれの関係、状態の変わり方、「完了」の決め方をまとめます。画面・API・テーブルはすべてこのページの言葉に合わせます。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="data-model.html">データモデル</a> · <a href="ai.html">AI ネイティブ設計</a></span></div>
+    </header>
+
+    <section id="map">
+      <h2>全体像</h2>
+      <p>中心にあるのは「仕様ツリー」と「実行」の 2 本です。仕様ツリーは <b>何ができれば完了か</b> を表し、実行は <b>実際にどうだったか</b> を証拠付きで記録します。両者をつなぐのがテスト計画（誰が・どこで・いつまでに）です。</p>
+      <pre class="mermaid">
+flowchart LR
+  subgraph SPEC["仕様ツリー（何ができれば完了か）"]
+    F["機能 FEAT"] --> UC["ユースケース UC"]
+    UC --> AC["完了条件 AC"]
+    TC["テストケース TC"] -- 検証する --> AC
+    TC --> TCV["TC バージョン"]
+    TCV -- 使う --> FXV["フィクスチャ版 FX vN"]
+  end
+  subgraph WHERE["どこで"]
+    P["プロジェクト = リポジトリ"] --> ENV["環境"]
+    P --> REL["リリース"]
+    REL --> DEP["デプロイメント = commit × 環境"]
+  end
+  subgraph PLAN["誰が・いつまでに"]
+    PL["テスト計画 PLAN"] --> PI["計画アイテム（アサイン）"]
+  end
+  subgraph RUN["実際にどうだったか"]
+    R["実行 RUN"] --> RS["ステップ結果"]
+    RS --> EV["証拠"]
+    R --> J["判定（ジャッジ）"]
+    J --> V["最終判定 verdict"]
+  end
+  REL --> PL
+  PI -- 対象 --> TC
+  PI -- 実行 --> R
+  R -- 使った版 --> TCV
+  R -- 対象 --> DEP
+      </pre>
+    </section>
+
+    <section id="glossary">
+      <h2>用語集</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>用語</th><th>英語 / テーブル</th><th>表示キー</th><th>定義</th><th>例</th></tr></thead>
+        <tbody>
+          <tr><td>プロジェクト</td><td><code>projects</code></td><td><span class="id">SHOP</span></td><td>テスト対象のアプリ 1 つ。GitHub リポジトリ 1 つに対応する。キーは英大文字 2〜6 文字。</td><td>INDX Shop（サンプル）</td></tr>
+          <tr><td>環境</td><td><code>environments</code></td><td><code>staging</code></td><td>テストを行う場所。ベース URL、入り方（アクセス方式）、入り方ガイド、リセット手順を持つ。</td><td>staging / uat / preview</td></tr>
+          <tr><td>リリース</td><td><code>releases</code></td><td><code>v2.4.0</code></td><td>テストの対象となるバージョン。Git タグまたはマイルストーンと対応する。テスト計画の単位。</td><td>v2.4.0（目標 2026-12-03）</td></tr>
+          <tr><td>デプロイメント</td><td><code>deployments</code></td><td><code>staging@a1b2c3d</code></td><td>あるコミットがある環境に載った事実。実行は必ずデプロイメントに紐づく。GitHub から自動作成、または手動登録。</td><td>PR #482 を staging に反映</td></tr>
+          <tr><td>機能</td><td><code>features</code></td><td><span class="id">FEAT-3</span></td><td>仕様ツリーの大分類。画面やメニューのまとまりで切る。</td><td>カート・決済</td></tr>
+          <tr><td>ユースケース</td><td><code>use_cases</code></td><td><span class="id">UC-12</span></td><td>「誰が・何をしたいか」の単位。アクターと目的を必ず持つ。優先度を持つ。</td><td>ゲストがクーポンを適用して購入する</td></tr>
+          <tr><td>完了条件</td><td><code>acceptance_criteria</code></td><td><span class="id">AC-12.2</span></td><td>ユースケースが「完了」と言える観察可能な条件。1 文で、合否が判断できる書き方にする。</td><td>期限切れクーポンはエラー文言が表示され、適用されない</td></tr>
+          <tr><td>テストケース</td><td><code>test_cases</code></td><td><span class="id">TC-129</span></td><td>1 つ以上の AC を検証する具体的な手順と期待結果。実行モードと判定設定を持つ。内容はバージョンで管理する。</td><td>期限切れクーポンでエラーが出る</td></tr>
+          <tr><td>TC バージョン</td><td><code>test_case_versions</code></td><td><code>v3</code></td><td>テストケースの中身（前提・手順・判定設定・使うフィクスチャ）の不変スナップショット。編集すると新しい版ができる。</td><td>TC-130 v3</td></tr>
+          <tr><td>フィクスチャ</td><td><code>fixtures</code></td><td><span class="id">FX-3</span></td><td>テストの前提となるデータ。データセット / シード / ファイル / アカウントの 4 種類。中身はバージョンで管理する。</td><td>クーポンセット（CSV）</td></tr>
+          <tr><td>テスト計画</td><td><code>test_plans</code></td><td><span class="id">PLAN-4</span></td><td>リリースに対して実行するテストの集まり。期限を持つ。</td><td>v2.4.0 リグレッション</td></tr>
+          <tr><td>計画アイテム（アサイン）</td><td><code>plan_items</code></td><td>—</td><td>計画の 1 行。TC × 環境 × 担当者 × 期限 × 優先度。担当者は人か AI エージェント。</td><td>TC-130 を staging で田中が 11/25 まで</td></tr>
+          <tr><td>実行</td><td><code>runs</code></td><td><span class="id">RUN-1033</span></td><td>TC の特定の版を、特定のデプロイメントに対して 1 回実行した記録。やり直しは新しい実行になる。</td><td>TC-130 を Watch Agent が実行</td></tr>
+          <tr><td>ステップ結果</td><td><code>run_steps</code></td><td>—</td><td>実行中の 1 ステップの結果。指示・期待結果はその時点の版からコピーする。</td><td>ステップ 3: 不合格</td></tr>
+          <tr><td>証拠</td><td><code>evidence</code></td><td>—</td><td>判定の根拠となるファイル。スクリーンショット、DOM / アクセシビリティツリー、コンソールログ、ネットワーク要約、トレース、エージェントの行動記録、人のアップロード。本体は R2。</td><td>3-screenshot.png</td></tr>
+          <tr><td>判定（ジャッジ）</td><td><code>judgements</code></td><td>—</td><td>1 つのジャッジが出した結論。種類・結論・信頼度・理由・使ったモデルを持つ。</td><td>llm: pass（0.71）</td></tr>
+          <tr><td>判定ポリシー</td><td><code>decision_policy_json</code></td><td>—</td><td>複数のジャッジ結果から最終判定を決めるルール。プロジェクト既定を TC ごとに上書きできる。</td><td>P0 は人の確認必須</td></tr>
+          <tr><td>最終判定</td><td><code>runs.verdict</code></td><td>—</td><td>実行の結論。合格 / 不合格 / 実行不可 / スキップ / 要確認。</td><td>needs_review</td></tr>
+          <tr><td>ベースライン</td><td><code>baselines</code></td><td>—</td><td>ビジュアル差分の基準画像。人が承認したものだけが基準になる。</td><td>TC-128 step 4 / staging</td></tr>
+          <tr><td>AI 提案</td><td><code>ai_suggestions</code></td><td>—</td><td>AI が作った仕様・TC・フィクスチャ・影響分析・トリアージの案。人が採用 / 却下するまで本データにならない。</td><td>PRD から UC 3 件の案</td></tr>
+          <tr><td>スケジュール</td><td><code>schedules</code></td><td>—</td><td>条件（タグ・優先度）に合う TC を定期的に自動実行する設定。</td><td>毎朝 7:00 に staging で P0 スモーク</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="ids">
+      <h2>ID と表示キー</h2>
+      <p>内部 ID と、人が読む表示キーを分けます。URL・会話・GitHub コメントでは表示キーを使います。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>対象</th><th>内部 ID（主キー）</th><th>表示キー</th><th>採番</th></tr></thead>
+        <tbody>
+          <tr><td>すべてのエンティティ</td><td><code>{prefix}_{ULID}</code></td><td>—</td><td>アプリ側で ULID を生成。prefix は下表。</td></tr>
+          <tr><td>機能 / ユースケース / テストケース / フィクスチャ / 計画 / 実行</td><td>同上</td><td><code>FEAT-3</code> <code>UC-12</code> <code>TC-128</code> <code>FX-3</code> <code>PLAN-4</code> <code>RUN-1032</code></td><td>プロジェクト内連番。<code>project_counters</code> で種類ごとに採番し、欠番は再利用しない。</td></tr>
+          <tr><td>完了条件</td><td>同上</td><td><code>AC-12.2</code></td><td>UC 内連番（<code>seq</code>）。削除しても番号は詰めない。</td></tr>
+          <tr><td>プロジェクト横断の参照</td><td>—</td><td><code>SHOP-TC-128</code></td><td>Slack・GitHub・MCP ではこの形式。</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">prefix: <code>usr</code> <code>prj</code> <code>env</code> <code>rel</code> <code>dep</code> <code>fea</code> <code>uc</code> <code>ac</code> <code>tc</code> <code>tcv</code> <code>fx</code> <code>fxv</code> <code>pln</code> <code>pli</code> <code>run</code> <code>rst</code> <code>evd</code> <code>jdg</code> <code>bsl</code> <code>sch</code> <code>iss</code> <code>sug</code> <code>cmt</code> <code>act</code></p>
+    </section>
+
+    <section id="priority">
+      <h2>優先度</h2>
+      <p>ユースケースとテストケースに付けます。テストケースの優先度は、検証するユースケースの優先度を既定値として引き継ぎ、個別に変えられます。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>優先度</th><th>意味</th><th>例</th><th>リリース判定での扱い</th></tr></thead>
+        <tbody>
+          <tr><td><span class="prio p0">P0</span></td><td>壊れたらリリースできない。お金・ログイン・個人情報に関わる。</td><td>決済、ログイン、注文確定</td><td>全件合格が必須。要確認が 1 件でもあれば No-Go。</td></tr>
+          <tr><td><span class="prio p1">P1</span></td><td>主要な導線。壊れると多くの人が困る。</td><td>商品検索、クーポン適用</td><td>合格率 95% 以上（既定）。不合格は既知の問題として承認が必要。</td></tr>
+          <tr><td><span class="prio p2">P2</span></td><td>通常の機能。回避策がある。</td><td>並び替え、お気に入り</td><td>集計はするが判定条件には入れない（既定）。</td></tr>
+          <tr><td><span class="prio p3">P3</span></td><td>細部・見た目。</td><td>文言、余白</td><td>同上。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="modes">
+      <h2>実行モードとジャッジ</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>実行モード（テストケースごと）</h3>
+          <dl class="kv">
+            <dt><code>manual</code></dt><dd>人が手順に沿って操作し、各ステップで合否を付ける。証拠はスクリーンショットを貼る。</dd>
+            <dt><code>agent</code></dt><dd>AI ブラウザエージェントが自然言語の手順を実行し、ジャッジが判定する。</dd>
+            <dt><code>script</code></dt><dd>Playwright スクリプトを Browser Rendering 上で実行する。最も速く安定。</dd>
+            <dt><code>hybrid</code></dt><dd>エージェントが実行し、人が証拠を見て最終判定する。P0 の既定。</dd>
+          </dl>
+        </div>
+        <div class="card">
+          <h3>ジャッジ（判定する仕組み）</h3>
+          <dl class="kv">
+            <dt><code>assert</code></dt><dd>決定的なチェック。URL、テキストの有無、要素の状態、HTTP ステータス。</dd>
+            <dt><code>visual</code></dt><dd>承認済みベースライン画像との差分率。閾値を超えたら要確認。</dd>
+            <dt><code>llm</code></dt><dd>ルーブリックとスクリーンショット・DOM を LLM に渡して判定。信頼度を返す。</dd>
+            <dt><code>human</code></dt><dd>人の判定。常に最優先で、理由の記入が必須。</dd>
+          </dl>
+        </div>
+      </div>
+      <p>ジャッジの組み合わせ方と判定ポリシーの詳細は <a href="ai.html">AI ネイティブ設計</a> を参照。</p>
+    </section>
+
+    <section id="states">
+      <h2>状態遷移</h2>
+      <h3>テストケース</h3>
+      <pre class="mermaid">
+stateDiagram-v2
+  [*] --> draft: 作成（人 / AI）
+  draft --> ready: 承認（manager 以上、AI 生成物は必須）
+  ready --> draft: 大きな変更で再レビュー
+  ready --> deprecated: 廃止
+  deprecated --> ready: 復活
+      </pre>
+      <p class="small muted">人が作った TC は作成者が manager 以上なら直接 <code>ready</code> にできる。<code>draft</code> の TC は計画に追加できるが、リリース判定の集計には含めない。</p>
+
+      <h3>実行（run.state）と最終判定（run.verdict）</h3>
+      <pre class="mermaid">
+stateDiagram-v2
+  [*] --> queued: 実行を開始
+  queued --> running: ランナーが取得 / 人が開始
+  running --> judging: 全ステップ終了
+  running --> completed: 人が実行不可を選択（verdict=blocked）
+  judging --> completed: 判定ポリシーで verdict 確定
+  running --> error: 基盤エラー（ブラウザ起動失敗など）
+  error --> [*]: 再実行は新しい RUN
+  completed --> [*]
+      </pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>verdict</th><th>表示</th><th>意味</th><th>次のアクション</th></tr></thead>
+        <tbody>
+          <tr><td><code>pass</code></td><td><span class="badge st-pass">合格</span></td><td>期待結果どおり。</td><td>なし</td></tr>
+          <tr><td><code>fail</code></td><td><span class="badge st-fail">不合格</span></td><td>期待結果と違う。</td><td>トリアージ → Issue 作成 → 修正後に再実行</td></tr>
+          <tr><td><code>blocked</code></td><td><span class="badge st-blocked">実行不可</span></td><td>前提が崩れていて実行できない（環境ダウン、データ不足、前の不具合）。</td><td>原因を解消して再実行。不具合扱いにはしない。</td></tr>
+          <tr><td><code>needs_review</code></td><td><span class="badge st-review">要確認</span></td><td>AI の信頼度不足・ビジュアル差分・P0 の人確認待ち。</td><td>レビューキューで人が合格 / 不合格を確定。</td></tr>
+          <tr><td><code>skipped</code></td><td><span class="badge st-untested">スキップ</span></td><td>今回は対象外と判断した。理由必須。</td><td>なし</td></tr>
+          <tr><td>（実行なし）</td><td><span class="badge st-untested">未実行</span></td><td>計画アイテムに実行がまだない。</td><td>担当者が実行</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">人のレビューで確定した場合、元の実行の verdict を書き換えず、<code>judge_kind = 'human'</code> の判定を追加して再計算する。履歴は判定の列として残る。</p>
+
+      <h3>計画アイテム（アサイン）</h3>
+      <pre class="mermaid">
+stateDiagram-v2
+  [*] --> todo: 計画に追加・担当決定
+  todo --> in_progress: 実行を開始
+  in_progress --> done: 最新実行の verdict が確定（needs_review 以外）
+  in_progress --> blocked: verdict = blocked
+  blocked --> in_progress: 再実行
+  done --> in_progress: 再テスト指示（修正デプロイ後など）
+      </pre>
+
+      <h3>リリース</h3>
+      <pre class="mermaid">
+stateDiagram-v2
+  [*] --> planning
+  planning --> testing: 計画を開始
+  testing --> ready: Go 判定（manager が承認）
+  ready --> testing: 新しいデプロイで再テスト
+  ready --> released: 本番リリース（GitHub release 受信または手動）
+      </pre>
+    </section>
+
+    <section id="done">
+      <h2>「完了」の計算</h2>
+      <p>「完了したか」は人の感覚ではなく、以下のルールで計算します。計算対象は <b>あるリリースの、ある環境</b>（既定はプロジェクトの既定環境）です。</p>
+      <h3>テストケースの「最新判定」</h3>
+      <ol class="steps">
+        <li><span>対象リリースに属するデプロイメントのうち、対象環境のものに対する実行を集める。</span></li>
+        <li><span>その中で <code>state = completed</code> かつ最も新しい実行の verdict を採用する。人の判定があれば判定ポリシーで再計算した値を使う。</span></li>
+        <li><span>実行時の TC 版が現在の版より古い場合は「古い版で合格」として表示し、リリース判定では未実行扱いにする（既定）。</span></li>
+      </ol>
+      <h3>完了条件（AC）の状態</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>状態</th><th>条件</th></tr></thead>
+        <tbody>
+          <tr><td>未網羅</td><td><code>ready</code> の TC が 1 つも紐づいていない。</td></tr>
+          <tr><td><span class="badge st-fail">不合格</span></td><td>紐づく TC のどれかの最新判定が不合格。</td></tr>
+          <tr><td><span class="badge st-review">要確認</span></td><td>不合格はないが、要確認がある。</td></tr>
+          <tr><td><span class="badge st-untested">未実行</span></td><td>不合格・要確認はないが、未実行または実行不可がある。</td></tr>
+          <tr><td><span class="badge st-pass">合格</span></td><td>紐づく TC の最新判定がすべて合格（スキップは除外。全部スキップなら未実行）。</td></tr>
+        </tbody>
+      </table></div>
+      <h3>ユースケースの状態</h3>
+      <p>AC の状態を集約します。優先順は <b>未網羅 &gt; 不合格 &gt; 要確認 &gt; 未実行 &gt; 合格</b> で、AC の中で最も悪いものがユースケースの状態になります。<b>ユースケースが「完了」とは、すべての AC が合格であること</b>です。</p>
+      <h3>網羅率</h3>
+      <p>AC 網羅率 = <code>ready</code> の TC が 1 つ以上紐づく AC 数 ÷ AC 総数。機能・プロジェクト単位でも同じ式で集計します。</p>
+    </section>
+
+    <section id="gate">
+      <h2>リリース判定（Go / No-Go）</h2>
+      <p>リリース準備状況（<a href="../screens/s02-release-readiness.html">S02</a>）に表示するゲート条件です。プロジェクト設定で閾値を変更できます。全条件を満たすと「Go 可能」になり、manager が承認するとリリースが <code>ready</code> になります。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>条件</th><th>既定値</th><th>設定キー</th></tr></thead>
+        <tbody>
+          <tr><td>P0 ユースケースの AC 網羅率</td><td>100%</td><td><code>gate.p0_coverage</code></td></tr>
+          <tr><td>P0 テストケースの最新判定がすべて合格</td><td>必須</td><td><code>gate.p0_all_pass</code></td></tr>
+          <tr><td>P1 テストケースの合格率</td><td>95% 以上</td><td><code>gate.p1_pass_rate</code></td></tr>
+          <tr><td>P0 / P1 の要確認</td><td>0 件</td><td><code>gate.max_review</code></td></tr>
+          <tr><td>計画アイテムの未実行</td><td>0 件</td><td><code>gate.max_untested</code></td></tr>
+          <tr><td>未解決の P0 不具合（GitHub Issue）</td><td>0 件</td><td><code>gate.max_open_p0_issues</code></td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>既知の問題として承認</strong><p>P1 以下の不合格は、manager が理由を書いて「既知の問題」として承認すると、合格率の計算から除外できます。承認は <code>activity_log</code> に残り、リリース判定画面に一覧表示されます。</p></div>
+    </section>
+
+    <section id="versioning">
+      <h2>バージョンとスナップショット</h2>
+      <ul>
+        <li><b>TC 版は不変</b>。手順・判定設定・フィクスチャ参照を変えると新しい版（<code>v4</code>）を作る。タイトル・優先度・担当者・タグは版に含めず、直接変更できる（変更は <code>activity_log</code> に残る）。</li>
+        <li><b>フィクスチャ版も不変</b>。編集・アップロードのたびに新しい版を作り、R2 のパスも版ごとに分ける。「この版に戻す」は古い版の内容で新しい版を作る操作。</li>
+        <li>TC 版はフィクスチャを <code>{fixture: "FX-3", version: 4}</code>（固定）か <code>{fixture: "FX-3", version: "latest"}</code>（最新）で参照する。</li>
+        <li><b>実行は開始時に全部を確定する</b>。TC 版、フィクスチャの解決済み版（<code>runs.fixture_versions_json</code>）、デプロイメント、環境を記録し、後から変わらない。</li>
+        <li>ステップ結果には実行時点の指示と期待結果をコピーする。後で TC を直しても、過去の実行の表示は変わらない。</li>
+      </ul>
+    </section>
+
+    <section id="fixtures">
+      <h2>フィクスチャの種類</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>種類</th><th>中身</th><th>使われ方</th><th>例</th></tr></thead>
+        <tbody>
+          <tr><td><code>dataset</code></td><td>CSV / JSON の表。1 行が 1 パターン。</td><td>手順中で入力する値。行ごとに同じ TC を繰り返すデータ駆動にも使う。手順では <code>{{FX-3.code}}</code> のように参照。</td><td>FX-3 クーポンセット、FX-9 テスト用クレジットカード</td></tr>
+          <tr><td><code>seed</code></td><td>JSON のペイロード（対象アプリのリセット / シード API に送る）。</td><td>実行前に環境を決まった状態にする。環境のリセットフック経由で送る。</td><td>FX-7 ゲスト購入用の在庫</td></tr>
+          <tr><td><code>file</code></td><td>画像・PDF などのファイル。</td><td>アップロード操作のテストで使う。エージェントには一時 URL で渡す。</td><td>FX-14 返品用の商品画像</td></tr>
+          <tr><td><code>account</code></td><td>ユーザー名などの公開情報 + 秘密の参照名。</td><td>ログインに使う。パスワードは Secrets Store にあり、画面ではマスク、エージェントにはツール側で注入しモデルに見せない。</td><td>FX-11 staging 会員アカウント</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="invariants">
+      <h2>不変条件</h2>
+      <p>実装とテスト（INDX Watch 自身のユニットテスト）で守るルールです。</p>
+      <ul>
+        <li>実行は必ず 1 つの TC 版と 1 つのデプロイメントに紐づく。</li>
+        <li><code>completed</code> の実行は verdict を持つ。<code>needs_review</code> は人の判定が追加されるまで計画アイテムを <code>done</code> にしない。</li>
+        <li>人の判定（<code>human</code>）には理由が必須。</li>
+        <li><code>origin = 'ai'</code> の TC・UC は、人の承認記録なしに <code>ready</code> にならない。</li>
+        <li>guest は自分が担当の計画アイテムと、その TC・環境の入り方・必要なフィクスチャ（account は自分用のみ）以外を参照できない。</li>
+        <li>秘密値は D1 に保存しない。<code>access_secret_ref</code> / <code>secret_ref</code> は参照名だけ。</li>
+        <li>表示キー（<code>TC-128</code>）は再利用しない。廃止しても番号は残る。</li>
+      </ul>
+    </section>
+
+    <nav class="pager"><a href="prd.html"><small>前へ</small>SPEC-01 PRD</a><a href="ux.html"><small>次へ</small>SPEC-03 UX・ユーザーフロー</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

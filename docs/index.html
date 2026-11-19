@@ -1,0 +1,118 @@
+<title>INDX Watch Docs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="assets/docs.css">
+<style>
+  .hero { display: grid; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+  .hero h1 { font-size: 2.3rem; }
+  .layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .layer { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 16px; display: grid; gap: 8px; align-content: start; }
+  .layer.l1 { border-top: 3px solid var(--accent); }
+  .layer.l2 { border-top: 3px solid var(--fg-muted); }
+  .doc-list { list-style: none; padding: 0; display: grid; gap: 0; }
+  .doc-list li { margin: 0; }
+  .doc-list a { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--fg); }
+  .doc-list a:hover { background: var(--surface-2); }
+  .doc-list li:last-child a { border-bottom: 0; }
+  .doc-list .code { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent); padding-top: 3px; }
+  .doc-list b { display: block; }
+  .doc-list span.d { display: block; color: var(--fg-muted); font-size: 0.86rem; }
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .screens a { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-decoration: none; color: var(--fg); }
+  .screens a:hover { border-color: var(--accent); }
+  .screens .code { font-family: var(--font-mono); font-size: 0.74rem; color: var(--accent); }
+  .screens .who { font-size: 0.8rem; color: var(--fg-muted); }
+</style>
+
+<header class="site-header"><div class="inner">
+  <a class="brand" href="index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><span>はじめに</span></nav>
+  <span class="layer-tag l1">Single Source of Truth</span>
+</div></header>
+
+<main class="doc wide">
+  <div class="content">
+    <header class="hero">
+      <div class="eyebrow">INDX Watch · 設計ドキュメント</div>
+      <h1>どこを・どうすれば完了か、<br>全員が同じ画面で分かる E2E テスト基盤</h1>
+      <p class="lead">INDX Watch は Cloudflare 上でセルフホストする、社内向けの AI ネイティブな E2E テスト / QA 管理プラットフォームです。ユースケースと完了条件、テストケース、フィクスチャ、環境、リリースとデプロイ、アサイン、実行結果と証拠、AI の判定を 1 つのデータベースで管理します。</p>
+      <div class="meta-row"><span>フェーズ <b>M0 ドキュメント整備</b></span><span>更新 <b>2026-11-19</b></span><span>リポジトリ <b>indxdev/indx-watch</b></span></div>
+    </header>
+
+    <section id="structure">
+      <h2>ドキュメントの 2 層構造</h2>
+      <p>第 1 層が「何を・なぜ」の正（仕様）、第 2 層が「どう見えるか・どう作るか」です。第 2 層は必ず第 1 層の言葉と ID に従います。食い違ったら第 1 層を直してから第 2 層を合わせます。</p>
+      <div class="layers">
+        <div class="layer l1" id="spec">
+          <h3>Layer 1 · 仕様</h3>
+          <ul class="doc-list">
+            <li><a href="spec/prd.html"><span class="code">SPEC-01</span><span><b>PRD</b><span class="d">課題、ペルソナ、大事にしていること、機能要件、スコープ外</span></span></a></li>
+            <li><a href="spec/domain.html"><span class="code">SPEC-02</span><span><b>ドメインモデル</b><span class="d">用語、ID、状態遷移、「完了」の計算、Go / No-Go</span></span></a></li>
+            <li><a href="spec/ux.html"><span class="code">SPEC-03</span><span><b>UX・ユーザーフロー</b><span class="d">UX 原則、情報設計、ロール別の主要フロー</span></span></a></li>
+            <li><a href="spec/data-model.html"><span class="code">SPEC-04</span><span><b>データモデル</b><span class="d">D1 の DDL、JSON の形、R2 のレイアウト、保持</span></span></a></li>
+            <li><a href="spec/architecture.html"><span class="code">SPEC-05</span><span><b>アーキテクチャ</b><span class="d">Cloudflare 構成、Access 認証、実行パイプライン、GitHub 連携</span></span></a></li>
+            <li><a href="spec/ai.html"><span class="code">SPEC-06</span><span><b>AI ネイティブ設計</b><span class="d">実行モード、ブラウザエージェント、ジャッジ、判定ポリシー、MCP</span></span></a></li>
+          </ul>
+        </div>
+        <div class="layer l2" id="guides">
+          <h3>Layer 2 · ガイド</h3>
+          <ul class="doc-list">
+            <li><a href="guides/implementation.html"><span class="code">GUIDE-01</span><span><b>実装ガイド</b><span class="d">コードを少なく保つ方針、モノレポ構成、規約、ロードマップ</span></span></a></li>
+            <li><a href="guides/target-onboarding.html"><span class="code">GUIDE-02</span><span><b>テスト対象の登録</b><span class="d">自社アプリ・環境・入り方・データを定義して、迷わずテストを始める</span></span></a></li>
+          </ul>
+          <div class="callout"><strong>コーディングエージェントへ</strong><p>作業の前にリポジトリ直下の <code>AGENTS.md</code> を読んでください。用語・技術スタック・作業ルールの要約があります。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screens">
+      <h2>Layer 2 · 画面</h2>
+      <p>主要な画面ごとに、モックと画面仕様（表示データ、操作、AI の役割、この画面の完了条件）を 1 ページにまとめています。</p>
+      <div class="screens">
+        <a href="screens/s01-my-tasks.html"><span class="code">S01</span><b>マイタスク</b><span class="who">テスター・顧客 / 次にやることが 1 つ見える</span></a>
+        <a href="screens/s02-release-readiness.html"><span class="code">S02</span><b>リリース準備状況</b><span class="who">QA リード / Go・No-Go 判定</span></a>
+        <a href="screens/s03-spec-tree.html"><span class="code">S03</span><b>仕様ツリー</b><span class="who">全員 / 機能→ユースケース→完了条件</span></a>
+        <a href="screens/s04-test-case.html"><span class="code">S04</span><b>テストケース詳細・編集</b><span class="who">QA・ビジネス / 手順・判定・データ・履歴</span></a>
+        <a href="screens/s05-manual-runner.html"><span class="code">S05</span><b>テスト実行（手動）</b><span class="who">テスター / 1 ステップずつ証拠付きで</span></a>
+        <a href="screens/s06-agent-run-review.html"><span class="code">S06</span><b>AI 実行ビューア・レビュー</b><span class="who">QA / AI の行動と判定理由を確認</span></a>
+        <a href="screens/s07-fixtures.html"><span class="code">S07</span><b>フィクスチャ管理</b><span class="who">QA・エンジニア / アップロード・編集・差分・履歴</span></a>
+        <a href="screens/s08-plan-assign.html"><span class="code">S08</span><b>テスト計画・アサイン</b><span class="who">QA リード / 誰が何をいつまでに</span></a>
+        <a href="screens/s09-environments.html"><span class="code">S09</span><b>環境・アクセス</b><span class="who">エンジニア / 入り方・アカウント・リセット</span></a>
+        <a href="screens/s10-ai-import.html"><span class="code">S10</span><b>AI 仕様取り込み</b><span class="who">ビジネス・QA / PRD や PR から仕様を作る</span></a>
+        <a href="screens/s11-github-deployments.html"><span class="code">S11</span><b>GitHub・デプロイメント</b><span class="who">エンジニア / PR の影響テストと Check Run</span></a>
+      </div>
+    </section>
+
+    <section id="read">
+      <h2>役割ごとの読み方</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>あなた</th><th>最初に読む</th><th>次に</th></tr></thead>
+        <tbody>
+          <tr><td>ビジネス職・PdM</td><td><a href="spec/prd.html">PRD</a></td><td><a href="spec/ux.html#flow-business">ビジネス職のフロー</a> → <a href="screens/s03-spec-tree.html">S03</a> → <a href="screens/s10-ai-import.html">S10</a></td></tr>
+          <tr><td>QA リード</td><td><a href="spec/domain.html">ドメインモデル</a></td><td><a href="screens/s02-release-readiness.html">S02</a> → <a href="screens/s08-plan-assign.html">S08</a> → <a href="spec/ai.html">AI ネイティブ設計</a></td></tr>
+          <tr><td>QA テスター</td><td><a href="spec/ux.html#flow-tester">テスターのフロー</a></td><td><a href="screens/s01-my-tasks.html">S01</a> → <a href="screens/s05-manual-runner.html">S05</a> → <a href="screens/s07-fixtures.html">S07</a></td></tr>
+          <tr><td>エンジニア</td><td><a href="spec/architecture.html">アーキテクチャ</a></td><td><a href="spec/data-model.html">データモデル</a> → <a href="guides/implementation.html">実装ガイド</a> → <a href="guides/target-onboarding.html">テスト対象の登録</a></td></tr>
+          <tr><td>Claude Code</td><td><code>AGENTS.md</code></td><td>触る領域の Layer 1 → 該当画面の Layer 2</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="decisions">
+      <h2>決まっていること</h2>
+      <div class="grid">
+        <div class="card"><h3>単一の情報源は D1</h3><p class="small">仕様・計画・実行・判定・AI 提案・監査ログを 1 つの DB に。ファイル本体だけ R2。</p></div>
+        <div class="card"><h3>Next.js + Worker 2 つ</h3><p class="small">UI と API は Next.js（OpenNext で Workers）。実行は Workflows・Queues・Browser Rendering のランナー Worker。</p></div>
+        <div class="card"><h3>社内だけが入れる</h3><p class="small">Cloudflare Access を前段に置き、社内ドメインと招待した顧客のメールだけ許可。</p></div>
+        <div class="card"><h3>完了は計算で決まる</h3><p class="small">ユースケースはすべての完了条件が合格で完了。リリースは Go / No-Go 条件で判定。</p></div>
+        <div class="card"><h3>AI は提案、人が承認</h3><p class="small">AI の仕様は draft で入る。AI の判定は信頼度付きで、足りなければ人のレビューへ。</p></div>
+        <div class="card"><h3>すべて版で残す</h3><p class="small">テストケースとフィクスチャは不変の版を積み上げ、実行は使った版を記録する。</p></div>
+      </div>
+      <div class="callout warn"><strong>サンプルデータについて</strong><p>ドキュメント中の「INDX Shop（<code>SHOP</code>）」、ドメイン <code>*.example.com</code> / <code>watch.indx.example</code>、人物名はすべて説明用のサンプルです。実際のテスト対象リポジトリと環境は <a href="guides/target-onboarding.html">テスト対象の登録</a> の手順で定義します。</p></div>
+    </section>
+
+    <nav class="pager"><span></span><a href="spec/prd.html"><small>次へ</small>SPEC-01 PRD</a></nav>
+  </div>
+</main>
+<script src="assets/docs.js"></script>

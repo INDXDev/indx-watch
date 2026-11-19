@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch PRD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>PRD</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#background">背景と課題</a></li>
+    <li><a href="#goals">目的とゴール</a></li>
+    <li><a href="#personas">ペルソナ</a></li>
+    <li><a href="#jtbd">主要ジョブ</a></li>
+    <li><a href="#principles">大事にしていること</a></li>
+    <li><a href="#fr">機能要件</a></li>
+    <li><a href="#nfr">非機能要件</a></li>
+    <li><a href="#out-of-scope">スコープ外</a></li>
+    <li><a href="#milestones">マイルストーン</a></li>
+    <li><a href="#open-questions">未決事項</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-01 · PRD</div>
+      <h1>INDX Watch プロダクト要求仕様</h1>
+      <p class="lead">INDX Watch は、ビジネス職・エンジニア・QA の誰もが同じ場所でテスト仕様を書き、実行し、証拠付きで合否を残せる、AI ネイティブな E2E テスト / QA 管理プラットフォームです。Cloudflare 上にセルフホストし、社内と招待した顧客だけが使います。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>オーナー <b>QA リード</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="ux.html">UX・ユーザーフロー</a></span></div>
+    </header>
+
+    <section id="background">
+      <h2>背景と課題</h2>
+      <p>現在、リリース前の QA は「スプレッドシートの手順書」「Slack のスレッド」「各自のスクリーンショットフォルダ」で回っています。テストそのものより、準備と確認と報告に時間がかかっています。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>課題</th><th>いま起きていること</th><th>影響</th></tr></thead>
+        <tbody>
+          <tr><td>仕様が散らばっている</td><td>ユースケースと完了条件が PRD・チケット・スプレッドシートに分散し、最新版が分からない</td><td>「どこが・どうなれば完了か」を毎回人に聞く</td></tr>
+          <tr><td>環境への入り方が属人的</td><td>staging の URL、Access の通し方、テストアカウントのパスワードが特定の人の頭の中にある</td><td>新しいテスターが最初の 1 件を実行するまで半日かかる</td></tr>
+          <tr><td>テストデータが管理されていない</td><td>クーポン CSV や会員アカウントが共有ドライブで上書きされ、履歴がない</td><td>「前回は通ったのに」の原因がデータか実装か切り分けられない</td></tr>
+          <tr><td>誰が何をやるか追えない</td><td>アサインがチャットで行われ、期限と重要度が記録されない</td><td>リリース直前に P0 の未実行が見つかる</td></tr>
+          <tr><td>証拠が残らない</td><td>合否だけが記録され、スクリーンショットや実行したバージョンが紐づかない</td><td>不具合の再現と Go/No-Go 判断の根拠が弱い</td></tr>
+          <tr><td>道具が職種ごとに違う</td><td>エンジニアは Playwright、QA はスプレッドシート、顧客 UAT はメール往復</td><td>結果を手で集計し直す</td></tr>
+          <tr><td>AI の使い方が決まっていない</td><td>ブラウザエージェントや LLM 判定を試したいが、判定の根拠と人のレビューをどう残すか決まっていない</td><td>AI の結果を信用してよいか判断できない</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="goals">
+      <h2>目的とゴール</h2>
+      <p>目的は「リリースのたびに、何がテスト済みで何が残っているかを、証拠付きで誰でも答えられる状態」を作ることです。すべての情報を D1 の 1 つのデータモデルにつなげ、AI が仕様作成・実行・判定を手伝い、人が承認します。</p>
+      <h3>成功指標（M3 完了時点、導入前の実績と比較）</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>指標</th><th>目標</th><th>測り方</th></tr></thead>
+        <tbody class="nums">
+          <tr><td>リリース前 QA の総工数</td><td><b>40% 削減</b></td><td>テスト計画の作成〜Go/No-Go までの人時（<code>activity_log</code> と自己申告）</td></tr>
+          <tr><td>P0 ユースケースの完了条件（AC）網羅率</td><td><b>100%</b></td><td>P0 の UC に属する AC のうち、<code>ready</code> の TC が 1 件以上紐づく割合</td></tr>
+          <tr><td>判定への証拠添付率</td><td><b>100%</b></td><td>完了した実行のうち、<code>evidence</code> が 1 件以上ある割合（スキップを除く）</td></tr>
+          <tr><td>新しいテスターの初回実行までの時間</td><td><b>10 分以内</b></td><td>招待メール送信から最初の <code>runs.started_at</code> まで</td></tr>
+          <tr><td>回帰テストの AI 実行比率</td><td><b>60% 以上</b></td><td>リグレッション計画の実行のうち <code>executor_kind = agent / script</code> の割合</td></tr>
+          <tr><td>AI 判定の人による覆し率</td><td><b>5% 以下</b></td><td>AI が確定した pass/fail を、後から human 判定で反転した割合</td></tr>
+          <tr><td>リリース直前（目標日 2 日前以降）に見つかった P0 未実行</td><td><b>0 件</b></td><td>リリース準備状況画面のスナップショット</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="personas">
+      <h2>ペルソナ</h2>
+      <p>サンプルの人物はすべてのドキュメントで共通です。ロールの権限は <a href="ux.html#roles">UX・ユーザーフロー</a> を参照してください。</p>
+      <div class="grid two">
+        <div class="card">
+          <h3>QA リード — 佐藤 美咲 <span class="tag">manager</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>リリースごとのテスト計画を作り、担当を割り振り、Go/No-Go を判断する</dd>
+          <dt>困りごと</dt><dd>進捗をスプレッドシートで集計し直している。P0 の未実行に直前まで気づけない</dd>
+          <dt>主な画面</dt><dd><a href="../screens/s02-release-readiness.html">S02 リリース準備状況</a> · <a href="../screens/s08-plan-assign.html">S08 テスト計画・アサイン</a> · <a href="../screens/s06-agent-run-review.html">S06 レビューキュー</a></dd></dl>
+        </div>
+        <div class="card">
+          <h3>QA テスター — 田中 健 <span class="tag">tester</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>割り当てられたテストを実行し、証拠と結果を残す</dd>
+          <dt>困りごと</dt><dd>手順書の場所、環境の入り方、使うデータを毎回探す。スクリーンショットの整理が手間</dd>
+          <dt>主な画面</dt><dd><a href="../screens/s01-my-tasks.html">S01 マイタスク</a> · <a href="../screens/s05-manual-runner.html">S05 手動ランナー</a></dd></dl>
+        </div>
+        <div class="card">
+          <h3>エンジニア — 鈴木 翔 <span class="tag">tester</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>PR がどのテストに影響するか知り、preview 環境で自動実行して直す</dd>
+          <dt>困りごと</dt><dd>QA の結果が PR に返ってこない。失敗の再現情報（バージョン・データ）が足りない</dd>
+          <dt>主な画面</dt><dd><a href="../screens/s11-github-deployments.html">S11 GitHub・デプロイメント</a> · <a href="../screens/s06-agent-run-review.html">S06 AI 実行ビューア</a> · GitHub の Check Run</dd></dl>
+        </div>
+        <div class="card">
+          <h3>PdM・ビジネス職 — 高橋 由佳 <span class="tag">tester</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>ユースケースと完了条件を書き、作った機能が意図通りか確かめる</dd>
+          <dt>困りごと</dt><dd>テストケースの書き方が分からない。セレクタや技術用語が出てくる道具は使えない</dd>
+          <dt>主な画面</dt><dd><a href="../screens/s03-spec-tree.html">S03 仕様ツリー</a> · <a href="../screens/s10-ai-import.html">S10 AI 仕様取り込み</a> · <a href="../screens/s05-manual-runner.html">S05 手動ランナー</a></dd></dl>
+        </div>
+        <div class="card">
+          <h3>顧客 — 山本 様（株式会社サンプル） <span class="tag">guest</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>受け入れテスト（UAT）で、依頼された項目だけを確認して合否を返す</dd>
+          <dt>困りごと</dt><dd>アカウント作成や VPN が面倒。どこまで確認すれば終わりか分からない</dd>
+          <dt>主な画面</dt><dd><a href="../screens/s01-my-tasks.html">S01 マイタスク</a>（自分の項目だけ）· <a href="../screens/s05-manual-runner.html">S05 手動ランナー</a></dd></dl>
+        </div>
+        <div class="card">
+          <h3>Watch Agent <span class="ai-tag">AI</span></h3>
+          <dl class="kv"><dt>ジョブ</dt><dd>自然言語の手順をブラウザで実行し、証拠を取り、ルーブリックで判定する。仕様の下書きや影響分析を作る</dd>
+          <dt>制約</dt><dd>自分の成果物を <code>ready</code> にできない。信頼度が閾値未満の判定は人に回す</dd>
+          <dt>主な画面</dt><dd>実行結果は <a href="../screens/s06-agent-run-review.html">S06 AI 実行ビューア</a> に出る（<code>users.kind = 'agent'</code>）</dd></dl>
+        </div>
+      </div>
+    </section>
+
+    <section id="jtbd">
+      <h2>主要ジョブ（Jobs to be Done）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>誰が</th><th>状況</th><th>やりたいこと</th><th>期待する成果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">J1</span></td><td>テスター</td><td>朝、今日のテストを始めるとき</td><td>自分の担当を重要度順に見て、そのまま実行に入りたい</td><td>環境・アカウント・データを探さずに 1 件目を始められる</td></tr>
+          <tr><td><span class="id">J2</span></td><td>QA リード</td><td>リリース <code>v2.4.0</code> のテスト期間が始まるとき</td><td>対象テストを選び、担当と期限を決めたい</td><td>全 P0/P1 に担当と期限が付いた計画ができる</td></tr>
+          <tr><td><span class="id">J3</span></td><td>QA リード</td><td>リリース判定の前日</td><td>残りと失敗とリスクを 1 画面で見たい</td><td>証拠付きで Go/No-Go を決められる</td></tr>
+          <tr><td><span class="id">J4</span></td><td>PdM</td><td>新機能の仕様を書いたとき</td><td>PRD を貼るだけでユースケース・完了条件・テストケースの下書きが欲しい</td><td>レビューして承認するだけで仕様が揃う</td></tr>
+          <tr><td><span class="id">J5</span></td><td>エンジニア</td><td>PR を出したとき</td><td>影響するテストを知り、preview 環境で自動実行したい</td><td>PR の Check Run に結果が返る</td></tr>
+          <tr><td><span class="id">J6</span></td><td>テスター</td><td>テストデータを更新するとき</td><td>CSV をブラウザで差し替え、前の版との差分を見たい</td><td>どの実行がどの版のデータを使ったか分かる</td></tr>
+          <tr><td><span class="id">J7</span></td><td>顧客</td><td>UAT を依頼されたとき</td><td>メールのリンクから、依頼された項目だけを確認したい</td><td>アカウント作成なしで合否と証拠を返せる</td></tr>
+          <tr><td><span class="id">J8</span></td><td>QA リード</td><td>AI の判定が「要確認」になったとき</td><td>証拠と AI の判定理由を見て、自分で確定したい</td><td>理由付きの人の判定が記録される</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="principles">
+      <h2>大事にしていること</h2>
+      <p>機能の取捨選択や UI の判断で迷ったら、この 7 つに照らして決めます。具体的な UI ルールは <a href="ux.html#principles">UX 原則</a> にあります。</p>
+      <div class="grid two">
+        <div class="card"><h3>1. 迷わない</h3><p>どの画面にも「次にやること」が 1 つだけ強調表示されます。テスターはマイタスクを開けば、環境 URL、入り方、テストアカウント、使うフィクスチャ、手順が 1 画面にそろっています。探す行為をなくすことが最優先です。</p></div>
+        <div class="card"><h3>2. 誰でも QA できる</h3><p>手順は平易な日本語で、1 ステップに 1 動作だけ書きます。セレクタやコードを書かなくてもテストケースを作れ、実行できます。エンジニア向けの Playwright スクリプトは任意の上乗せです。</p></div>
+        <div class="card"><h3>3. 完了の定義が明確</h3><p>すべてのユースケースは完了条件（AC）を持ち、AC はテストケースで網羅されます。「完了」は人の感覚ではなく、AC の網羅状況と最新の判定から計算されます。</p></div>
+        <div class="card"><h3>4. 証拠ベース</h3><p>合否には必ずスクリーンショットなどの証拠と判定理由が付きます。証拠のない pass は記録できません（スキップを除く）。</p></div>
+        <div class="card"><h3>5. AI は提案、人が承認</h3><p>AI が作った仕様は <code>origin = ai</code>・<code>draft</code> で入り、人の承認で <code>ready</code> になります。AI の判定は信頼度付きで、閾値（既定 0.8）未満は人のレビューキューに回ります。</p></div>
+        <div class="card"><h3>6. すべて履歴が残る</h3><p>テストケースとフィクスチャはバージョン管理され、実行は「どの仕様の版・どのデータの版で・どのデプロイに対して」行ったかを必ず記録します。変更は <code>activity_log</code> に残ります。</p></div>
+        <div class="card"><h3>7. コードは少なく</h3><p>Next.js 1 アプリとランナー Worker 1 つで作ります。D1 / R2 / Browser Rendering / Workflows / Queues / Access など Cloudflare のマネージド機能に任せ、自前実装を増やしません。</p></div>
+      </div>
+    </section>
+
+    <section id="fr">
+      <h2>機能要件</h2>
+      <p>優先度は <span class="prio p0">P0</span> = M1/MVP に必須、<span class="prio p1">P1</span> = 該当マイルストーンで必須、<span class="prio p2">P2</span> = あると良い。用語の定義は <a href="domain.html">ドメインモデル</a> が正です。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>領域</th><th>要件</th><th>M</th><th>優先度</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">FR-01</span></td><td>仕様管理</td><td>機能 → ユースケース → 完了条件 → テストケースのツリーを作成・編集・並べ替えできる。各ノードは表示キー（<code>FEAT-3</code>、<code>UC-12</code>、<code>AC-12.2</code>、<code>TC-128</code>）を持つ</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-02</span></td><td>完了条件</td><td>ユースケースに完了条件（AC）を複数登録できる。AC ごとに紐づく TC と最新判定を表示し、TC のない AC を「未網羅」として警告する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-03</span></td><td>テストケース</td><td>前提条件、手順（1 ステップ 1 動作）、期待結果、優先度（P0〜P3）、実行モード（manual / agent / script / hybrid）、ジャッジ設定、使うフィクスチャを持つ</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-04</span></td><td>バージョン</td><td>テストケースを保存するたびに新しい版（<code>test_case_versions</code>）を作り、変更メモと差分を表示する。実行は版を固定して参照する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-05</span></td><td>フィクスチャ</td><td>dataset（CSV/JSON）、seed（状態準備）、file（画像・PDF）、account（テストアカウント）の 4 種類をブラウザでアップロード・編集できる</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-06</span></td><td>フィクスチャ履歴</td><td>フィクスチャは版ごとに不変で保存し、版間の差分（CSV は行単位）表示と、過去版への巻き戻し（新しい版として複製）ができる</td><td>M1</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-07</span></td><td>環境と入り方</td><td>環境ごとにベース URL、入り方（none / basic / cf_access / ip_allowlist）、入り方ガイド、テストアカウント、リセット手順を登録し、実行画面に常に表示する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-08</span></td><td>リリース・デプロイ</td><td>リリース（<code>v2.4.0</code>）とデプロイメント（<code>staging@a1b2c3d</code>）を管理し、すべての実行をどれかのデプロイメントに紐づける。手動登録もできる</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-09</span></td><td>テスト計画</td><td>リリースに対してテスト計画を作り、TC を機能・優先度・タグ・影響分析から一括追加できる</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-10</span></td><td>アサイン</td><td>計画アイテムごとに担当者（人または Watch Agent）、環境、期限、優先度を設定できる。一括アサインと担当者別の負荷表示を持つ</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-11</span></td><td>マイタスク</td><td>ログインしたユーザーの担当アイテムを、優先度 → 期限の順で表示し、1 クリックで実行を開始できる</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-12</span></td><td>手動実行と証拠</td><td>手順を 1 ステップずつ表示し、ステップごとに合格 / 不合格 / 実行不可とメモを記録する。スクリーンショットはクリップボードからの貼り付け・ドラッグ＆ドロップで添付する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-13</span></td><td>リリース準備状況</td><td>リリース単位で、機能 × ユースケースの網羅率と判定の内訳、P0 の残件、要確認件数、Go/No-Go 条件の充足を 1 画面で表示する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-14</span></td><td>AI 仕様取り込み</td><td>PRD・Issue・PR 差分・画面キャプチャを入力として、ユースケース・完了条件・テストケース・必要なフィクスチャの下書きを生成する。項目ごとに採用 / 修正 / 却下できる</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-15</span></td><td>ブラウザエージェント実行</td><td>mode が agent / hybrid の TC を、Browser Rendering 上で AI エージェントが実行する。ステップごとにスクリーンショット、a11y スナップショット、操作ログを保存する</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-16</span></td><td>ジャッジと判定ポリシー</td><td>assert / visual / llm / human の判定を記録し、判定ポリシーで最終判定に集約する。LLM 判定は信頼度と理由を必ず持つ</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-17</span></td><td>レビューキュー</td><td><code>needs_review</code> の実行を一覧し、証拠と AI の理由を並べて人が確定できる。確定には理由の入力が必須</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-18</span></td><td>スクリプト実行</td><td>mode が script の TC は、TC の版に保存した Playwright スクリプトをランナーで実行する</td><td>M2</td><td><span class="prio p2">P2</span></td></tr>
+          <tr><td><span class="id">FR-19</span></td><td>GitHub 連携</td><td>GitHub App で <code>deployment_status</code> からデプロイメントを作成し、スモーク計画を自動実行する。<code>pull_request</code> で影響テストを提案し、結果を Check Run と PR コメントで返す。<code>release</code> からリリースを作る</td><td>M3</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-20</span></td><td>不具合起票</td><td>不合格の実行から GitHub Issue を作成し、証拠リンク・再現手順・デプロイ情報を本文に自動で入れる</td><td>M3</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-21</span></td><td>定期実行</td><td>計画またはタグを対象に、環境と cron を指定して定期実行できる</td><td>M3</td><td><span class="prio p2">P2</span></td></tr>
+          <tr><td><span class="id">FR-22</span></td><td>ビジュアル差分</td><td>承認済みベースライン画像と比較し、差分率が閾値を超えたら要確認にする。ベースラインの更新は人が承認する</td><td>M3</td><td><span class="prio p2">P2</span></td></tr>
+          <tr><td><span class="id">FR-23</span></td><td>MCP</td><td><code>/mcp</code> で MCP サーバーを公開し、Claude Code から仕様の参照、TC の下書き作成、実行の開始と結果取得ができる</td><td>M3</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-24</span></td><td>顧客 UAT</td><td>guest を招待し、自分にアサインされた項目と、その実行に必要な環境情報だけを見せる。招待はメールアドレス単位で期限付き</td><td>M4</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-25</span></td><td>通知</td><td>アサイン、期限前日、不合格、要確認、Go/No-Go 判定を、アプリ内・メール・Slack に通知する（<a href="ux.html#notifications">通知設計</a>）</td><td>M1〜M3</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-26</span></td><td>コメントと監査</td><td>UC・TC・実行にコメントでき、すべての作成・変更・判定を <code>activity_log</code> に記録して画面から履歴を見られる</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
+          <tr><td><span class="id">FR-27</span></td><td>分析</td><td>不安定なテスト（同じ版・同じデプロイで判定が揺れる TC）の検出、機能別の不合格傾向、AI 判定の覆し率を表示する</td><td>M4</td><td><span class="prio p2">P2</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="nfr">
+      <h2>非機能要件</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>区分</th><th>要件</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">NFR-01</span></td><td>アクセス制御</td><td>アプリ全体を Cloudflare Access の背後に置く。Worker は全リクエストで <code>Cf-Access-Jwt-Assertion</code> を検証し、メールアドレスで <code>users</code> と照合する。未登録ユーザーは 403。例外は <code>/api/github/webhook</code>（HMAC 署名で検証）のみ</td></tr>
+          <tr><td><span class="id">NFR-02</span></td><td>権限</td><td>ロール（admin / manager / tester / guest）とプロジェクトメンバーシップで認可する。guest は自分の計画アイテムとその実行に必要なデータ以外を API レベルで取得できない</td></tr>
+          <tr><td><span class="id">NFR-03</span></td><td>秘密情報</td><td>テストアカウントのパスワード、環境のサービストークン、API キーは D1 に平文で保存しない。D1 には参照名（<code>secret_ref</code>）のみ、値は Workers Secrets / Secrets Store に置く。画面ではマスク表示し、表示操作は監査ログに残す</td></tr>
+          <tr><td><span class="id">NFR-04</span></td><td>監査ログ</td><td>作成・更新・削除・判定・承認・秘密の表示を <code>activity_log</code> に actor・対象・差分付きで記録する。ログは削除しない</td></tr>
+          <tr><td><span class="id">NFR-05</span></td><td>AI の追跡性</td><td>AI の生成物と判定には、モデル名・プロンプトのバージョン・入力の参照を保存する。人の承認なしに <code>ready</code> や最終確定にしない</td></tr>
+          <tr><td><span class="id">NFR-06</span></td><td>コスト</td><td>LLM 呼び出しは AI Gateway 経由にし、プロジェクトごとの月間上限（既定 USD 300、未決）を設ける。上限の 80% で manager に通知し、100% で agent 実行を停止して手動に切り替える。実行ごとのコストを <code>runs.cost_json</code> に残す</td></tr>
+          <tr><td><span class="id">NFR-07</span></td><td>性能</td><td>一覧画面の表示は p95 で 1 秒以内（D1 クエリ 1 画面 5 本以内）。手動ランナーの判定保存は 300ms 以内。エージェント実行は 1 TC あたり中央値 3 分以内を目標とし、15 分の上限を超えたら <code>blocked</code>（<a href="ai.html">AI ネイティブ設計</a>の実行上限）</td></tr>
+          <tr><td><span class="id">NFR-08</span></td><td>同時実行</td><td>エージェント実行は Queues で流量を制御し、Browser Rendering の同時セッション数の上限内で動かす（既定 同時 4）。超過分は <code>queued</code> で待つ</td></tr>
+          <tr><td><span class="id">NFR-09</span></td><td>データ保持</td><td>実行メタデータと判定は無期限。スクリーンショットなどの証拠は 180 日、ただしリリースの Go 判定に使われた実行の証拠は無期限（R2 のライフサイクルとタグで制御）。フィクスチャの版は削除しない</td></tr>
+          <tr><td><span class="id">NFR-10</span></td><td>可用性</td><td>Cloudflare のマネージドサービスの SLA に従う。ランナーは Workflows で各ステップを再試行可能にし、途中で落ちても再開できる</td></tr>
+          <tr><td><span class="id">NFR-11</span></td><td>アクセシビリティ</td><td>キーボードのみで実行画面を操作できる。判定は色だけでなくラベルで示す。WCAG 2.2 AA を目標</td></tr>
+          <tr><td><span class="id">NFR-12</span></td><td>レスポンシブ</td><td>マイタスクと手動ランナーは幅 375px のスマートフォンで操作できる。管理系画面はデスクトップ優先</td></tr>
+          <tr><td><span class="id">NFR-13</span></td><td>テスト対象への影響</td><td>エージェントは登録された環境のベース URL 配下以外に遷移しない。<code>prod</code> 種別の環境では書き込みを伴う TC を実行できない設定を既定にする</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="out-of-scope">
+      <h2>スコープ外</h2>
+      <ul>
+        <li>負荷試験・性能試験（k6 などの専用ツールを使う）</li>
+        <li>ネイティブモバイルアプリ（iOS / Android）の実機テスト。モバイル幅の Web 表示は対象</li>
+        <li>本番環境の常時監視・死活監視（外形監視サービスを使う）</li>
+        <li>ユニットテスト・API 単体テストの管理（各リポジトリの CI に任せる）</li>
+        <li>汎用のチケット管理。不具合は GitHub Issue に起票し、INDX Watch はリンクを持つだけ</li>
+        <li>社外向け SaaS としての提供、マルチテナント課金</li>
+        <li>セキュリティ診断・脆弱性スキャン</li>
+      </ul>
+    </section>
+
+    <section id="milestones">
+      <h2>マイルストーン</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>M</th><th>内容</th><th>主な要件</th><th>完了条件</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">M0</span></td><td>ドキュメント整備</td><td>—</td><td>本ドキュメント群と AGENTS.md がレビュー済み</td></tr>
+          <tr><td><span class="id">M1</span></td><td>手動 QA を回せる MVP</td><td>FR-01〜13, 25（アプリ内・メール）, 26</td><td><code>v2.4.0</code> 相当のリリースを、スプレッドシートなしで計画・実行・Go/No-Go まで回せる</td></tr>
+          <tr><td><span class="id">M2</span></td><td>AI 仕様取り込みとエージェント実行</td><td>FR-14〜18</td><td>リグレッション計画の 40% 以上を Watch Agent が実行し、要確認がレビューキューで処理できる</td></tr>
+          <tr><td><span class="id">M3</span></td><td>GitHub 連携と自動化</td><td>FR-19〜23, 25（Slack）</td><td>PR ごとに影響テストが提案され、preview / staging の実行結果が Check Run に返る</td></tr>
+          <tr><td><span class="id">M4</span></td><td>顧客 UAT と分析</td><td>FR-24, 27</td><td>顧客 1 社が招待メールから UAT を完了できる</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted small">各マイルストーンの実装順序と作業分解は <a href="../guides/implementation.html">実装ガイド</a> にあります。</p>
+    </section>
+
+    <section id="open-questions">
+      <h2>未決事項</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>問い</th><th>暫定の前提</th><th>決める人・期限</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">Q-01</span></td><td>最初に登録するテスト対象リポジトリとアプリはどれか</td><td>1 つのリポジトリで M1 を検証し、その後に拡大する。ドキュメントは <code>SHOP</code>（サンプル）で説明</td><td>QA リード・M1 着手前</td></tr>
+          <tr><td><span class="id">Q-02</span></td><td>Cloudflare Access の IdP は何か（Google Workspace / Entra ID / その他）</td><td>社員は社内 IdP、顧客はワンタイム PIN</td><td>情シス・M1 着手前</td></tr>
+          <tr><td><span class="id">Q-03</span></td><td>顧客 UAT の範囲。顧客に見せるのは実行画面だけか、ユースケースと完了条件も見せるか</td><td>自分の計画アイテムと、それに紐づく UC・AC の文面だけ見せる</td><td>事業責任者・M3 中</td></tr>
+          <tr><td><span class="id">Q-04</span></td><td>LLM の月間予算上限と、超過時の扱い</td><td>プロジェクトあたり USD 300、超過で agent 実行を停止</td><td>事業責任者・M2 着手前</td></tr>
+          <tr><td><span class="id">Q-05</span></td><td>テスト対象環境のリセット手段（DB シード API があるか）</td><td>各アプリに <code>POST /__test/reset</code> 相当の API を用意してもらう。無い場合は seed フィクスチャを手順として実行</td><td>各アプリのテックリード・M1 中</td></tr>
+          <tr><td><span class="id">Q-06</span></td><td>通知先の Slack ワークスペースとチャンネル設計</td><td>プロジェクトごとに 1 チャンネル、個人宛は DM</td><td>QA リード・M3 着手前</td></tr>
+          <tr><td><span class="id">Q-07</span></td><td>テスト仕様をリポジトリにも YAML で書き出すか（双方向同期の要否）</td><td>D1 を正とし、M3 以降に片方向のエクスポートのみ検討</td><td>テックリード・M3 着手前</td></tr>
+          <tr><td><span class="id">Q-08</span></td><td>証拠に個人情報が写り込む場合のマスキング方針</td><td>テスト環境ではダミーデータのみを使うことを前提にし、マスキングは M4 で検討</td><td>情シス・M2 中</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <nav class="pager">
+      <a href="../index.html"><small>前へ</small>ドキュメントの入口</a>
+      <a href="domain.html"><small>次へ</small>SPEC-02 ドメインモデル</a>
+    </nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

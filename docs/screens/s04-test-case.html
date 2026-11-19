@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>テストケース画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .tc-grid { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 16px; align-items: start; }
+  .step { display: grid; grid-template-columns: 26px minmax(0, 1.25fr) minmax(0, 1fr) 96px; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); align-items: start; font-size: 12.5px; }
+  .step:last-child { border-bottom: 0; }
+  .step.head { background: var(--surface-2); font-size: 11px; font-weight: 700; color: var(--fg-muted); }
+  .step .n { font-family: var(--font-mono); font-weight: 700; color: var(--accent); }
+  .step .ev { display: grid; gap: 3px; justify-items: start; font-size: 11px; }
+  .step mark { background: var(--blocked-soft); color: var(--fg); border-bottom: 1px dashed var(--blocked); padding: 0 2px; }
+  .fx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .fx:last-child { border-bottom: 0; }
+  .pinv { font-family: var(--font-mono); font-size: 11px; padding: 0 6px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .judge { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; font-size: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .judge:last-child { border-bottom: 0; }
+  .judge .k { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+  .editing .step { background: var(--surface); }
+  .editing .input { width: 100%; }
+  .handle { color: var(--fg-muted); font-family: var(--font-mono); cursor: grab; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S04 テストケース詳細・編集</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S04 · 画面</div>
+    <h1>テストケース詳細・編集</h1>
+    <p class="lead">1 つのテストケースの手順・期待結果・前提データ・判定方法・履歴を管理する画面です。手順は「1 ステップ 1 動作」で、人も AI エージェントも同じ手順を読んで実行します。保存するたびに新しいバージョンになります。</p>
+    <div class="meta-row"><span>ルート <code>/p/[key]/tc/[n]</code>（編集 <code>/p/[key]/tc/[n]/edit</code>）</span><span>主な利用者 <b>manager・tester</b>（例: 佐藤 美咲、鈴木 翔）</span><span>関連フロー <a href="../spec/ux.html#flow-business">AI で仕様を作る</a></span></div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/tc/130</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a>マイタスク<span class="count">7</span></a>
+          <a>レビュー待ち<span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a>リリース</a><a class="on">仕様</a><a>テスト計画</a><a>実行履歴</a><a>フィクスチャ</a><a>環境</a><a>デプロイメント</a>
+          <div class="group">AI</div>
+          <a>仕様取り込み</a>
+        </nav>
+        <div class="app-main">
+          <div class="small muted"><span class="id">FEAT-3</span> カート・決済 › <span class="id">UC-12</span> ゲストがクーポンを適用して購入する</div>
+          <div class="app-top">
+            <h2><span class="id">TC-130</span> 割引後の金額で決済が完了する</h2>
+            <span class="prio p0">P0</span><span class="tag">hybrid</span><span class="badge st-pass" style="background:var(--accent-soft);color:var(--accent)">ready</span>
+            <span class="spacer"></span>
+            <button class="btn" type="button">複製</button>
+            <button class="btn" type="button">編集</button>
+            <button class="btn primary" type="button">この TC を実行 ▾</button>
+          </div>
+          <div class="small muted">検証する AC: <span class="id">AC-12.3</span> 割引後の金額で決済が完了し、注文確認メールが届く ・ 担当 鈴木 翔 ・ <span class="pin">1</span> v3（11/16 佐藤 美咲）</div>
+
+          <div class="tabs"><span class="on">手順</span><span>判定設定</span><span>フィクスチャ</span><span>履歴 (3)</span><span>実行結果 (9)</span></div>
+
+          <div class="tc-grid">
+            <div style="display:grid;gap:14px;min-width:0">
+              <div class="panel">
+                <header>前提条件</header>
+                <div class="body small">
+                  <ul>
+                    <li>ブラウザはログアウト状態（ゲスト）。Cookie は実行開始時にクリアされる</li>
+                    <li>在庫リセット <span class="id">FX-7</span> が実行前に適用されている（環境のリセット手順で自動）</li>
+                    <li>テスト用メールボックス <code>qa+guest@shop.example.com</code> を受信確認に使う</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="panel">
+                <header>手順と期待結果 <span class="pin">2</span><span style="flex:1"></span><span class="muted" style="font-weight:400">7 ステップ ・ 目安 8 分</span></header>
+                <div>
+                  <div class="step head"><span>#</span><span>操作（1 ステップ 1 動作）</span><span>期待結果</span><span>証拠</span></div>
+                  <div class="step"><span class="n">1</span><span>ゲストとしてトップページ <code>{base_url}/</code> を開く</span><span>トップページが表示される</span><span class="ev"><span class="muted">なし</span></span></div>
+                  <div class="step"><span class="n">2</span><span>「オーガニックコットン T シャツ（白・M）」をカートに入れる <span class="id">FX-7</span></span><span>ヘッダーのカート件数が 1 になる</span><span class="ev"><span class="tag">スクショ</span></span></div>
+                  <div class="step"><span class="n">3</span><span>カートで「購入手続きへ」→「ゲストとして購入」を押す</span><span>お届け先の入力画面が表示される</span><span class="ev"><span class="muted">なし</span></span></div>
+                  <div class="step"><span class="n">4</span><span>お届け先にテスト用住所を入力して「次へ」を押す</span><span>お支払い画面が表示される</span><span class="ev"><span class="muted">失敗時のみ</span></span></div>
+                  <div class="step"><span class="n">5</span><span>クーポン欄に <mark><code>SPRING10</code></mark> を入力して「適用」を押す</span><span>合計が ¥3,980 → <b>¥3,582</b> になり「SPRING10（10% OFF）」と表示される</span><span class="ev"><span class="tag">スクショ</span><span class="tag">DOM</span><span class="k mono">assert</span></span></div>
+                  <div class="step"><span class="n">6</span><span>テスト用カード <span class="id">FX-9</span> で支払い「注文を確定する」を押す</span><span>注文完了画面に注文番号と合計 <b>¥3,582</b> が表示される</span><span class="ev"><span class="tag">スクショ</span><span class="tag">DOM</span><span class="k mono">assert</span></span></div>
+                  <div class="step"><span class="n">7</span><span>テスト用メールボックスで注文確認メールを開く</span><span>件名「ご注文ありがとうございます」、本文の合計が <b>¥3,582</b></span><span class="ev"><span class="tag">スクショ</span><span class="k mono">llm</span></span></div>
+                </div>
+              </div>
+
+              <div class="ai-box">
+                <div class="ai-head"><span class="ai-tag">AI アシスト</span> 手順のあいまいさ 2 件 <span class="pin">3</span><span class="muted" style="font-weight:400;margin-left:auto">claude-sonnet-5-5</span></div>
+                <ul class="small">
+                  <li><b>ステップ 5:</b> クーポンコード <code>SPRING10</code> が直書きです。フィクスチャ <span class="id">FX-3</span> クーポンセット の「有効・10%」行を参照すると、コード変更時に手順を直さずに済みます。</li>
+                  <li><b>ステップ 7:</b> 「メールを開く」の場所が人によって違います。テスト用メールボックスの URL を環境の入り方（staging）から差し込むことを提案します。</li>
+                </ul>
+                <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ai" type="button">提案を下書きに反映</button><button class="btn ghost" type="button">無視する</button></div>
+              </div>
+            </div>
+
+            <div style="display:grid;gap:14px">
+              <div class="panel">
+                <header>使うフィクスチャ <span class="pin">4</span></header>
+                <div>
+                  <div class="fx"><span><span class="id">FX-7</span> ゲスト購入用の在庫</span><span class="pinv">v2 固定</span><span class="small muted">seed ・ 環境リセットで適用</span><span></span></div>
+                  <div class="fx"><span><span class="id">FX-9</span> テスト用クレジットカード</span><span class="pinv">v1 固定</span><span class="small muted">dataset ・ 行 <code>visa_ok</code></span><span></span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <header>判定設定 <span class="pin">5</span></header>
+                <div>
+                  <div class="judge"><span class="k">assert</span><span>手順 5・6: 合計表示が <code>¥3,582</code>、URL が <code>/orders/complete</code></span></div>
+                  <div class="judge"><span class="k">llm</span><span>手順 7: ルーブリック「件名・合計・商品名がメール本文で一致」 閾値 0.8</span></div>
+                  <div class="judge"><span class="k">policy</span><span>既定ポリシー ＋ <code>require_human_for: ["P0"]</code>（AI が pass でも人の確認が必要）</span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <header>最近の実行</header>
+                <div class="rows">
+                  <div class="row" style="grid-template-columns:minmax(0,1fr) auto"><span><span class="id">RUN-1033</span> Watch Agent<br><span class="small muted">staging@a1b2c3d ・ v3</span></span><span class="badge st-review">要確認</span></div>
+                  <div class="row" style="grid-template-columns:minmax(0,1fr) auto"><span><span class="id">RUN-998</span> 鈴木 翔<br><span class="small muted">staging@9f8e7d6 ・ v2</span></span><span class="badge st-pass">pass</span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <header>バージョン</header>
+                <div class="body small">
+                  <div><b>v3</b> 11/16 佐藤 美咲 <span class="tag">現在</span><br><span class="muted">クーポン併用（PR #482）に合わせて手順 5 の期待金額を更新</span> <a href="#">v2 との差分</a></div>
+                  <div class="muted">v2 11/08 鈴木 翔 ・ v1 11/02 <span class="ai-tag">AI 生成</span> 承認 高橋 由佳</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3><p>人と AI エージェントが同じ手順を読んで同じ結果を出せるテストケースを、履歴つきで管理する。判定の方法（何で pass とするか）も TC と一緒に決める。</p></div>
+      <div class="card"><h3>注記</h3><ol class="notes">
+        <li><span class="pin">1</span><span>表示しているのは <code>test_cases.current_version_id</code> のバージョン。実行は開始時点のバージョン ID を <code>runs.test_case_version_id</code> に保存するので、後で TC を直しても過去の実行の意味は変わらない。</span></li>
+        <li><span class="pin">2</span><span><code>steps_json</code> は <code>[{seq, instruction, expected, evidence: ["screenshot","dom"], judges: ["assert"], fixture_ref?, guest_text?}]</code>。<code>{base_url}</code> などの変数は実行時に環境から展開。</span></li>
+        <li><span class="pin">3</span><span>AI アシストは表示時に非同期で取得し、TC バージョン単位でキャッシュ。「反映」は編集モードの下書きに入るだけで、保存は人が行う。</span></li>
+        <li><span class="pin">4</span><span>フィクスチャはバージョン固定（<code>v2 固定</code>）か <code>latest</code> を選べる。P0 は固定を推奨し、latest のときは警告を出す。</span></li>
+        <li><span class="pin">5</span><span>判定設定は <code>judges_json</code> と <code>decision_policy_json</code>。詳細と既定ポリシーは <a href="../spec/ai.html">AI ネイティブ設計</a>。</span></li>
+      </ol></div>
+      <div class="card"><h3>表示データ</h3><ul class="small">
+        <li><code>test_cases</code>（number・title・priority・mode・status・owner_id・origin）</li>
+        <li><code>test_case_versions</code>（preconditions_md・steps_json・judges_json・decision_policy_json・fixture_refs_json・script・change_note）</li>
+        <li><code>test_case_criteria</code> → <code>acceptance_criteria</code> → <code>use_cases</code> → <code>features</code></li>
+        <li><code>fixtures</code> / <code>fixture_versions</code></li>
+        <li><code>runs</code>（test_case_id で最近 9 件）</li>
+        <li><code>ai_suggestions</code>（kind=<code>tc_generate</code>、この TC を source に持つもの）</li>
+      </ul></div>
+      <div class="card"><h3>操作</h3><ul class="small">
+        <li>編集 → 保存で <code>test_case_versions</code> に新しい行（version +1、change_note 必須）を追加し、<code>current_version_id</code> を更新</li>
+        <li>この TC を実行 ▾: 環境・デプロイを選び、自分で実行（S05）/ エージェントで実行（S06）</li>
+        <li>履歴タブ: 任意の 2 バージョンの差分（手順・期待結果・判定設定・フィクスチャ参照）</li>
+        <li>状態変更: draft → ready（manager）、ready → deprecated（理由必須）</li>
+      </ul></div>
+      <div class="card"><h3>AI の役割</h3><ul class="small">
+        <li>手順のあいまいさ・直書きデータ・1 ステップに複数動作がある箇所を指摘</li>
+        <li>期待結果から assert の候補（URL・テキスト・要素）と LLM ルーブリックを提案</li>
+        <li>mode を manual から agent / hybrid に変えられるかを、手順の内容から判定して提案</li>
+      </ul></div>
+      <div class="card"><h3>この画面の完了条件</h3><ul class="small">
+        <li>保存のたびに新しいバージョンができ、既存バージョンの行は更新されない（D1 上で UPDATE が発生しないことをテスト）</li>
+        <li>change_note が空のときは保存できない</li>
+        <li>任意の 2 バージョンの差分が手順単位で表示される</li>
+        <li>手順は 1〜50 件。並べ替えで seq が振り直される</li>
+        <li>draft の TC は「この TC を実行」で agent 実行のみ可能（試し実行）。計画には入れられない</li>
+        <li>フィクスチャが latest 参照の P0 TC には警告が出る</li>
+        <li>AI アシストが失敗・タイムアウトしても画面は表示され、「AI の指摘を取得できませんでした」と出る</li>
+      </ul></div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+
+    <h3>編集モード</h3>
+    <p class="muted" style="max-width:72ch">手順は行単位で編集し、ドラッグで並べ替えます。変数（<code>{base_url}</code>、<code>{FX-9.visa_ok.number}</code>）は入力補完で挿入できます。保存時に変更メモの入力を求めます。</p>
+    <div class="mock-scroll"><div class="mock editing" style="min-width:760px">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/tc/130/edit</span></div>
+      <div class="app-main">
+        <div class="app-top"><h2><span class="id">TC-130</span> 編集中（v3 → v4 下書き）</h2><span class="spacer"></span><button class="btn ghost" type="button">破棄</button><button class="btn primary" type="button">v4 として保存</button></div>
+        <div class="panel">
+          <div class="step head" style="grid-template-columns:20px 26px minmax(0,1.25fr) minmax(0,1fr) 110px"><span></span><span>#</span><span>操作</span><span>期待結果</span><span>証拠 / 判定</span></div>
+          <div class="step" style="grid-template-columns:20px 26px minmax(0,1.25fr) minmax(0,1fr) 110px"><span class="handle">⋮⋮</span><span class="n">5</span><input class="input" value="クーポン欄に {FX-3.valid_10.code} を入力して「適用」を押す" aria-label="手順5の操作"><input class="input" value="合計が ¥3,980 → ¥3,582 になる" aria-label="手順5の期待結果"><select class="input" aria-label="手順5の証拠"><option>スクショ+DOM / assert</option></select></div>
+          <div class="step" style="grid-template-columns:20px 26px minmax(0,1.25fr) minmax(0,1fr) 110px"><span class="handle">⋮⋮</span><span class="n">6</span><input class="input" value="テスト用カード {FX-9.visa_ok.number} で支払い「注文を確定する」を押す" aria-label="手順6の操作"><input class="input" value="注文完了画面に注文番号と合計 ¥3,582" aria-label="手順6の期待結果"><select class="input" aria-label="手順6の証拠"><option>スクショ+DOM / assert</option></select></div>
+        </div>
+        <div style="display:grid;gap:4px"><label class="small" for="change-note"><b>変更メモ（必須）</b></label><input class="input" id="change-note" value="クーポンコードを FX-3 参照に変更（AI 提案を採用）"></div>
+      </div>
+    </div></div>
+
+    <h3>判定設定タブの保存形式（例）</h3>
+<pre><code>// test_case_versions.judges_json
+[
+  { "kind": "assert", "step": 5, "check": "text", "selector": "[data-testid=order-total]", "equals": "¥3,582" },
+  { "kind": "assert", "step": 6, "check": "url",  "matches": "/orders/complete" },
+  { "kind": "llm",    "step": 7, "rubric": "件名が「ご注文ありがとうございます」で、本文の合計金額が ¥3,582、商品名が一致している", "threshold": 0.8 }
+]
+// test_case_versions.decision_policy_json（既定との差分だけを保存）
+{ "extends": "default", "require_human_for": ["P0"] }</code></pre>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>表示</th></tr></thead>
+      <tbody>
+        <tr><td>draft（AI 生成）</td><td>上部に <span class="ai-tag">AI 生成・未承認</span> と生成元（モデル・取り込み元）。[承認して ready にする] は manager のみ。手順ごとに AI の確信度が低い箇所をハイライト。</td></tr>
+        <tr><td>deprecated</td><td>読み取り専用。廃止理由と、代わりの TC へのリンクを表示。計画への追加不可。</td></tr>
+        <tr><td>mode = script</td><td>手順タブの下に Playwright スクリプト（<code>script</code>）を表示。手順は人が読むための説明として残す。</td></tr>
+        <tr><td>他の人が編集中</td><td>「鈴木 翔 さんが編集中（3 分前）」と表示。保存時に下書きの元バージョンが古ければ差分を見せて確認する。</td></tr>
+        <tr><td>権限: guest</td><td>アクセス不可。guest には S05 の実行画面だけで手順（<code>guest_text</code> 優先）を見せる。</td></tr>
+        <tr><td>モバイル幅</td><td>右カラムは手順の下に移動。手順表は 1 ステップ 1 カード（操作・期待結果・証拠）。編集はデスクトップ推奨の表示を出す。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <nav class="pager"><a href="s03-spec-tree.html"><small>前へ</small>S03 仕様ツリー</a><a href="s05-manual-runner.html"><small>次へ</small>S05 テスト実行（手動ランナー）</a></nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

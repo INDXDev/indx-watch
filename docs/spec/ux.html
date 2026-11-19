@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>UX とユーザーフロー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>UX・ユーザーフロー</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#principles">UX 原則</a></li>
+    <li><a href="#ia">情報設計</a></li>
+    <li><a href="#screens">画面一覧</a></li>
+    <li><a href="#roles">ロール別の権限</a></li>
+    <li><a href="#flows">主要ユーザーフロー</a></li>
+    <li><a href="#flow-tester">　テスター実行</a></li>
+    <li><a href="#flow-manager">　計画と Go/No-Go</a></li>
+    <li><a href="#flow-business">　ビジネス職の仕様作成</a></li>
+    <li><a href="#flow-uat">　顧客 UAT</a></li>
+    <li><a href="#flow-engineer">　PR と自動実行</a></li>
+    <li><a href="#flow-agent">　AI エージェント実行</a></li>
+    <li><a href="#flow-fixture">　フィクスチャ更新</a></li>
+    <li><a href="#flow-failure">　失敗から再テスト</a></li>
+    <li><a href="#notifications">通知設計</a></li>
+    <li><a href="#wording">文言ガイド</a></li>
+    <li><a href="#a11y">アクセシビリティ</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-03 · UX・ユーザーフロー</div>
+      <h1>UX 原則とユーザーフロー</h1>
+      <p class="lead">誰が、どの画面から入り、何をすればテストが終わるのかを定義します。画面ごとの詳細なモックと受け入れ基準は第 2 層の <a href="../index.html#screens">画面ドキュメント（S01〜S11）</a> にあります。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="prd.html">PRD</a> · <a href="domain.html">ドメインモデル</a> · <a href="ai.html">AI ネイティブ設計</a></span></div>
+    </header>
+
+    <section id="principles">
+      <h2>UX 原則</h2>
+      <p>PRD の「大事にしていること」を、画面を作るときに守る具体ルールに落としたものです。レビューではこの表のルール ID で指摘します。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>ルール</th><th>具体的には</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">UX-01</span></td><td>「次の一手」を常に 1 つ出す</td><td>各画面の右上に主ボタン（<code>.btn.primary</code>）を 1 つだけ置く。マイタスクなら「次のテストを始める」、リリース準備状況なら「残りの P0 を割り当てる」。主ボタンが 2 つある画面は作らない</td></tr>
+          <tr><td><span class="id">UX-02</span></td><td>3 クリック以内でテスト実行へ</td><td>どの画面からでも、自分の担当 TC の実行画面まで 3 クリック以内。マイタスク → 「実行」で 1 クリック</td></tr>
+          <tr><td><span class="id">UX-03</span></td><td>手順は 1 ステップ 1 動作</td><td>「ログインしてカートに入れる」は 2 ステップに分ける。AI が下書きした手順も自動で分割を提案する</td></tr>
+          <tr><td><span class="id">UX-04</span></td><td>入り方を常に見せる</td><td>実行画面の上部に、環境名・URL（クリックで新しいタブ）・入り方・テストアカウント（コピーボタン付き、パスワードはマスク）を固定表示する</td></tr>
+          <tr><td><span class="id">UX-05</span></td><td>証拠は貼り付けで添付</td><td>実行画面では <kbd>Ctrl/⌘ + V</kbd> でクリップボードの画像を現在のステップに添付する。ドラッグ＆ドロップとファイル選択も使える。スマホではカメラロールから選ぶ</td></tr>
+          <tr><td><span class="id">UX-06</span></td><td>AI の出力は見た目で分ける</td><td>AI が作ったもの・判定したものには必ず紫系の AI 表示（<span class="ai-tag">AI</span> / <code>.ai-box</code>）と信頼度（0.00〜1.00）を付ける。人が承認すると通常の表示に変わる</td></tr>
+          <tr><td><span class="id">UX-07</span></td><td>状態は色とラベルの両方で</td><td>判定は <span class="badge st-pass">合格</span> <span class="badge st-fail">不合格</span> のように色付きラベルで示し、色だけに頼らない</td></tr>
+          <tr><td><span class="id">UX-08</span></td><td>完了は計算で示す</td><td>ユースケースとリリースには「AC 3 件中 2 件合格」のように分母付きで進捗を出す。手入力の進捗率は持たない</td></tr>
+          <tr><td><span class="id">UX-09</span></td><td>版を意識させない、でも必ず残す</td><td>編集は普通に保存するだけで新しい版になる。版の一覧と差分は「履歴」タブに置き、実行結果には使った版を小さく表示する</td></tr>
+          <tr><td><span class="id">UX-10</span></td><td>空の画面にしない</td><td>データがない画面には、何が表示されるかと最初の 1 件を作る操作を表示する（例: 「ユースケースがまだありません。PRD を貼り付けて AI に下書きさせる」）</td></tr>
+          <tr><td><span class="id">UX-11</span></td><td>確認ダイアログより取り消し</td><td>削除・アサイン変更は即時反映し、5 秒間「元に戻す」を出す。取り消せない操作（Go 判定・ベースライン承認）だけ確認を挟む</td></tr>
+          <tr><td><span class="id">UX-12</span></td><td>判定を覆すときは理由必須</td><td>AI の判定を人が変える、ベースラインを更新する、要確認を確定する操作には理由の入力欄を必須にする</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="ia">
+      <h2>情報設計</h2>
+      <p>ナビゲーションは「自分」「プロジェクト」「AI」の 3 グループです。全画面で左ナビの並びは同じで、現在地だけを強調します。プロジェクトは URL の <code>[key]</code>（例: <code>SHOP</code>）で切り替えます。</p>
+      <pre class="mermaid">flowchart LR
+  root["/ マイタスク"] --> review["/review レビュー待ち"]
+  root --> p["/p/SHOP プロジェクト"]
+  p --> rel["releases/v2.4.0 リリース準備状況"]
+  p --> specs["specs 仕様ツリー"]
+  specs --> tc["tc/128 テストケース"]
+  specs --> imp["specs/import AI 仕様取り込み"]
+  p --> plans["plans/4 テスト計画"]
+  p --> runs["runs/1032 実行結果"]
+  runs --> exec["runs/1029/execute 手動ランナー"]
+  p --> fx["fixtures フィクスチャ"]
+  p --> env["environments 環境"]
+  p --> dep["deployments デプロイメント"]</pre>
+      <h3>URL の規則</h3>
+      <ul>
+        <li>プロジェクト配下はすべて <code>/p/[key]/...</code>。表示キーの番号部分を URL に使う（<code>TC-128</code> → <code>/p/SHOP/tc/128</code>）。内部 ID（ULID）は URL に出さない。</li>
+        <li>個人に紐づく画面はプロジェクト横断でルート直下（<code>/</code>、<code>/review</code>）。</li>
+        <li>一覧のフィルタはクエリ文字列（<code>?priority=P0&amp;verdict=fail</code>）で表し、URL を共有すれば同じ表示になる。</li>
+        <li>外部向けは <code>/api/...</code>（GitHub Webhook・ランナーのコールバック）と <code>/mcp</code> のみ。</li>
+      </ul>
+    </section>
+
+    <section id="screens">
+      <h2>画面一覧</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>画面</th><th>ルート</th><th>主な利用者</th><th>主ボタン（UX-01）</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">S01</span></td><td><a href="../screens/s01-my-tasks.html">マイタスク</a></td><td><code>/</code></td><td>全員（guest 含む）</td><td>次のテストを始める</td></tr>
+          <tr><td><span class="id">S02</span></td><td><a href="../screens/s02-release-readiness.html">リリース準備状況</a></td><td><code>/p/[key]/releases/[version]</code></td><td>QA リード・PdM</td><td>残りの P0 を割り当てる / Go 判定する</td></tr>
+          <tr><td><span class="id">S03</span></td><td><a href="../screens/s03-spec-tree.html">仕様ツリー</a></td><td><code>/p/[key]/specs</code></td><td>PdM・QA リード</td><td>ユースケースを追加</td></tr>
+          <tr><td><span class="id">S04</span></td><td><a href="../screens/s04-test-case.html">テストケース詳細・編集</a></td><td><code>/p/[key]/tc/[n]</code></td><td>QA・エンジニア・PdM</td><td>保存（新しい版）</td></tr>
+          <tr><td><span class="id">S05</span></td><td><a href="../screens/s05-manual-runner.html">テスト実行（手動ランナー）</a></td><td><code>/p/[key]/runs/[n]/execute</code></td><td>テスター・guest</td><td>このステップを合格にする</td></tr>
+          <tr><td><span class="id">S06</span></td><td><a href="../screens/s06-agent-run-review.html">AI 実行ビューア・レビューキュー</a></td><td><code>/p/[key]/runs/[n]</code>、<code>/review</code></td><td>QA リード・エンジニア</td><td>判定を確定する</td></tr>
+          <tr><td><span class="id">S07</span></td><td><a href="../screens/s07-fixtures.html">フィクスチャ管理</a></td><td><code>/p/[key]/fixtures</code></td><td>QA・エンジニア</td><td>新しい版をアップロード</td></tr>
+          <tr><td><span class="id">S08</span></td><td><a href="../screens/s08-plan-assign.html">テスト計画・アサイン</a></td><td><code>/p/[key]/plans/[n]</code></td><td>QA リード</td><td>選択した項目を割り当てる</td></tr>
+          <tr><td><span class="id">S09</span></td><td><a href="../screens/s09-environments.html">環境・アクセス</a></td><td><code>/p/[key]/environments</code></td><td>QA リード・エンジニア</td><td>接続を確認する</td></tr>
+          <tr><td><span class="id">S10</span></td><td><a href="../screens/s10-ai-import.html">AI 仕様取り込み</a></td><td><code>/p/[key]/specs/import</code></td><td>PdM・QA リード</td><td>選択した下書きを採用</td></tr>
+          <tr><td><span class="id">S11</span></td><td><a href="../screens/s11-github-deployments.html">GitHub・デプロイメント</a></td><td><code>/p/[key]/deployments</code></td><td>エンジニア・QA リード</td><td>このデプロイでスモークを実行</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="roles">
+      <h2>ロール別の権限</h2>
+      <p>ロールは <code>users.role</code>（全体）と <code>project_members.role</code>（プロジェクト単位、こちらが優先）で決まります。○ = できる、△ = 自分に関係するものだけ、— = できない（画面にも出さない）。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>操作</th><th>admin</th><th>manager</th><th>tester</th><th>guest</th></tr></thead>
+        <tbody>
+          <tr><td>マイタスクを見る・実行する</td><td>○</td><td>○</td><td>○</td><td>△ 自分の項目のみ</td></tr>
+          <tr><td>仕様ツリー・テストケースを見る</td><td>○</td><td>○</td><td>○</td><td>△ 担当 TC と、その UC・AC の文面のみ</td></tr>
+          <tr><td>ユースケース・AC・TC を作成・編集する</td><td>○</td><td>○</td><td>○（draft のみ作成、ready 化は不可）</td><td>—</td></tr>
+          <tr><td>TC を <code>ready</code> にする・AI 下書きを承認する</td><td>○</td><td>○</td><td>—</td><td>—</td></tr>
+          <tr><td>テスト計画を作成し、アサインする</td><td>○</td><td>○</td><td>△ 自分を担当にする（引き受け）のみ</td><td>—</td></tr>
+          <tr><td>フィクスチャを見る</td><td>○</td><td>○</td><td>○</td><td>△ 担当 TC が使うもの。account はユーザー名のみ</td></tr>
+          <tr><td>フィクスチャを更新する</td><td>○</td><td>○</td><td>○</td><td>—</td></tr>
+          <tr><td>テストアカウントのパスワードを表示する</td><td>○</td><td>○</td><td>○（監査ログに記録）</td><td>△ 担当 TC で使うアカウントのみ（記録）</td></tr>
+          <tr><td>要確認の実行を確定する</td><td>○</td><td>○</td><td>△ 自分の担当の実行のみ</td><td>—</td></tr>
+          <tr><td>Go/No-Go を判定する</td><td>○</td><td>○</td><td>—</td><td>—</td></tr>
+          <tr><td>環境・GitHub 連携・AI 設定を変更する</td><td>○</td><td>△ 環境のみ</td><td>—</td><td>—</td></tr>
+          <tr><td>ユーザー招待・ロール変更</td><td>○</td><td>△ guest の招待のみ</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><strong>guest の見え方</strong><p>guest のナビゲーションには「マイタスク」だけを出します。プロジェクト配下の一覧画面には遷移できず、API も <code>plan_items.assignee_id = 自分</code> に紐づくデータだけを返します。</p></div>
+    </section>
+
+    <section id="flows">
+      <h2>主要ユーザーフロー</h2>
+      <p>各フローは「誰が・どの画面で・何をして・何が記録されるか」を示します。サンプルの人物とデータは全ドキュメント共通です。</p>
+    </section>
+
+    <section id="flow-tester">
+      <h3>テスターがアサインを受けて実行し、証拠を残す</h3>
+      <p class="muted small">主役: 田中 健（tester）/ 対象: <span class="id">TC-129</span> 期限切れクーポンでエラーが出る（P1, manual）/ 画面: <a href="../screens/s01-my-tasks.html">S01</a> → <a href="../screens/s05-manual-runner.html">S05</a></p>
+      <pre class="mermaid">flowchart TD
+  A["通知: TC-129 が割り当てられました"] --> B["S01 マイタスクを開く"]
+  B --> C["次のテストを始める"]
+  C --> D["S05 手動ランナー: 環境 staging と入り方・アカウントを確認"]
+  D --> E["ステップを 1 つずつ実行"]
+  E --> F{"期待結果どおり?"}
+  F -- はい --> G["合格 + スクリーンショットを貼り付け"]
+  F -- いいえ --> H["不合格 + 証拠 + メモ"]
+  F -- 前提が崩れている --> I["実行不可 + 理由"]
+  G --> J{"最後のステップ?"}
+  H --> J
+  I --> K["実行終了: blocked"]
+  J -- いいえ --> E
+  J -- はい --> L["実行を完了: 最終判定を記録"]
+  L --> M["S01 に戻り次のタスクへ"]</pre>
+      <ol class="steps">
+        <li><span>アサイン通知（アプリ内・メール）から、または朝に <a href="../screens/s01-my-tasks.html">S01 マイタスク</a> を開く。担当アイテムは優先度 → 期限順に並ぶ。</span></li>
+        <li><span>「次のテストを始める」を押すと <code>runs</code> が作られ（<code>state = running</code>、使う TC の版・デプロイメント・フィクスチャの版を固定）、<a href="../screens/s05-manual-runner.html">S05</a> に移る。</span></li>
+        <li><span>画面上部で環境 <code>staging</code>（https://staging.shop.example.com）、入り方、テストアカウント <span class="id">FX-11</span> を確認する。クーポンデータ <span class="id">FX-3</span>（v4）の該当行もここに出る。</span></li>
+        <li><span>ステップごとに操作し、合格・不合格・実行不可を選ぶ。証拠は貼り付けで添付し、<code>run_steps</code> と <code>evidence</code> に保存される。</span></li>
+        <li><span>最後のステップで「実行を完了」を押すと最終判定（human ジャッジ）が <code>judgements</code> に入り、<code>plan_items.status = done</code> になる。不合格なら <a href="#flow-failure">失敗フロー</a> へ。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-manager">
+      <h3>QA リードがテスト計画を作り、アサインし、Go/No-Go を判断する</h3>
+      <p class="muted small">主役: 佐藤 美咲（manager）/ 対象: リリース <code>v2.4.0</code>、<span class="id">PLAN-4</span> v2.4.0 リグレッション（86 件）/ 画面: <a href="../screens/s08-plan-assign.html">S08</a> → <a href="../screens/s02-release-readiness.html">S02</a> → <a href="../screens/s06-agent-run-review.html">S06</a></p>
+      <pre class="mermaid">flowchart TD
+  A["リリース v2.4.0 を作成 (GitHub release か手動)"] --> B["S08 テスト計画を作成"]
+  B --> C["対象 TC を追加: P0/P1 全件 + AI の影響分析"]
+  C --> D["AI 提案: 担当と環境の割り振り案"]
+  D --> E["案を調整して一括アサイン (人 / Watch Agent)"]
+  E --> F["テスト期間: S02 で進捗を毎日確認"]
+  F --> G{"P0 の未実行・要確認がある?"}
+  G -- はい --> H["S06 レビューキューで確定 / 再アサイン"]
+  H --> F
+  G -- いいえ --> I{"Go 条件を満たす?"}
+  I -- はい --> J["Go 判定 (理由付きで記録)"]
+  I -- いいえ --> K["No-Go 判定 + 残課題を Issue 化"]</pre>
+      <ol class="steps">
+        <li><span><a href="../screens/s08-plan-assign.html">S08</a> で <code>v2.4.0</code> に対する計画 <span class="id">PLAN-4</span> を作る。P0/P1 を一括追加し、PR #482 の影響分析（<code>ai_suggestions.kind = impact</code>）で提案された TC を追加する。</span></li>
+        <li><span>AI が過去の実行時間と担当者の負荷から割り振り案を出す。<code>mode = agent</code> の TC は Watch Agent、hybrid は Watch Agent + 確認者、UAT 項目は山本 様。</span></li>
+        <li><span>案を調整して「選択した項目を割り当てる」。担当者に通知が飛ぶ。</span></li>
+        <li><span>期間中は <a href="../screens/s02-release-readiness.html">S02</a> で「pass 52 / fail 4 / blocked 2 / 要確認 3 / 未実行 25」の内訳と P0 の残件を見る。</span></li>
+        <li><span>Go 条件（既定: P0 全件合格、P1 合格率 95% 以上、P0/P1 の要確認 0 件、P0 の未網羅 AC 0 件）を満たしたら Go を記録する。判定は取り消せないので確認を挟む（UX-11）。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-business">
+      <h3>ビジネス職がユースケースと完了条件を書き、AI でテストケース化する</h3>
+      <p class="muted small">主役: 高橋 由佳（PdM・tester）、承認: 佐藤 美咲 / 対象: <span class="id">UC-12</span> ゲストがクーポンを適用して購入する / 画面: <a href="../screens/s03-spec-tree.html">S03</a> → <a href="../screens/s10-ai-import.html">S10</a> → <a href="../screens/s04-test-case.html">S04</a></p>
+      <pre class="mermaid">sequenceDiagram
+  actor PdM as 高橋 (PdM)
+  participant UI as INDX Watch
+  participant AI as Watch Agent
+  actor Lead as 佐藤 (QA リード)
+  PdM->>UI: S10 に PRD「クーポン併用」を貼り付け
+  UI->>AI: 仕様取り込みを依頼 (spec_import)
+  AI-->>UI: UC-12 と AC-12.1〜12.3、TC 3 件、必要なフィクスチャの下書き
+  PdM->>UI: AC の文言を修正し、採用 (draft として登録)
+  UI->>Lead: 承認待ちを通知
+  Lead->>UI: S04 で TC-128〜130 を確認し ready に
+  UI-->>PdM: UC-12 の AC 網羅 3/3 を表示</pre>
+      <ol class="steps">
+        <li><span><a href="../screens/s03-spec-tree.html">S03</a> の FEAT-3 カート・決済で「ユースケースを追加」するか、<a href="../screens/s10-ai-import.html">S10</a> に PRD・Issue・画面キャプチャを貼る。</span></li>
+        <li><span>AI が UC・AC・TC・フィクスチャの下書きを項目ごとに表示する。各項目には AI 表示と、どの入力の何行目から作ったかの根拠が付く。</span></li>
+        <li><span>高橋さんは平易な日本語のまま AC を直し、採用する。採用した TC は <code>origin = ai</code>・<code>draft</code> で登録される。</span></li>
+        <li><span>QA リードが <a href="../screens/s04-test-case.html">S04</a> で手順と期待結果を確認し、<code>ready</code> にする。ここで初めて計画に追加できる。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-uat">
+      <h3>顧客がメール招待から自分の項目だけを実行する（UAT）</h3>
+      <p class="muted small">主役: 山本 様（guest・株式会社サンプル）/ 招待: 佐藤 美咲 / 環境: <code>uat</code>（https://uat.shop.example.com）/ 画面: <a href="../screens/s01-my-tasks.html">S01</a> → <a href="../screens/s05-manual-runner.html">S05</a></p>
+      <pre class="mermaid">sequenceDiagram
+  actor Lead as 佐藤 (QA リード)
+  participant W as INDX Watch
+  participant CF as Cloudflare Access
+  actor Cust as 山本 様 (guest)
+  Lead->>W: guest として招待 (メール・期限 2026-12-01)
+  W->>CF: Access ポリシーにメールを追加
+  W-->>Cust: 招待メール (UAT 3 件・期限)
+  Cust->>CF: リンクを開きメールアドレスを入力
+  CF-->>Cust: ワンタイム PIN をメール送信
+  Cust->>CF: PIN を入力
+  CF->>W: JWT 付きでアクセス
+  W-->>Cust: S01 マイタスク (自分の 3 件のみ)
+  Cust->>W: S05 で実行し、合否と証拠を送信
+  W-->>Lead: UAT 完了を通知</pre>
+      <ol class="steps">
+        <li><span>QA リードが計画の UAT 項目を山本 様に割り当て、招待する。招待は期限付きで、期限を過ぎると Access ポリシーから外れる。</span></li>
+        <li><span>山本 様は招待メールのリンクを開き、Cloudflare Access のワンタイム PIN でログインする。アカウント作成やパスワードは不要。</span></li>
+        <li><span>マイタスクには自分の 3 件だけが出る。各項目にはユースケースの目的と完了条件の文面が付き、「どこまで確認すれば終わりか」が分かる。</span></li>
+        <li><span>実行画面は社員と同じ <a href="../screens/s05-manual-runner.html">S05</a>。<code>uat</code> 環境の URL と顧客用テストアカウントだけが表示される。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-engineer">
+      <h3>エンジニアの PR から影響テストを提案し、preview 環境で自動実行する</h3>
+      <p class="muted small">主役: 鈴木 翔（エンジニア）/ 対象: PR #482 クーポン併用に対応 / 画面: GitHub → <a href="../screens/s11-github-deployments.html">S11</a> → <a href="../screens/s06-agent-run-review.html">S06</a></p>
+      <pre class="mermaid">sequenceDiagram
+  actor Dev as 鈴木 (エンジニア)
+  participant GH as GitHub
+  participant W as INDX Watch
+  participant R as Runner (Browser Rendering)
+  Dev->>GH: PR #482 を作成
+  GH->>W: pull_request webhook
+  W->>W: 差分から影響テストを分析 (impact)
+  W-->>GH: PR コメント: 影響 TC-128, TC-129, TC-130 ほか
+  GH->>W: deployment_status success (preview, pr-482)
+  W->>W: deployments を作成
+  W->>R: 影響 TC のうち agent/script を実行キューへ
+  R-->>W: 証拠と判定
+  W-->>GH: Check Run「INDX Watch」 (合格 2 / 要確認 1)
+  Dev->>W: S06 で要確認の証拠と AI の理由を見る</pre>
+      <ol class="steps">
+        <li><span>PR が作られると GitHub App の webhook で差分を受け取り、AI が影響する UC・TC を推定して PR にコメントする。</span></li>
+        <li><span>preview 環境へのデプロイが成功すると <code>deployments</code>（<code>source = github</code>、<code>pr_number = 482</code>）が作られる。</span></li>
+        <li><span>影響 TC のうち <code>agent</code> / <code>script</code> / <code>hybrid</code> をランナーが実行する。manual の TC は提案だけして、QA リードが計画に入れるか決める。</span></li>
+        <li><span>結果は Check Run と PR コメントで返る。要確認や不合格は <a href="../screens/s06-agent-run-review.html">S06</a> へのリンク付き。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-agent">
+      <h3>AI エージェント実行から判定ポリシー、レビューキューへ</h3>
+      <p class="muted small">主役: Watch Agent、確認: 佐藤 美咲 / 対象: <span class="id">RUN-1032</span>（TC-128, 合格 0.93）、<span class="id">RUN-1033</span>（TC-130, hybrid, 要確認）/ 画面: <a href="../screens/s06-agent-run-review.html">S06</a></p>
+      <pre class="mermaid">flowchart TD
+  A["計画アイテムが Watch Agent に割り当て"] --> B["Queues に投入 (state: queued)"]
+  B --> C["Workflow: フィクスチャ適用・環境リセット"]
+  C --> D["Browser Rendering でブラウザ起動 (state: running)"]
+  D --> E["エージェントが手順を実行 / ステップごとに証拠を保存"]
+  E --> F["ジャッジ: assert / visual / llm (state: judging)"]
+  F --> G{"判定ポリシー"}
+  G -- "assert 失敗" --> X["不合格"]
+  G -- "llm 信頼度 0.8 以上" --> Y["合格 / 不合格を確定"]
+  G -- "信頼度不足・差分超過・P0 要人確認" --> Z["要確認 (needs_review)"]
+  Z --> R["S06 レビューキュー: 人が理由付きで確定"]
+  X --> N["通知と Issue 化の提案"]</pre>
+      <ol class="steps">
+        <li><span>Watch Agent に割り当てられた計画アイテムはランナーのキューに入り、Cloudflare Workflows が「準備 → 実行 → 判定 → 確定」の順で処理する。</span></li>
+        <li><span>エージェントは自然言語の手順を、ページの a11y ツリーを読みながら操作する。ステップごとにスクリーンショットと操作ログを保存する。</span></li>
+        <li><span>各ジャッジの結果を判定ポリシー（<a href="ai.html">AI ネイティブ設計</a>）で集約する。<span class="id">RUN-1032</span> は LLM 信頼度 0.93 で合格確定。<span class="id">RUN-1033</span> は P0 かつ hybrid のため人の確認が必須で要確認になる。</span></li>
+        <li><span><a href="../screens/s06-agent-run-review.html">S06</a> では、ステップごとの証拠・AI の判定理由・期待結果を並べて表示する。人は理由を書いて確定する（UX-12）。</span></li>
+      </ol>
+    </section>
+
+    <section id="flow-fixture">
+      <h3>フィクスチャをブラウザでアップロード・編集し、差分を確認して戻す</h3>
+      <p class="muted small">主役: 田中 健 / 対象: <span class="id">FX-3</span> クーポンセット（dataset, CSV, v4）/ 画面: <a href="../screens/s07-fixtures.html">S07</a></p>
+      <pre class="mermaid">flowchart LR
+  A["S07 で FX-3 を開く (v4)"] --> B{"どう変える?"}
+  B -- "CSV を差し替え" --> C["ファイルをドロップ"]
+  B -- "その場で編集" --> D["表エディタで行を編集"]
+  C --> E["検証: 列名・型・必須列"]
+  D --> E
+  E --> F["v4 との差分を表示 (追加 2 行・変更 1 行)"]
+  F --> G["変更メモを書いて保存 → v5"]
+  G --> H["FX-3 を使う TC と計画中の実行に影響を表示"]
+  H --> I{"問題が出た?"}
+  I -- はい --> J["v4 を選んで「この版に戻す」→ v6 として複製"]</pre>
+      <ol class="steps">
+        <li><span><a href="../screens/s07-fixtures.html">S07</a> で <span class="id">FX-3</span> を開くと、現在の版（v4）の中身と、使っている TC（TC-128, TC-129）が表示される。</span></li>
+        <li><span>CSV をドロップするか表エディタで編集する。列名・型の検証を通らないと保存できない。</span></li>
+        <li><span>保存前に v4 との行単位の差分を確認し、変更メモを書いて保存すると v5 になる。本体は R2 の <code>fixtures/SHOP/{fixture_id}/v5/coupons.csv</code> に不変で保存される。</span></li>
+        <li><span>過去の版に戻すときは、その版を新しい版として複製する。版は削除しないので、過去の実行がどの版を使ったかは常に辿れる。</span></li>
+      </ol>
+      <div class="callout warn"><strong>account 種別</strong><p>テストアカウント（<span class="id">FX-11</span>）のパスワードは版の本体に入れず、<code>secret_ref</code> で Secrets Store を参照します。画面ではマスク表示し、表示ボタンを押すと監査ログに記録されます。</p></div>
+    </section>
+
+    <section id="flow-failure">
+      <h3>失敗からトリアージ、GitHub Issue、修正デプロイ、再テストまで</h3>
+      <p class="muted small">対象: <span class="id">RUN-1029</span>（TC-129, 田中, 不合格）/ 画面: <a href="../screens/s05-manual-runner.html">S05</a> → <a href="../screens/s06-agent-run-review.html">S06</a> → GitHub → <a href="../screens/s11-github-deployments.html">S11</a></p>
+      <pre class="mermaid">flowchart TD
+  A["RUN-1029 不合格"] --> B["AI トリアージ: 類似失敗・原因候補・重複 Issue を提示"]
+  B --> C{"不具合か?"}
+  C -- "テスト側の問題" --> D["TC またはフィクスチャを修正 (新しい版)"]
+  C -- "環境の問題" --> E["blocked に変更 + 環境担当へ通知"]
+  C -- "不具合" --> F["GitHub Issue を作成 (証拠・再現手順・デプロイ情報入り)"]
+  F --> G["修正 PR がマージされ staging にデプロイ"]
+  G --> H["deployment_status で新デプロイメント作成"]
+  H --> I["失敗した TC を自動で再テスト対象に追加"]
+  I --> J{"再テスト合格?"}
+  J -- はい --> K["Issue に結果をコメント・計画アイテム完了"]
+  J -- いいえ --> F
+  D --> I</pre>
+      <ol class="steps">
+        <li><span>不合格になると、AI が過去の実行・類似の失敗・既存 Issue を照合し、原因候補（実装 / テスト / データ / 環境）を提示する（<code>ai_suggestions.kind = triage</code>）。</span></li>
+        <li><span>不具合と判断したら「GitHub Issue を作成」。本文には再現手順、期待結果と実際、証拠へのリンク、<code>staging@a1b2c3d</code>、使ったフィクスチャの版が自動で入る（<code>issues</code> に記録）。</span></li>
+        <li><span>修正がデプロイされると、Issue に紐づく TC が新しいデプロイメントで再テスト対象になり、元の担当者に通知が届く。</span></li>
+        <li><span>再テストに合格すると Issue に結果がコメントされ、計画アイテムは完了になる。</span></li>
+      </ol>
+    </section>
+
+    <section id="notifications">
+      <h2>通知設計</h2>
+      <p>通知は「受け取った人がすぐ動けるもの」だけにします。すべての通知に、対象画面へ直接開くリンクを付けます。個人の設定で各チャネルを止められます（アプリ内は止められない）。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>イベント</th><th>誰に</th><th>アプリ内</th><th>メール</th><th>Slack</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>アサインされた</td><td>担当者</td><td>○</td><td>○（1 時間ごとにまとめる）</td><td>DM</td><td>件数・最も高い優先度・最も近い期限</td></tr>
+          <tr><td>期限の前日</td><td>担当者</td><td>○</td><td>○</td><td>DM</td><td>未完了の項目と期限</td></tr>
+          <tr><td>P0 / P1 が不合格</td><td>QA リード・TC オーナー</td><td>○</td><td>—</td><td>プロジェクトチャンネル</td><td>TC・デプロイ・証拠のサムネイル・AI の原因候補</td></tr>
+          <tr><td>要確認になった</td><td>計画アイテムの確認者（なければ QA リード）</td><td>○</td><td>—</td><td>DM</td><td>AI の判定理由の要約と信頼度</td></tr>
+          <tr><td>AI 下書きが承認待ち</td><td>manager</td><td>○</td><td>—</td><td>—</td><td>件数と取り込み元</td></tr>
+          <tr><td>デプロイ後の自動実行が完了</td><td>PR の作成者</td><td>—</td><td>—</td><td>（GitHub Check Run で通知）</td><td>合格・不合格・要確認の件数</td></tr>
+          <tr><td>リリースの Go/No-Go が決まった</td><td>プロジェクトメンバー</td><td>○</td><td>○</td><td>プロジェクトチャンネル</td><td>判定・理由・残課題</td></tr>
+          <tr><td>UAT の招待・完了</td><td>guest / 招待した manager</td><td>○</td><td>○</td><td>—</td><td>依頼件数と期限 / 完了件数と結果</td></tr>
+          <tr><td>LLM 予算の 80% / 100%</td><td>manager・admin</td><td>○</td><td>○</td><td>プロジェクトチャンネル</td><td>使用額と停止される機能</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="wording">
+      <h2>文言ガイド</h2>
+      <h3>状態ラベル</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>内部値</th><th>表示</th><th>見た目</th><th>使う場面</th></tr></thead>
+        <tbody>
+          <tr><td><code>pass</code></td><td>合格</td><td><span class="badge st-pass">合格</span></td><td>期待結果どおり</td></tr>
+          <tr><td><code>fail</code></td><td>不合格</td><td><span class="badge st-fail">不合格</span></td><td>期待結果と違う</td></tr>
+          <tr><td><code>blocked</code></td><td>実行不可</td><td><span class="badge st-blocked">実行不可</span></td><td>環境停止・前提データなしなどで実行できない</td></tr>
+          <tr><td><code>needs_review</code></td><td>要確認</td><td><span class="badge st-review">要確認</span></td><td>人の確認待ち</td></tr>
+          <tr><td><code>skipped</code></td><td>スキップ</td><td><span class="badge st-untested">スキップ</span></td><td>今回は対象外にした（理由必須）</td></tr>
+          <tr><td>（実行なし）</td><td>未実行</td><td><span class="badge st-untested">未実行</span></td><td>まだ一度も実行していない</td></tr>
+          <tr><td><code>running</code> / <code>queued</code></td><td>実行中 / 待機中</td><td><span class="badge st-running">実行中</span></td><td>実行の状態（判定ではない）</td></tr>
+        </tbody>
+      </table></div>
+      <h3>言い換え表</h3>
+      <p>画面には右の列の言葉を使います。内部の用語はドキュメントとコードでだけ使います。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>内部・技術用語</th><th>画面での表記</th></tr></thead>
+        <tbody>
+          <tr><td>acceptance criterion / AC</td><td>完了条件</td></tr>
+          <tr><td>plan item / assignment</td><td>担当（「担当テスト」「割り当て」）</td></tr>
+          <tr><td>run</td><td>実行</td></tr>
+          <tr><td>evidence</td><td>証拠（スクリーンショット・記録）</td></tr>
+          <tr><td>judgement / judge</td><td>判定 / 判定方法</td></tr>
+          <tr><td>decision policy</td><td>判定ルール</td></tr>
+          <tr><td>fixture</td><td>テストデータ（画面の見出しは「フィクスチャ（テストデータ）」）</td></tr>
+          <tr><td>seed / reset hook</td><td>データの準備 / 環境の初期化</td></tr>
+          <tr><td>deployment</td><td>デプロイ（「staging に載っている版」）</td></tr>
+          <tr><td>webhook / GitHub App</td><td>GitHub 通知 / GitHub 連携</td></tr>
+          <tr><td>confidence</td><td>AI の確信度</td></tr>
+          <tr><td>a11y tree / DOM snapshot</td><td>画面構造の記録</td></tr>
+          <tr><td>origin = ai, draft</td><td>AI 下書き</td></tr>
+        </tbody>
+      </table></div>
+      <h3>書き方</h3>
+      <ul>
+        <li>ボタンは動詞で終える（「保存」ではなく「新しい版として保存」、「OK」は使わない）。</li>
+        <li>エラーは原因と直し方を書く（「CSV の 3 行目: <code>discount_rate</code> は 0〜100 の数値にしてください」）。</li>
+        <li>テスト手順は「〜する」で終える命令形ではなく、「クーポン欄に <code>WINTER10</code> を入力する」のように操作と値を具体的に書く。</li>
+        <li>期待結果は観察できる事実で書く（「割引額 −1,000 円が合計の上に表示される」）。「正しく動く」は使わない。</li>
+      </ul>
+    </section>
+
+    <section id="a11y">
+      <h2>アクセシビリティとレスポンシブ</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>ルール</th></tr></thead>
+        <tbody>
+          <tr><td>キーボード操作</td><td>手動ランナーは <kbd>P</kbd> 合格 / <kbd>F</kbd> 不合格 / <kbd>B</kbd> 実行不可 / <kbd>N</kbd> 次のステップ / <kbd>Ctrl/⌘ + V</kbd> 証拠を貼り付け。ショートカットは画面下に常に表示する</td></tr>
+          <tr><td>フォーカス</td><td>すべての操作要素にフォーカス表示を出す。ステップを進めたらフォーカスを次のステップの判定ボタンへ移す</td></tr>
+          <tr><td>色</td><td>判定は色とラベルの両方で示す（UX-07）。コントラスト比は本文 4.5:1、大きな文字 3:1 以上</td></tr>
+          <tr><td>スクリーンリーダー</td><td>判定の変化は <code>aria-live="polite"</code> で読み上げる。証拠画像には「ステップ 3 のスクリーンショット」などの代替テキストを自動で付ける</td></tr>
+          <tr><td>スマートフォン（幅 375px〜）</td><td>S01 マイタスクと S05 手動ランナーは 1 カラムで操作できる。S05 は判定ボタンを画面下部に固定し、親指で押せる 44px 以上の大きさにする。証拠はカメラロールから添付</td></tr>
+          <tr><td>タブレット・デスクトップ</td><td>S05 は対象アプリを別ウィンドウで開き、横に並べて使う前提で幅 420px のサイドパネル表示を用意する</td></tr>
+          <tr><td>管理系画面</td><td>S02・S03・S08 などはデスクトップ優先（幅 1024px 以上）。スマートフォンでは閲覧のみ可能にする</td></tr>
+          <tr><td>動き</td><td><code>prefers-reduced-motion</code> を尊重し、進捗バーのアニメーションを止める</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <nav class="pager">
+      <a href="domain.html"><small>前へ</small>SPEC-02 ドメインモデル</a>
+      <a href="data-model.html"><small>次へ</small>SPEC-04 データモデル</a>
+    </nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

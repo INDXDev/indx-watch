@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch データモデル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>データモデル</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#policy">方針</a></li>
+    <li><a href="#er">ER 図</a></li>
+    <li><a href="#tables">テーブル一覧</a></li>
+    <li><a href="#ddl">DDL</a></li>
+    <li><a href="#json">JSON カラムの形</a></li>
+    <li><a href="#r2">R2 のレイアウト</a></li>
+    <li><a href="#queries">主要クエリ</a></li>
+    <li><a href="#access">アクセス制御</a></li>
+    <li><a href="#retention">保持と削除</a></li>
+    <li><a href="#migration">マイグレーション運用</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-04 · データモデル</div>
+      <h1>データモデル（D1 / R2）</h1>
+      <p class="lead">INDX Watch のすべての情報は Cloudflare D1（SQLite）に入り、ファイル本体だけを R2 に置きます。このページの DDL が実装の起点です。実装後は <code>packages/db/schema.ts</code> とこのページを同じコミットで更新します。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="architecture.html">アーキテクチャ</a></span></div>
+    </header>
+
+    <section id="policy">
+      <h2>方針</h2>
+      <ul>
+        <li><b>D1 が単一の情報源</b>。仕様・計画・実行・判定・AI 提案・監査ログまで 1 つの DB に入れる。GitHub や YAML は入出力にすぎない。</li>
+        <li>主キーは <code>TEXT</code> の <code>{prefix}_{ULID}</code>。時系列で並ぶので、作成日時順のインデックスを別に持たなくてよい。</li>
+        <li>日時は <code>INTEGER</code>（UNIX ミリ秒、UTC）。表示時に JST に変換。</li>
+        <li>列挙値は <code>TEXT</code> + <code>CHECK</code> 制約。</li>
+        <li>形が変わりやすい構造（手順・判定設定・設定値）は <code>*_json</code> の <code>TEXT</code> に入れ、形は <code>packages/core</code> の zod スキーマで定義・検証する。検索に使う値は列に出す。</li>
+        <li>版を持つもの（TC・フィクスチャ）は「親（可変のメタ情報）+ 版（不変の中身）」の 2 テーブル。</li>
+        <li>物理削除はしない（<code>archived_at</code>）。例外は保持期限を過ぎた証拠ファイル（<a href="#retention">保持と削除</a>）。</li>
+        <li>秘密値は保存しない。<code>*_secret_ref</code> に Secrets Store の参照名だけを保存する。</li>
+      </ul>
+    </section>
+
+    <section id="er">
+      <h2>ER 図</h2>
+      <p class="small muted">主要な関係のみ。監査ログ・コメント・カウンタは省略。</p>
+      <pre class="mermaid">
+erDiagram
+  projects ||--o{ environments : has
+  projects ||--o{ releases : has
+  projects ||--o{ features : has
+  projects ||--o{ fixtures : has
+  projects ||--o{ project_members : has
+  users ||--o{ project_members : joins
+  releases ||--o{ deployments : includes
+  environments ||--o{ deployments : hosts
+  features ||--o{ use_cases : groups
+  use_cases ||--o{ acceptance_criteria : defines
+  use_cases ||--o{ test_cases : owns
+  test_cases ||--o{ test_case_versions : versions
+  test_cases }o--o{ acceptance_criteria : "test_case_criteria"
+  fixtures ||--o{ fixture_versions : versions
+  releases ||--o{ test_plans : plans
+  test_plans ||--o{ plan_items : contains
+  plan_items }o--|| test_cases : targets
+  plan_items }o--|| users : assignee
+  plan_items ||--o{ runs : executes
+  runs }o--|| test_case_versions : uses
+  runs }o--|| deployments : against
+  runs ||--o{ run_steps : steps
+  runs ||--o{ evidence : stores
+  runs ||--o{ judgements : judged
+  runs ||--o{ issues : reports
+      </pre>
+    </section>
+
+    <section id="tables">
+      <h2>テーブル一覧</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>領域</th><th>テーブル</th><th>役割</th><th>M</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="3">人・権限</td><td><code>users</code></td><td>Access のメールで識別。AI エージェントも <code>kind='agent'</code> で 1 行。</td><td>M1</td></tr>
+          <tr><td><code>project_members</code></td><td>プロジェクトごとのロール（全体ロールより優先）。</td><td>M1</td></tr>
+          <tr><td><code>project_counters</code></td><td>表示キーの採番。</td><td>M1</td></tr>
+          <tr><td rowspan="4">どこで</td><td><code>projects</code></td><td>テスト対象アプリ = リポジトリ。</td><td>M1</td></tr>
+          <tr><td><code>environments</code></td><td>環境・入り方・リセットフック。</td><td>M1</td></tr>
+          <tr><td><code>releases</code></td><td>バージョン。</td><td>M1</td></tr>
+          <tr><td><code>deployments</code></td><td>commit × 環境。</td><td>M1</td></tr>
+          <tr><td rowspan="6">仕様</td><td><code>features</code></td><td>機能。</td><td>M1</td></tr>
+          <tr><td><code>use_cases</code></td><td>ユースケース。</td><td>M1</td></tr>
+          <tr><td><code>acceptance_criteria</code></td><td>完了条件。</td><td>M1</td></tr>
+          <tr><td><code>test_cases</code></td><td>テストケース（可変メタ）。</td><td>M1</td></tr>
+          <tr><td><code>test_case_versions</code></td><td>テストケースの中身（不変）。</td><td>M1</td></tr>
+          <tr><td><code>test_case_criteria</code></td><td>TC と AC の多対多。</td><td>M1</td></tr>
+          <tr><td rowspan="2">データ</td><td><code>fixtures</code></td><td>フィクスチャ（可変メタ）。</td><td>M1</td></tr>
+          <tr><td><code>fixture_versions</code></td><td>フィクスチャの中身（不変、本体は R2）。</td><td>M1</td></tr>
+          <tr><td rowspan="3">計画</td><td><code>test_plans</code></td><td>リリースのテスト計画。</td><td>M1</td></tr>
+          <tr><td><code>plan_items</code></td><td>アサイン。</td><td>M1</td></tr>
+          <tr><td><code>schedules</code></td><td>定期実行。</td><td>M3</td></tr>
+          <tr><td rowspan="5">実行</td><td><code>runs</code></td><td>実行。</td><td>M1</td></tr>
+          <tr><td><code>run_steps</code></td><td>ステップ結果。</td><td>M1</td></tr>
+          <tr><td><code>evidence</code></td><td>証拠（本体は R2）。</td><td>M1</td></tr>
+          <tr><td><code>judgements</code></td><td>ジャッジの結論。</td><td>M1（human） / M2（llm）</td></tr>
+          <tr><td><code>baselines</code></td><td>ビジュアル差分の基準。</td><td>M3</td></tr>
+          <tr><td rowspan="2">外部連携</td><td><code>issues</code></td><td>GitHub Issue との対応。</td><td>M3</td></tr>
+          <tr><td><code>github_installations</code></td><td>GitHub App のインストール。</td><td>M3</td></tr>
+          <tr><td>AI</td><td><code>ai_suggestions</code></td><td>AI の提案と採否。</td><td>M2</td></tr>
+          <tr><td rowspan="2">記録</td><td><code>comments</code></td><td>任意の対象へのコメント。</td><td>M1</td></tr>
+          <tr><td><code>activity_log</code></td><td>監査ログ（すべての変更）。</td><td>M1</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="ddl">
+      <h2>DDL</h2>
+      <p>D1（SQLite）向け。実装では Drizzle のスキーマから同じ SQL を生成します。<code>created_at</code> / <code>updated_at</code> はすべてのテーブルに付けます（以下では一部省略せず記載）。</p>
+<h3>人・権限</h3>
+<pre><code>CREATE TABLE users (
+  id            TEXT PRIMARY KEY,                 -- usr_...
+  email         TEXT NOT NULL UNIQUE,             -- Access JWT の email。agent は agent+watch@system
+  name          TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'human' CHECK (kind IN ('human','agent')),
+  role          TEXT NOT NULL DEFAULT 'tester' CHECK (role IN ('admin','manager','tester','guest')),
+  organization  TEXT,                             -- guest の所属（例: 株式会社サンプル）
+  notify_json   TEXT NOT NULL DEFAULT '{}',       -- 通知設定
+  last_seen_at  INTEGER,
+  created_at    INTEGER NOT NULL,
+  archived_at   INTEGER
+);
+
+CREATE TABLE project_members (
+  project_id  TEXT NOT NULL REFERENCES projects(id),
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  role        TEXT NOT NULL CHECK (role IN ('manager','tester','guest')),
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (project_id, user_id)
+);
+
+CREATE TABLE project_counters (
+  project_id  TEXT NOT NULL REFERENCES projects(id),
+  kind        TEXT NOT NULL CHECK (kind IN ('FEAT','UC','TC','FX','PLAN','RUN')),
+  next_value  INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (project_id, kind)
+);</code></pre>
+
+<h3>どこで（プロジェクト・環境・リリース・デプロイ）</h3>
+<pre><code>CREATE TABLE projects (
+  id              TEXT PRIMARY KEY,               -- prj_...
+  key             TEXT NOT NULL UNIQUE CHECK (key GLOB '[A-Z][A-Z0-9]*' AND length(key) BETWEEN 2 AND 6),
+  name            TEXT NOT NULL,
+  description     TEXT,
+  repo_full_name  TEXT UNIQUE,                    -- indxdev/indx-shop
+  default_branch  TEXT NOT NULL DEFAULT 'main',
+  default_env_id  TEXT,                           -- 完了計算の既定環境
+  settings_json   TEXT NOT NULL DEFAULT '{}',     -- ゲート閾値・モデル・判定ポリシー既定など
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  archived_at     INTEGER
+);
+
+CREATE TABLE environments (
+  id                 TEXT PRIMARY KEY,            -- env_...
+  project_id         TEXT NOT NULL REFERENCES projects(id),
+  name               TEXT NOT NULL,               -- staging
+  kind               TEXT NOT NULL CHECK (kind IN ('dev','staging','preview','uat','prod')),
+  base_url           TEXT NOT NULL,
+  access_kind        TEXT NOT NULL DEFAULT 'none' CHECK (access_kind IN ('none','basic','cf_access','ip_allowlist')),
+  access_secret_ref  TEXT,                        -- Secrets Store の名前のみ
+  entry_guide_md     TEXT NOT NULL DEFAULT '',    -- 入り方ガイド（人向け）
+  reset_hook_json    TEXT,                        -- リセット / シード API の設定
+  allowed_hosts_json TEXT NOT NULL DEFAULT '[]',  -- エージェントが遷移してよいホスト
+  is_default         INTEGER NOT NULL DEFAULT 0,
+  pr_number          INTEGER,                     -- preview のときの PR
+  health_json        TEXT,                        -- 最終の接続テスト結果
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL,
+  archived_at        INTEGER,
+  UNIQUE (project_id, name)
+);
+
+CREATE TABLE releases (
+  id                TEXT PRIMARY KEY,             -- rel_...
+  project_id        TEXT NOT NULL REFERENCES projects(id),
+  version           TEXT NOT NULL,                -- v2.4.0
+  title             TEXT,
+  status            TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning','testing','ready','released')),
+  target_date       TEXT,                         -- YYYY-MM-DD（JST の暦日）
+  github_milestone  INTEGER,
+  approved_by       TEXT REFERENCES users(id),    -- Go 承認者
+  approved_at       INTEGER,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  UNIQUE (project_id, version)
+);
+
+CREATE TABLE deployments (
+  id              TEXT PRIMARY KEY,               -- dep_...
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  environment_id  TEXT NOT NULL REFERENCES environments(id),
+  release_id      TEXT REFERENCES releases(id),
+  commit_sha      TEXT NOT NULL,
+  ref             TEXT,                           -- ブランチ / タグ
+  pr_number       INTEGER,
+  url             TEXT,                           -- 実際の URL（preview は PR ごと）
+  source          TEXT NOT NULL CHECK (source IN ('github','manual')),
+  github_deployment_id INTEGER,
+  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','superseded','failed')),
+  deployed_at     INTEGER NOT NULL,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX deployments_env_time ON deployments(environment_id, deployed_at DESC);
+CREATE INDEX deployments_release ON deployments(release_id);</code></pre>
+
+<h3>仕様（機能・ユースケース・完了条件・テストケース）</h3>
+<pre><code>CREATE TABLE features (
+  id           TEXT PRIMARY KEY,                  -- fea_...
+  project_id   TEXT NOT NULL REFERENCES projects(id),
+  number       INTEGER NOT NULL,                  -- FEAT-3
+  title        TEXT NOT NULL,
+  description  TEXT,
+  sort         INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  archived_at  INTEGER,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE use_cases (
+  id              TEXT PRIMARY KEY,               -- uc_...
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  feature_id      TEXT NOT NULL REFERENCES features(id),
+  number          INTEGER NOT NULL,               -- UC-12
+  title           TEXT NOT NULL,                  -- ゲストがクーポンを適用して購入する
+  actor           TEXT NOT NULL,                  -- ゲスト
+  goal            TEXT NOT NULL,                  -- 割引価格で購入を完了したい
+  description_md  TEXT NOT NULL DEFAULT '',
+  priority        TEXT NOT NULL DEFAULT 'P2' CHECK (priority IN ('P0','P1','P2','P3')),
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready','deprecated')),
+  origin          TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
+  suggestion_id   TEXT REFERENCES ai_suggestions(id),
+  sort            INTEGER NOT NULL DEFAULT 0,
+  created_by      TEXT NOT NULL REFERENCES users(id),
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE acceptance_criteria (
+  id           TEXT PRIMARY KEY,                  -- ac_...
+  use_case_id  TEXT NOT NULL REFERENCES use_cases(id),
+  seq          INTEGER NOT NULL,                  -- AC-12.2 の 2
+  text         TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  archived_at  INTEGER,
+  UNIQUE (use_case_id, seq)
+);
+
+CREATE TABLE test_cases (
+  id                  TEXT PRIMARY KEY,           -- tc_...
+  project_id          TEXT NOT NULL REFERENCES projects(id),
+  use_case_id         TEXT NOT NULL REFERENCES use_cases(id),
+  number              INTEGER NOT NULL,           -- TC-128
+  title               TEXT NOT NULL,
+  priority            TEXT NOT NULL CHECK (priority IN ('P0','P1','P2','P3')),
+  mode                TEXT NOT NULL DEFAULT 'manual' CHECK (mode IN ('manual','agent','script','hybrid')),
+  status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready','deprecated')),
+  current_version_id  TEXT,                       -- test_case_versions.id
+  owner_id            TEXT REFERENCES users(id),
+  origin              TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
+  suggestion_id       TEXT REFERENCES ai_suggestions(id),
+  tags_json           TEXT NOT NULL DEFAULT '[]', -- ["smoke","coupon"]
+  approved_by         TEXT REFERENCES users(id),
+  approved_at         INTEGER,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL,
+  UNIQUE (project_id, number)
+);
+CREATE INDEX test_cases_uc ON test_cases(use_case_id);
+
+CREATE TABLE test_case_versions (
+  id                    TEXT PRIMARY KEY,         -- tcv_...
+  test_case_id          TEXT NOT NULL REFERENCES test_cases(id),
+  version               INTEGER NOT NULL,         -- 1, 2, 3...
+  preconditions_md      TEXT NOT NULL DEFAULT '',
+  steps_json            TEXT NOT NULL,            -- Step[]（下記）
+  judges_json           TEXT NOT NULL DEFAULT '[]',
+  decision_policy_json  TEXT,                     -- null ならプロジェクト既定
+  fixture_refs_json     TEXT NOT NULL DEFAULT '[]',
+  evidence_policy       TEXT NOT NULL DEFAULT 'every_step' CHECK (evidence_policy IN ('every_step','on_fail','final_only')),
+  script                TEXT,                     -- mode=script のとき Playwright コード
+  change_note           TEXT NOT NULL DEFAULT '',
+  origin                TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
+  created_by            TEXT NOT NULL REFERENCES users(id),
+  created_at            INTEGER NOT NULL,
+  UNIQUE (test_case_id, version)
+);
+
+CREATE TABLE test_case_criteria (
+  test_case_id  TEXT NOT NULL REFERENCES test_cases(id),
+  criterion_id  TEXT NOT NULL REFERENCES acceptance_criteria(id),
+  PRIMARY KEY (test_case_id, criterion_id)
+);
+CREATE INDEX test_case_criteria_ac ON test_case_criteria(criterion_id);</code></pre>
+
+<h3>データ（フィクスチャ）</h3>
+<pre><code>CREATE TABLE fixtures (
+  id                  TEXT PRIMARY KEY,           -- fx_...
+  project_id          TEXT NOT NULL REFERENCES projects(id),
+  number              INTEGER NOT NULL,           -- FX-3
+  name                TEXT NOT NULL,
+  kind                TEXT NOT NULL CHECK (kind IN ('dataset','seed','file','account')),
+  description         TEXT NOT NULL DEFAULT '',
+  environment_id      TEXT REFERENCES environments(id),  -- null は全環境共通
+  current_version_id  TEXT,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL,
+  archived_at         INTEGER,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE fixture_versions (
+  id            TEXT PRIMARY KEY,                 -- fxv_...
+  fixture_id    TEXT NOT NULL REFERENCES fixtures(id),
+  version       INTEGER NOT NULL,
+  r2_key        TEXT,                             -- account は null
+  content_type  TEXT,
+  size          INTEGER,
+  sha256        TEXT,
+  summary_json  TEXT NOT NULL DEFAULT '{}',       -- 列名・行数・先頭行など（一覧と AI 用）
+  public_json   TEXT,                             -- account の公開情報（ユーザー名など）
+  secret_ref    TEXT,                             -- account の秘密の参照名
+  change_note   TEXT NOT NULL DEFAULT '',
+  restored_from INTEGER,                          -- 「この版に戻す」の元の版番号
+  origin        TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
+  created_by    TEXT NOT NULL REFERENCES users(id),
+  created_at    INTEGER NOT NULL,
+  UNIQUE (fixture_id, version)
+);</code></pre>
+
+<h3>計画</h3>
+<pre><code>CREATE TABLE test_plans (
+  id          TEXT PRIMARY KEY,                   -- pln_...
+  project_id  TEXT NOT NULL REFERENCES projects(id),
+  release_id  TEXT REFERENCES releases(id),
+  number      INTEGER NOT NULL,                   -- PLAN-4
+  title       TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','closed')),
+  due_date    TEXT,
+  created_by  TEXT NOT NULL REFERENCES users(id),
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE plan_items (
+  id              TEXT PRIMARY KEY,               -- pli_...
+  plan_id         TEXT NOT NULL REFERENCES test_plans(id),
+  test_case_id    TEXT NOT NULL REFERENCES test_cases(id),
+  environment_id  TEXT NOT NULL REFERENCES environments(id),
+  assignee_id     TEXT REFERENCES users(id),      -- null は未割り当て
+  priority        TEXT NOT NULL CHECK (priority IN ('P0','P1','P2','P3')),
+  due_date        TEXT,
+  status          TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done','blocked')),
+  latest_run_id   TEXT,                           -- 表示高速化用（runs 確定時に更新）
+  dataset_row     TEXT,                           -- データ駆動時の行キー
+  note            TEXT,
+  sort            INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  UNIQUE (plan_id, test_case_id, environment_id, dataset_row)
+);
+CREATE INDEX plan_items_assignee ON plan_items(assignee_id, status, due_date);
+
+CREATE TABLE schedules (
+  id              TEXT PRIMARY KEY,               -- sch_...
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  name            TEXT NOT NULL,                  -- 毎朝の P0 スモーク
+  environment_id  TEXT NOT NULL REFERENCES environments(id),
+  selector_json   TEXT NOT NULL,                  -- {"tags":["smoke"],"priority":["P0"],"modes":["agent","script"]}
+  cron            TEXT NOT NULL,                  -- UTC。0 22 * * * = JST 7:00
+  enabled         INTEGER NOT NULL DEFAULT 1,
+  last_run_at     INTEGER,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);</code></pre>
+
+<h3>実行・証拠・判定</h3>
+<pre><code>CREATE TABLE runs (
+  id                     TEXT PRIMARY KEY,        -- run_...
+  project_id             TEXT NOT NULL REFERENCES projects(id),
+  number                 INTEGER NOT NULL,        -- RUN-1033
+  test_case_id           TEXT NOT NULL REFERENCES test_cases(id),
+  test_case_version_id   TEXT NOT NULL REFERENCES test_case_versions(id),
+  plan_item_id           TEXT REFERENCES plan_items(id),   -- 計画外の単発実行は null
+  deployment_id          TEXT NOT NULL REFERENCES deployments(id),
+  environment_id         TEXT NOT NULL REFERENCES environments(id),
+  executor_kind          TEXT NOT NULL CHECK (executor_kind IN ('human','agent','script')),
+  executor_id            TEXT NOT NULL REFERENCES users(id),
+  trigger                TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual','plan','schedule','github','mcp')),
+  state                  TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued','running','judging','completed','error')),
+  verdict                TEXT CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
+  verdict_reason         TEXT,                    -- 判定ポリシーの説明（どのルールで決まったか）
+  decision_policy_json   TEXT,                    -- 実行時に使った判定ポリシー（既定と TC 上書きをマージ済み）。再計算でも結果が変わらないように保存
+  fixture_versions_json  TEXT NOT NULL DEFAULT '{}',  -- {"FX-3":4,"FX-11":2}
+  params_json            TEXT NOT NULL DEFAULT '{}',  -- データ駆動の行の値
+  workflow_instance_id   TEXT,                    -- Cloudflare Workflows のインスタンス
+  summary                TEXT,                    -- AI 要約（失敗理由など）
+  cost_json              TEXT,                    -- {"input_tokens":..., "output_tokens":..., "browser_ms":...}
+  error_json             TEXT,
+  started_at             INTEGER,
+  finished_at            INTEGER,
+  created_at             INTEGER NOT NULL,
+  UNIQUE (project_id, number)
+);
+CREATE INDEX runs_tc_time ON runs(test_case_id, created_at DESC);
+CREATE INDEX runs_deployment ON runs(deployment_id);
+CREATE INDEX runs_review ON runs(project_id, verdict) WHERE verdict = 'needs_review';
+
+CREATE TABLE run_steps (
+  id           TEXT PRIMARY KEY,                  -- rst_...
+  run_id       TEXT NOT NULL REFERENCES runs(id),
+  seq          INTEGER NOT NULL,
+  instruction  TEXT NOT NULL,                     -- 実行時点の手順をコピー
+  expected     TEXT NOT NULL DEFAULT '',
+  verdict      TEXT CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
+  note         TEXT,                              -- 人のメモ / 実際の結果
+  actions_json TEXT,                              -- エージェントが行った操作の列
+  started_at   INTEGER,
+  finished_at  INTEGER,
+  UNIQUE (run_id, seq)
+);
+
+CREATE TABLE evidence (
+  id            TEXT PRIMARY KEY,                 -- evd_...
+  run_id        TEXT NOT NULL REFERENCES runs(id),
+  run_step_id   TEXT REFERENCES run_steps(id),
+  kind          TEXT NOT NULL CHECK (kind IN ('screenshot','dom','a11y','console','network','trace','transcript','upload')),
+  r2_key        TEXT NOT NULL,
+  content_type  TEXT NOT NULL,
+  size          INTEGER NOT NULL,
+  caption       TEXT,
+  created_by    TEXT NOT NULL REFERENCES users(id),
+  created_at    INTEGER NOT NULL,
+  retain        INTEGER NOT NULL DEFAULT 0,       -- 1 = 保持期限の対象外（リリース最終結果・ベースライン採用時）
+  expires_at    INTEGER                           -- 保持期限（retain = 1 なら null）
+);
+CREATE INDEX evidence_run ON evidence(run_id, run_step_id);
+
+CREATE TABLE judgements (
+  id              TEXT PRIMARY KEY,               -- jdg_...
+  run_id          TEXT NOT NULL REFERENCES runs(id),
+  run_step_id     TEXT REFERENCES run_steps(id),  -- null は実行全体への判定
+  judge_kind      TEXT NOT NULL CHECK (judge_kind IN ('assert','visual','llm','human')),
+  verdict         TEXT NOT NULL CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
+  confidence      REAL,                           -- llm / visual のみ 0..1
+  reason          TEXT NOT NULL DEFAULT '',       -- human は必須（アプリで検証）
+  evidence_ids_json TEXT NOT NULL DEFAULT '[]',   -- 根拠にした証拠
+  model           TEXT,                           -- claude-sonnet-5-5 など
+  prompt_version  TEXT,                           -- judge.llm@3
+  raw_json        TEXT,                           -- 構造化出力の生データ
+  created_by      TEXT NOT NULL REFERENCES users(id),
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX judgements_run ON judgements(run_id);
+
+CREATE TABLE baselines (
+  id              TEXT PRIMARY KEY,               -- bsl_...
+  test_case_id    TEXT NOT NULL REFERENCES test_cases(id),
+  environment_id  TEXT NOT NULL REFERENCES environments(id),
+  step_seq        INTEGER NOT NULL,
+  r2_key          TEXT NOT NULL,
+  source_evidence_id TEXT REFERENCES evidence(id),
+  approved_by     TEXT NOT NULL REFERENCES users(id),
+  approved_at     INTEGER NOT NULL,
+  superseded_at   INTEGER
+);</code></pre>
+
+<h3>外部連携・AI・記録</h3>
+<pre><code>CREATE TABLE github_installations (
+  id               TEXT PRIMARY KEY,
+  installation_id  INTEGER NOT NULL UNIQUE,
+  account_login    TEXT NOT NULL,                 -- indxdev
+  created_at       INTEGER NOT NULL
+);
+
+CREATE TABLE issues (
+  id           TEXT PRIMARY KEY,                  -- iss_...
+  run_id       TEXT NOT NULL REFERENCES runs(id),
+  provider     TEXT NOT NULL DEFAULT 'github',
+  external_id  TEXT NOT NULL,                     -- Issue 番号
+  url          TEXT NOT NULL,
+  state        TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open','closed')),
+  severity     TEXT CHECK (severity IN ('P0','P1','P2','P3')),
+  created_by   TEXT NOT NULL REFERENCES users(id),
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+
+CREATE TABLE ai_suggestions (
+  id              TEXT PRIMARY KEY,               -- sug_...
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  kind            TEXT NOT NULL CHECK (kind IN ('spec_import','tc_generate','impact','fixture','triage')),
+  source_json     TEXT NOT NULL,                  -- 入力の参照（R2 キー、PR 番号、対象 ID）
+  payload_json    TEXT NOT NULL,                  -- 提案本体（構造化出力）
+  item_decisions_json TEXT NOT NULL DEFAULT '{}', -- 項目ごとの採否 {"uc:0":"accepted","tc:2":"rejected"}
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','rejected','partial')),
+  model           TEXT NOT NULL,
+  prompt_version  TEXT NOT NULL,
+  cost_json       TEXT,
+  requested_by    TEXT NOT NULL REFERENCES users(id),
+  decided_by      TEXT REFERENCES users(id),
+  decided_at      INTEGER,
+  created_at      INTEGER NOT NULL
+);
+
+CREATE TABLE comments (
+  id           TEXT PRIMARY KEY,                  -- cmt_...
+  project_id   TEXT NOT NULL REFERENCES projects(id),
+  target_type  TEXT NOT NULL,                     -- use_case / test_case / run / plan_item / fixture
+  target_id    TEXT NOT NULL,
+  author_id    TEXT NOT NULL REFERENCES users(id),
+  body_md      TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX comments_target ON comments(target_type, target_id);
+
+CREATE TABLE activity_log (
+  id           TEXT PRIMARY KEY,                  -- act_...
+  project_id   TEXT REFERENCES projects(id),
+  actor_id     TEXT NOT NULL REFERENCES users(id),
+  action       TEXT NOT NULL,                     -- test_case.version_created / run.verdict_overridden ...
+  target_type  TEXT NOT NULL,
+  target_id    TEXT NOT NULL,
+  diff_json    TEXT,                              -- 変更前後
+  via          TEXT NOT NULL DEFAULT 'web' CHECK (via IN ('web','mcp','github','runner','system')),
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX activity_target ON activity_log(target_type, target_id, created_at DESC);
+CREATE INDEX activity_project_time ON activity_log(project_id, created_at DESC);</code></pre>
+    </section>
+
+    <section id="json">
+      <h2>JSON カラムの形</h2>
+      <p>正は <code>packages/core/src/domain/*.ts</code> の zod スキーマ。ここでは例を示します。</p>
+      <h3><code>test_case_versions.steps_json</code>（TC-130 v3 の一部）</h3>
+<pre><code>[
+  {
+    "seq": 1,
+    "instruction": "トップページを開き、商品「オーガニックコットン T シャツ」をカートに入れる",
+    "expected": "カートのバッジが 1 になる",
+    "evidence": ["screenshot"],
+    "guest_text": "トップページで「オーガニックコットン T シャツ」を探し、「カートに入れる」を押してください"   // 任意: 顧客向けの言い換え
+  },
+  {
+    "seq": 3,
+    "instruction": "クーポン欄に {{FX-3.code}} を入力して「適用」を押す",
+    "expected": "注文合計が {{FX-3.discounted_total}} 円になり、割引行に「-{{FX-3.discount}} 円」と表示される",
+    "evidence": ["screenshot", "dom"],
+    "asserts": [
+      { "type": "text_visible", "target": "割引", "value": "-¥398" }
+    ]
+  }
+]</code></pre>
+      <h3><code>test_case_versions.judges_json</code></h3>
+<pre><code>[
+  { "kind": "assert" },                              // steps の asserts をすべて評価
+  { "kind": "llm", "rubric": [
+      "注文合計が割引後の金額になっている",
+      "エラーメッセージが表示されていない",
+      "決済完了画面に注文番号が表示されている"
+    ], "model": "claude-sonnet-5-5" },
+  { "kind": "visual", "steps": [5], "threshold": 0.02 }
+]</code></pre>
+      <h3><code>decision_policy_json</code>（プロジェクト既定は <code>projects.settings_json.decision_policy</code>）</h3>
+<pre><code>{
+  "llm_min_confidence": 0.8,
+  "visual_over_threshold": "needs_review",
+  "require_human_for": ["P0"],
+  "agent_blocked_on_navigation_error": true
+}</code></pre>
+      <h3><code>fixture_refs_json</code></h3>
+<pre><code>[
+  { "fixture": "FX-7", "version": 2, "apply": "before_run" },  // seed: リセットフックで投入
+  { "fixture": "FX-3", "version": "latest", "row": "SPRING10" }, // dataset: 行を指定
+  { "fixture": "FX-11", "version": "latest" }                   // account
+]</code></pre>
+      <h3><code>environments.reset_hook_json</code></h3>
+<pre><code>{
+  "reset": { "method": "POST", "path": "/__test/reset", "timeout_ms": 20000 },
+  "seed":  { "method": "POST", "path": "/__test/seed",  "timeout_ms": 20000 },
+  "auth":  { "kind": "bearer", "secret_ref": "SHOP_STAGING_RESET_TOKEN" }
+  // 環境自体の入り方（Access サービストークン）は access_secret_ref = "SHOP_STAGING_CF_CLIENT_ID / SHOP_STAGING_CF_CLIENT_SECRET"
+}</code></pre>
+      <h3><code>projects.settings_json</code></h3>
+<pre><code>{
+  "gate": { "p0_coverage": 1.0, "p0_all_pass": true, "p1_pass_rate": 0.95, "max_review": 0, "max_untested": 0, "max_open_p0_issues": 0 },
+  "decision_policy": { "llm_min_confidence": 0.8, "require_human_for": ["P0"] },
+  "models": { "agent": "claude-opus-5-5", "judge": "claude-sonnet-5-5", "bulk": "claude-haiku-5-5" },
+  "ai_budget_usd": 300,                                  // 月次の AI 予算。超えたら agent 実行を停止
+  "notify": { "slack_channel": "#qa-shop" }
+}</code></pre>
+    </section>
+
+    <section id="r2">
+      <h2>R2 のレイアウト</h2>
+      <p>バケットは 1 つ（<code>indx-watch-files</code>）。キーの先頭で用途を分け、ライフサイクルルールを用途ごとに設定します。ブラウザへの配信は Worker 経由（権限チェック後に署名付きの短命 URL かストリーム）で、バケットは公開しません。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>用途</th><th>キー</th><th>例</th><th>保持</th></tr></thead>
+        <tbody>
+          <tr><td>証拠</td><td><code>evidence/{project_key}/{run_id}/{seq}-{kind}.{ext}</code></td><td><code>evidence/SHOP/run_01JD.../3-screenshot.png</code></td><td>180 日（<code>retain = 1</code> のものは <code>retained/</code> にコピーして無期限）</td></tr>
+          <tr><td>フィクスチャ</td><td><code>fixtures/{project_key}/{fixture_id}/v{n}/{filename}</code></td><td><code>fixtures/SHOP/fx_01JC.../v4/coupons.csv</code></td><td>無期限</td></tr>
+          <tr><td>ベースライン</td><td><code>baselines/{project_key}/{test_case_id}/{env}/{step}.png</code></td><td><code>baselines/SHOP/tc_01JB.../staging/5.png</code></td><td>無期限（置き換え時に旧版を 90 日残す）</td></tr>
+          <tr><td>AI 取り込みの入力</td><td><code>imports/{project_key}/{suggestion_id}/{filename}</code></td><td><code>imports/SHOP/sug_01JE.../prd.pdf</code></td><td>90 日</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="queries">
+      <h2>主要クエリ</h2>
+      <h3>マイタスク（S01）</h3>
+<pre><code>SELECT pi.*, tc.number, tc.title, tc.mode, e.name AS env_name, p.key AS project_key, r.verdict AS latest_verdict
+FROM plan_items pi
+JOIN test_plans pl ON pl.id = pi.plan_id AND pl.status = 'active'
+JOIN test_cases tc ON tc.id = pi.test_case_id
+JOIN environments e ON e.id = pi.environment_id
+JOIN projects p ON p.id = tc.project_id
+LEFT JOIN runs r ON r.id = pi.latest_run_id
+WHERE pi.assignee_id = ?1 AND pi.status IN ('todo','in_progress','blocked')
+ORDER BY CASE pi.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
+         pi.due_date IS NULL, pi.due_date, pi.sort;</code></pre>
+      <h3>リリース × 環境ごとの TC の最新判定（S02 / S03 の元データ）</h3>
+<pre><code>WITH latest AS (
+  SELECT r.test_case_id, r.verdict, r.test_case_version_id,
+         ROW_NUMBER() OVER (PARTITION BY r.test_case_id ORDER BY r.created_at DESC) AS rn
+  FROM runs r
+  JOIN deployments d ON d.id = r.deployment_id
+  WHERE d.release_id = ?1 AND r.environment_id = ?2 AND r.state = 'completed'
+)
+SELECT tc.id, tc.priority, tc.current_version_id,
+       l.verdict, (l.test_case_version_id = tc.current_version_id) AS on_current_version
+FROM test_cases tc
+LEFT JOIN latest l ON l.test_case_id = tc.id AND l.rn = 1
+WHERE tc.project_id = ?3 AND tc.status = 'ready';</code></pre>
+      <p>AC・UC の状態と網羅率はこの結果と <code>test_case_criteria</code> から <code>packages/core</code> の純粋関数で計算します（SQL に集約ロジックを持たせない。ユニットテストしやすくするため）。件数が増えたら、実行確定時に <code>plan_items.latest_run_id</code> と同様のキャッシュ列を追加します。</p>
+    </section>
+
+    <section id="access">
+      <h2>アクセス制御</h2>
+      <p>D1 には行レベルセキュリティがないため、すべてのクエリは <code>apps/web/lib/authz.ts</code> の関数を通し、プロジェクトとロールで絞ります。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ロール</th><th>読み取り</th><th>書き込み</th></tr></thead>
+        <tbody>
+          <tr><td><code>admin</code></td><td>すべて</td><td>すべて（プロジェクト作成、ユーザー管理、設定）</td></tr>
+          <tr><td><code>manager</code></td><td>メンバーのプロジェクトすべて</td><td>仕様の承認、計画・アサイン、ゲート承認、ベースライン承認、環境・フィクスチャ</td></tr>
+          <tr><td><code>tester</code></td><td>メンバーのプロジェクトすべて</td><td>仕様・TC の作成（draft）、フィクスチャ編集、実行、判定、コメント</td></tr>
+          <tr><td><code>guest</code></td><td>自分が担当の計画アイテムと、その TC 版・環境の入り方・必要なフィクスチャのみ</td><td>担当アイテムの実行・判定・コメントのみ</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="retention">
+      <h2>保持と削除</h2>
+      <ul>
+        <li>証拠ファイルは 180 日で R2 ライフサイクルにより削除。D1 の <code>evidence</code> 行は残し、<code>expires_at</code> を過ぎたものは「期限切れ」と表示する。</li>
+        <li>ベースラインに採用された証拠、リリースの最終結果に使われた証拠は <code>retain = 1</code> にして残す（日次の Cron で R2 側を保持用のキー <code>retained/</code> にコピー）。</li>
+        <li>D1 は Time Travel（30 日）で復元可能。加えて毎日 D1 をエクスポートし、別バケット <code>indx-watch-backup</code> に保存する（90 日保持）。</li>
+        <li>ユーザーの退職・顧客の契約終了時は <code>users.archived_at</code> を設定し、Access ポリシーから外す。作成物と履歴は残す。</li>
+      </ul>
+    </section>
+
+    <section id="migration">
+      <h2>マイグレーション運用</h2>
+      <ol class="steps">
+        <li><span><code>packages/db/schema.ts</code> を変更し、このページの DDL を同じコミットで更新する。</span></li>
+        <li><span><code>pnpm db:generate</code> で SQL を生成し、<code>packages/db/migrations/NNNN_*.sql</code> を確認する。</span></li>
+        <li><span><code>pnpm db:migrate:local</code> で適用し、シードを流して画面を確認する。</span></li>
+        <li><span>PR をマージすると GitHub Actions が <code>wrangler d1 migrations apply --remote</code> を実行する。列の削除・型変更は 2 段階（追加 → 移行 → 次のリリースで削除）で行う。</span></li>
+      </ol>
+    </section>
+
+    <nav class="pager"><a href="ux.html"><small>前へ</small>SPEC-03 UX・ユーザーフロー</a><a href="architecture.html"><small>次へ</small>SPEC-05 アーキテクチャ</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>
