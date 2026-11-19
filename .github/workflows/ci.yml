@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm schemas --check
+      - run: pnpm check:docs
+      - run: pnpm check:example
+      - run: node scripts/loc.mjs
+      - run: pnpm build
+      - name: Pack and cold-start the CLI
+        run: |
+          cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP" && mkdir cold && cd cold
+          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz init demo
+          cd demo && npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz check --json
+
+  e2e:
+    # Dogfooding: this repository's own test cases (.indx-watch/) and the examples/shop demo,
+    # recorded with the Playwright reporter and summarized by the INDX Watch action.
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: examples/shop end-to-end
+        run: pnpm --filter shop test
+      - name: Dogfood end-to-end (this repo's TCs)
+        run: pnpm e2e
+      - name: INDX Watch summary (examples/shop)
+        if: ${{ !cancelled() }}
+        uses: ./
+        with:
+          cli: local
+          dir: examples/shop/.indx-watch
+          release: v1.2.0
+      - name: INDX Watch summary (this repo)
+        if: ${{ !cancelled() }}
+        uses: ./
+        with:
+          cli: local
+          dir: .indx-watch
