@@ -175,6 +175,9 @@ export const Criterion = z.strictObject({
   /** default ready; draft (e.g. AI-proposed) and retired criteria do not count; retired keeps the key reserved */
   status: z.enum(['draft', 'ready', 'retired']).optional(),
   origin: Origin.optional(),
+  /** human who approved an AI-proposed criterion (`iw approve AC-n.m`); required for origin "ai" to count */
+  approved_by: z.string().optional(),
+  ai: AiMeta.optional(),
   notes: z.string().optional(),
   i18n: z.partialRecord(Locale, translation({ text: z.string() })).optional(),
 });

@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { decide } from '../src/index.js';
 
 const P = DECISION_POLICY_DEFAULTS;
-type Ctx = { priority: Priority; mode: string; reported: 'blocked' | 'skipped' | null };
+type Ctx = {
+  priority: Priority;
+  mode: string;
+  reported: 'blocked' | 'skipped' | null;
+  judges?: string[];
+};
 const ctx: Ctx = { priority: 'P1', mode: 'playwright', reported: null };
 let n = 0;
 const j = (
@@ -82,6 +87,20 @@ describe('decision policy rows', () => {
       verdict: 'pass',
       rule: 8,
     });
+  });
+  it('8 needs a judgement of every declared judge kind; otherwise 10', () => {
+    const agent = [j('llm', 'pass', { confidence: 0.95 })];
+    expect(rule(agent, { judges: ['human'], mode: 'manual', priority: 'P0' })).toMatchObject({
+      verdict: 'needs_review',
+      rule: 10,
+    });
+    expect(rule([j('assert', 'pass')], { judges: ['assert', 'visual'] }).rule).toBe(10);
+    expect(rule([j('assert', 'pass')], { judges: ['assert'] })).toMatchObject({ verdict: 'pass', rule: 8 });
+    expect(rule([...agent, j('human', 'pass')], { judges: ['human'] })).toMatchObject({ rule: 1 });
+  });
+  it('judgement order compares instants, not strings, across precisions', () => {
+    const early = j('human', 'fail', { at: '2026-11-19T04:00:00Z' });
+    expect(rule([j('human', 'pass', { at: '2026-11-19T04:00:00.100Z' }), early]).verdict).toBe('pass');
   });
   it('9: no judgements', () => {
     expect(rule([])).toMatchObject({ verdict: 'needs_review', rule: 9 });

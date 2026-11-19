@@ -155,6 +155,7 @@ export function buildModel(
         priority: tc?.priority ?? 'P2',
         mode: tc?.data.mode ?? '',
         reported: r.reported ?? null,
+        judges: tc?.data.judges?.map((j) => j.kind),
       }),
       stale:
         !tc ||

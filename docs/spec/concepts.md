@@ -107,7 +107,7 @@ A test case inherits the highest priority of the use cases it covers unless it s
 
 ### Decision policy
 
-One pure function, `decide(judgements, policy, { priority, mode, reported })` in `packages/core`, turns a run's judgements into a verdict ([ADR 0013](../adr/0013-decision-policy.md)). `policy` is the test case's `[decision_policy]` merged over the project's, merged over the defaults. Rules are evaluated top to bottom; the first match wins.
+One pure function, `decide(judgements, policy, { priority, mode, reported, judges })` in `packages/core`, turns a run's judgements into a verdict ([ADR 0013](../adr/0013-decision-policy.md)). `policy` is the test case's `[decision_policy]` merged over the project's, merged over the defaults. Rules are evaluated top to bottom; the first match wins.
 
 | # | Condition | Verdict |
 |---|---|---|
@@ -118,12 +118,13 @@ One pure function, `decide(judgements, policy, { priority, mode, reported })` in
 | 5 | Any `visual` judgement has verdict `diff` or `fail` and (`diff_ratio` missing or `diff_ratio` > `visual_threshold`) | `needs_review` |
 | 6 | Any `llm` judgement has confidence < `llm_pass_confidence` (default 0.8), or verdict `fail` or `unknown` | `needs_review` |
 | 7 | The test case priority is in `require_human_for`, or the mode is `hybrid` | `needs_review` |
-| 8 | At least one judgement, and every judgement is `pass` (a `visual` `diff` within the threshold counts as `pass`) | `pass` |
+| 8 | At least one judgement, every judgement is `pass` (a `visual` `diff` within the threshold counts as `pass`), and every judge kind the test case declares in `judges` has at least one judgement | `pass` |
 | 9 | No judgements | `needs_review` |
-| 10 | Anything else (e.g. an `assert` with verdict `unknown`) | `needs_review` |
+| 10 | Anything else (e.g. an `assert` with verdict `unknown`, or a declared judge kind with no judgement yet) | `needs_review` |
 
 - A missing `llm` confidence counts as 0.
-- **Judgement order**: by `at`, then `id`. `buildModel` fills a judgement's `at`/`by` from its enclosing record when absent (a run's inline judgements get `ended_at` and the run's actor).
+- Declared judges matter: an agent's confident `llm` pass on a test case whose `judges` is `[{ kind = "human" }]` is `needs_review` (rule 10) until a person reviews it, whatever the priority. `judges` is the test case's own list; `decide` gets its kinds as `judges`.
+- **Judgement order**: by `at` as an instant (so `…:00Z` and `…:00.100Z` compare correctly), then `id`. `buildModel` fills a judgement's `at`/`by` from its enclosing record when absent (a run's inline judgements get `ended_at` and the run's actor).
 - A `human` judgement's verdict is one of `pass`, `fail`, `blocked`, `skipped`. A reason is required for `fail`, `blocked` and `skipped`, and for every `judgement` record (a review).
 - `decide` returns the verdict, the rule number and a reason; `iw show <run> --json` prints them.
 
@@ -136,7 +137,7 @@ flowchart TD
   D -- no --> E{visual diff over threshold?} -- yes --> R[needs_review]
   E -- no --> G{llm below pass threshold, fail or unknown?} -- yes --> R
   G -- no --> I{require_human_for / hybrid?} -- yes --> R
-  I -- no --> K{judgements, all pass?} -- yes --> P[pass]
+  I -- no --> K{judgements, all pass, every declared judge present?} -- yes --> P[pass]
   K -- no --> R
 ```
 
@@ -159,6 +160,7 @@ stateDiagram-v2
 - `iw approve <ref>` sets `status = "ready"`, `approved_by` (from the [identity](security.md#identity) of whoever runs it — never a flag) and `approved_version` (the current version hash). Agents cannot approve.
 - An `origin = "ai"` item is only valid as `ready` while `approved_version` equals its current version. Editing an approved AI-written test case therefore fails `iw check` until a human approves it again.
 - Items are **deprecated, not deleted**, so their keys stay reserved. Acceptance criteria have their own `status`: `draft`, `ready` (default) or `retired`.
+- An `origin = "ai"` acceptance criterion counts as `ready` only with `approved_by`; `iw approve AC-n.m` writes it (criteria have no version of their own: rewording one changes the versions of the test cases that cover it).
 
 ### Run
 
@@ -184,7 +186,7 @@ A test case may appear in a plan more than once only with different environments
 ## Versions and staleness
 
 - **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes and translations do not.
-- **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`).
+- **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`). Text data files (`.csv`, `.json`, `.txt`, `.md`, `.toml`, `.yaml`, …) are hashed with CRLF read as LF, so a Windows checkout gives the same version.
 - A run records the test case version and the version of every fixture it used.
 - A result is **stale** when its test case version differs from the current one, or any fixture version it used differs from the current version of that fixture.
 - Git history is the version history of definitions. `iw show TC-3 --versions` lists versions by walking `git log` of the file.
@@ -195,9 +197,9 @@ A test case may appear in a plan more than once only with different environments
 
 1. **Relevant runs** of a test case: runs with `release` = the scope's release (and `environment`, if set) that are not retracted.
 2. **Variants.** A test case can legitimately produce several runs per execution: one per Playwright project (chromium, webkit) and one per dataset row. A run's variant = `automation.project` + its sorted fixture `rows`. Runs with the same `automation.group` and variant form one **execution** (e.g. shards); its verdict is the worst of its runs.
-3. **Latest result per variant**: the execution with the latest `ended_at` (ties: greatest run ID). Its verdict comes from the decision policy, including later judgements. If any of its runs is stale, the result is `stale`.
+3. **Latest result per variant**: the execution with the latest `ended_at`, compared as instants (ties: greatest run ID). Its verdict comes from the decision policy, including later judgements. If any of its runs is stale, the result is `stale`.
 4. **Test case result** = the worst latest result over all variants seen in scope.
-5. **Waivers**: a `fail` result is `waived` if the latest non-revoked waiver for (release, test case ID) has a `version` equal to the result's test case version. Waivers are rejected for test cases whose effective priority is P0.
+5. **Waivers**: a `fail` result is `waived` if the latest non-revoked waiver for (release, test case ID) has a `version` equal to the result's test case version. Waivers are rejected for test cases whose effective priority is P0. A waiver for another version is not applied, and reports list only applied waivers.
 
 **Statuses, from worst to best:**
 
@@ -211,6 +213,8 @@ A test case may appear in a plan more than once only with different environments
 
 **Coverage** = ready ACs with ≥ 1 `ready` test case ÷ ready ACs of `ready` use cases.
 
+**Counts** (`iw status` `counts`, the report's counts by priority) count `ready` test cases only, like the gate. Draft test cases are still listed with their result.
+
 **Effective priority** of a test case = its own `priority`, or the highest priority of the use cases it covers. A test case may not set a priority lower than that (`iw check` error), so a P0 use case can never be passed through a P3 test case.
 
 ## Readiness gate
@@ -219,6 +223,7 @@ A test case may appear in a plan more than once only with different environments
 
 | Key | Default | Check | `actual` / `expected` format |
 |---|---|---|---|
+| `has_gated_tests` | always on | The scope has at least one `ready` P0 or P1 test case (in the release's plan, when it names one) | `"8"` / `"≥ 1"` |
 | `p0_coverage` | `1.0` | Coverage of ACs of P0 use cases | `"9/9"` / `"≥ 1.00"` |
 | `p0_all_pass` | `true` | Every in-scope `ready` P0 test case's result is `pass` | `"3/4"` / `"4/4"` |
 | `p1_pass_rate` | `0.95` | (`pass` + `waived`) ÷ in-scope `ready` P1 test cases | `"19/20 (0.95)"` / `"≥ 0.95"` |
@@ -227,7 +232,7 @@ A test case may appear in a plan more than once only with different environments
 | `allow_stale` | `false` | Whether a stale result counts as its underlying verdict; when `false`, stale P0–P1 results fail this check | `"0"` / `"≤ 0"` |
 | `require_evidence` | `true` | Passing P0 results carry evidence or an `assert` judgement | `"4/4"` / `"4/4"` |
 
-- A check with an empty denominator passes with `actual = "n/a"`.
+- A check with an empty denominator passes with `actual = "n/a"`. `has_gated_tests` comes first and fails when nothing is gated, so an empty project, or one with only P2–P3 or draft test cases, is never "ready to ship".
 - Each failing check lists the offending keys in `items`.
 - The gate passes only when every check passes. `iw status --release v1.2.0 --gate` exits 1 when it does not, so CI can block a release.
 
@@ -248,7 +253,7 @@ These are enforced by `iw check` and unit tests:
 
 1. A run references exactly one test case ID, one test case version and one build.
 2. Human judgements follow the reason rule above.
-3. An `origin = "ai"` item is `ready` only with `approved_by` and an `approved_version` equal to its current version.
+3. An `origin = "ai"` item is `ready` only with `approved_by` and an `approved_version` equal to its current version (an acceptance criterion: only with `approved_by`).
 4. Keys are unique per kind; deprecated items and retired ACs keep their keys; `iw new` also avoids keys seen in results.
 5. No secret values appear in the bundle.
 6. Every reference resolves: `covers` → ready or draft ACs; fixture refs → fixtures; plan items → test cases; `project.default_environment`, `plan.environment`, item environments → environments; `project.current_release`, `plan.release` → releases; `release.plan` → a plan; `environment.accounts` → `account` fixtures; a `seed` fixture used with `apply = "before_run"` → an environment hook of that name.
@@ -264,4 +269,5 @@ These are enforced by `iw check` and unit tests:
 - [ ] Changing only the title of a test case keeps its version hash; changing a step changes it and makes earlier results `stale`.
 - [ ] `iw check` fails on an `origin = "ai"` test case marked `ready` without `approved_by`, or whose `approved_version` differs from its current version.
 - [ ] `iw check --fix` resolves a duplicate `TC-` key by renumbering the newer file and updating references.
-- [ ] A gate check with an empty denominator passes with `actual = "n/a"`.
+- [ ] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
+- [ ] A confident agent pass on a test case that declares a `human` judge is `needs_review`.

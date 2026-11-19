@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -56,6 +56,19 @@ describe('versions', () => {
     const step = { ...tc, steps: [{ ...tc.steps[0]!, expected: 'Something else.' }, tc.steps[1]!] };
     expect(await testCaseVersion(step, ac)).not.toBe(v);
     expect(await testCaseVersion(tc, new Map([['AC-2.1', 'Reworded.']]))).not.toBe(v);
+  });
+
+  it('a CRLF checkout (git autocrlf) gives the same versions and values', async () => {
+    const crlf = new Map(
+      [...shopFiles()].map(([p, b]) => [
+        p,
+        /\.(toml|csv|json)$/.test(p) ? new TextEncoder().encode(dec.decode(b).replace(/\n/g, '\r\n')) : b,
+      ]),
+    );
+    const [lf, win] = [(await loadBundle(memFs())).bundle!, (await loadBundle(memFs(crlf))).bundle!];
+    const versions = (x: typeof lf) => [...x.testCases, ...x.fixtures].map((t) => [t.data.key, t.version]);
+    expect(versions(win)).toEqual(versions(lf));
+    expect(win.environments).toEqual(lf.environments);
   });
 
   it('fixture version covers data content but not the title', async () => {
@@ -155,6 +168,18 @@ describe('archive', () => {
     expect(b.tar).toEqual(a.tar);
   });
 
+  it('rejects entries outside the layout (zip-slip)', async () => {
+    for (const path of ['../../escaped.txt', 'a/./b.toml', 'a//b', 'a\\..\\b']) {
+      const bad = await createArchive({
+        project: 'SHOP',
+        bundleFiles: [{ path, data: new TextEncoder().encode('x') }],
+        records: [],
+        blobs: [],
+      });
+      await expect(readArchive(bad.tar), path).rejects.toThrow(/not allowed/);
+    }
+  });
+
   it('rejects a modified archive', async () => {
     const a = await createArchive({
       project: 'SHOP',
@@ -190,6 +215,7 @@ describe('write', () => {
       ready: true,
       now,
     });
+    expect(parseToml(fs.text(uc.file)!).priority).toBe('P1'); // gated by default
     expect(uc).toMatchObject({
       key: 'UC-6',
       file: 'specs/FEAT-3-account/UC-6-customer-resets-the-password/use-case.toml',
@@ -271,5 +297,26 @@ describe('node helpers', () => {
     expect(await fs.read('nope')).toBeNull();
     await fs.remove('x');
     expect(await fs.list('x')).toEqual([]);
+  });
+
+  it('nodeFs stays inside its root: no "..", no symbolic links out', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'iw-'));
+    const root = join(tmp, 'bundle');
+    mkdirSync(join(root, 'fixtures', 'FX-1'), { recursive: true });
+    writeFileSync(join(tmp, 'netrc'), 'machine api login deploy password x');
+    symlinkSync(join(tmp, 'netrc'), join(root, 'fixtures', 'FX-1', 'coupons.csv'));
+    symlinkSync(tmp, join(root, 'fixtures', 'FX-2'));
+    writeFileSync(join(root, 'project.toml'), 'ok');
+    const fs = nodeFs(root);
+    expect(await fs.list('fixtures/FX-1')).toEqual([]);
+    expect(await fs.list('fixtures')).toEqual([{ name: 'FX-1', dir: true }]);
+    await expect(fs.read('fixtures/FX-1/coupons.csv')).rejects.toThrow(/outside the bundle/);
+    await expect(fs.read('fixtures/FX-2/netrc')).rejects.toThrow(/outside the bundle/);
+    await expect(fs.read('../netrc')).rejects.toThrow(/outside the bundle/);
+    await expect(fs.write('../../escaped.txt', 'x')).rejects.toThrow(/outside the bundle/);
+    await expect(fs.write('fixtures/FX-1/coupons.csv', 'x')).rejects.toThrow(/symbolic link/);
+    await expect(fs.write('fixtures/FX-2/new.txt', 'x')).rejects.toThrow(/outside the bundle/);
+    expect(readFileSync(join(tmp, 'netrc'), 'utf8')).toContain('deploy');
+    expect(dec.decode((await fs.read('project.toml'))!)).toBe('ok');
   });
 });

@@ -89,6 +89,19 @@ describe('test case status', () => {
     expect(testCaseStatus(later, 'TC-4', scope).status).toBe('pass');
   });
 
+  it('an agent pass does not pass a test case that declares a human judge (TC-8)', () => {
+    const m = model([run(b, 'TC-8', { judgements: [{ kind: 'llm', verdict: 'pass', confidence: 0.95 }] })]);
+    expect(testCaseStatus(m, 'TC-8', scope).status).toBe('needs_review');
+  });
+
+  it('orders runs by instant, not by string, when timestamp precision differs', () => {
+    const m = model([
+      run(b, 'TC-1', { ended: '2026-11-19T04:00:00.100Z' }),
+      run(b, 'TC-1', { verdict: 'fail', ended: '2026-11-19T04:00:00Z' }),
+    ]);
+    expect(testCaseStatus(m, 'TC-1', scope).status).toBe('pass');
+  });
+
   it('rewording a covered AC makes results stale; a translation edit does not', async () => {
     const r = run(b, 'TC-4');
     const reworded: Bundle = structuredClone(b);
@@ -151,7 +164,7 @@ describe('computeStatus and the gate on examples/shop', () => {
       pass: 6,
       fail: 1,
       needs_review: 0,
-      untested: 2,
+      untested: 1, // TC-8; draft TC-9 is listed but not counted, like in the gate
       stale: 0,
       waived: 0,
       uncovered: 1,
@@ -169,6 +182,7 @@ describe('computeStatus and the gate on examples/shop', () => {
     expect(
       Object.fromEntries(s.gate.checks.map((c) => [c.key, [c.passed, c.actual, c.expected, c.items]])),
     ).toEqual({
+      has_gated_tests: [true, '8', '≥ 1', undefined],
       p0_coverage: [true, '6/6', '≥ 1.00', undefined],
       p0_all_pass: [false, '5/6', '6/6', ['TC-8']],
       p1_pass_rate: [false, '1/2 (0.50)', '≥ 0.95', ['TC-2']],
@@ -213,6 +227,7 @@ describe('computeStatus and the gate on examples/shop', () => {
       evaluateGate(model([], drafts), scope).checks.map((c) => [c.key, [c.passed, c.actual]]),
     );
     expect(g).toEqual({
+      has_gated_tests: [false, '0'],
       p0_coverage: [false, '0/6'],
       p0_all_pass: [true, 'n/a'],
       p1_pass_rate: [true, 'n/a'],
@@ -221,6 +236,22 @@ describe('computeStatus and the gate on examples/shop', () => {
       allow_stale: [true, 'n/a'],
       require_evidence: [true, 'n/a'],
     });
+  });
+
+  it('nothing gated is never ready: a P2-only scope fails has_gated_tests', () => {
+    const p2: Bundle = structuredClone(b);
+    for (const u of p2.useCases) u.data.priority = 'P2';
+    for (const t of p2.testCases) delete t.data.priority;
+    const g = evaluateGate(model([], p2), scope);
+    expect(g.passed).toBe(false);
+    expect(g.checks[0]).toEqual({
+      key: 'has_gated_tests',
+      passed: false,
+      actual: '0',
+      expected: '≥ 1',
+      items: [],
+    });
+    expect(g.checks.slice(1).every((c) => c.passed && c.actual === 'n/a')).toBe(true);
   });
 
   it('release.plan limits the gate to the plan', () => {
@@ -345,6 +376,10 @@ describe('reportData', () => {
       commit: 'a1b2c3d',
       environment: 'staging',
     });
+    const tc2 = b.testCases.find((t) => t.data.key === 'TC-2')!;
+    const waived = (v: string) => reportData(model([...sampleRecords(b), waiver(b, 'TC-2', v)]), scope, opts);
+    expect(waived(tc2.version).waivers.map((w) => w.testCase)).toEqual(['TC-2']);
+    expect(waived('tcv:000000000000').waivers).toEqual([]); // not applied: another version
     const c = reportData(m, scope, { ...opts, audience: 'customer' });
     expect(JSON.stringify(c)).not.toMatch(/@shop\.test|Total stayed/);
   });

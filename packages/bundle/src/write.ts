@@ -69,7 +69,7 @@ const KINDS: Record<Exclude<NewKind, 'criterion'>, [FileType, IdPrefix, KeyKind 
   plan: ['plan', 'pln', 'plan', 'plans/{k}-{s}.toml'],
 };
 const DEFAULTS: Partial<Record<NewKind, object>> = {
-  'use-case': { actor: 'User', priority: 'P2' },
+  'use-case': { actor: 'User', priority: 'P1' }, // P1 is gated: a new use case is never silently out of scope
   'test-case': { mode: 'manual' },
   fixture: { kind: 'file' },
   environment: { base_url: 'http://localhost:3000' },
@@ -111,7 +111,7 @@ export async function createDefinition(
   if (kind === 'criterion') {
     const uc = find(bundle.useCases, input.parent);
     const [key, id] = [given('key') ?? nextCriterionKey(uc.data.key, keys), given('id') ?? newId('ac', +now)];
-    const c = { id, key, ...fields, ...life, ...(origin === 'ai' ? { status: 'draft' } : {}) };
+    const c = { id, key, ...fields, ...life, ...ai, ...(origin === 'ai' ? { status: 'draft' } : {}) };
     await writeDefinition(fs, uc.file, 'use-case', { ...uc.data, criteria: [...uc.data.criteria, c] });
     return { kind, id, key, file: uc.file };
   }
@@ -185,7 +185,9 @@ export async function approveDefinition(
   }
   const owner =
     bundle.useCases.find((u) => u.data.criteria.some(match)) ?? fail('NOT_FOUND', `${ref} not found`);
-  const criteria = owner.data.criteria.map((c) => (match(c) ? { ...c, status: 'ready' as const } : c));
+  const criteria = owner.data.criteria.map((c) =>
+    match(c) ? { ...c, status: 'ready' as const, approved_by: approver } : c,
+  );
   await writeDefinition(fs, owner.file, 'use-case', { ...owner.data, criteria });
   return { file: owner.file, version: await useCaseVersion({ ...owner.data, criteria }) };
 }

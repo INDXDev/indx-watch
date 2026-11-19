@@ -56,6 +56,7 @@ const RULES: [RegExp, FileType | 'template' | null][] = [
   [/(^|\/)README\.md$|^\.gitignore$/, null],
 ];
 const dec = new TextDecoder();
+const TEXT = /\.(csv|tsv|json|ndjson|txt|md|toml|ya?ml|xml|html?|sql)$/i;
 const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/'));
 
 /** Every file under dir (cache/ and runs/ at the root are skipped). */
@@ -148,6 +149,7 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
   );
 
   const fixtures: Bundle['fixtures'] = [];
+  const lfHash = new Map<string, string>(); // text data files hash with CRLF → LF (same version on Windows)
   for (const fx of of<Fixture>('fixture')) {
     const dir = dirOf(fx.file);
     const dataFiles: Bundle['fixtures'][0]['dataFiles'] = [];
@@ -157,6 +159,8 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
       if (bytes) {
         files.push({ path: file, type: 'data', text: dec.decode(bytes), valid: true });
         dataFiles.push({ name, file, sha256: await sha256Hex(bytes), size: bytes.length });
+        if (TEXT.test(name))
+          lfHash.set(file, await sha256Hex(bytes.filter((x, i) => x !== 13 || bytes[i + 1] !== 10)));
       } else if (all.has(`${file}.blob.toml`)) {
         const seen = await parse(`${file}.blob.toml`, 'blob-pointer');
         const pointer = seen?.valid ? (seen.raw as BlobPointer) : undefined;
@@ -166,7 +170,8 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
       fixtureFiles.delete(file);
       fixtureFiles.delete(`${file}.blob.toml`);
     }
-    fixtures.push({ ...fx, dataFiles, version: await fixtureVersion(fx.data, dataFiles) });
+    const forVersion = dataFiles.map((d) => ({ ...d, sha256: lfHash.get(d.file) ?? d.sha256 }));
+    fixtures.push({ ...fx, dataFiles, version: await fixtureVersion(fx.data, forVersion) });
   }
   unknownFiles.push(...fixtureFiles);
   for (const f of unknownFiles.sort()) add('warning', 'unknown-file', f, 'File is not part of the format');
