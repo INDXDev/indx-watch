@@ -1,0 +1,94 @@
+/** The opened project: bundle, local replica, model, identity, records and refs. */
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import type { Actor, Bundle, BundleFs } from '@indx-watch/bundle';
+import { AnyRecord, loadBundle, newId, parseRef, parseToml } from '@indx-watch/bundle';
+import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
+import { buildModel, type Model, type RunView } from '@indx-watch/core';
+import type { LocalReplica } from '@indx-watch/store';
+import { openReplica, processContext, processIdentity } from '@indx-watch/store/node';
+import { type Args, type Ctx, fail, git, iso, str } from './util.js';
+
+export interface Project {
+  dir: string;
+  /** repository root (git), else the bundle's parent */
+  root: string;
+  fs: BundleFs;
+  bundle: Bundle;
+  replica: LocalReplica;
+}
+
+/** Find, load and validate the bundle (exit 3 when missing or when project.toml is invalid). */
+export async function openProject(ctx: Ctx, a: Args): Promise<Project> {
+  const dir = findBundleDir(ctx.cwd, { ...ctx.env, IW_DIR: str(a.dir) ?? ctx.env.IW_DIR }) ?? '';
+  if (!existsSync(join(dir, 'project.toml')))
+    fail('NO_BUNDLE', 'No .indx-watch/ with a project.toml here or above; run `iw init` or pass --dir');
+  const fs = nodeFs(dir);
+  const { bundle, problems } = await loadBundle(fs);
+  const newer = problems.some((p) => p.code === 'unsupported-schema-version');
+  const message = problems.map((p) => `${p.file}: ${p.message}`).join('; ');
+  if (!bundle) fail(newer ? 'UNSUPPORTED_SCHEMA' : 'INVALID_CONFIG', message, problems);
+  const root = git(dir, 'rev-parse', '--show-toplevel') ?? dirname(dir);
+  return { dir, root, fs, bundle: bundle!, replica: openReplica(dir) };
+}
+
+export const loadModel = async (p: Project): Promise<Model> =>
+  buildModel(p.bundle, await p.replica.records()).model;
+export const actorOf = (ctx: Ctx): Promise<Actor> =>
+  processIdentity({ env: ctx.env, cwd: ctx.cwd }).current();
+export const contextOf = (ctx: Ctx) => processContext({ env: ctx.env, cwd: ctx.cwd });
+
+/** Refuse agents for approve / review / waive (exit 2). */
+export async function humanOnly(ctx: Ctx, what: string): Promise<Actor> {
+  const actor = await actorOf(ctx);
+  if (actor.kind === 'agent') fail('USAGE', `Agents cannot ${what}; ask a human to run it`);
+  return actor;
+}
+
+/** Build a record (envelope from the identity), validate it (canonical key order) and append it to the replica. */
+export async function append<K extends AnyRecord['kind']>(ctx: Ctx, p: Project, kind: K, fields: object) {
+  const actor = await actorOf(ctx);
+  const source = actor.kind === 'agent' ? 'agent' : actor.kind === 'ci' ? 'ci' : 'cli';
+  const prefix = ({ run: 'run', waiver: 'wvr', deployment: 'dep' } as const)[kind as 'run'] ?? 'rec';
+  const envelope = { v: 1, project: p.bundle.project.data.id, at: iso(), actor, source };
+  const r = AnyRecord.parse({ kind, id: newId(prefix), ...envelope, ...fields });
+  await p.replica.putRecord(r);
+  return r as Extract<AnyRecord, { kind: K }>;
+}
+
+/** Any ref (key, ID, PROJECT:KEY) → key. */
+export function resolveKey(model: Model, ref: string): string {
+  const pr = parseRef(ref);
+  if (pr?.type === 'key' && pr.project && pr.project !== model.project.key)
+    fail('NOT_FOUND', `${ref} belongs to project ${pr.project}, not ${model.project.key}`);
+  return model.keyOf(pr?.type === 'key' ? pr.key : ref) ?? fail('NOT_FOUND', `${ref} not found`);
+}
+
+/** A run by ID or a unique prefix of ≥ 8 characters after run_. */
+export function resolveRun(model: Model, ref: string): RunView {
+  if (!/^run_[0-9A-Za-z]{8,}$/.test(ref)) fail('NOT_FOUND', `No run ${ref} (give ≥ 8 characters after run_)`);
+  const hits = [...model.runs.keys()].filter((id) => id.startsWith(`run_${ref.slice(4).toUpperCase()}`));
+  if (hits.length > 1) fail('AMBIGUOUS_REF', `${ref} matches ${hits.length} runs`, hits);
+  return model.runs.get(hits[0] ?? fail('NOT_FOUND', `Run ${ref} not found`))!;
+}
+
+/** Field values from --from <file|-> (JSON or TOML), or the MCP input. */
+export async function fromInput(ctx: Ctx, a: Args): Promise<Record<string, unknown>> {
+  const from = str(a.from);
+  if (ctx.input || !from) return ctx.input ?? {};
+  const text = from === '-' ? await ctx.stdin() : await readFile(resolve(ctx.cwd, from), 'utf8');
+  let v: unknown;
+  try {
+    v = text.trim().startsWith('{') ? JSON.parse(text) : parseToml(text);
+  } catch (e) {
+    fail('INVALID_INPUT', `--from: ${(e as Error).message}`);
+  }
+  if (!v || typeof v !== 'object' || Array.isArray(v))
+    fail('INVALID_INPUT', '--from needs a JSON or TOML object');
+  return v as Record<string, unknown>;
+}
+
+/** Release of a scope: flag → IW_RELEASE → project.current_release. */
+export const releaseOf = (ctx: Ctx, p: Project, a: Args) =>
+  str(a.release) ?? ctx.env.IW_RELEASE ?? p.bundle.project.data.current_release;
