@@ -1,6 +1,9 @@
 /** Runtime-neutral exports (safe on Workers). Node-only factories: '@indx-watch/store/node'; Workers: '@indx-watch/store/workers'. */
-export * from './ports.js';
-export { memoryObjectStore, memoryIndex } from './adapters/memory.js';
-export { s3ObjectStore } from './adapters/s3.js';
+
 export { httpObjectStore } from './adapters/http.js';
-export { createResultStore } from './result-store.js';
+export { memoryIndex, memoryObjectStore } from './adapters/memory.js';
+export { s3ObjectStore } from './adapters/s3.js';
+export * from './ports.js';
+export { createReplica } from './replica.js';
+export { createResultStore, LOG_PREFIX } from './result-store.js';
+export { blobRefs, checkRecord, idTime, ulidTime } from './util.js';

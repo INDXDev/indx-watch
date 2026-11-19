@@ -1,0 +1,137 @@
+/** ObjectStore アダプターの共通契約テスト（docs/spec/sync.md#acceptance-criteria）。 */
+import { describe, expect, it } from 'vitest';
+import type { ObjectStore } from '../src/ports.js';
+import { createResultStore } from '../src/result-store.js';
+
+const text = (b: Uint8Array | null) => (b ? new TextDecoder().decode(b) : null);
+
+export function objectStoreContract(
+  name: string,
+  make: () => Promise<{ store: ObjectStore; cleanup?: () => Promise<void> }>,
+  opts: { canDelete?: boolean; skip?: boolean } = {},
+) {
+  describe.skipIf(!!opts.skip)(`ObjectStore contract: ${name}`, () => {
+    const withStore = (fn: (s: ObjectStore) => Promise<void>) => async () => {
+      const { store, cleanup } = await make();
+      try {
+        await fn(store);
+      } finally {
+        await cleanup?.();
+      }
+    };
+
+    it(
+      'get/head return null for missing keys',
+      withStore(async (s) => {
+        expect(await s.get('v1/log/missing.json')).toBeNull();
+        expect(await s.head('v1/log/missing.json')).toBeNull();
+      }),
+    );
+
+    it(
+      'put then get/head round-trips bytes and size',
+      withStore(async (s) => {
+        const data = new Uint8Array([0, 1, 2, 255, 128]);
+        expect(await s.put('v1/blobs/sha256/aa/x', data)).toBe(true);
+        expect(await s.get('v1/blobs/sha256/aa/x')).toEqual(data);
+        expect((await s.head('v1/blobs/sha256/aa/x'))?.size).toBe(5);
+        expect(await s.put('a/b.json', '{"é":1}')).toBe(true);
+        expect(text(await s.get('a/b.json'))).toBe('{"é":1}');
+      }),
+    );
+
+    it(
+      'ifNoneMatch never overwrites and resolves false when the key exists',
+      withStore(async (s) => {
+        expect(await s.put('k/one', 'first', { ifNoneMatch: true })).toBe(true);
+        expect(await s.put('k/one', 'second', { ifNoneMatch: true })).toBe(false);
+        expect(text(await s.get('k/one'))).toBe('first');
+      }),
+    );
+
+    it(
+      'concurrent create-if-absent: exactly one writer wins',
+      withStore(async (s) => {
+        const results = await Promise.all(
+          [1, 2, 3, 4, 5].map((i) => s.put('race/key', `w${i}`, { ifNoneMatch: true })),
+        );
+        expect(results.filter(Boolean)).toHaveLength(1);
+        const winner = results.indexOf(true) + 1;
+        expect(text(await s.get('race/key'))).toBe(`w${winner}`);
+      }),
+    );
+
+    it(
+      'list is lexicographic, honors prefix, startAfter, limit and truncated',
+      withStore(async (s) => {
+        const keys = [
+          'v1/log/03.json',
+          'v1/log/01.json',
+          'v1/log/02.json',
+          'v1/logx',
+          'v1/blobs/sha256/aa/b',
+          'other',
+        ];
+        for (const k of keys) await s.put(k, k);
+        const all = await s.list({ prefix: 'v1/log/' });
+        expect(all.keys.map((k) => k.key)).toEqual(['v1/log/01.json', 'v1/log/02.json', 'v1/log/03.json']);
+        expect(all.truncated).toBe(false);
+        expect(all.keys[0]!.size).toBe('v1/log/01.json'.length);
+        const after = await s.list({ prefix: 'v1/log/', startAfter: 'v1/log/01.json' });
+        expect(after.keys.map((k) => k.key)).toEqual(['v1/log/02.json', 'v1/log/03.json']);
+        // StartAfter は存在しないキーでもよい
+        const ghost = await s.list({ prefix: 'v1/log/', startAfter: 'v1/log/015' });
+        expect(ghost.keys.map((k) => k.key)).toEqual(['v1/log/02.json', 'v1/log/03.json']);
+        const page = await s.list({ prefix: 'v1/log/', limit: 2 });
+        expect(page.keys.map((k) => k.key)).toEqual(['v1/log/01.json', 'v1/log/02.json']);
+        expect(page.truncated).toBe(true);
+        expect((await s.list({ prefix: 'v1/' })).keys.map((k) => k.key)).toEqual([
+          'v1/blobs/sha256/aa/b',
+          'v1/log/01.json',
+          'v1/log/02.json',
+          'v1/log/03.json',
+          'v1/logx',
+        ]);
+        expect((await s.list({ prefix: 'nothing/' })).keys).toEqual([]);
+      }),
+    );
+
+    it(
+      'rejects unsafe keys',
+      withStore(async (s) => {
+        await expect(s.get('../etc/passwd')).rejects.toThrow(/invalid object key/);
+        await expect(s.put('a//b', 'x')).rejects.toThrow(/invalid object key/);
+      }),
+    );
+
+    it.skipIf(opts.canDelete === false)(
+      'delete removes a key and is idempotent',
+      withStore(async (s) => {
+        await s.put('d/x', 'x');
+        await s.delete('d/x');
+        await s.delete('d/x');
+        expect(await s.get('d/x')).toBeNull();
+      }),
+    );
+
+    it(
+      'works as a result store (manifest, log, blobs)',
+      withStore(async (s) => {
+        const rs = createResultStore(s);
+        await rs.init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y00');
+        await rs.init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y00');
+        await expect(rs.init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01')).rejects.toMatchObject({
+          code: 'wrong-project',
+        });
+        const data = new TextEncoder().encode('evidence');
+        const { sha256Hex } = await import('@indx-watch/bundle');
+        const sha = await sha256Hex(data);
+        await rs.putBlob(sha, data, 'text/plain');
+        await rs.putBlob(sha, data, 'text/plain');
+        expect(await rs.hasBlob(sha)).toBe(true);
+        expect(await rs.getBlob(sha)).toEqual(data);
+        expect(await s.head(`v1/blobs/sha256/${sha.slice(0, 2)}/${sha}`)).not.toBeNull();
+      }),
+    );
+  });
+}
