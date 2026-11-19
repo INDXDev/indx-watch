@@ -238,6 +238,8 @@ export interface RenderOptions {
   locale: Locale;
   evidence: 'none' | 'links' | 'embed';
   getBlob?(sha256: string): Promise<Uint8Array | null>;
+  /** prefix for evidence links in Markdown (`iw report --evidence-base`) */
+  evidenceBase?: string;
 }
 
 export type { ReportData, StatusResult };

@@ -359,7 +359,7 @@ media_type = "image/png"
 
 - `iw fixture add <path> --to FX-4` runs the secret scan on the file, copies it in, and turns it into a pointer if it is larger than `[fixtures].inline_max_bytes` (or with `--blob`). The blob goes to the local replica and is uploaded by `iw sync`. Without a `[store]`, creating a pointer is refused unless `--local-only` is given, because teammates could not resolve it.
 - `iw check` warns when a pointer's blob is in neither the local replica nor `cache/blobs/`; run `iw fixture fetch` or `iw sync` first.
-- `iw fixture fetch FX-4` downloads the blob into `cache/blobs/` and verifies the hash. Tools resolve fixture files through the bundle API, never by path guessing.
+- `iw fixture fetch FX-4` downloads the blob into `cache/blobs/<sha256>` (flat) and verifies the hash. Tools resolve fixture files through the bundle API, never by path guessing.
 
 ## `plans/<PLAN>-<slug>.toml`
 

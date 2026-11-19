@@ -5,7 +5,9 @@ const baseURL = process.env.SHOP_BASE_URL ?? `http://localhost:${port}`;
 
 // The INDX Watch reporter records one run per tagged test case. Set IW_REPORTER=0 to run without it.
 const reporter: ReporterDescription[] = [['list']];
-if (process.env.IW_REPORTER !== '0') reporter.push(['@indx-watch/playwright', {}]);
+// Results stay in the local replica unless IW_STORE is set, so local runs never touch the committed sample store.
+if (process.env.IW_REPORTER !== '0')
+  reporter.push(['@indx-watch/playwright', { sync: Boolean(process.env.IW_STORE) }]);
 
 export default defineConfig({
   testDir: './tests',

@@ -28,19 +28,23 @@ jobs:
       - run: pnpm test
       - run: pnpm schemas --check
       - run: pnpm check:docs
-      - run: pnpm check:example
       - run: node scripts/loc.mjs
       - run: pnpm build
-      - name: Pack and cold-start the CLI
+      - run: pnpm check:example
+      - name: Sample report is reproducible
+        run: scripts/check-report.sh
+      - name: Pack and cold-start the CLI in an empty directory
         run: |
           cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP"
-          cd "$RUNNER_TEMP" && mkdir cold && cd cold
+          mkdir "$RUNNER_TEMP/cold" && cd "$RUNNER_TEMP/cold"
           npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz init demo
-          cd demo && npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz check --json
+          cd demo
+          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz new uc --title "Sign up" --ac "A confirmation email is sent" --ready
+          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz check --json
 
   e2e:
-    # Dogfooding: this repository's own test cases (.indx-watch/) and the examples/shop demo,
-    # recorded with the Playwright reporter and summarized by the INDX Watch action.
+    # Dogfooding: e2e/ implements this repository's own test cases (.indx-watch/), recorded by our Playwright reporter;
+    # examples/shop runs its demo tests. The INDX Watch action then writes both reports to the job summary.
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -55,8 +59,19 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: examples/shop end-to-end
         run: pnpm --filter shop test
-      - name: Dogfood end-to-end (this repo's TCs)
+        env:
+          IW_RELEASE: v1.2.0
+      - name: Dogfood end-to-end (this repository's test cases)
         run: pnpm e2e
+        env:
+          IW_RELEASE: v0.1.0
+      - name: INDX Watch summary (this repository)
+        if: ${{ !cancelled() }}
+        uses: ./
+        with:
+          cli: local
+          dir: .indx-watch
+          release: v0.1.0
       - name: INDX Watch summary (examples/shop)
         if: ${{ !cancelled() }}
         uses: ./
@@ -64,9 +79,4 @@ jobs:
           cli: local
           dir: examples/shop/.indx-watch
           release: v1.2.0
-      - name: INDX Watch summary (this repo)
-        if: ${{ !cancelled() }}
-        uses: ./
-        with:
-          cli: local
-          dir: .indx-watch
+          sync: "false"

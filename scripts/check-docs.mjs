@@ -21,6 +21,8 @@ const IGNORE = new Set(['docs/adr/0000-template.md']);
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (SKIP.has(entry.name) || (entry.name === 'worktrees' && dir.endsWith('.claude'))) continue;
+    // build-time copies (packages/cli/.gitignore)
+    if (/[/\\]packages[/\\]cli$/.test(dir) && ['skills', 'schemas'].includes(entry.name)) continue;
     const path = join(dir, entry.name);
     if (entry.isDirectory()) walk(path, out);
     else if (entry.name.endsWith('.md')) out.push(path);

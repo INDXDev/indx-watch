@@ -92,7 +92,7 @@ The shop's `tests/support.ts` does this inside its `coupon()` helper, so each co
 
 - One run is written per test case and Playwright project (`chromium`, `webkit`, …) per invocation. A failure in any project makes the test case fail.
 - Screenshots, traces and videos are hashed and copied into `.indx-watch/runs/` as soon as each test ends. Use the `evidence` option (`all`, `failures`, `none`) to limit them.
-- For test cases that use an `account` fixture, traces and videos are skipped by default because they record typed passwords. Step parameters and stdout/stderr are never copied.
+- For test cases that use an `account` fixture, traces and videos are skipped by default because they record typed passwords. Step parameters and stdout/stderr are never copied. Set `traces: 'always'` to keep them anyway.
 - Records are written locally first. If `project.toml` has a `[store]`, the reporter pushes them at the end of the run; a failed push is retried by the next `iw sync`.
 
 ## Release and environment

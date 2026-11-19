@@ -17,7 +17,8 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:example": "tsx packages/cli/src/bin.ts check --dir examples/shop/.indx-watch",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm schemas --check && pnpm check:docs && pnpm check:example",
-    "e2e": "playwright test -c e2e"
+    "e2e": "playwright test -c e2e",
+    "check:report": "scripts/check-report.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",

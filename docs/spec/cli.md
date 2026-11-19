@@ -219,7 +219,7 @@ Render a report offline from the bundle plus the local replica. See [reports.md]
 | `--locale <en\|ja>` | project `source_locale` | Labels and content translations |
 | `--evidence-base <url>` | | Prefix for evidence links in `md` |
 
-`data`: `{ "file": string | null, "gate": GateResult }`
+`data`: `{ "file": string | null, "gate": GateResult, "text"?: string }` — `text` holds the rendered report when `--json` is used without `--out` for `md`/`json`.
 
 ### `iw export --full` and `iw import <archive>`
 

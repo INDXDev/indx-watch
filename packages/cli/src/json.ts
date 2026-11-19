@@ -115,7 +115,12 @@ export const CommandData = {
     cursor: z.string().nullable(),
   }),
   serve: z.object({ url: z.string() }),
-  report: z.object({ file: z.string().nullable(), gate: Gate }),
+  report: z.object({
+    file: z.string().nullable(),
+    gate: Gate,
+    /** the rendered report, when --json is used without --out for md/json */
+    text: z.string().optional(),
+  }),
   export: z.object({
     archive: z.string(),
     manifest: z.object({ sha256: z.string(), files: z.number(), records: z.number(), blobs: z.number() }),

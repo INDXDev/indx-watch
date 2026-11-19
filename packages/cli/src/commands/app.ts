@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { findBundleDir } from '@indx-watch/bundle/node';
 import { reportData } from '@indx-watch/core';
-import { renderReport } from '@indx-watch/server';
+import { renderReport, reportTexts } from '@indx-watch/server';
 import { startNodeServer } from '@indx-watch/server/node';
 import { fileStateStore } from '@indx-watch/sync/node';
 import type { Spec } from '../cli.js';
@@ -114,6 +114,7 @@ export const appCommands: Record<string, Spec> = {
         },
         ...JSON.parse(JSON.stringify({ plan: plan?.key, commit, cursor: cursor ?? undefined })),
       });
+      Object.assign(data, { texts: await reportTexts(m, locale) });
       const name = `report-${plan?.key ?? release ?? 'all'}.${format}`;
       const out = str(a.out) ?? (['md', 'json'].includes(format) ? undefined : name);
       const html = format === 'md' ? 'md' : 'html';

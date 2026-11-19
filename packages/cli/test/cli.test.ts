@@ -397,12 +397,15 @@ describe('commands', () => {
 
   it('sync pushes records to the folder store and pulls them into another replica', () => {
     const dir = shop();
-    iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']);
+    const rec = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']);
     const r = iwJson(dir, 'sync', ['sync', '--push-only']);
     expect(r.json.data.pushed.records).toBe(1);
     const other = shop();
     const pulled = iwJson(other, 'sync', ['sync', '--store', `file://${join(dir, 'store')}`, '--pull-only']);
-    expect(pulled.json.data.pulled.records).toBe(1);
+    // the sample store also holds the committed sample results
+    expect(pulled.json.data.pulled.records).toBeGreaterThanOrEqual(1);
+    const runs = iwJson(other, 'list', ['list', 'runs']).json.data.items as { id: string }[];
+    expect(runs.some((x) => x.id === rec.json.data.run.id)).toBe(true);
     writeFileSync(
       join(dir, '.indx-watch/environments/staging.toml'),
       `${read(dir, 'environments/staging.toml')}notes = "ghp_${'a'.repeat(36)}"\n`,
