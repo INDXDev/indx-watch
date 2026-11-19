@@ -1,5 +1,5 @@
 import type { AnyRecord, JudgementRecord, RunRecord } from '@indx-watch/bundle';
-import { memoryObjectStore } from '@indx-watch/store';
+import { createResultStore, httpObjectStore, memoryObjectStore } from '@indx-watch/store';
 import { accessIdentity } from '@indx-watch/store/workers';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,7 +17,7 @@ import type {
   TestCaseDetail,
 } from '../src/index.js';
 import { createApp } from '../src/index.js';
-import { ALEX, fakeDeps, req, SAM, SHOT, SHOT_SHA, shop } from './helpers.js';
+import { ALEX, fakeDeps, req, SAM, SHOT, SHOT_SHA, sampleRecords, shop } from './helpers.js';
 
 const app = async (o: Parameters<typeof fakeDeps>[0] = {}) => {
   const f = await fakeDeps(o);
@@ -318,6 +318,57 @@ describe('blobs', () => {
     );
     expect(res.status).toBe(413);
   });
+
+  it('stops reading a chunked upload once it is over 25 MB', async () => {
+    const { app: a } = await app();
+    let pulled = 0;
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled += chunk.byteLength;
+        c.enqueue(chunk);
+      },
+    });
+    const init = { method: 'POST', body, duplex: 'half', headers: { 'x-iw-request': '1' } };
+    const res = await a.fetch(new Request('http://127.0.0.1/api/blobs', init as RequestInit));
+    expect(res.status).toBe(413);
+    expect(pulled).toBeLessThan(30 * 1024 * 1024);
+  });
+});
+
+describe('cross-site requests', () => {
+  const run = { test_case: 'TC-1', verdict: 'pass' };
+  const send = async (headers: Record<string, string>, body = JSON.stringify(run), path = '/api/runs') => {
+    const { app: a, written } = await app();
+    const res = await a.fetch(new Request(`http://127.0.0.1:4321${path}`, { method: 'POST', body, headers }));
+    return [res.status, written.length];
+  };
+  it('refuses writes a cross-site page could send, and allows the UI and the CLI', async () => {
+    const json = { 'content-type': 'application/json' };
+    // a form or no-cors fetch: text/plain, no custom header
+    expect(await send({ 'content-type': 'text/plain;charset=UTF-8' })).toEqual([403, 0]);
+    expect(await send({}, 'x', '/api/blobs')).toEqual([403, 0]);
+    // a foreign or opaque Origin, or Sec-Fetch-Site: cross-site
+    expect(await send({ ...json, origin: 'https://evil.example' })).toEqual([403, 0]);
+    expect(await send({ ...json, origin: 'null' })).toEqual([403, 0]);
+    expect(await send({ ...json, 'sec-fetch-site': 'cross-site' })).toEqual([403, 0]);
+    // the web UI (same origin) and clients without Origin
+    expect(await send({ ...json, origin: 'http://127.0.0.1:4321', 'sec-fetch-site': 'same-origin' })).toEqual(
+      [201, 1],
+    );
+    expect(await send(json)).toEqual([201, 1]);
+    expect((await send({ 'x-iw-request': '1', 'content-type': 'image/png' }, 'x', '/api/blobs'))[0]).toBe(
+      201,
+    );
+  });
+
+  it('sends a CSP that forbids framing on HTML pages', async () => {
+    const { deps } = await fakeDeps();
+    const html = { headers: { 'content-type': 'text/html' } };
+    const a = createApp({ ...deps, assets: async () => new Response('<!doctype html>', html) });
+    const res = await a.fetch(req('/'));
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+  });
 });
 
 describe('report', () => {
@@ -336,7 +387,8 @@ describe('report', () => {
 });
 
 describe('store endpoints', () => {
-  it('GET/HEAD/PUT/list with If-None-Match and log ingestion', async () => {
+  const LOG = 'v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json';
+  it('GET/HEAD/PUT/list and log ingestion; writes are create-only', async () => {
     const f = await fakeDeps();
     const objects = memoryObjectStore();
     const logs: string[] = [];
@@ -349,24 +401,74 @@ describe('store endpoints', () => {
           headers: inm ? { 'if-none-match': '*' } : {},
         }),
       );
-    expect((await put('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json', '{"v":1}')).status).toBe(201);
-    expect((await put('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json', '{"v":2}')).status).toBe(412);
-    expect(logs).toEqual(['v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json']);
-    expect((await put('v1/blobs/sha256/aa/aaaa', 'x')).status).toBe(400);
-    const got = await a.fetch(req('/api/store/objects/v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json'));
-    expect(await got.text()).toBe('{"v":1}');
-    const head = await a.fetch(
-      req('/api/store/objects/v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json', { method: 'HEAD' }),
-    );
-    expect([head.status, head.headers.get('content-length')]).toEqual([200, '7']);
+    const log = (records: unknown[]) => JSON.stringify({ v: 1, writer: 'w', records });
+    const body = log(sampleRecords(f.bundle).slice(0, 2));
+    expect((await put(LOG, body)).status).toBe(201);
+    // never overwritten, with or without If-None-Match
+    expect((await put(LOG, log([]))).status).toBe(412);
+    expect((await put(LOG, log([]), false)).status).toBe(412);
+    expect(logs).toEqual([LOG]);
+    const got = await a.fetch(req(`/api/store/objects/${LOG}`));
+    expect(await got.text()).toBe(body);
+    const head = await a.fetch(req(`/api/store/objects/${LOG}`, { method: 'HEAD' }));
+    expect([head.status, head.headers.get('content-length')]).toEqual([200, `${body.length}`]);
     expect((await a.fetch(req('/api/store/objects/nope', { method: 'HEAD' }))).status).toBe(404);
     expect((await a.fetch(req('/api/store/objects/nope'))).status).toBe(404);
     const list = await get<StoreListResponse>(a, '/api/store/list?prefix=v1/log/');
     expect(list).toEqual({
-      keys: [expect.objectContaining({ key: 'v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json', size: 7 })],
+      keys: [expect.objectContaining({ key: LOG, size: body.length })],
       truncated: false,
     });
     expect((await a.fetch(req('/api/store/objects/..%2Fx'))).status).toBe(400);
+  });
+
+  it('accepts only the manifest, valid log objects of this project and matching blobs', async () => {
+    const f = await fakeDeps();
+    const objects = memoryObjectStore();
+    const a = createApp({ ...f.deps, objects });
+    const put = async (key: string, body: BodyInit) =>
+      (await a.fetch(req(`/api/store/objects/${key}`, { method: 'PUT', body }))).status;
+    const project = f.bundle.project.data.id;
+    const manifest = (p: string) => JSON.stringify({ format: 'indx-watch-store', version: 1, project: p });
+    const other = 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y99';
+    expect(await put('indx-watch-store.json', manifest(other))).toBe(400); // not the served project
+    expect(await put('indx-watch-store.json', '{"format":"x"}')).toBe(400);
+    expect(await put('indx-watch-store.json', manifest(project))).toBe(201);
+    expect(await put('indx-watch-store.json', manifest(other))).toBe(412);
+    expect(new TextDecoder().decode((await objects.get('indx-watch-store.json'))!)).toContain(project);
+
+    const [r] = sampleRecords(f.bundle);
+    const log = (records: unknown[]) => JSON.stringify({ v: 1, writer: 'w', records });
+    expect(await put(LOG, '{"v":1}')).toBe(400);
+    expect(await put(LOG, log([{ ...r, verdict: 'pass', kind: 'nope' }]))).toBe(400);
+    expect(await put(LOG, log([{ ...r, project: other }]))).toBe(400);
+    expect(await put('v1/log/not-a-ulid.json', log([r]))).toBe(400);
+    expect(await put('v1/snapshots/x', 'x')).toBe(400);
+    expect(await objects.list({ prefix: 'v1/' })).toMatchObject({ keys: [] });
+
+    const blob = `v1/blobs/sha256/${SHOT_SHA.slice(0, 2)}/${SHOT_SHA}`;
+    expect(await put(`v1/blobs/sha256/aa/${'a'.repeat(64)}`, 'x')).toBe(400);
+    expect(await put(`v1/blobs/sha256/00/${SHOT_SHA}`, SHOT)).toBe(400);
+    expect(await put(blob, SHOT)).toBe(201);
+    expect(await put(blob, SHOT)).toBe(412);
+  });
+
+  it('works with the http store adapter: init, append, blobs (iw sync to a hosted server)', async () => {
+    const f = await fakeDeps();
+    const objects = memoryObjectStore();
+    const a = createApp({ ...f.deps, objects });
+    vi.stubGlobal('fetch', (input: string, init?: RequestInit) => a.fetch(new Request(input, init)));
+    try {
+      const store = createResultStore(httpObjectStore({ baseUrl: 'https://watch.example' }));
+      await store.init(f.bundle.project.data.id);
+      const [key] = await store.appendLog('w', sampleRecords(f.bundle));
+      expect((await store.readLog(key!)).records).toHaveLength(9);
+      await store.putBlob(SHOT_SHA, SHOT, 'image/png');
+      expect(await store.hasBlob(SHOT_SHA)).toBe(true);
+      await expect(store.init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y99')).rejects.toThrow(/belongs to project/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('is absent without an object store', async () => {

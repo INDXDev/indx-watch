@@ -136,6 +136,46 @@ describe('renderReport on examples/shop', () => {
   });
 });
 
+describe('content from records', () => {
+  const data = () =>
+    reportData(model, { release: 'v1.2.0' }, { audience: 'internal', generatedBy: 'x', now: NOW });
+  const opts = (format: 'md' | 'html') => ({ format, locale: 'en', evidence: 'none' }) as const;
+
+  it('renders only web links and no raw HTML from notes', async () => {
+    const d = data();
+    Object.assign(d.runs[0]!, { ciUrl: 'javascript:alert(document.domain)//' });
+    Object.assign(d.runs[1]!, { ciUrl: ' JavaScript:alert(1)' });
+    Object.assign(d.failures[0]!, { note: '<svg onload=alert(3)> | a & b' });
+    const html = await renderReport(d, opts('html'));
+    expect(html).not.toMatch(/href="\s*javascript/i);
+    expect(html).toContain('<meta http-equiv="Content-Security-Policy" content="default-src \'none\';');
+    const md = await renderReport(d, opts('md'));
+    expect(md).not.toMatch(/\]\(\s*javascript/i);
+    expect(md).toContain('&lt;svg onload=alert(3)&gt; \\| a &amp; b');
+    expect(md).not.toContain('<svg');
+  });
+
+  it('links the pull request next to the CI run', async () => {
+    const d = data();
+    const url = 'https://github.com/acme/shop/actions/runs/987/attempts/2';
+    Object.assign(d.runs[0]!, { ciUrl: url, ciPr: 12 });
+    Object.assign(d.runs[1]!, { ciUrl: undefined, ciPr: 13 });
+    const md = await renderReport(d, opts('md'));
+    expect(md).toContain(`[CI](${url}) [PR #12](https://github.com/acme/shop/pull/12)`);
+    expect(md).toMatch(/\| PR #13 \|$/m);
+  });
+
+  it('shows a neutral verdict when nothing is gated', async () => {
+    const d = data();
+    d.status.gate.checks.push({ key: 'has_gated_tests', passed: false, actual: '0', expected: '≥ 1' });
+    const md = await renderReport(d, opts('md'));
+    expect(md).toContain('> **○ Not ready: nothing is gated yet** — No P0 or P1 test case is in scope');
+    expect(md).toContain('At least one P0/P1 test case is in scope');
+    const html = await renderReport(d, { ...opts('html'), locale: 'ja' });
+    expect(html).toContain('<div class="verdict s-untested" role="status"><strong>○ まだ判定できません');
+  });
+});
+
 describe('report CSS', () => {
   it('uses the design tokens of docs/design/tokens.css', () => {
     const css = readFileSync(join(ROOT, 'docs/design/tokens.css'), 'utf8');

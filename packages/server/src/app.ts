@@ -4,7 +4,7 @@
  */
 import * as B from '@indx-watch/bundle';
 import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
-import { type ContextProvider, StoreError } from '@indx-watch/store';
+import { type ContextProvider, checkRecord, StoreError } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { renderReport, reportTexts } from './report.js';
@@ -21,12 +21,32 @@ export interface ServerDeps extends AppDeps {
 }
 
 export const MAX_BLOB_BYTES = 25 * 1024 * 1024;
-const CSP_APP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'";
+const CSP_APP =
+  "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
 const CSP_BLOB = "default-src 'none'; sandbox";
 const CSP_REPORT = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'";
 /** raster images are shown inline; everything else (SVG and HTML included) is downloaded */
 const INLINE_MEDIA = /^image\/(png|jpeg|gif|webp|avif)$/;
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
+const MANIFEST = 'indx-watch-store.json';
+const LOG_KEY = /^v1\/log\/[0-9A-HJKMNP-TV-Z]{26}\.json$/;
+const BLOB_KEY = /^v1\/blobs\/sha256\/([0-9a-f]{2})\/\1[0-9a-f]{62}$/;
+
+/**
+ * Why a write must be refused as a possible cross-site request (docs/spec/security.md#browser-requests):
+ * writes must not be "simple" requests (JSON, X-IW-Request or If-None-Match) and must come from this origin.
+ */
+export function crossSite(r: Request): string | undefined {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(r.method)) return undefined;
+  const h = r.headers;
+  const json = h.get('content-type')?.split(';')[0]?.trim().toLowerCase() === 'application/json';
+  if (!json && !h.has('x-iw-request') && !h.has('if-none-match'))
+    return 'writes need Content-Type: application/json or an X-IW-Request header';
+  const origin = h.get('origin');
+  const hosts = [h.get('host'), h.get('x-forwarded-host'), new URL(r.url).host];
+  const foreign = origin !== null && !(URL.canParse(origin) && hosts.includes(new URL(origin).host));
+  return foreign || h.get('sec-fetch-site') === 'cross-site' ? 'cross-site writes are refused' : undefined;
+}
 
 /** An error with an HTTP status and a code for the { error: { code, message } } body. */
 export class HttpError extends Error {
@@ -89,8 +109,14 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   const body = async (c: Context) => {
     const big = () => new HttpError(413, 'too-large', 'over 25 MB');
     if (Number(c.req.header('content-length') ?? 0) > MAX_BLOB_BYTES) throw big();
-    const data = new Uint8Array(await c.req.arrayBuffer());
-    return data.byteLength > MAX_BLOB_BYTES ? fail(big()) : data;
+    // count while reading: a chunked body has no Content-Length
+    const [reader, chunks] = [c.req.raw.body?.getReader(), [] as Uint8Array<ArrayBuffer>[]];
+    for (let r = await reader?.read(), n = 0; r && !r.done; r = await reader!.read()) {
+      n += r.value.byteLength;
+      if (n > MAX_BLOB_BYTES) await reader!.cancel().then(() => fail(big()));
+      chunks.push(r.value);
+    }
+    return new Uint8Array(await new Blob(chunks).arrayBuffer());
   };
   const json = <T>(c: Context) => c.req.json<T>().catch(() => fail(bad('request body must be JSON')));
 
@@ -99,6 +125,8 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   const spa = (c: Context) => deps.assets && !c.req.path.startsWith('/api/');
   app.notFound((c) => (spa(c) ? deps.assets!(c.req.raw) : errorResponse(notFound(c.req.path))));
   app.use('*', async (c, next) => {
+    const refused = crossSite(c.req.raw);
+    if (refused) throw new HttpError(403, 'forbidden', refused);
     if (deps.mode === 'hosted' && c.req.path !== '/healthz') await actor(c);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
@@ -296,16 +324,36 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const data = (await store().get(storeKey(c))) ?? fail(notFound(storeKey(c)));
     return c.body(data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'application/octet-stream' });
   });
+  const parsed = (d: Uint8Array | null) => new Response(d as BodyInit).json().catch(() => undefined);
+  /** project of the served model (none before the first snapshot), else of the store manifest */
+  const storeProject = async (manifest: boolean) => {
+    const id = (await model().catch(() => undefined))?.project.id;
+    const m = !id && manifest && B.StoreManifest.safeParse(await parsed(await store().get(MANIFEST)));
+    return id ?? (m ? m.data?.project : undefined);
+  };
+  /** Create-only writes of the manifest, valid log objects and matching blobs (docs/spec/sync.md#store-layout). */
   app.put('/api/store/objects/*', async (c) => {
     const [key, data] = [storeKey(c), await body(c)];
-    if (key.startsWith('v1/blobs/') && !key.endsWith(`/${await B.sha256Hex(data)}`))
-      throw bad('blob does not match its key');
-    const opts = {
-      ifNoneMatch: c.req.header('if-none-match') === '*',
-      contentType: c.req.header('content-type'),
-    };
-    if (!(await store().put(key, data, opts)))
-      return errorResponse(new HttpError(412, 'conflict', `${key} exists`));
+    const exists = () => errorResponse(new HttpError(412, 'conflict', `${key} exists`));
+    if (await store().head(key)) return exists();
+    const project = BLOB_KEY.test(key) ? undefined : await storeProject(key !== MANIFEST);
+    if (BLOB_KEY.test(key)) {
+      if (!key.endsWith(`/${await B.sha256Hex(data)}`)) throw bad('blob does not match its key');
+    } else if (key === MANIFEST) {
+      const m = B.StoreManifest.safeParse(await parsed(data));
+      if (!m.success) throw bad(`${key} is not a store manifest`);
+      if (project && m.data.project !== project) throw bad(`this store belongs to ${project}`);
+    } else if (LOG_KEY.test(key)) {
+      const log = B.LogObject.safeParse(await parsed(data));
+      if (!log.success) throw bad(`${key} is not a log object`);
+      for (const raw of log.data.records) {
+        const r = checkRecord(raw);
+        if ('error' in r) throw bad(`${key}: ${r.error}`);
+        if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
+      }
+    } else throw bad(`${key}: only the manifest, log objects and blobs can be written`);
+    const opts = { ifNoneMatch: true, contentType: c.req.header('content-type') };
+    if (!(await store().put(key, data, opts))) return exists();
     if (key.startsWith('v1/log/')) await deps.onLogObject?.(key);
     return c.body(null, 201);
   });

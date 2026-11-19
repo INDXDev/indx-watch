@@ -59,7 +59,7 @@ function Shell({ info }: { info: ProjectInfo }) {
   const route = useRoute();
   const [scope, setScope] = useState<Scope>({
     release: info.project.current_release ?? info.releases[0]?.version,
-    env: info.project.default_environment,
+    env: undefined, // all environments, like `iw status` and `iw report`
   });
   const [theme, setTheme] = useState<Theme>(() => (readStored('indx-watch.theme') as Theme) || 'auto');
   useEffect(() => {

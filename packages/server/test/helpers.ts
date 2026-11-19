@@ -187,6 +187,7 @@ export async function fakeDeps(o: { actor?: Actor; records?: AnyRecord[]; bundle
   };
 }
 
+/** A request as the web UI sends it: JSON bodies, and X-IW-Request on other writes. */
 export const req = (path: string, init?: RequestInit & { json?: unknown }) =>
   new Request(`http://127.0.0.1${path}`, {
     ...init,
@@ -196,5 +197,7 @@ export const req = (path: string, init?: RequestInit & { json?: unknown }) =>
           body: JSON.stringify(init.json),
           headers: { 'content-type': 'application/json' },
         }
-      : {}),
+      : init?.method && init.method !== 'GET' && init.method !== 'HEAD'
+        ? { headers: { 'x-iw-request': '1', ...(init.headers as Record<string, string>) } }
+        : {}),
   });

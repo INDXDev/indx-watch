@@ -33,7 +33,7 @@ export const ROUTES = {
   report: 'GET /api/report?release=&env=&plan=&format=md|html&audience=internal|customer&locale=',
   storeGet: 'GET /api/store/objects/*',
   storeHead: 'HEAD /api/store/objects/*',
-  storePut: 'PUT /api/store/objects/* (If-None-Match: * → 412 when it exists)',
+  storePut: 'PUT /api/store/objects/* (create-only: 412 when it exists; manifest, log objects, blobs)',
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
 } as const;
 
@@ -65,7 +65,7 @@ export interface ReviewResult {
   decision: Decision;
 }
 
-/** GET /api/store/list response. PUT returns 201 (created) or 412 (exists with If-None-Match: *). GET/HEAD 404 when absent. */
+/** GET /api/store/list response. PUT returns 201 (created), 412 (exists) or 400 (not a valid store object). GET/HEAD 404 when absent. */
 export interface StoreListResponse {
   keys: { key: string; size: number; etag?: string }[];
   truncated: boolean;

@@ -44,6 +44,10 @@ const CSS = [
   ...STYLE.css,
 ].join('\n');
 
+/** the HTML file travels by mail and chat: no script, no requests, even without the server's header */
+const CSP =
+  "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+
 // ---------- document model ----------
 type Kind = 'badge' | 'key' | 'code' | 'lit' | 'muted' | 'bold' | 'link' | 'img';
 type Inline = string | Inline[] | { k: Kind; v: string; x?: string };
@@ -51,28 +55,40 @@ type Block =
   | { h: 1 | 2 | 3; c: Inline }
   | { p: Inline; muted?: boolean }
   | { meta: [string, Inline][] }
-  | { verdict: boolean; title: string; detail: string }
+  | { verdict: string; title: string; detail: string }
   | { counts: { cls: string; n: number; label: string }[] }
   | { head: string[]; rows: Inline[][]; num?: number[] }
   | { box: Inline; items: Inline[] };
 
 const ENTITY: Dict = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTITY[c]!);
+/** Markdown: no raw HTML from user text (renderers that allow HTML would run it) */
+const md = (s: string) => s.replace(/[&<>]/g, (c) => ENTITY[c]!);
+/** only web and relative links: a URL from a record must not run script (javascript:, data:) */
+const safe = (url: string) => /^https?:\/\//i.test(url) || !/^[^/?#]*:/.test(url);
+const mdUrl = (url: string) =>
+  url.replace(/[()\s]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
+/** a pull request link next to a GitHub Actions run URL */
+export const prUrl = (ciUrl: string | undefined, pr: number) =>
+  ciUrl?.includes('/actions/runs/') ? ciUrl.replace(/\/actions\/runs\/.*$/, `/pull/${pr}`) : undefined;
 const LITERAL = /&quot;[^\n]+?&quot;|「[^」\n]+」/g;
 type Fn = (v: string, x: string) => string;
 /** [html, markdown] per inline kind; v = value, x = extra (badge text, link text, alt) */
 const INLINE: Record<Kind, [Fn, Fn]> = {
-  badge: [(v, x) => `<span class="badge s-${v}">${esc(x)}</span>`, (_v, x) => x],
-  key: [(v) => `<span class="key">${esc(v)}</span>`, (v) => v],
+  badge: [(v, x) => `<span class="badge s-${v}">${esc(x)}</span>`, (_v, x) => md(x)],
+  key: [(v) => `<span class="key">${esc(v)}</span>`, md],
   code: [(v) => `<code>${esc(v)}</code>`, (v) => `\`${v}\``],
-  lit: [(v) => esc(v).replace(LITERAL, (m) => `<span class="literal">${m}</span>`), (v) => v],
-  muted: [(v) => `<span class="muted small">${esc(v)}</span>`, (v) => `_${v}_`],
-  bold: [(v) => `<strong>${esc(v)}</strong>`, (v) => `**${v}**`],
-  link: [(v, x) => `<a href="${esc(v)}">${esc(x)}</a>`, (v, x) => `[${x}](${v})`],
+  lit: [(v) => esc(v).replace(LITERAL, (m) => `<span class="literal">${m}</span>`), md],
+  muted: [(v) => `<span class="muted small">${esc(v)}</span>`, (v) => `_${md(v)}_`],
+  bold: [(v) => `<strong>${esc(v)}</strong>`, (v) => `**${md(v)}**`],
+  link: [
+    (v, x) => (safe(v) ? `<a href="${esc(v)}">${esc(x)}</a>` : esc(x)),
+    (v, x) => (safe(v) ? `[${md(x)}](${mdUrl(v)})` : md(x)),
+  ],
   img: [(v, x) => `<img class="thumb" src="${esc(v)}" alt="${esc(x)}">`, (v, x) => `![${x}](${v})`],
 };
 function inline(x: Inline, html: boolean): string {
-  if (typeof x === 'string') return html ? esc(x) : x;
+  if (typeof x === 'string') return html ? esc(x) : md(x);
   if (Array.isArray(x)) return x.map((y) => inline(y, html)).join('');
   return INLINE[x.k][html ? 0 : 1](x.v, x.x ?? '');
 }
@@ -88,7 +104,7 @@ function toHtml(blocks: Block[], title: string, footer: string, locale: Locale):
     const cls = (s: string) => `class="${s}"`;
     if ('verdict' in b) {
       const strong = `<strong>${esc(b.title)}</strong><p>${esc(b.detail)}</p>`;
-      return `<div ${cls(`verdict s-${b.verdict ? 'pass' : 'fail'}`)} role="status">${strong}</div>`;
+      return `<div ${cls(`verdict s-${b.verdict}`)} role="status">${strong}</div>`;
     }
     const count = (c: { cls: string; n: number; label: string }) => `<b>${c.n}</b>${esc(c.label)}`;
     if ('counts' in b)
@@ -102,7 +118,7 @@ function toHtml(blocks: Block[], title: string, footer: string, locale: Locale):
     return `<div class="wrap"><table>${head}<tbody>\n${rows}\n</tbody></table></div>`;
   });
   return `<!doctype html>\n<html lang="${locale}">\n<head>\n<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(title)}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<title>${esc(title)}</title>
 <style>\n${CSS}\n</style>\n</head>\n<body>\n<main class="doc">\n${body.join('\n')}
 <footer>${esc(footer)}</footer>\n</main>\n</body>\n</html>\n`;
 }
@@ -188,7 +204,11 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
 
   // 2. Verdict
   const [m, n] = [s.gate.checks.length, s.gate.checks.filter((c) => !c.passed).length];
-  B.push({ verdict: !n, title: t(n ? 'notReady' : 'ready'), detail: t(n ? 'failing' : 'passing', { n, m }) });
+  // nothing gated (no P0/P1 test case in scope): neutral, with what to do (docs/spec/concepts.md#gate)
+  const ungated = s.gate.checks.some((c) => c.key === 'has_gated_tests' && !c.passed);
+  const [v, msg] = ungated ? ['untested', 'ungated'] : n ? ['fail', 'notReady'] : ['pass', 'ready'];
+  const detail = t(ungated ? 'ungatedDetail' : n ? 'failing' : 'passing', { n, m });
+  B.push({ verdict: v!, title: t(msg!), detail });
   const check = (c: (typeof s.gate.checks)[number]): Inline[] => {
     const items: Inline = c.items?.length ? [' ', { k: 'muted', v: c.items.join(', ') }] : '';
     return [[t(`gate.${c.key}`), items], code(c.actual), code(c.expected), badge(c.passed ? 'pass' : 'fail')];
@@ -272,11 +292,20 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
   section('matrix', false, () => ({ head: T('useCase criterion testCase latest'), rows: matrix }));
 
   // 8. Run log
-  const ci = data.runs.some((r) => r.ciUrl);
-  const run = (r: ReportData['runs'][number]): Inline[] => {
+  // ciPr: change request to core (reportData runs); shown when present
+  type Run = ReportData['runs'][number] & { ciPr?: number };
+  const ci = data.runs.some((r: Run) => r.ciUrl || r.ciPr);
+  const link = (v: string, x: string): Inline => ({ k: 'link', v, x });
+  const ciLinks = ({ ciUrl, ciPr }: Run): Inline[] => {
+    const url = ciPr && prUrl(ciUrl, ciPr);
+    const pr = ciPr ? [url ? link(url, `PR #${ciPr}`) : `PR #${ciPr}`] : [];
+    return [...(ciUrl ? [link(ciUrl, 'CI')] : []), ...pr];
+  };
+  const run = (r: Run): Inline[] => {
     const [v = '', stale] = r.verdict.split(' (stale)');
     const verdict = stale === undefined ? badge(v) : spaced([badge(v), badge('stale')]);
-    const ciCell: Inline[] = ci ? [r.ciUrl ? { k: 'link', v: r.ciUrl, x: 'CI' } : '—'] : [];
+    const links = ciLinks(r);
+    const ciCell: Inline[] = ci ? [links.length ? spaced(links) : '—'] : [];
     const build = r.commit ? code(r.commit.slice(0, 7)) : '—';
     const cells = [key(r.testCase), code(r.version), verdict, `${r.actor} (${r.actorKind})`, r.source, build];
     return [...cells, r.environment ?? '—', when(r.at), String(r.evidence), ...ciCell];
