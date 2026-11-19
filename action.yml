@@ -97,7 +97,9 @@ runs:
         IW_CHECK_RUN_ID: ${{ job.check_run_id }}
       run: |
         set -o pipefail
-        out="${RUNNER_TEMP:-/tmp}/indx-watch"
+        # A second use of the action in the same job gets its own folder and artifact name.
+        out="${RUNNER_TEMP:-/tmp}/indx-watch"; n=""
+        if [ -e "$out" ]; then out="$(mktemp -d "$out-XXXXXX")"; n="-${out##*-}"; fi
         mkdir -p "$out"
         local_bin="$IW_ACTION_PATH/packages/cli/dist/bin.js"
         if [ "$IW_IN_CLI" = local ] || { [ "$IW_IN_CLI" != npm ] && [ -f "$local_bin" ]; }; then
@@ -130,7 +132,7 @@ runs:
         echo "upload=$upload" >> "$GITHUB_OUTPUT"
         echo "runs=$bundle/runs" >> "$GITHUB_OUTPUT"
         # artifact names must be unique per job, matrix leg and attempt
-        echo "artifact=indx-watch-runs-${GITHUB_JOB:-job}-${IW_CHECK_RUN_ID:-${GITHUB_RUN_ATTEMPT:-1}-$RANDOM}" >> "$GITHUB_OUTPUT"
+        echo "artifact=indx-watch-runs-${GITHUB_JOB:-job}-${IW_CHECK_RUN_ID:-${GITHUB_RUN_ATTEMPT:-1}-$RANDOM}$n" >> "$GITHUB_OUTPUT"
 
         if [ -n "$IW_IN_DEPLOYMENT" ]; then
           deploy=(deployment add --env "$IW_IN_DEPLOYMENT")
@@ -145,7 +147,8 @@ runs:
             || echo "::warning::indx-watch sync failed; the report uses local results only"
         fi
 
-        iw status "${common[@]}" "${scope[@]}" --json > "$out/status.json"
+        # `|| true`: GitHub runs bash with -e; the check below turns a failure into an ::error:: annotation.
+        iw status "${common[@]}" "${scope[@]}" --json > "$out/status.json" || true
         node -e '
           const fs = require("node:fs");
           const env = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));

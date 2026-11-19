@@ -17,7 +17,7 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
@@ -28,19 +28,31 @@ jobs:
       - run: pnpm test
       - run: pnpm schemas --check
       - run: pnpm check:docs
+      - run: pnpm check:pure
       - run: node scripts/loc.mjs
       - run: pnpm build
       - run: pnpm check:example
       - name: Sample report is reproducible
         run: scripts/check-report.sh
-      - name: Pack and cold-start the CLI in an empty directory
+      - name: Worker bundle builds (wrangler deploy --dry-run)
+        run: pnpm check:worker
+      - name: Pack the CLI and run the README quickstart in an empty project
+        # Install the tarball like the npm package (`npx <absolute .tgz>` tries to execute the file on npm 10/11).
+        # In CI a run takes its release from the CI context, so `record` names it.
         run: |
-          cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP"
+          (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP")
           mkdir "$RUNNER_TEMP/cold" && cd "$RUNNER_TEMP/cold"
-          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz init demo
+          npm init -y > /dev/null
+          npm install --save-dev "$RUNNER_TEMP"/indx-watch-*.tgz
+          npx indx-watch init demo
           cd demo
-          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz new uc --title "Sign up" --ac "A confirmation email is sent" --ready
-          npx --yes "$RUNNER_TEMP"/indx-watch-*.tgz check --json
+          npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --priority P1 --ready
+          npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
+          npx indx-watch check --json
+          if npx indx-watch status --gate; then echo "::error::gate passed before any run"; exit 1; fi
+          npx indx-watch record TC-1 --verdict pass --step 1=pass --release v0.1.0
+          npx indx-watch status --gate
+          npx indx-watch report --format html --out report.html
 
   e2e:
     # Dogfooding: e2e/ implements this repository's own test cases (.indx-watch/), recorded by our Playwright reporter;
@@ -49,7 +61,7 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
