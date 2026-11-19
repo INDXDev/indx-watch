@@ -77,71 +77,8 @@
 
     <section id="monorepo">
       <h2>モノレポ構成</h2>
-      <p>pnpm workspaces で 2 アプリ + 2 パッケージに分けます。画面のルートは <code>AGENTS.md</code> の画面 ID と 1 対 1 で対応させ、ファイルを見れば対応する HTML モックが分かるようにします。</p>
-<pre><code>.
-├── package.json                  # ルート scripts（dev / db:* / deploy / test）
-├── pnpm-workspace.yaml           # apps/*, packages/*
-├── tsconfig.base.json            # strict: true
-├── .github/workflows/
-│   ├── ci.yml                    # 型チェック・lint・vitest
-│   └── deploy.yml                # main への push で D1 マイグレーション → デプロイ
-├── apps/
-│   ├── web/                      # Worker: indx-watch-web（Next.js + vinext）
-│   │   ├── wrangler.jsonc        # D1 / R2 / Queue producer / runner service binding
-│   │   ├── vite.config.ts        # vinext（OpenNext にフォールバックした場合は open-next.config.ts）
-│   │   ├── middleware.ts         # Cloudflare Access の JWT 検証
-│   │   ├── app/
-│   │   │   ├── (app)/                        # 認証済みの画面（共通レイアウト = app-shell）
-│   │   │   │   ├── layout.tsx                # 左ナビ（マイタスク / レビュー待ち / プロジェクト / AI）
-│   │   │   │   ├── page.tsx                  # S01 マイタスク                 /
-│   │   │   │   ├── review/page.tsx           # S06 レビューキュー             /review
-│   │   │   │   └── p/[key]/
-│   │   │   │       ├── releases/[version]/page.tsx   # S02 リリース準備状況
-│   │   │   │       ├── specs/page.tsx                # S03 仕様ツリー
-│   │   │   │       ├── specs/import/page.tsx         # S10 AI 仕様取り込み
-│   │   │   │       ├── tc/[n]/page.tsx               # S04 テストケース詳細・編集
-│   │   │   │       ├── runs/[n]/page.tsx             # S06 AI 実行ビューア
-│   │   │   │       ├── runs/[n]/execute/page.tsx     # S05 手動ランナー
-│   │   │   │       ├── fixtures/page.tsx             # S07 フィクスチャ管理
-│   │   │   │       ├── plans/[n]/page.tsx            # S08 テスト計画・アサイン
-│   │   │   │       ├── environments/page.tsx         # S09 環境・アクセス
-│   │   │   │       └── deployments/page.tsx          # S11 GitHub・デプロイメント
-│   │   │   │       （各フォルダに actions.ts と _components/ を置く）
-│   │   │   ├── api/
-│   │   │   │   ├── github/webhook/route.ts   # HMAC 検証。Access をバイパス
-│   │   │   │   └── runner/[event]/route.ts   # ランナーからの進捗通知（サービスバインディング経由）
-│   │   │   └── mcp/route.ts                  # MCP サーバー（Access サービストークン必須）
-│   │   ├── components/          # app-shell, data-table, status-badge, evidence-viewer, ui/（shadcn）
-│   │   └── lib/
-│   │       ├── auth.ts          # getCurrentUser() / requireRole()
-│   │       ├── db.ts            # getDb()
-│   │       ├── r2.ts            # 証拠・フィクスチャの読み書き
-│   │       ├── github.ts        # GitHub App のインストールトークン取得・Check Run 更新
-│   │       └── queue.ts         # enqueueRun() など
-│   └── runner/                   # Worker: indx-watch-runner
-│       ├── wrangler.jsonc        # Workflows（schedules 付き）/ Queue consumer / Browser Run / 夜間バックアップ Cron
-│       └── src/
-│           ├── index.ts          # queue() / email() / scheduled() / fetch() のエントリ
-│           ├── workflows/run.ts  # RunWorkflow: 準備 → 実行 → 証拠 → 判定 → 人の確認待ち → 確定 → 通知
-│           ├── workflows/dispatch.ts # ScheduleDispatchWorkflow: 5 分ごとに schedules を見て Queue に投入
-│           ├── email.ts          # テスト用メールの受信・解析・sendEvent
-│           ├── workflows/import.ts   # AI 仕様取り込み（S10）
-│           ├── browser/tools.ts  # エージェント用ツール（navigate / click / fill / ... / finish）
-│           ├── browser/script.ts # script モードの Playwright 実行
-│           └── fixtures.ts       # リセット・シードフックの呼び出し
-└── packages/
-    ├── core/src/
-    │   ├── domain/   # zod スキーマと型（TestCaseVersion, Step, Judge, Verdict ...）
-    │   ├── policy/   # decide(judgements, policy) — 判定ポリシー
-    │   ├── judges/   # assert / visual / llm ジャッジ
-    │   ├── llm/      # Anthropic クライアント（AI Gateway 経由）、プロンプト（バージョン付き）
-    │   └── ids/      # newId("tc") → tc_01J...、表示キー整形
-    └── db/
-        ├── schema.ts            # Drizzle スキーマ（data-model.html と同じ内容）
-        ├── migrations/          # drizzle-kit generate の出力（手で編集しない）
-        ├── seed.ts              # サンプルデータ（SHOP プロジェクト）投入
-        └── drizzle.config.ts</code></pre>
-      <div class="callout"><strong>依存の向き</strong><p><code>apps/*</code> → <code>packages/core</code> → <code>packages/db</code> の一方向だけ。<code>packages/core</code> は Next.js や Workers の API に依存させず、Node でもユニットテストできる純粋な TypeScript にします（D1 や R2 は引数で受け取る）。</p></div>
+      <p>pnpm workspaces で 2 アプリ（<code>apps/web</code>、<code>apps/runner</code>）+ 2 パッケージ（<code>packages/core</code>、<code>packages/db</code>）に分けます。依存の向きは <code>apps/*</code> → <code>packages/core</code> → <code>packages/db</code> の一方向だけです。</p>
+      <div class="callout"><strong>ファイル・フォルダ構成の正は開発プラン</strong><p>全ファイルの一覧と役割、コンポーネント構成は <a href="dev-plan.html#tree">GUIDE-03 開発プラン</a> にまとめています。二重管理を避けるため、このページには載せません。</p></div>
     </section>
 
     <section id="deps">
@@ -436,17 +373,7 @@ await db.insert(environments).values([
 
     <section id="roadmap">
       <h2>ロードマップ</h2>
-      <p>期間は 1〜2 名 + Claude Code での目安です。各マイルストーンの完了条件は、INDX Watch 自身の <code>WATCH</code> プロジェクトに登録して確認します。</p>
-      <div class="table-wrap"><table>
-        <thead><tr><th>段階</th><th>範囲</th><th>対象画面</th><th>完了条件</th><th>目安</th></tr></thead>
-        <tbody>
-          <tr><td><b>M0</b></td><td>ドキュメント整備（このドキュメント一式）</td><td>全画面の HTML モック</td><td>PRD・データモデル・画面モックにチームが合意している</td><td class="nums">1 週</td></tr>
-          <tr><td><b>M1</b></td><td>モノレポ雛形、Access 認証、プロジェクト / 環境 / リリース、仕様ツリー CRUD、テストケースのバージョン管理、フィクスチャ（アップロード・履歴）、テスト計画とアサイン、手動ランナー（スクショ貼り付け）、リリース準備状況</td><td>S01 S02 S03 S04 S05 S07 S08 S09</td><td>SHOP のサンプルで、佐藤さんが PLAN-4 を作って田中さんにアサインし、田中さんが S05 で TC-129 を実行して fail と証拠を残し、S02 に反映される。社外メールでは Access を通れない</td><td class="nums">4〜5 週</td></tr>
-          <tr><td><b>M2</b></td><td>AI 仕様取り込み、テストケース生成、ブラウザエージェント実行（Browser Run + Workflows）、人の確認待ち（<code>waitForEvent</code>）とログイン引き継ぎ（Human in the Loop）、テスト用メール受信、assert / llm ジャッジ、判定ポリシー、レビューキュー</td><td>S06 S10（S04 に AI 補助）</td><td>PRD を貼ると UC / AC / TC の draft が出て承認できる。TC-128 を Watch Agent が実行し、証拠と判定理由付きで pass、TC-130 は needs_review になりレビューで確定できる</td><td class="nums">4 週</td></tr>
-          <tr><td><b>M3</b></td><td>GitHub App（デプロイメント自動作成、PR の影響テスト提案、Check Run、Issue 作成）、Workflow の <code>schedules</code> による定期実行、visual ジャッジとベースライン、MCP サーバー</td><td>S11（S02 にゲート表示）</td><td>PR #482 のデプロイで staging スモークが自動実行され、PR に Check Run が付く。Claude Code から MCP で TC の draft を作れる</td><td class="nums">3〜4 週</td></tr>
-          <tr><td><b>M4</b></td><td>顧客 UAT（guest 招待・限定表示）、分析（合格率推移・所要時間）、不安定テスト（flaky）検出、通知の調整</td><td>S01（guest 表示）、S02 に分析タブ</td><td>山本様が Access のワンタイム PIN で入り、自分の UAT 項目だけを実行できる。同じ TC で pass / fail が揺れるものに印が付く</td><td class="nums">3 週</td></tr>
-        </tbody>
-      </table></div>
+      <p>M1〜M4 の範囲・タスク分解・依存関係・完了条件は <a href="dev-plan.html#plan">GUIDE-03 開発プラン</a> が正です。</p>
     </section>
 
     <section id="claude">
@@ -476,7 +403,7 @@ await db.insert(environments).values([
     </section>
 
     <nav class="pager">
-      <a href="../spec/ai.html"><small>前へ</small>SPEC-06 AI ネイティブ設計</a>
+      <a href="../spec/identity-audit.html"><small>前へ</small>SPEC-09 認証・行動ログ</a>
       <a href="target-onboarding.html"><small>次へ</small>GUIDE-02 テスト対象の登録</a>
     </nav>
   </div>

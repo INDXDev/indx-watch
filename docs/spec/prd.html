@@ -239,7 +239,7 @@
         <thead><tr><th>ID</th><th>問い</th><th>暫定の前提</th><th>決める人・期限</th></tr></thead>
         <tbody>
           <tr><td><span class="id">Q-01</span></td><td>最初に登録するテスト対象リポジトリとアプリはどれか</td><td>1 つのリポジトリで M1 を検証し、その後に拡大する。ドキュメントは <code>SHOP</code>（サンプル）で説明</td><td>QA リード・M1 着手前</td></tr>
-          <tr><td><span class="id">Q-02</span></td><td>Cloudflare Access の IdP は何か（Google Workspace / Entra ID / その他）</td><td>社員は社内 IdP、顧客はワンタイム PIN</td><td>情シス・M1 着手前</td></tr>
+          <tr><td><span class="id">Q-02</span></td><td>Cloudflare Access の IdP は何か（Google Workspace / Entra ID / その他）</td><td><b>決定（2026-11-19）</b>: 社員は Google Workspace、顧客はワンタイム PIN + Independent MFA</td><td>情シス・M1 着手前</td></tr>
           <tr><td><span class="id">Q-03</span></td><td>顧客 UAT の範囲。顧客に見せるのは実行画面だけか、ユースケースと完了条件も見せるか</td><td>自分の計画アイテムと、それに紐づく UC・AC の文面だけ見せる</td><td>事業責任者・M3 中</td></tr>
           <tr><td><span class="id">Q-04</span></td><td>LLM の月間予算上限と、超過時の扱い</td><td>プロジェクトあたり USD 300、超過で agent 実行を停止</td><td>事業責任者・M2 着手前</td></tr>
           <tr><td><span class="id">Q-05</span></td><td>テスト対象環境のリセット手段（DB シード API があるか）</td><td>各アプリに <code>POST /__test/reset</code> 相当の API を用意してもらう。無い場合は seed フィクスチャを手順として実行</td><td>各アプリのテックリード・M1 中</td></tr>

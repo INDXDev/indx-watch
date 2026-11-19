@@ -10,7 +10,7 @@ INDX Watch gives business people, engineers and QA one shared place to answer th
 
 All of this lives in a single Cloudflare D1 database, which is the single source of truth. Files (evidence, fixture data, visual baselines) live in R2.
 
-> **Status: M0 — design documentation.** There is no application code yet. The `docs/` folder holds the specification that the implementation will follow.
+> **Status: M0 complete, ready for M1.** There is no application code yet. The `docs/` folder holds the specification, and `docs/guides/dev-plan.html` lists the tasks to execute in order, starting with human setup (H-01–H-07) and T-101.
 
 ## Key ideas
 
@@ -48,7 +48,8 @@ docs/            Single source of truth, as HTML (Japanese)
   spec/            Layer 1: what and why (PRD, domain, UX, data model, architecture, AI,
                    ER and communication flows, i18n, identity and audit logs)
   screens/         Layer 2: one page per screen (mockup + screen spec), S01–S12
-  guides/          Layer 2: implementation guide, target app onboarding
+  guides/          Layer 2: implementation guide, target app onboarding,
+                   development plan (component/file layout, tasks T-101–T-406)
 apps/web/        Next.js app (planned)
 apps/runner/     Execution Worker (planned)
 packages/core/   Domain types, decision policy, judges, LLM client (planned)
@@ -71,4 +72,4 @@ All documentation except this README is written in Japanese.
 | M3 | GitHub App, scheduled runs, visual diff, MCP server |
 | M4 | Customer UAT (guest role), analytics, flaky test detection |
 
-See `docs/guides/implementation.html` for details.
+See `docs/guides/dev-plan.html` for the task breakdown, dependencies and acceptance criteria.

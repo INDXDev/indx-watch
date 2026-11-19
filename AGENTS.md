@@ -119,15 +119,18 @@ ID 規約:
 │   │   └── identity-audit.html # 認証・ログイン・行動ログ（Cloudflare Access の ID と各種ログ）
 │   ├── screens/            # 第 2 層: 画面ごとの UX アーティファクト（モック + 画面仕様）
 │   └── guides/             # 第 2 層: どう作るか / どう使うか
-│       ├── implementation.html     # 実装ガイド・規約・ロードマップ
-│       └── target-onboarding.html  # テスト対象アプリ・環境の登録ガイド
+│       ├── implementation.html     # 実装ガイド・規約・コード例
+│       ├── target-onboarding.html  # テスト対象アプリ・環境の登録ガイド
+│       └── dev-plan.html           # 開発プラン: ドキュメント運用・コンポーネント / ファイル構成の正・タスク T-xxx
 ├── apps/
 │   ├── web/                # Next.js（UI + API）→ Worker: indx-watch-web
-│   └── runner/             # 実行基盤（Workflows / Queues / Browser Rendering）→ Worker: indx-watch-runner
+│   └── runner/             # 実行基盤（Workflows / Queues / Browser Run / Email）→ Worker: indx-watch-runner
 └── packages/
     ├── core/               # ドメイン型・判定ポリシー・ジャッジ・LLM クライアント
     └── db/                 # Drizzle スキーマ・D1 マイグレーション
 ```
+
+ファイル単位の構成（全ファイルと作成タスク）は `docs/guides/dev-plan.html#tree` が正。
 
 画面 ID とルート（`docs/screens/`）:
 
@@ -161,13 +164,16 @@ ID 規約:
 
 ## 7. 現在のフェーズ
 
-- **M0（現在）**: ドキュメント整備。コードはまだない。`apps/` と `packages/` は README のみ。
+- **M0（完了）**: ドキュメント整備。コードはまだない。`apps/` と `packages/` は README のみ。
+- **次にやること**: `docs/guides/dev-plan.html` の M0.5（人の準備 H-01〜H-07）と T-101 から。タスクは 1 タスク = 1 PR、依頼テンプレートは同ページの「Claude Code への依頼の仕方」。
 - M1: 認証とログイン記録・プロジェクト / 環境 / リリース・仕様ツリー・手動ランナー・マイタスク・フィクスチャ・リリース準備状況・日英 UI と翻訳。
 - M2: AI 仕様取り込み・ブラウザエージェント実行・LLM ジャッジ・レビューキュー。
 - M3: GitHub App 連携・定期実行・ビジュアル差分・MCP サーバー。
 - M4: 顧客 UAT（guest）・分析・不安定テスト検出。
 
-ロードマップの詳細は `docs/guides/implementation.html`。
+タスク分解・依存関係・完了条件は `docs/guides/dev-plan.html`。
+
+確定した決定（2026-11-19）: 社員の IdP は Google Workspace、顧客は One-time PIN + Independent MFA。ログの目的は「すべての作業と判定を ID に対応づける」ことと不正アクセスの検知で、人事評価には使わない。
 
 ## 8. よく使うコマンド（M1 以降で有効）
 

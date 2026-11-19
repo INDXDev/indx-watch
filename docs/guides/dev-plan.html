@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch 開発プラン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .task { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .task > summary { cursor: pointer; list-style: none; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 10px 14px; }
+  .task > summary::-webkit-details-marker { display: none; }
+  .task > summary .tid { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; color: var(--accent); }
+  .task > summary .meta { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .task[open] > summary { border-bottom: 1px solid var(--line); }
+  .task .tbody { padding: 12px 14px; display: grid; gap: 10px; font-size: 0.9rem; }
+  .task .tbody .kv { font-size: 0.86rem; }
+  .tasks { display: grid; gap: 8px; }
+  .who-h { color: var(--blocked); background: var(--blocked-soft); }
+  .who-c { color: var(--review); background: var(--review-soft); }
+  .tree { font-size: 0.8rem; line-height: 1.55; }
+  @media (max-width: 640px) { .task > summary { grid-template-columns: minmax(0, 1fr); gap: 4px; } .task > summary .meta { justify-content: flex-start; } }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#guides">ガイド</a><span class="sep">/</span><span>開発プラン</span></nav>
+  <span class="layer-tag">Layer 2 · ガイド</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#start">すぐ始めるには</a></li>
+    <li><a href="#decisions">確定した決定</a></li>
+    <li><a href="#docs">ドキュメントの運用</a></li>
+    <li><a href="#components">コンポーネント構成</a></li>
+    <li><a href="#tree">ファイル・フォルダ構成</a></li>
+    <li><a href="#plan">開発プラン（全体）</a></li>
+    <li><a href="#m0">M0.5 人が行う準備</a></li>
+    <li><a href="#m1">M1 タスク</a></li>
+    <li><a href="#m2">M2 タスク</a></li>
+    <li><a href="#m3">M3 タスク</a></li>
+    <li><a href="#m4">M4 タスク</a></li>
+    <li><a href="#quality">品質ゲートとテスト</a></li>
+    <li><a href="#selfqa">ID と記録の QA</a></li>
+    <li><a href="#howto">Claude Code への依頼の仕方</a></li>
+    <li><a href="#risks">リスクと未検証事項</a></li>
+    <li><a href="#changelog">ドキュメント変更履歴</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">GUIDE-03 · 開発プラン</div>
+      <h1>開発プラン</h1>
+      <p class="lead">ドキュメントをどう運用するか、コンポーネントとファイルをどう分けるか、何をどの順に作るかを 1 ページにまとめます。タスクは ID 付きで、1 タスク = 1 PR の大きさに切ってあります。上から順に実行すれば M1 から M4 まで進められる状態を目指します。</p>
+      <div class="meta-row"><span>状態 <b>確定 v1.0（実行可能）</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="implementation.html">実装ガイド</a> · <a href="../spec/interactions.html">ER・通信フロー</a> · <a href="../spec/data-model.html">データモデル</a></span></div>
+    </header>
+
+    <section id="start">
+      <h2>すぐ始めるには</h2>
+      <ol class="steps">
+        <li><span><b>人が準備する</b>: <a href="#m0">M0.5</a> の H-01〜H-07（Cloudflare・Google Workspace・GitHub の設定）を行う。所要 半日。</span></li>
+        <li><span><b>Claude Code に最初のタスクを渡す</b>: 新しいセッションで <a href="#howto">依頼テンプレート</a> の <code>T-101</code> を貼る。</span></li>
+        <li><span><b>PR をレビューしてマージ</b>: PR 説明のチェックリスト（タスクの完了条件）を確認する。</span></li>
+        <li><span><b>次のタスクへ</b>: <a href="#plan">依存関係の図</a> で着手できるタスクを選ぶ。依存のないタスクは別セッションで並行して進めてよい。</span></li>
+      </ol>
+      <div class="callout"><strong>このページが「次に何をするか」の正</strong><p>タスクの状態（未着手 / 進行中 / 完了）は GitHub の Issue で管理します。Issue のタイトルは <code>T-101 モノレポ雛形</code> のようにタスク ID から始め、本文にこのページのタスク節へのリンクを貼ります。タスクの内容を変えるときは、先にこのページを直します。</p></div>
+    </section>
+
+    <section id="decisions">
+      <h2>確定した決定</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>決定</th><th>決定日</th><th>詳細</th></tr></thead>
+        <tbody>
+          <tr><td>社員の IdP</td><td>Google Workspace</td><td>2026-11-19</td><td><a href="../spec/identity-audit.html#setup">SPEC-09</a></td></tr>
+          <tr><td>顧客のログイン</td><td>One-time PIN + Independent MFA（招待したメールのみ）</td><td>2026-11-19</td><td><a href="../spec/identity-audit.html#sessions">SPEC-09</a></td></tr>
+          <tr><td>ログの目的</td><td>すべての作業と判定を ID（誰がやったか）に対応づけることと、不正アクセスの検知。<b>人事評価には使わない</b>。作業時間の集計は任意（M4）</td><td>2026-11-19</td><td><a href="../spec/identity-audit.html#privacy">SPEC-09</a></td></tr>
+          <tr><td>言語</td><td>UI と中身の両方を日本語・英語に対応。原文 + AI 翻訳 + 人の確認</td><td>2026-11-19</td><td><a href="../spec/i18n.html">SPEC-08</a></td></tr>
+          <tr><td>Next.js の動かし方</td><td>vinext（問題があれば OpenNext）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
+          <tr><td>ブラウザ実行</td><td>Browser Run + <code>@cloudflare/playwright</code>。Playwright Test・動画・Firefox が必要になったら Containers（v2）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
+          <tr><td>単一の情報源</td><td>仕様・計画・実行・ログはすべて D1。ファイルは R2。ドキュメントは <code>docs/</code></td><td>2026-11-19</td><td><a href="../spec/data-model.html">SPEC-04</a></td></tr>
+          <tr><td>リンター・フォーマッター</td><td>Biome（1 ツールで lint と format。設定が少ない）</td><td>2026-11-19</td><td>このページ</td></tr>
+          <tr><td>テスト</td><td>vitest。Worker のコードは <code>@cloudflare/vitest-pool-workers</code>（D1・R2・Queue をローカルで再現）</td><td>2026-11-19</td><td><a href="#quality">品質ゲート</a></td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">まだ決まっていないこと（最初の対象リポジトリ、Zero Trust のプラン、WARP の要否など）は <a href="#risks">リスクと未検証事項</a> にあります。決まらなくても M1 は進められます。</p>
+    </section>
+
+    <section id="docs">
+      <h2>ドキュメントの運用</h2>
+      <h3>どの情報はどこが正か</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>知りたいこと</th><th>正となる場所</th><th>コード側の対応物</th></tr></thead>
+        <tbody>
+          <tr><td>用語・ID・スタック・作業ルールの要約</td><td><code>AGENTS.md</code></td><td>—</td></tr>
+          <tr><td>なぜ作るか・要件</td><td><a href="../spec/prd.html">SPEC-01 PRD</a></td><td>—</td></tr>
+          <tr><td>用語の定義・状態遷移・完了の計算</td><td><a href="../spec/domain.html">SPEC-02</a></td><td><code>packages/core/src/domain</code>、<code>policy</code></td></tr>
+          <tr><td>画面の流れ・権限</td><td><a href="../spec/ux.html">SPEC-03</a></td><td><code>apps/web/app</code>、<code>lib/auth.ts</code></td></tr>
+          <tr><td>テーブル・列・R2 のキー</td><td><a href="../spec/data-model.html">SPEC-04</a></td><td><code>packages/db/schema.ts</code>、<code>migrations/</code></td></tr>
+          <tr><td>Cloudflare 構成・最新仕様</td><td><a href="../spec/architecture.html">SPEC-05</a></td><td><code>wrangler.jsonc</code></td></tr>
+          <tr><td>AI の動き・判定ポリシー</td><td><a href="../spec/ai.html">SPEC-06</a></td><td><code>packages/core/src/{llm,judges,policy}</code>、<code>apps/runner/src/agent</code></td></tr>
+          <tr><td>テーブル間の関係・通信・シーケンス</td><td><a href="../spec/interactions.html">SPEC-07</a></td><td>—</td></tr>
+          <tr><td>多言語</td><td><a href="../spec/i18n.html">SPEC-08</a></td><td><code>messages/</code>、<code>packages/core/src/i18n</code></td></tr>
+          <tr><td>ログイン・行動ログ</td><td><a href="../spec/identity-audit.html">SPEC-09</a></td><td><code>apps/web/lib/{auth,audit}.ts</code>、<code>apps/runner/src/ingest</code></td></tr>
+          <tr><td>画面の見た目・完了条件</td><td><code>docs/screens/sNN-*.html</code></td><td><code>apps/web/app/**/page.tsx</code></td></tr>
+          <tr><td>ファイル構成・タスク・順番</td><td>このページ</td><td>GitHub Issue</td></tr>
+        </tbody>
+      </table></div>
+      <h3>更新のルール</h3>
+      <ol class="steps">
+        <li><span><b>docs → コードの順</b>。仕様が変わる PR では、最初のコミットで docs を、次のコミットでコードを変える。レビューは docs の差分から読む。</span></li>
+        <li><span><b>テーブルを変えたら 3 点セット</b>: <code>packages/db/schema.ts</code>・マイグレーション・<code>data-model.html</code>（必要なら <code>interactions.html</code> の ER 図も）を同じ PR で更新する。</span></li>
+        <li><span><b>画面を足すときはモックから</b>: <code>docs/screens/</code> に HTML を追加し、<code>AGENTS.md</code> の画面表、<code>ux.html</code> の画面一覧、<code>index.html</code> に載せる。</span></li>
+        <li><span><b>Cloudflare の仕様は Web で確認</b>: 前提にする機能・上限・料金は developers.cloudflare.com と changelog で確かめ、<code>architecture.html</code> の確認メモに日付と出典を追記する。</span></li>
+        <li><span><b>版と日付</b>: 各ページの meta 行の「状態」（ドラフト vX.Y / 確定）と「更新」を変える。大きな変更は <a href="#changelog">変更履歴</a> に 1 行書く。</span></li>
+        <li><span><b>ID は変えない</b>: SPEC-xx、GUIDE-xx、Sxx、T-xxx、FR-xx は一度付けたら変えない。廃止したら「廃止」と書いて残す。</span></li>
+        <li><span><b>公開</b>: <code>docs/</code> はそのまま HTML アーティファクトとしても公開している。docs を変えた PR をマージしたら公開版も更新する。</span></li>
+      </ol>
+    </section>
+
+    <section id="components">
+      <h2>コンポーネント構成</h2>
+      <h3>実行時の構成（Cloudflare 上）</h3>
+      <pre class="mermaid">
+flowchart LR
+  U["利用者のブラウザ"] --> ACC["Cloudflare Access（Google Workspace / OTP）"]
+  ACC --> WEB["web Worker（vinext / Next.js）"]
+  CC["Claude Code（MCP）"] -- "サービストークン" --> ACC
+  GH["GitHub App"] -- "Webhook（HMAC）" --> WEB
+  WEB -- "service binding" --> RUN["runner Worker"]
+  WEB --> D1[("D1 indx_watch")]
+  WEB --> R2[("R2 indx-watch-files")]
+  WEB -- "Queue: runs / translate" --> RUN
+  RUN --> D1
+  RUN --> R2
+  RUN --> WF["Workflows: RunWorkflow / ImportWorkflow / IngestWorkflow / ScheduleDispatch"]
+  WF --> BR["Browser Run"]
+  BR --> TGT["テスト対象環境（staging / uat / preview）"]
+  WF --> AIG["AI Gateway"] --> ANT["Anthropic Claude"]
+  TGT -. "テストメール" .-> EM["Email Routing → runner email()"]
+  EM --> RUN
+  ACC -. "Logpush access_requests" .-> R2
+  R2 -. "イベント通知 → Queue: log-ingest" .-> RUN
+  WEB --> SS["Secrets Store"]
+  RUN --> SS
+      </pre>
+      <h3>コンポーネントの責務</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>コンポーネント</th><th>責務</th><th>やらないこと</th><th>主なファイル</th><th>M</th></tr></thead>
+        <tbody>
+          <tr><td>web: 画面</td><td>S01〜S12 の表示（Server Components）と更新（Server Actions）</td><td>重い処理・ブラウザ操作・LLM の長い呼び出し</td><td><code>apps/web/app/(app)/**</code></td><td>M1〜</td></tr>
+          <tr><td>web: 認証・記録</td><td>JWT 検証、ログインセッション、ロール判定、<code>withAudit()</code>、閲覧ビーコン</td><td>Access ログの取り込み（runner の役目）</td><td><code>apps/web/lib/{auth,audit,session}.ts</code>、<code>middleware.ts</code></td><td>M1</td></tr>
+          <tr><td>web: 外部 API</td><td>GitHub Webhook、runner からの通知、MCP</td><td>画面用の API（Server Actions を使う）</td><td><code>apps/web/app/api/**</code>、<code>app/mcp/route.ts</code></td><td>M3</td></tr>
+          <tr><td>runner: キュー処理</td><td>実行・翻訳・ログ取り込みのジョブを受けて Workflow を起動</td><td>画面表示</td><td><code>apps/runner/src/index.ts</code>、<code>queues/*</code></td><td>M1〜</td></tr>
+          <tr><td>runner: Workflows</td><td>実行（準備→ブラウザ→証拠→判定→人の確認待ち→確定）、AI 取り込み、Access ログ取り込み、定期実行の振り分け</td><td>—</td><td><code>apps/runner/src/workflows/*</code></td><td>M1〜M3</td></tr>
+          <tr><td>runner: エージェント</td><td>Browser Run 上で自前ツールを使って手順を実行</td><td>判定（ジャッジの役目）</td><td><code>apps/runner/src/agent/*</code></td><td>M2</td></tr>
+          <tr><td>runner: メール</td><td>テストメールを受信し R2・D1 に保存、Workflow を起こす</td><td>—</td><td><code>apps/runner/src/email.ts</code></td><td>M2</td></tr>
+          <tr><td>core: ドメイン</td><td>zod スキーマ、ID、完了計算、判定ポリシー、<code>localize()</code></td><td>D1・R2・fetch に直接触る</td><td><code>packages/core/src/*</code></td><td>M1〜</td></tr>
+          <tr><td>core: AI</td><td>Claude クライアント（AI Gateway）、プロンプト（版付き）、ジャッジ、翻訳</td><td>—</td><td><code>packages/core/src/{llm,judges,i18n}</code></td><td>M1〜M2</td></tr>
+          <tr><td>db</td><td>Drizzle スキーマ、マイグレーション、シード</td><td>ビジネスロジック</td><td><code>packages/db/*</code></td><td>M1</td></tr>
+        </tbody>
+      </table></div>
+      <h3>依存の向き</h3>
+      <pre class="mermaid">
+flowchart TB
+  web["apps/web"] --> core["packages/core"]
+  runner["apps/runner"] --> core
+  web --> db["packages/db"]
+  runner --> db
+  core --> db
+  web -. "service binding / Queue のみ" .-> runner
+      </pre>
+      <ul>
+        <li><code>packages/core</code> は Next.js・Workers の API に依存しない。D1（Drizzle）、R2、fetch は引数で受け取り、Node の vitest でテストできるようにする。</li>
+        <li><code>apps/web</code> と <code>apps/runner</code> は互いの import をしない。やり取りは service binding（RPC）と Queue のメッセージ（型は <code>packages/core/src/messages.ts</code>）だけ。</li>
+      </ul>
+    </section>
+
+    <section id="tree">
+      <h2>ファイル・フォルダ構成</h2>
+      <p>ファイル構成はこのページが正です。<b>太字</b>の M 番号は、そのファイルを最初に作るマイルストーンです。コメント末尾の <code>T-xxx</code> は作成するタスクです。</p>
+<pre class="tree"><code>.
+├── AGENTS.md / CLAUDE.md / README.md
+├── package.json                 # scripts: dev, build, test, lint, typecheck, db:*, deploy, i18n:check     T-101
+├── pnpm-workspace.yaml          # apps/*, packages/*                                                         T-101
+├── tsconfig.base.json           # strict, noUncheckedIndexedAccess                                          T-101
+├── biome.json                   # lint + format                                                              T-101
+├── .github/
+│   ├── workflows/ci.yml         # typecheck / biome / vitest / vinext check / i18n:check / docs リンク検査   T-101
+│   ├── workflows/deploy.yml     # main: D1 マイグレーション → runner → web の順にデプロイ                    T-104
+│   ├── ISSUE_TEMPLATE/task.md   # T-xxx 用の Issue テンプレート                                              T-101
+│   └── pull_request_template.md # 完了条件チェックリスト・docs 更新の有無・RUN リンク                         T-101
+├── docs/                        # 単一の情報源（このドキュメント一式）
+├── scripts/
+│   ├── check-docs-links.mjs     # docs/ のリンク・アンカー検査（CI）                                         T-101
+│   └── check-i18n-keys.mjs      # messages/ja.json と en.json のキー差分（CI）                               T-104
+├── apps/
+│   ├── web/                     # Worker: indx-watch-web
+│   │   ├── wrangler.jsonc       # D1, R2, Queues(producer), RUNNER(service), Secrets Store, vars           T-104
+│   │   ├── vite.config.ts       # vinext                                                                    T-104
+│   │   ├── middleware.ts        # Access JWT 検証 → AuthContext を付与                                       T-105
+│   │   ├── messages/ja.json, en.json   # UI 文言（キーは画面 ID で名前空間）                                T-104
+│   │   ├── i18n/request.ts      # next-intl: users.locale → Accept-Language → ja                           T-104
+│   │   ├── app/
+│   │   │   ├── layout.tsx       # フォント、テーマ、NextIntlClientProvider                                   T-104
+│   │   │   ├── privacy/page.tsx # 記録内容の告知と同意（初回ログイン）                                       T-105
+│   │   │   ├── (app)/layout.tsx # app-shell（左ナビ・言語切替・ユーザーメニュー）                            T-104
+│   │   │   ├── (app)/page.tsx   # S01 マイタスク                                                             T-114
+│   │   │   ├── (app)/review/page.tsx                    # S06 レビューキュー                                T-204
+│   │   │   ├── (app)/admin/activity/page.tsx            # S12 ログイン・作業履歴                            T-117
+│   │   │   ├── (app)/admin/activity/users/[id]/page.tsx # S12 ユーザー詳細                                  T-117
+│   │   │   ├── (app)/admin/projects/page.tsx            # プロジェクト・メンバー管理（admin）               T-108
+│   │   │   └── (app)/p/[key]/
+│   │   │       ├── releases/[version]/page.tsx          # S02                                               T-116
+│   │   │       ├── specs/page.tsx                       # S03                                               T-109
+│   │   │       ├── specs/import/page.tsx                # S10                                               T-207
+│   │   │       ├── tc/[n]/page.tsx                      # S04                                               T-111
+│   │   │       ├── runs/[n]/page.tsx                    # S06 実行ビューア（手動実行の結果も表示）          T-115 / T-204
+│   │   │       ├── runs/[n]/execute/page.tsx            # S05                                               T-115
+│   │   │       ├── fixtures/page.tsx                    # S07                                               T-112
+│   │   │       ├── plans/[n]/page.tsx                   # S08                                               T-113
+│   │   │       ├── environments/page.tsx                # S09                                               T-108
+│   │   │       └── deployments/page.tsx                 # S11                                               T-301
+│   │   │       （各フォルダに actions.ts（Server Actions）と _components/ を置く）
+│   │   ├── app/api/
+│   │   │   ├── beacon/route.ts          # 閲覧ビーコン（visible_ms）                                         T-105
+│   │   │   ├── files/[...key]/route.ts  # R2 の証拠・フィクスチャ配信（権限チェック後）                     T-112
+│   │   │   ├── upload-url/route.ts      # R2 presigned PUT URL（10 分）                                     T-112
+│   │   │   ├── github/webhook/route.ts  # HMAC 検証。Access Bypass                                          T-301
+│   │   │   └── runner/[event]/route.ts  # runner からの進捗通知                                             T-201
+│   │   ├── app/mcp/route.ts             # MCP サーバー（サービストークン）                                  T-306
+│   │   ├── components/          # app-shell, data-table, status-badge, prio, id-chip, ai-tag,
+│   │   │                        # localized-text（AI 翻訳 / 原文表示）, evidence-viewer, ui/（shadcn）      T-104〜
+│   │   └── lib/
+│   │       ├── env.ts           # cloudflare:workers の env 型                                              T-104
+│   │       ├── db.ts            # getDb()                                                                   T-104
+│   │       ├── auth.ts          # verifyAccessJwt(), getCurrentUser(), requireRole(), guest の絞り込み     T-105
+│   │       ├── session.ts       # login_sessions の作成・更新、get-identity 呼び出し                       T-105
+│   │       ├── request-context.ts # ip, ray_id, request.cf（国・都市・ASN・colo）, UA 解析               T-105
+│   │       ├── audit.ts         # withAudit(action, target, fn) → activity_log                             T-105
+│   │       ├── r2.ts            # 読み書き・presign（aws4fetch）                                            T-112
+│   │       ├── queue.ts         # enqueueRun(), enqueueTranslate()                                          T-110
+│   │       ├── secrets.ts       # Secrets Store の読み出しを 1 か所に（Worker secrets へのフォールバック）  T-108
+│   │       ├── github.ts        # GitHub App トークン、Check Run、Issue                                     T-301
+│   │       └── cf-api.ts        # Cloudflare API（セッション失効）                                          T-117
+│   └── runner/                  # Worker: indx-watch-runner
+│       ├── wrangler.jsonc       # Workflows（schedules）, Queues(consumer), BROWSER, D1, R2, AI Gateway, email   T-106
+│       └── src/
+│           ├── index.ts         # fetch()（service binding の RPC）/ queue() / email() / scheduled()       T-106
+│           ├── queues/runs.ts         # 実行ジョブ → RunWorkflow                                            T-201
+│           ├── queues/translate.ts    # 翻訳ジョブ                                                          T-110
+│           ├── queues/log-ingest.ts   # Logpush のファイル → access_events                                  T-107
+│           ├── workflows/run.ts       # RunWorkflow                                                         T-201
+│           ├── workflows/import.ts    # ImportWorkflow（AI 仕様取り込み）                                   T-207
+│           ├── workflows/ingest.ts    # IngestWorkflow（Access REST / GraphQL / ユーザー同期。schedules）  T-107
+│           ├── workflows/dispatch.ts  # ScheduleDispatchWorkflow（schedules → Queue）                       T-304
+│           ├── agent/loop.ts          # エージェントのループ（Claude + ツール）                             T-202
+│           ├── agent/tools.ts         # navigate / click / fill / ... / wait_for_email / request_human / finish  T-202
+│           ├── browser/session.ts     # Browser Run 起動、対象ホストだけに認証ヘッダ（page.route）、録画    T-201
+│           ├── browser/script.ts      # script モード                                                       T-305
+│           ├── fixtures.ts            # リセット・シードフック                                              T-201
+│           └── email.ts               # テストメール受信 → R2・D1 → sendEvent                               T-206
+└── packages/
+    ├── core/src/
+    │   ├── ids.ts               # newId(prefix), 表示キー整形                                                T-103
+    │   ├── domain/              # zod: Step, Judge, DecisionPolicy, FixtureRef, Settings, ResetHook ...     T-103
+    │   ├── policy/completion.ts # AC / UC の状態、網羅率、最新判定                                           T-103
+    │   ├── policy/gate.ts       # Go / No-Go                                                                 T-103
+    │   ├── policy/decide.ts     # 判定ポリシー                                                               T-103
+    │   ├── i18n/localize.ts     # localize()、原文ハッシュ、stale 判定、「」保持の検証                       T-103
+    │   ├── i18n/translate.ts    # 翻訳プロンプトと構造化出力                                                 T-110
+    │   ├── llm/client.ts        # Anthropic SDK（AI Gateway, BYOK, metadata, fallbacks）                     T-110
+    │   ├── llm/prompts/*.ts     # PROMPT_VERSION 付きプロンプト                                              T-110〜
+    │   ├── judges/{assert,llm,visual}.ts                                                                      T-203 / T-305
+    │   ├── audit/anomaly.ts     # 異常検知ルール（初めての国・拒否の連続 …）                                 T-405
+    │   └── messages.ts          # Queue / RPC のメッセージ型                                                 T-106
+    └── db/
+        ├── schema/*.ts          # 領域ごとに分割（people, where, spec, data, plan, run, ai, i18n, audit）     T-102
+        ├── migrations/          # drizzle-kit の出力（手で編集しない）                                       T-102
+        ├── seed.ts              # SHOP サンプル + WATCH（自分自身）プロジェクト                              T-102
+        └── drizzle.config.ts                                                                                 T-102</code></pre>
+    </section>
+
+    <section id="plan">
+      <h2>開発プラン（全体）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>段階</th><th>ゴール</th><th>タスク</th><th>目安</th><th>終わったと言える状態</th></tr></thead>
+        <tbody>
+          <tr><td>M0.5</td><td>人が行う準備</td><td>H-01〜H-07</td><td>半日</td><td>Claude Code がデプロイまでできる権限と設定がそろっている</td></tr>
+          <tr><td>M1</td><td>手動 QA が回る。誰がやったかが ID で残る。日英対応</td><td>T-101〜T-118</td><td>5〜6 週</td><td>T-118 のシナリオが通る</td></tr>
+          <tr><td>M2</td><td>AI が仕様を作り、ブラウザでテストし、判定する</td><td>T-201〜T-210</td><td>4 週</td><td>T-210 のシナリオが通る</td></tr>
+          <tr><td>M3</td><td>GitHub・定期実行・ビジュアル差分・MCP</td><td>T-301〜T-307</td><td>3〜4 週</td><td>T-307 のシナリオが通る</td></tr>
+          <tr><td>M4</td><td>顧客 UAT と運用の改善</td><td>T-401〜T-406</td><td>3 週</td><td>T-406 のシナリオが通る</td></tr>
+        </tbody>
+      </table></div>
+      <h3>M1 の依存関係</h3>
+      <pre class="mermaid">
+flowchart LR
+  T101["T-101 雛形"] --> T102["T-102 DB"]
+  T101 --> T103["T-103 core"]
+  T102 --> T104["T-104 web 雛形"]
+  T103 --> T104
+  T104 --> T105["T-105 認証・記録"]
+  T102 --> T106["T-106 runner 雛形"]
+  T106 --> T107["T-107 Access ログ取り込み"]
+  T105 --> T108["T-108 プロジェクト・環境"]
+  T108 --> T109["T-109 仕様ツリー"]
+  T106 --> T110["T-110 翻訳"]
+  T109 --> T110
+  T109 --> T111["T-111 テストケース"]
+  T108 --> T112["T-112 フィクスチャ"]
+  T111 --> T113["T-113 計画・アサイン"]
+  T113 --> T114["T-114 マイタスク"]
+  T112 --> T115["T-115 手動ランナー"]
+  T113 --> T115
+  T115 --> T116["T-116 リリース準備状況"]
+  T107 --> T117["T-117 ログイン・作業履歴"]
+  T105 --> T117
+  T110 --> T118["T-118 M1 受け入れ"]
+  T114 --> T118
+  T116 --> T118
+  T117 --> T118
+      </pre>
+      <p class="small muted">並行できる組の例: T-102 と T-103 / T-106・T-107 と T-108〜T-109 / T-112 と T-111。</p>
+    </section>
+
+    <section id="m0">
+      <h2>M0.5 人が行う準備</h2>
+      <p>アカウントの権限が必要なため、人が行います。Claude Code はこの間に T-101〜T-103（ローカルで完結）を進められます。</p>
+      <div class="tasks">
+        <details class="task" open><summary><span class="tid">H-01</span><b>Cloudflare アカウントとプラン</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <ul><li>Workers Paid プランを有効化（Browser Run・Workflows・Logpush の前提）。</li><li>カスタムドメインを決める（例: <code>watch.&lt;社内ドメイン&gt;</code>）。</li><li>使っている Zero Trust のプラン（Free / Standard 以上）を確認し、<a href="#risks">R-02</a> に記録。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-02</span><b>Zero Trust と Google Workspace</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <ul><li>チームドメインを作成（例: <code>indx.cloudflareaccess.com</code>）。</li><li>IdP に Google Workspace を追加（社員）。One-time PIN を手動で追加（顧客用）。</li><li>Independent MFA を顧客用ポリシーで有効化。</li><li>Access アプリは T-104 の初回デプロイ後に Worker に付ける（H-07）。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-03</span><b>Cloudflare リソースの作成</b><span class="meta"><span class="badge who-h">人</span><span class="badge who-c">Claude 可</span></span></summary><div class="tbody">
+          <p>API トークンを渡せば Claude Code が <code>wrangler</code> で作れます。</p>
+          <ul><li>D1: <code>indx_watch</code>（本番）、<code>indx_watch_staging</code></li><li>R2: <code>indx-watch-files</code>、<code>indx-watch-backup</code>（ライフサイクル: <code>evidence/</code> 180 日、<code>imports/</code> 90 日）</li><li>Queues: <code>runs</code>、<code>translate</code>、<code>log-ingest</code></li><li>AI Gateway: <code>indx-watch</code>（BYOK に Anthropic キー、<code>byok_only</code>、spend limit）</li><li>Secrets Store: ストアを 1 つ</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-04</span><b>API トークンとシークレット</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <div class="table-wrap"><table><thead><tr><th>名前</th><th>用途</th><th>置き場所</th></tr></thead><tbody>
+            <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>デプロイ・マイグレーション</td><td>GitHub Actions secrets</td></tr>
+            <tr><td><code>CF_TOKEN_ACCESS_LOGS</code></td><td>Access ログ（REST・GraphQL）</td><td>Secrets Store</td></tr>
+            <tr><td><code>CF_TOKEN_ACCESS_USERS</code></td><td>Access ユーザー同期</td><td>Secrets Store</td></tr>
+            <tr><td><code>CF_TOKEN_ACCESS_REVOKE</code></td><td>セッション失効</td><td>Secrets Store</td></tr>
+            <tr><td><code>R2_ACCESS_KEY_ID</code> / <code>R2_SECRET_ACCESS_KEY</code></td><td>presigned URL</td><td>Secrets Store</td></tr>
+            <tr><td>Anthropic API キー</td><td>Claude</td><td>AI Gateway の BYOK（Worker には渡さない）</td></tr>
+          </tbody></table></div>
+          <p class="small muted">値はチャットやリポジトリに貼らない。Claude Code には参照名だけを伝える。</p>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-05</span><b>GitHub の設定</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <ul><li><code>main</code> のブランチ保護（CI 必須・レビュー 1 件）。</li><li>Actions secrets: <code>CLOUDFLARE_API_TOKEN</code>、<code>CLOUDFLARE_ACCOUNT_ID</code>。</li><li>GitHub App の作成は M3（T-301）で行う。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-06</span><b>最初のテスト対象を決める</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <p>M1 の受け入れ（T-118）は、サンプルの SHOP と、INDX Watch 自身の <code>WATCH</code> プロジェクトで行えます。実際の対象リポジトリは M1 の後半までに 1 つ決め、<a href="target-onboarding.html">GUIDE-02</a> の手順で登録します。</p>
+        </div></details>
+        <details class="task"><summary><span class="tid">H-07</span><b>Access を Worker に付ける</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
+          <ul><li>T-104 の初回デプロイ後、web Worker に Access を付ける（社員: Google Workspace のドメイン、顧客: 個別メール + Independent MFA、セッション 12 時間 / 8 時間）。</li><li>AUD タグを <code>POLICY_AUD</code> として Worker の vars に設定。</li><li>Logpush ジョブ（<code>access_requests</code> → R2 <code>cf-logs/</code>）を作成し、R2 イベント通知を Queue <code>log-ingest</code> に向ける。</li></ul>
+        </div></details>
+      </div>
+    </section>
+
+    <section id="m1">
+      <h2>M1 タスク（手動 QA が回る・ID で残る・日英）</h2>
+      <div class="tasks">
+        <details class="task" open><summary><span class="tid">T-101</span><b>モノレポ雛形と CI</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">依存なし</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd>ルートの <code>package.json</code>・<code>pnpm-workspace.yaml</code>・<code>tsconfig.base.json</code>・<code>biome.json</code>、4 パッケージの空の雛形、<code>ci.yml</code>、Issue / PR テンプレート、<code>scripts/check-docs-links.mjs</code></dd><dt>参照</dt><dd><a href="#tree">ファイル構成</a>、<code>AGENTS.md</code></dd></dl>
+          <p><b>完了条件</b></p><ul><li><code>pnpm i && pnpm typecheck && pnpm lint && pnpm test</code> がルートで通る。</li><li>CI が PR で走り、docs のリンク切れで失敗する。</li><li>PR テンプレートに「完了条件チェックリスト」「docs 更新の有無」がある。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-102</span><b>D1 スキーマ・マイグレーション・シード</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-101</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>packages/db/schema/*.ts</code>（M1 で使う全テーブル。<code>work_sessions</code> は M4 だが先に作っておいてよい）、<code>migrations/0001_init.sql</code>、<code>seed.ts</code>（SHOP と WATCH）</dd><dt>参照</dt><dd><a href="../spec/data-model.html">SPEC-04</a>、<a href="../spec/interactions.html#er">SPEC-07 ER</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>生成された SQL が data-model.html の DDL と列・制約・インデックスまで一致する（差分があれば docs を直すか理由を PR に書く）。</li><li><code>pnpm db:migrate:local && pnpm db:seed</code> で SHOP のサンプル（UC-12、TC-128〜130、FX-3、PLAN-4 など）が入る。</li><li><code>search_index</code>（FTS5）が作られる。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-103</span><b>core: ID・ドメイン型・完了計算・判定ポリシー・localize</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-101</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>ids.ts</code>、<code>domain/*</code>（zod）、<code>policy/{completion,gate,decide}.ts</code>、<code>i18n/localize.ts</code></dd><dt>参照</dt><dd><a href="../spec/domain.html#done">SPEC-02 完了の計算</a>、<a href="../spec/ai.html">SPEC-06 判定ポリシー</a>、<a href="../spec/i18n.html">SPEC-08</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>AC / UC の状態・網羅率・Go / No-Go を、domain.html の表どおりにユニットテストで確認（優先順「未網羅 &gt; 不合格 &gt; 要確認 &gt; 未実行 &gt; 合格」を含む）。</li><li><code>decide()</code> が既定ポリシー 5 ルールと TC 上書きをテストで満たす。</li><li><code>localize()</code> が原文 / 翻訳 / stale / 翻訳なしを正しく返し、「」内の文字列の保持を検証できる。</li><li>カバレッジ 90% 以上。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-104</span><b>web 雛形（vinext・多言語・app-shell・デプロイ）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-102 T-103</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd>vinext の Next.js アプリ、<code>wrangler.jsonc</code>、Tailwind + shadcn、<code>next-intl</code>（<code>messages/ja.json</code>・<code>en.json</code>）、app-shell（左ナビ・言語切替）、共通部品（status-badge、prio、id-chip、ai-tag、localized-text、data-table）、<code>deploy.yml</code>、<code>check-i18n-keys.mjs</code></dd><dt>参照</dt><dd><a href="../spec/architecture.html">SPEC-05</a>、画面モックの共通ナビ、<code>docs/assets/docs.css</code> の色トークン</dd></dl>
+          <p><b>完了条件</b></p><ul><li>CI で <code>npx vinext check</code> が通る（通らない場合は OpenNext に切り替え、ADR を更新）。</li><li>staging にデプロイされ、日本語・英語を切り替えられる。</li><li>色はトークン（ライト / ダーク）で、モックと同じ判定色を使う。</li><li>ja / en のキー差分が 0 でないと CI が失敗する。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-105</span><b>認証・ログインセッション・行動ログ</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-104 H-07</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>middleware.ts</code>、<code>lib/{auth,session,request-context,audit}.ts</code>、<code>app/privacy</code>、<code>api/beacon</code>、ローカル用の Access 模擬（固定 JWT）</dd><dt>参照</dt><dd><a href="../spec/identity-audit.html#login">SPEC-09 ログインの記録</a>、<a href="../spec/interactions.html">SPEC-07 seq-login</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>JWT を jose で検証（aud・iss・exp・kid）。不正な JWT・ヘッダなしは 401。</li><li>新しい <code>identity_nonce</code> で <code>login_sessions</code> が 1 行でき、<code>idp_type = google</code>・国・都市・ASN・UA が入る。get-identity は 1 セッション 1 回だけ。</li><li>すべての Server Action が <code>withAudit()</code> を通り、<code>activity_log</code> に actor・<code>login_session_id</code>・<code>ray_id</code>・IP・国・都市・画面 ID が入る（共通ラッパーでないと書けない作りにする）。</li><li>初回ログインで告知 → 同意しないと他の画面に進めない。</li><li><code>requireRole()</code> と guest の絞り込みのテスト。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-106</span><b>runner 雛形</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-102</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>apps/runner</code> の Worker（<code>fetch</code> RPC・<code>queue</code>・<code>email</code>・<code>scheduled</code>）、<code>wrangler.jsonc</code>（Workflows・Queues・BROWSER・D1・R2）、<code>packages/core/src/messages.ts</code>、web からの service binding</dd></dl>
+          <p><b>完了条件</b></p><ul><li>web から RPC で runner の <code>ping()</code> を呼べる。</li><li>Queue に入れたテストメッセージを consumer が受け、D1 に書ける（vitest-pool-workers のテスト）。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-107</span><b>Access ログの取り込み</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-106 H-07</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>queues/log-ingest.ts</code>（Logpush NDJSON → <code>access_events</code>）、<code>workflows/ingest.ts</code>（REST 1 時間ごと・GraphQL と ユーザー同期 1 日 1 回、<code>schedules</code>）、<code>ingest_cursors</code></dd><dt>参照</dt><dd><a href="../spec/identity-audit.html#denied">SPEC-09 失敗・拒否ログイン</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>招待していないメールで OTP ログインを試すと、数分以内に <code>access_events</code> に <code>allowed = 0</code> で入る。</li><li>同じ Ray ID を Logpush と REST の両方から受けても 1 行。</li><li><code>access_user_uid</code> / メールで <code>users</code> と突き合わせられる。</li><li>取り込みが 3 時間止まると通知される。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-108</span><b>プロジェクト・メンバー・環境・リリース（S09）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-105</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>admin/projects</code>、<code>p/[key]/environments</code>（S09）、リリースの作成、<code>lib/secrets.ts</code>、接続テスト</dd><dt>参照</dt><dd><a href="../screens/s09-environments.html">S09</a>、<a href="target-onboarding.html">GUIDE-02</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>S09 の「この画面の完了条件」をすべて満たす。</li><li>秘密は参照名だけが D1 に入り、値の表示・コピーで <code>secret.revealed</code> が記録される。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-109</span><b>仕様ツリー（S03）: 機能・UC・AC</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-108</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s03-spec-tree.html">S03</a> の完了条件を満たす（AI 提案ボタンは M2 まで無効表示）。</li><li>UC / AC の編集で <code>activity_log</code> に差分が残り、<code>search_index</code> が更新される。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-110</span><b>翻訳基盤</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-106 T-109</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>core/llm/client.ts</code>（AI Gateway・BYOK・metadata・fallbacks）、<code>core/i18n/translate.ts</code>、<code>queues/translate.ts</code>、用語集の管理画面（プロジェクト設定内）、localized-text 部品の「原文を表示」</dd><dt>参照</dt><dd><a href="../spec/i18n.html">SPEC-08</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>日本語で UC を保存すると英語訳が <code>machine</code> で入り、英語ユーザーの画面に「AI 翻訳」付きで出る。</li><li>原文を変えると翻訳が <code>stale</code> → 再翻訳される。</li><li>「」内の文字列と <code>{{FX-3.code}}</code> が保持されない訳は破棄して再試行する（テストあり）。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-111</span><b>テストケース（S04）: 版・手順・判定設定・翻訳タブ</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-109</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s04-test-case.html">S04</a> の完了条件を満たす。</li><li>手順を変えると新しい版ができ、変わっていないステップの翻訳は引き継がれる。</li><li>翻訳タブで原文と並べて確認でき、<code>reviewed_by</code> が残る。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-112</span><b>フィクスチャ（S07）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-108</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s07-fixtures.html">S07</a> の完了条件を満たす。</li><li>ブラウザから R2 へ presigned URL で直接アップロードでき、版ごとに R2 のキーが分かれる。CSV の差分表示と「この版に戻す」ができる。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-113</span><b>テスト計画・アサイン（S08）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-111</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s08-plan-assign.html">S08</a> の完了条件を満たす（AI の割り振り提案は M2）。</li><li>担当者の言語が原文と違う P0 アイテムに「翻訳未確認」の警告が出る。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-114</span><b>マイタスク（S01）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-113</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s01-my-tasks.html">S01</a> の完了条件を満たす。「次にやること」が優先度・期限の順で 1 件出る。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-115</span><b>手動ランナー（S05）と実行結果表示</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-112 T-113</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s05-manual-runner.html">S05</a> の完了条件を満たす。スクリーンショットの貼り付け・ドロップで R2 に保存される。</li><li><code>runs.executor_id</code>・<code>login_session_id</code>・<code>display_locale</code>、<code>run_steps.active_ms</code>・<code>i18n_json</code> が記録される。</li><li>判定の確定で <code>judgements</code>（human、理由必須）と <code>activity_log</code> が同じ batch で書かれる。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-116</span><b>リリース準備状況（S02）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-115</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s02-release-readiness.html">S02</a> の完了条件を満たす（AI 要約は M2）。数値は core の <code>completion</code> / <code>gate</code> と一致。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-117</span><b>ログイン・作業履歴（S12）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-105 T-107</span></span></summary><div class="tbody">
+          <p><b>完了条件</b></p><ul><li><a href="../screens/s12-activity-audit.html">S12</a> の完了条件のうち、ログイン一覧・拒否一覧・ユーザーのタイムライン・セッション失効・CSV 書き出しを満たす（作業セッション集計と異常検知は M4）。</li><li>S12 の閲覧・書き出しが <code>activity_log</code> に残る。manager には IP・都市が見えない。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-118</span><b>M1 受け入れ</b><span class="meta"><span class="badge who-c">Claude</span><span class="badge who-h">人</span><span class="tag">全 M1</span></span></summary><div class="tbody">
+          <p>staging で、実際の Google Workspace アカウントと OTP を使って以下を通します。結果は WATCH プロジェクトの RUN として残します。</p>
+          <ol class="steps"><li><span>佐藤（manager）が PLAN-4 を作り、TC-129 を田中に、TC-128 を英語設定の Alex Kim にアサインする。</span></li><li><span>田中が S01 → S05 で TC-129 を実行し、スクリーンショット付きで不合格にする。S02 に反映される。</span></li><li><span>Alex が英語の手順（AI 翻訳）で TC-128 を実行する。実行記録に <code>display_locale = en</code> と翻訳の状態が残る。</span></li><li><span>招待していないメールで OTP を試すと、S12 の拒否一覧に出る。</span></li><li><span>admin が S12 で、田中と Alex のログイン（IdP・場所・端末）から各判定までを ID でたどれる。</span></li></ol>
+        </div></details>
+      </div>
+    </section>
+
+    <section id="m2">
+      <h2>M2 タスク（AI が作り・動かし・判定する）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>タスク</th><th>依存</th><th>完了条件</th><th>参照</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">T-201</span></td><td>RunWorkflow と Browser Run（準備・リセットフック・対象ホストだけに認証ヘッダ・スクショ・trace・録画を R2）</td><td>T-115</td><td>script なしの「開いてスクショ」だけの TC が Workflow で完了し、証拠が S06 に出る</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
+          <tr><td><span class="id">T-202</span></td><td>エージェント（ツール群とループ、ステップ・時間・トークン上限、秘密の注入）</td><td>T-201</td><td>TC-128 の手順を Watch Agent が最後まで操作できる。秘密値がプロンプトとログに出ない</td><td><a href="../spec/ai.html">SPEC-06</a></td></tr>
+          <tr><td><span class="id">T-203</span></td><td>assert / llm ジャッジと判定ポリシーの適用</td><td>T-202</td><td>構造化出力で日英の理由と信頼度が入り、<code>decide()</code> で verdict が決まる</td><td><a href="../spec/ai.html">SPEC-06</a></td></tr>
+          <tr><td><span class="id">T-204</span></td><td>レビュー待ち（<code>waitForEvent</code>）と S06・レビューキュー</td><td>T-203</td><td><a href="../screens/s06-agent-run-review.html">S06</a> の完了条件。TC-130 が needs_review → 人の確定で Workflow が再開</td><td>S06</td></tr>
+          <tr><td><span class="id">T-205</span></td><td>Human in the Loop と Live View（S06 内のみ表示・URL を保存しない）</td><td>T-204</td><td>ログイン画面で <code>request_human</code> → 人が操作 → エージェントが続きを実行</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
+          <tr><td><span class="id">T-206</span></td><td>テストメール受信（Email Routing → runner）</td><td>T-201</td><td>AC-12.3 の注文確認メールを <code>wait_for_email</code> で検証できる</td><td><a href="target-onboarding.html">GUIDE-02</a></td></tr>
+          <tr><td><span class="id">T-207</span></td><td>AI 仕様取り込み（S10、ImportWorkflow、<code>ai_suggestions</code>）</td><td>T-110</td><td><a href="../screens/s10-ai-import.html">S10</a> の完了条件。採用したものが draft・<code>origin = ai</code> で入る</td><td>S10</td></tr>
+          <tr><td><span class="id">T-208</span></td><td>TC 生成・手順の曖昧さ指摘（S03・S04 の AI ボタン）、計画の割り振り提案（S08）</td><td>T-207</td><td>各画面の AI 部分の完了条件</td><td>S03 S04 S08</td></tr>
+          <tr><td><span class="id">T-209</span></td><td>AI 要約（S02 のリスク、失敗のトリアージ）</td><td>T-203</td><td>要約が言及する TC / RUN がリンクになり、データ更新で「古い要約」になる</td><td>S02</td></tr>
+          <tr><td><span class="id">T-210</span></td><td>M2 受け入れ</td><td>全 M2</td><td>PRD を貼る → UC/AC/TC の draft → 承認 → Watch Agent が TC-128 を pass、TC-130 は needs_review → レビューで確定。AI Gateway のログに <code>cf.user_id</code> と <code>run_id</code> が付く</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="m3">
+      <h2>M3 タスク（GitHub・定期実行・ビジュアル・MCP）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>タスク</th><th>依存</th><th>完了条件</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">T-301</span></td><td>GitHub App 作成（人）、Webhook（HMAC・Access Bypass）、デプロイメントの自動作成、S11</td><td>T-201</td><td><a href="../screens/s11-github-deployments.html">S11</a> の完了条件。Bypass と Worker 単位 Access の優先関係を実機で確認し SPEC-05 に記録</td></tr>
+          <tr><td><span class="id">T-302</span></td><td>PR の影響分析・preview での自動実行・Check Run・PR コメント</td><td>T-301</td><td>PR #482 相当で Check Run が付く</td></tr>
+          <tr><td><span class="id">T-303</span></td><td>不合格から GitHub Issue 作成と状態の同期</td><td>T-301</td><td>Issue が閉じると S02 の未解決 P0 不具合数が減る</td></tr>
+          <tr><td><span class="id">T-304</span></td><td>定期実行（<code>schedules</code> と ScheduleDispatchWorkflow）</td><td>T-201</td><td>毎朝 7:00 JST の P0 スモークが動く</td></tr>
+          <tr><td><span class="id">T-305</span></td><td>script モードと visual ジャッジ・ベースライン承認</td><td>T-203</td><td>差分が閾値超えで needs_review、人が承認したものだけが基準になる</td></tr>
+          <tr><td><span class="id">T-306</span></td><td>MCP サーバー（サービストークン、ツール一覧は SPEC-06）</td><td>T-207</td><td>Claude Code から TC の draft 作成と実行開始ができ、<code>activity_log.via = 'mcp'</code></td></tr>
+          <tr><td><span class="id">T-307</span></td><td>M3 受け入れ</td><td>全 M3</td><td>PR を出すと影響テストが preview で走り、Check Run と S11 に結果が出る</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="m4">
+      <h2>M4 タスク（顧客 UAT と運用）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>タスク</th><th>完了条件</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">T-401</span></td><td>顧客 UAT（guest 招待、Access ポリシーへの追加手順、限定表示）</td><td>山本様が OTP + MFA で入り、自分の項目だけを実行できる。他の項目は 403 で <code>activity_log</code> に残る</td></tr>
+          <tr><td><span class="id">T-402</span></td><td>分析（合格率の推移・所要時間）</td><td>S02 に分析タブ</td></tr>
+          <tr><td><span class="id">T-403</span></td><td>不安定テスト（flaky）の検出</td><td>同じ版・同じデプロイで pass / fail が揺れる TC に印</td></tr>
+          <tr><td><span class="id">T-404</span></td><td>作業セッションの集計（任意）</td><td><code>work_sessions</code> が 1 時間ごとに更新される。人事評価には使わない旨を画面に表示</td></tr>
+          <tr><td><span class="id">T-405</span></td><td>異常検知と通知</td><td>SPEC-09 の 7 ルールが S12 と Slack に出る</td></tr>
+          <tr><td><span class="id">T-406</span></td><td>M4 受け入れ</td><td>顧客 UAT 1 件を実施し、結果と ID の対応を S12 で説明できる</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="quality">
+      <h2>品質ゲートとテスト</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ゲート</th><th>いつ</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>CI（必須）</td><td>すべての PR</td><td><code>typecheck</code>、<code>biome check</code>、<code>vitest</code>（core は Node、Worker は vitest-pool-workers）、<code>vinext check</code>、<code>i18n:check</code>、docs のリンク検査、マイグレーションと <code>schema.ts</code> の整合</td></tr>
+          <tr><td>レビュー</td><td>すべての PR</td><td>タスクの完了条件、画面の完了条件、<a href="implementation.html">実装ガイド</a> のレビュー観点</td></tr>
+          <tr><td>ドッグフーディング</td><td>画面・機能の PR</td><td>WATCH プロジェクトの対応 TC を staging で実行し、RUN のリンクを PR に貼る</td></tr>
+          <tr><td>マイルストーン受け入れ</td><td>T-118 / T-210 / T-307 / T-406</td><td>人が実アカウントで通す</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="selfqa">
+      <h2>ID と記録の QA</h2>
+      <p>「誰がやったか」が ID と確実に対応していることを、INDX Watch 自身のテストケース（WATCH プロジェクト、機能 <code>FEAT-1 認証と記録</code>）として登録し、毎リリースで実行します。T-102 のシードに含めます。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>TC</th><th>確認すること</th><th>優先度</th><th>モード</th></tr></thead>
+        <tbody>
+          <tr><td><span class="id">WATCH-TC-1</span></td><td>Google Workspace でログインすると <code>login_sessions</code> に本人の <code>user_id</code>・<code>idp_type = google</code>・国・都市・端末が入る</td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-2</span></td><td>判定を確定すると <code>judgements.created_by</code>・<code>runs.executor_id</code>・<code>activity_log</code> の actor が同じ人で、<code>login_session_id</code> と Ray ID が付く</td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-3</span></td><td>招待していないメールの OTP 試行が <code>access_events</code> に拒否として入り、S12 に出る</td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-4</span></td><td>guest が担当外の TC を開くと 403 になり、その試行が記録される</td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-5</span></td><td>Watch Agent の実行は actor が agent ユーザーで、開始した人（<code>activity_log</code> の <code>run.started</code>）と区別される</td><td><span class="prio p1">P1</span></td><td>agent</td></tr>
+          <tr><td><span class="id">WATCH-TC-6</span></td><td>英語表示で実行すると <code>runs.display_locale = en</code> と表示した翻訳の状態が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-7</span></td><td>S12 でセッションを失効すると 1〜2 分で再ログインが求められ、<code>end_reason = revoked</code> と失効した人が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-8</span></td><td>MCP（サービストークン）からの操作は <code>auth_kind = service_token</code>・<code>via = mcp</code> で、トークンの持ち主に結びつく</td><td><span class="prio p1">P1</span></td><td>script</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="howto">
+      <h2>Claude Code への依頼の仕方</h2>
+      <p>新しいセッションを始め、次のテンプレートの <code>T-xxx</code> を差し替えて貼ります。1 セッション 1 タスクを基本にします。</p>
+<pre><code>T-105 を実装してください。
+
+- まず AGENTS.md を読み、docs/guides/dev-plan.html の「T-105」節と、そこにある参照ドキュメントを読む
+- 作るファイルは dev-plan.html の「ファイル・フォルダ構成」に従う。構成を変えたい場合は先に dev-plan.html を直す
+- 仕様と食い違う点・決まっていない点があれば、実装前に AskUserQuestion で質問する
+- Cloudflare の機能を前提にするときは developers.cloudflare.com と changelog を Web で確認する
+- 完了条件をすべて満たすテストを書き、pnpm typecheck / lint / test を通す
+- ブランチ feat/T-105-auth で PR を作り、PR 説明に完了条件のチェックリストと docs の変更点を書く</code></pre>
+      <ul>
+        <li><b>ブランチ名</b>: <code>feat/T-xxx-短い名前</code>。docs だけの変更は <code>docs/…</code>。</li>
+        <li><b>コミット</b>: 日本語。docs のコミットとコードのコミットを分ける。</li>
+        <li><b>並行作業</b>: <a href="#plan">依存関係の図</a> で依存のないタスクは別セッションで同時に進めてよい。同じファイルを触る組（例: T-109 と T-111 の <code>specs/</code>）は並行させない。</li>
+      </ul>
+    </section>
+
+    <section id="risks">
+      <h2>リスクと未検証事項</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>内容</th><th>影響</th><th>確かめるタスク</th><th>代わりの手</th></tr></thead>
+        <tbody>
+          <tr><td>R-01</td><td>vinext（beta 表記あり）で必要な機能が動かない</td><td>T-104 以降</td><td>T-104</td><td>OpenNext 1.20.x に切り替え</td></tr>
+          <tr><td>R-02</td><td>Zero Trust のプランで <code>access_requests</code> の Logpush が使えない、ログ保持が 24 時間</td><td>拒否ログインの取りこぼし</td><td>H-01 / T-107</td><td>REST 取り込みを 1 時間ごとに（実装済みの経路）</td></tr>
+          <tr><td>R-03</td><td>Worker 単位の Access と Webhook パスの Bypass の優先関係</td><td>GitHub 連携</td><td>T-301</td><td>Webhook 専用の別 Worker を作る</td></tr>
+          <tr><td>R-04</td><td>Browser Run の通信が対象環境の Bot 対策でブロックされる</td><td>エージェント実行</td><td>T-201</td><td>対象環境の Bot Fight Mode をテスト用ホストで外す / サービストークン経路</td></tr>
+          <tr><td>R-05</td><td>Secrets Store（beta）の仕様変更</td><td>秘密の読み出し</td><td>T-108</td><td><code>lib/secrets.ts</code> で Worker secrets に切り替え</td></tr>
+          <tr><td>R-06</td><td>最初の実対象リポジトリが未定（H-06）</td><td>M1 後半の検証</td><td>T-118</td><td>SHOP と WATCH で M1 を受け入れ、実対象は M2 前に登録</td></tr>
+          <tr><td>R-07</td><td>社員端末に WARP を入れるか未定</td><td>端末の詳細（OS・シリアル）が取れない</td><td>—</td><td>入れない前提で UA 解析。入れる場合は Logpush <code>device_posture_results</code> を追加</td></tr>
+          <tr><td>R-08</td><td>LLM コストが見積もり（月 約 $1,200）を超える</td><td>予算</td><td>T-202</td><td>spend limit・安定した TC を script へ移す</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="changelog">
+      <h2>ドキュメント変更履歴</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>日付</th><th>変更</th></tr></thead>
+        <tbody>
+          <tr><td>2026-11-19</td><td>初版: PRD・ドメイン・UX・データモデル・アーキテクチャ・AI・画面 S01〜S11・実装ガイド・対象登録ガイド</td></tr>
+          <tr><td>2026-11-19</td><td>Cloudflare 最新仕様の反映（vinext、Browser Run、Worker 単位 Access、Workflow schedules、Email Routing）。ER・通信フロー（SPEC-07）、多言語（SPEC-08）、認証・行動ログ（SPEC-09）、S12 を追加</td></tr>
+          <tr><td>2026-11-19</td><td>開発プラン（GUIDE-03）を追加。IdP を Google Workspace に確定。ログは ID の対応づけが目的で人事評価に使わないことを確定。作業セッション集計を M4 に移動。ファイル構成とロードマップの正をこのページに一本化</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <nav class="pager"><a href="target-onboarding.html"><small>前へ</small>GUIDE-02 テスト対象の登録</a><a href="../screens/s01-my-tasks.html"><small>次へ</small>S01 マイタスク</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

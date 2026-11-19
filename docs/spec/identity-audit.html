@@ -38,8 +38,8 @@
     <header class="page-head">
       <div class="eyebrow">SPEC-09 · 認証・行動ログ</div>
       <h1>認証・行動ログ（誰が・いつ・どこで・どう作業したか）</h1>
-      <p class="lead">Cloudflare Access の ID 情報と Cloudflare の各種ログを組み合わせ、テスターごとに「どの方法でログインし、どこから、どの端末で、いつ何をしたか」を記録します。Worker まで届かない失敗ログインも Access のログから取り込みます。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>仕様の確認日 <b>2026-11-19</b></span><span>関連 <a href="data-model.html#identity">データモデル</a> · <a href="architecture.html">アーキテクチャ</a> · <a href="../screens/s12-activity-audit.html">S12 ログイン・作業履歴</a></span></div>
+      <p class="lead">一番の目的は、<b>すべてのテスト作業と判定が、Google Workspace（社員）または招待メール（顧客）の ID と確実に対応している</b>ことです。Cloudflare Access の ID 情報と Cloudflare の各種ログを組み合わせ、テスターごとに「どの方法でログインし、どこから、どの端末で、いつ何をしたか」を記録します。Worker まで届かない失敗ログインも Access のログから取り込みます。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>仕様の確認日 <b>2026-11-19</b></span><span>関連 <a href="data-model.html#identity">データモデル</a> · <a href="architecture.html">アーキテクチャ</a> · <a href="../screens/s12-activity-audit.html">S12 ログイン・作業履歴</a></span></div>
     </header>
 
     <section id="goal">
@@ -47,7 +47,7 @@
       <ul>
         <li><b>証跡</b>: テスト結果の信頼性を示すため、「誰が・いつ・どの環境で・どの端末から」判定したかを後から説明できるようにする。顧客の受け入れテスト（UAT）の合否も同じ扱い。</li>
         <li><b>セキュリティ</b>: 社外の人（顧客・委託テスター）が使うので、想定外の場所・端末からのログイン、拒否されたログイン試行、権限外の閲覧に気づけるようにする。</li>
-        <li><b>作業の見える化</b>: テストにかかった時間、どこで止まったかを把握して計画に生かす（個人の評価には使わない。<a href="#privacy">プライバシー</a>参照）。</li>
+        <li><b>作業の記録</b>: ログとして残すだけ。テストにかかった時間の集計は計画の見積もりに使う程度で、<b>人事評価には使わない</b>（決定。<a href="#privacy">プライバシー</a>参照）。作業セッションの集計（<code>work_sessions</code>）は M4 の任意機能。</li>
       </ul>
     </section>
 
@@ -214,7 +214,7 @@ flowchart LR
       <div class="table-wrap"><table>
         <thead><tr><th>対象</th><th>Access のセッション時間（推奨）</th><th>MFA</th><th>IdP</th></tr></thead>
         <tbody>
-          <tr><td>社員</td><td>12 時間</td><td>IdP 側で必須</td><td>Google Workspace（想定。未決）</td></tr>
+          <tr><td>社員</td><td>12 時間</td><td>IdP 側で必須</td><td>Google Workspace（決定）</td></tr>
           <tr><td>顧客・委託テスター（guest）</td><td>8 時間</td><td>Independent MFA またはパスキーを必須</td><td>One-time PIN（新規アカウントでは手動で追加が必要）</td></tr>
           <tr><td>サービストークン（MCP）</td><td>トークンの有効期限で管理（90 日で更新）</td><td>—</td><td>Service Auth</td></tr>
         </tbody>
@@ -263,7 +263,7 @@ flowchart LR
       <h2>Cloudflare 側の設定</h2>
       <ol class="steps">
         <li><span><b>Zero Trust 組織</b>: チームドメインを決める（例: <code>indx.cloudflareaccess.com</code>）。グローバルのセッション時間は 24 時間（既定）のまま、アプリ・ポリシー単位で上表の時間にする。</span></li>
-        <li><span><b>IdP</b>: 社員用に Google Workspace（想定）を追加。顧客用に One-time PIN を手動で追加（2026-06 以降の新規アカウントは既定が Cloudflare IdP のため）。</span></li>
+        <li><span><b>IdP</b>: 社員用に Google Workspace を追加（決定）。顧客用に One-time PIN を手動で追加（2026-06 以降の新規アカウントは既定が Cloudflare IdP のため）。</span></li>
         <li><span><b>Worker を保護</b>: web Worker に Access を付ける（Worker 単位の保護。カスタムドメイン・workers.dev・Preview URL がまとめて保護される）。ポリシー: 社員ドメインを許可 / 顧客は個別メールで許可＋Independent MFA。</span></li>
         <li><span><b>Webhook パス</b>: <code>/api/github/webhook</code> だけ専用の Access アプリで Bypass。Worker 単位の保護との優先関係は M1 で検証する。</span></li>
         <li><span><b>Logpush</b>: アカウントの Logpush ジョブを作成し、<code>access_requests</code>（必須）、<code>audit_logs_v2</code>（推奨）、<code>device_posture_results</code>（WARP を使う場合）を R2 バケットの <code>cf-logs/</code> に出力。</span></li>
