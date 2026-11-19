@@ -741,7 +741,7 @@ sequenceDiagram
   N->>D: access_events を更新
   alt 同じ人の拒否が 1 時間に 5 回以上
     N->>D: activity_log（security.repeated_denials）
-    N-)W: 管理者に通知
+    Note over N: 管理者に通知（Slack / メール）
   end
       </pre>
       <p class="small"><b>書き込み:</b> <code>access_events</code>、<code>ingest_cursors</code>、<code>activity_log</code>。元ファイルは R2 の <code>cf-logs/access_requests/</code> に 3 年保持。</p>
