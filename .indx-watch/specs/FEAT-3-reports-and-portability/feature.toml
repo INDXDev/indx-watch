@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json
+
+id = "fea_01M7TF479XEWZBVSQ53YEKYSNE"
+key = "FEAT-3"
+title = "Reports and portability"
+description = "Reports for stakeholders, export and import."

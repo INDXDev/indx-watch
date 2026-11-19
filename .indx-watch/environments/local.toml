@@ -1,0 +1,10 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/environment.json
+
+id = "env_01M7TF479KF1MVD53T9R1065J9"
+name = "local"
+title = "Local machine"
+base_url = "http://127.0.0.1:4321"
+guide = """
+Run `pnpm build`, then `node packages/cli/dist/bin.js serve --dir examples/shop/.indx-watch` and open the printed URL.
+No login is needed.
+"""

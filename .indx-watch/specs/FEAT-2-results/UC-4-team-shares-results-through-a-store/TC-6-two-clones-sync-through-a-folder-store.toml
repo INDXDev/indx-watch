@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47BQ120NGG44R8WSVXJG"
+key = "TC-6"
+title = "Two clones sync through a folder store"
+status = "ready"
+tags = ["sync"]
+covers = ["AC-4.1", "AC-4.2"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Configure two copies of examples/shop with the same file:// store; record a run in the first and run \"iw sync\" in both."
+expected = "The second copy shows the run in \"iw list runs\"."
+
+[[steps]]
+instruction = "Run \"iw sync\" again in the first copy."
+expected = "It pushes and pulls 0 records."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/sync.spec.ts"]

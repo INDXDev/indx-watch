@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47C93XHJEW104AH9EQVZ"
+key = "UC-6"
+title = "Stakeholder reads a release report"
+status = "ready"
+actor = "Customer"
+goal = "Understand readiness and evidence without using internal tools."
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M7TF47C93XHJEW104AH9EQVX"
+key = "AC-6.1"
+text = "Running \"iw report --format html\" writes one self-contained file."
+
+[[criteria]]
+id = "ac_01M7TF47C93XHJEW104AH9EQVY"
+key = "AC-6.2"
+text = "A report with \"--audience customer\" contains no email addresses."

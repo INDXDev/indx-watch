@@ -1,0 +1,14 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47BYZGG4MK61CTPY3RW1"
+key = "UC-5"
+title = "CI records Playwright results"
+status = "ready"
+actor = "CI pipeline"
+goal = "Link automated results to the test cases they verify."
+priority = "P0"
+
+[[criteria]]
+id = "ac_01M7TF47BYZGG4MK61CTPY3RW0"
+key = "AC-5.1"
+text = "Tagged Playwright tests produce runs linked to their test cases, with the commit and fixture versions."

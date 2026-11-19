@@ -1,0 +1,28 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47B87CNAFKB5B7HSRYMM"
+key = "TC-4"
+title = "Manual run with a screenshot"
+status = "ready"
+tags = ["ui", "smoke"]
+covers = ["AC-3.1", "AC-3.2"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-2"
+
+[[steps]]
+instruction = "Start \"iw serve\" on a copy of examples/shop, open TC-8 and start a manual run."
+expected = "The runner shows the steps of TC-8."
+evidence = ["screenshot"]
+
+[[steps]]
+instruction = "Upload the FX-2 screenshot on step 1, mark both steps and finish with \"fail\" and a note."
+expected = "The run page shows verdict \"fail\", the screenshot and the local git identity."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/ui.spec.ts"]

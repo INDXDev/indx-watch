@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47D34Z8N0GRHEKCQV5XN"
+key = "UC-8"
+title = "Agent drafts test cases for a human to approve"
+status = "ready"
+actor = "Coding agent"
+goal = "Speed up writing tests without bypassing review."
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M7TF47D34Z8N0GRHEKCQV5XK"
+key = "AC-8.1"
+text = "Running \"iw new --origin ai\" creates a draft marked origin \"ai\"."
+
+[[criteria]]
+id = "ac_01M7TF47D34Z8N0GRHEKCQV5XM"
+key = "AC-8.2"
+text = "An agent cannot approve, review or waive."

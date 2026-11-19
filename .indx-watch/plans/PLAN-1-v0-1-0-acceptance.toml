@@ -1,0 +1,47 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/plan.json
+
+id = "pln_01M7TF47DHZMRCHD7MT4ABHFVJ"
+key = "PLAN-1"
+title = "v0.1.0 acceptance"
+release = "v0.1.0"
+environment = "local"
+
+[[items]]
+test_case = "TC-1"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-2"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-3"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-4"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-5"
+assignee = "maintainers@indx.dev"
+
+[[items]]
+test_case = "TC-6"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-7"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-8"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-9"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-10"
+assignee = "ci"

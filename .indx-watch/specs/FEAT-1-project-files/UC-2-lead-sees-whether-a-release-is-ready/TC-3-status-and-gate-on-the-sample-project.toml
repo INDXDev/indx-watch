@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47AZXQ0E4SXRGH6FNP8S"
+key = "TC-3"
+title = "Status and gate on the sample project"
+status = "ready"
+tags = ["cli", "smoke"]
+covers = ["AC-2.1", "AC-2.2"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Copy examples/shop and run \"iw status --release v1.2.0 --json\"."
+expected = "The output lists UC-1 to UC-5 and the gate checks."
+
+[[steps]]
+instruction = "Run \"iw status --release v1.2.0 --gate\"."
+expected = "The command exits 1 because P0 test cases are untested."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

@@ -12,13 +12,10 @@ import { useCaseVersion } from './versions.js';
 /** Lowercase ASCII slug from a title, max 40 chars ('Valid coupon reduces the total' → 'valid-coupon-reduces-the-total'). */
 export function slugify(title: string): string {
   const ascii = title.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
-  return (
-    ascii
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+/, '')
-      .slice(0, 40)
-      .replace(/-+$/, '') || 'untitled'
-  );
+  const s = ascii.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // at most 40 chars, cut at a word boundary
+  const cut = s.length <= 40 ? s : s.slice(0, 41).replace(/-[^-]*$/, '') || s.slice(0, 40);
+  return cut || 'untitled';
 }
 
 export type NewKind =

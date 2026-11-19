@@ -1,0 +1,3 @@
+case,file,append,expected_code
+unknown-key,specs/FEAT-1-general/feature.toml,extra_field = 1,unknown-key
+duplicate-key,releases/v0.1.0.toml,state = "shipped",invalid-toml

@@ -1,0 +1,14 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47CNEW130FZHWSCN89D5"
+key = "UC-7"
+title = "Team moves its data elsewhere"
+status = "ready"
+actor = "Maintainer"
+goal = "Leave or migrate without losing anything."
+priority = "P2"
+
+[[criteria]]
+id = "ac_01M7TF47CNEW130FZHWSCN89D4"
+key = "AC-7.1"
+text = "Running \"iw export --full\" and then \"iw import\" into an empty folder gives an identical manifest hash."
