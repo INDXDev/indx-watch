@@ -95,7 +95,7 @@ ID 規約:
 - **packages/db**: Drizzle ORM のスキーマとマイグレーション（D1）。
 - **packages/core**: ドメイン型（zod）、判定ポリシー、ジャッジ、LLM クライアント、ID 生成、外部への差し替え口（`ports.ts`）。web・runner・CLI から使う。
 - **packages/bundle**: Watch Bundle 形式（zod の型・JSON Schema・正規化した TOML・D1 の行との変換・3 方向マージ・フル書き出し）。web・runner・CLI 共通。
-- **apps/cli**: CLI `iw`（npx で配布。`indx-watch/iw` 起動スクリプトが版を固定）。clone / pull / push / sync / check / report / export / import / deploy / dev。認証は Access Managed OAuth（`iw login`）。
+- **apps/cli**: CLI `iw`（npx で配布。`indx-watch/iw` 起動スクリプトが版を固定）。clone / pull / push / sync / check / report / export / import / deploy / dev。認証は Cloudflare 公式ツールを包むだけ: データは `cloudflared access`（`iw login`、`cf-access-token` ヘッダ）、デプロイは `wrangler`（`wrangler login` / `CLOUDFLARE_API_TOKEN`）。CLI のコードは公開してよい（秘密を含まない）。
 - **データ**: D1（メタデータ全部）、R2（証拠ファイル・フィクスチャ本体・ベースライン画像）。
 - **認証**: Cloudflare Access（Zero Trust）を Worker 単位で付ける。Worker は `jose` で `Cf-Access-Jwt-Assertion` を検証し（`ctx.access` は Static Assets のある Worker では使えない）、`sub` / `identity_nonce` でユーザーとセッションを特定、新しいセッションでは `get-identity` を 1 回呼ぶ。顧客（guest）は One-time PIN + Independent MFA で個別招待。`/api/github/webhook` だけ Access をバイパスし HMAC 署名で検証。失敗・拒否ログインは Logpush（`access_requests` → R2）と REST で取り込む（`docs/spec/identity-audit.html`）。
 - **LLM**: Anthropic Claude を Cloudflare AI Gateway 経由で呼ぶ（BYOK、spend limits、`cf-aig-metadata` に project_key / run_id、秘密を含む本文はログに残さない）。翻訳も Claude。既定モデル: ブラウザエージェント・仕様生成 = `claude-opus-5-5`、LLM ジャッジ・分類 = `claude-sonnet-5-5`、大量の軽い処理 = `claude-haiku-5-5`。プロジェクト設定で変更可能。判定は構造化出力（`output_config.format`）で JSON を受け取る。

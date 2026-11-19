@@ -683,7 +683,8 @@ CREATE TABLE login_sessions (
   id                TEXT PRIMARY KEY,             -- lgs_...
   user_id           TEXT NOT NULL REFERENCES users(id),
   identity_nonce    TEXT NOT NULL UNIQUE,         -- JWT identity_nonce（Access のセッション識別子）
-  auth_kind         TEXT NOT NULL CHECK (auth_kind IN ('identity','cli_oauth','service_token')),  -- cli_oauth = Access Managed OAuth（iw login）
+  auth_kind         TEXT NOT NULL CHECK (auth_kind IN ('identity','cli','service_token')),
+  client            TEXT,                         -- browser / iw:cloudflared / iw:oauth / mcp
   access_iat        INTEGER NOT NULL,             -- JWT iat = Access でログインした時刻
   access_exp        INTEGER NOT NULL,             -- 最後に見た JWT の exp
   jwt_country       TEXT,                         -- JWT country（認証時の国）

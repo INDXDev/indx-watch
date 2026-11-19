@@ -81,7 +81,7 @@
           <tr><td>Next.js の動かし方</td><td>vinext（問題があれば OpenNext）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
           <tr><td>ブラウザ実行</td><td>Browser Run + <code>@cloudflare/playwright</code>。Playwright Test・動画・Firefox が必要になったら Containers（v2）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
           <tr><td>単一の情報源</td><td><b>Watch Bundle 形式</b>（型とディレクトリ構成）が正。クラウドの D1 + R2 は共有と同期の中心、手元の <code>indx-watch/</code> は作業コピー。いつでも失うものなく書き出し・取り込みでき、Cloudflare にロックインしない</td><td>2026-11-19</td><td><a href="../spec/portability.html">SPEC-10</a></td></tr>
-          <tr><td>CLI の配布</td><td>npx（<code>indx-watch/iw</code> の起動スクリプトが版を固定して呼ぶ）。フォルダから <code>iw deploy</code> で Cloudflare に一式を構築できる</td><td>2026-11-19</td><td><a href="../spec/portability.html#install">SPEC-10</a></td></tr>
+          <tr><td>CLI の配布と認証</td><td>npx の公開パッケージ（<code>indx-watch/iw</code> の起動スクリプトが版を固定して呼ぶ）。コードは公開してよい。認証は Cloudflare 公式ツールを包むだけ（データは <code>cloudflared access</code>、デプロイは <code>wrangler</code>）。フォルダから <code>iw deploy</code> で Cloudflare に一式を構築できる</td><td>2026-11-19</td><td><a href="../spec/portability.html#install">SPEC-10</a></td></tr>
           <tr><td>リンター・フォーマッター</td><td>Biome（1 ツールで lint と format。設定が少ない）</td><td>2026-11-19</td><td>このページ</td></tr>
           <tr><td>テスト</td><td>vitest。Worker のコードは <code>@cloudflare/vitest-pool-workers</code>（D1・R2・Queue をローカルで再現）</td><td>2026-11-19</td><td><a href="#quality">品質ゲート</a></td></tr>
         </tbody>
@@ -130,7 +130,7 @@ flowchart LR
   U["利用者のブラウザ"] --> ACC["Cloudflare Access（Google Workspace / OTP）"]
   ACC --> WEB["web Worker（vinext / Next.js）"]
   CC["Claude Code（MCP）"] -- "サービストークン" --> ACC
-  CLI["iw CLI（手元の indx-watch/）"] -- "Managed OAuth / 同期 API" --> ACC
+  CLI["iw CLI（手元の indx-watch/）"] -- "cloudflared access のトークン / 同期 API" --> ACC
   CLI -. "iw deploy（wrangler / API）" .-> WEB
   GH["GitHub App"] -- "Webhook（HMAC）" --> WEB
   WEB -- "service binding" --> RUN["runner Worker"]
@@ -387,7 +387,7 @@ flowchart LR
             <tr><td><code>CF_TOKEN_ACCESS_REVOKE</code></td><td>セッション失効</td><td>Secrets Store</td></tr>
             <tr><td><code>R2_ACCESS_KEY_ID</code> / <code>R2_SECRET_ACCESS_KEY</code></td><td>presigned URL</td><td>Secrets Store</td></tr>
             <tr><td>Anthropic API キー</td><td>Claude</td><td>AI Gateway の BYOK（Worker には渡さない）</td></tr>
-            <tr><td><code>NPM_TOKEN</code></td><td>CLI（<code>@indx/watch</code>）の公開。npm の非公開スコープを使う場合（R-09）</td><td>GitHub Actions secrets</td></tr>
+            <tr><td><code>NPM_TOKEN</code></td><td>CLI（<code>@indx/watch</code>、npm の公開パッケージ）の公開</td><td>GitHub Actions secrets</td></tr>
           </tbody></table></div>
           <p class="small muted">値はチャットやリポジトリに貼らない。Claude Code には参照名だけを伝える。</p>
         </div></details>
@@ -398,7 +398,7 @@ flowchart LR
           <p>M1 の受け入れ（T-118）は、サンプルの SHOP と、INDX Watch 自身の <code>WATCH</code> プロジェクトで行えます。実際の対象リポジトリは M1 の後半までに 1 つ決め、<a href="target-onboarding.html">GUIDE-02</a> の手順で登録します。</p>
         </div></details>
         <details class="task"><summary><span class="tid">H-07</span><b>Access を Worker に付ける</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
-          <ul><li>T-104 の初回デプロイ後、web Worker に Access を付ける（社員: Google Workspace のドメイン、顧客: 個別メール + Independent MFA、セッション 12 時間 / 8 時間）。</li><li>AUD タグを <code>POLICY_AUD</code> として Worker の vars に設定。</li><li>Logpush ジョブ（<code>access_requests</code> → R2 <code>cf-logs/</code>）を作成し、R2 イベント通知を Queue <code>log-ingest</code> に向ける。</li><li>CLI 用に、Access アプリで <b>Managed OAuth</b> を有効にする（self-hosted アプリでは opt-in。loopback のリダイレクト <code>127.0.0.1</code> を許可）。</li><li>サービストークン（CI・MCP 用）は strict 設定にし、タグを付ける。</li></ul>
+          <ul><li>T-104 の初回デプロイ後、web Worker に Access を付ける（社員: Google Workspace のドメイン、顧客: 個別メール + Independent MFA、セッション 12 時間 / 8 時間）。</li><li>AUD タグを <code>POLICY_AUD</code> として Worker の vars に設定。</li><li>Logpush ジョブ（<code>access_requests</code> → R2 <code>cf-logs/</code>）を作成し、R2 イベント通知を Queue <code>log-ingest</code> に向ける。</li><li>CLI 用の追加設定は不要（<code>cloudflared access login</code> はブラウザと同じポリシーで通る）。将来 Managed OAuth を使うときは、Access アプリで有効にする（self-hosted アプリでは opt-in）。</li><li>サービストークン（CI・MCP 用）は strict 設定にし、タグを付ける。</li></ul>
         </div></details>
       </div>
     </section>
@@ -495,7 +495,7 @@ flowchart LR
           <tr><td><span class="id">T-207</span></td><td>AI 仕様取り込み（S10、ImportWorkflow、<code>ai_suggestions</code>）</td><td>T-110</td><td><a href="../screens/s10-ai-import.html">S10</a> の完了条件。採用したものが draft・<code>origin = ai</code> で入る</td><td>S10</td></tr>
           <tr><td><span class="id">T-208</span></td><td>TC 生成・手順の曖昧さ指摘（S03・S04 の AI ボタン）、計画の割り振り提案（S08）</td><td>T-207</td><td>各画面の AI 部分の完了条件</td><td>S03 S04 S08</td></tr>
           <tr><td><span class="id">T-209</span></td><td>AI 要約（S02 のリスク、失敗のトリアージ）</td><td>T-203</td><td>要約が言及する TC / RUN がリンクになり、データ更新で「古い要約」になる</td><td>S02</td></tr>
-          <tr><td><span class="id">T-211</span></td><td>CLI <code>iw</code>（npx 配布・起動スクリプト・<code>init / login / clone / status / diff / pull / push / sync / check / new / report / open / export / import</code>）と同期 API <code>/api/sync/v1</code>、S13 の CLI 接続表示</td><td>T-120</td><td>SPEC-10 の完了条件のうち、往復差分 0・項目単位マージと衝突・<code>via = 'cli'</code> の記録・オフラインの <code>check</code> / <code>report</code></td><td><a href="../spec/portability.html">SPEC-10</a></td></tr>
+          <tr><td><span class="id">T-211</span></td><td>CLI <code>iw</code>（npx 配布・起動スクリプト・<code>cloudflared</code> / <code>wrangler</code> の自動取得と呼び出し・<code>init / login / clone / status / diff / pull / push / sync / check / new / report / open / export / import</code>）と同期 API <code>/api/sync/v1</code>、S13 の CLI 接続表示</td><td>T-120</td><td>SPEC-10 の完了条件のうち、往復差分 0・項目単位マージと衝突・<code>via = 'cli'</code> の記録・オフラインの <code>check</code> / <code>report</code></td><td><a href="../spec/portability.html">SPEC-10</a></td></tr>
           <tr><td><span class="id">T-210</span></td><td>M2 受け入れ</td><td>全 M2</td><td>PRD を貼る → UC/AC/TC の draft → 承認 → Watch Agent が TC-128 を pass、TC-130 は needs_review → レビューで確定。AI Gateway のログに <code>cf.user_id</code> と <code>run_id</code> が付く。別の PC で <code>./iw clone</code> → TC を編集 → <code>./iw sync</code> で画面に新しい版が出る</td><td>—</td></tr>
         </tbody>
       </table></div>
@@ -561,7 +561,7 @@ flowchart LR
           <tr><td><span class="id">WATCH-TC-6</span></td><td>英語表示で実行すると <code>runs.display_locale = en</code> と表示した翻訳の状態が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
           <tr><td><span class="id">WATCH-TC-7</span></td><td>S12 でセッションを失効すると 1〜2 分で再ログインが求められ、<code>end_reason = revoked</code> と失効した人が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
           <tr><td><span class="id">WATCH-TC-8</span></td><td>MCP（サービストークン）からの操作は <code>auth_kind = service_token</code>・<code>via = mcp</code> で、トークンの持ち主に結びつく</td><td><span class="prio p1">P1</span></td><td>script</td></tr>
-          <tr><td><span class="id">WATCH-TC-9</span></td><td><code>iw login</code> 後に CLI から push した変更が、ブラウザと同じ本人で <code>activity_log</code>（<code>via = cli</code>）と <code>sync_changes</code> に残り、<code>login_sessions.auth_kind = cli_oauth</code></td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-9</span></td><td><code>iw login</code> 後に CLI から push した変更が、ブラウザと同じ本人で <code>activity_log</code>（<code>via = cli</code>）と <code>sync_changes</code> に残り、<code>login_sessions.auth_kind = cli</code>・<code>client = iw:cloudflared</code></td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
           <tr><td><span class="id">WATCH-TC-10</span></td><td>フル書き出し → 別インスタンスに取り込み後も、すべての判定・実行の <code>created_by</code> / <code>executor_id</code> が同じ人のメールアドレスに対応する</td><td><span class="prio p0">P0</span></td><td>script</td></tr>
         </tbody>
       </table></div>
@@ -598,8 +598,8 @@ flowchart LR
           <tr><td>R-05</td><td>Secrets Store（beta）の仕様変更</td><td>秘密の読み出し</td><td>T-108</td><td><code>lib/secrets.ts</code> で Worker secrets に切り替え</td></tr>
           <tr><td>R-06</td><td>最初の実対象リポジトリが未定（H-06）</td><td>M1 後半の検証</td><td>T-118</td><td>SHOP と WATCH で M1 を受け入れ、実対象は M2 前に登録</td></tr>
           <tr><td>R-07</td><td>社員端末に WARP を入れるか未定</td><td>端末の詳細（OS・シリアル）が取れない</td><td>—</td><td>入れない前提で UA 解析。入れる場合は Logpush <code>device_posture_results</code> を追加</td></tr>
-          <tr><td>R-09</td><td>CLI（npm パッケージ・単一バイナリ）を Access の外に置くと、コードが社外から取得できる</td><td>知的財産</td><td>T-211</td><td>npm の非公開スコープ + 社員のみ。顧客には CLI を配らずブラウザのみ</td></tr>
-          <tr><td>R-10</td><td>Access Managed OAuth が open beta。OTP の顧客・<code>identity_nonce</code>・<code>get-identity</code> の扱いが未確認</td><td>CLI の本人確認</td><td>T-211 の最初に PoC</td><td><code>cloudflared access</code> のトークン（<code>cf-access-token</code>）を使う</td></tr>
+          <tr><td>R-09</td><td><b>解決（2026-11-19）</b>: CLI は公開してよい。データに入るには Cloudflare Access の本人確認が必要で、配布物に秘密は含まない</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>R-10</td><td><code>cf-access-token</code> で入ったリクエストの <code>Cf-Access-Jwt-Assertion</code>・<code>get-identity</code>・OTP の顧客の扱いが未確認</td><td>CLI の本人確認</td><td>T-211 の最初に PoC</td><td>顧客はブラウザのみにする。IdP は Access のログから補う</td></tr>
           <tr><td>R-08</td><td>LLM コストが見積もり（月 約 $1,200）を超える</td><td>予算</td><td>T-202</td><td>spend limit・安定した TC を script へ移す</td></tr>
         </tbody>
       </table></div>
@@ -612,6 +612,7 @@ flowchart LR
         <tbody>
           <tr><td>2026-11-19</td><td>初版: PRD・ドメイン・UX・データモデル・アーキテクチャ・AI・画面 S01〜S11・実装ガイド・対象登録ガイド</td></tr>
           <tr><td>2026-11-19</td><td>Cloudflare 最新仕様の反映（vinext、Browser Run、Worker 単位 Access、Workflow schedules、Email Routing）。ER・通信フロー（SPEC-07）、多言語（SPEC-08）、認証・行動ログ（SPEC-09）、S12 を追加</td></tr>
+          <tr><td>2026-11-19</td><td>CLI の認証を「Cloudflare 公式ツールを包むだけ」に決定（データは <code>cloudflared access</code>、デプロイは <code>wrangler</code>、Managed OAuth は正式化後の候補）。CLI は公開してよい（R-09 解決）</td></tr>
           <tr><td>2026-11-19</td><td>開発プランをポータビリティに合わせて更新（コンポーネント・依存の向きに bundle と cli、人の準備に配布用 R2・Managed OAuth・NPM_TOKEN、CI に Bundle の往復テスト、ID と記録の QA に WATCH-TC-9・10）。<code>main</code> を最新化</td></tr>
           <tr><td>2026-11-19</td><td>ポータビリティ（SPEC-10、S13）を追加。単一の情報源を「Watch Bundle 形式」と定義し、CLI <code>iw</code>（npx）・同期・フル書き出し・<code>iw deploy</code> のタスク T-119 / T-120 / T-211 / T-308 / T-309 を追加</td></tr>
           <tr><td>2026-11-19</td><td>一括実装プロンプト <code>docs/prompts/implement-all.md</code> を追加（worktree × Workflow で全タスクを 1 PR に）</td></tr>

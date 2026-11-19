@@ -269,7 +269,7 @@ evidence = ["RUN-1029/3-screenshot.png"]   # iw pull --evidence RUN-1029 で取�
         <thead><tr><th>コマンド</th><th>やること</th><th>M</th></tr></thead>
         <tbody>
           <tr><td><code>iw init SHOP</code></td><td><code>indx-watch/</code> を作り、<code>watch.toml</code>・起動スクリプト・<code>.gitignore</code> を置く</td><td>M2</td></tr>
-          <tr><td><code>iw login</code></td><td>ブラウザで本人確認し、CLI 用の認証情報を保存（<a href="#auth">認証</a>）</td><td>M2</td></tr>
+          <tr><td><code>iw login</code></td><td><code>cloudflared access login</code> を呼び、ブラウザで本人確認する（<a href="#auth">認証</a>）</td><td>M2</td></tr>
           <tr><td><code>iw clone</code></td><td><code>watch.toml</code> の範囲を一括で取得（作業コピーを作る）</td><td>M2</td></tr>
           <tr><td><code>iw status</code> / <code>iw diff</code></td><td>手元の変更・サーバーの新しい変更・衝突を表示 / 差分を表示</td><td>M2</td></tr>
           <tr><td><code>iw pull</code> / <code>iw push</code></td><td>サーバーの変更を取り込む / 手元の変更を送る</td><td>M2</td></tr>
@@ -346,25 +346,26 @@ sequenceDiagram
 
     <section id="auth">
       <h2>CLI の認証と ID</h2>
-      <p>CLI からの書き込みも、画面と同じく本人の ID に結びつけます。共有の鍵は使いません。Webhook のような Bypass も使いません（Bypass は Access のログに残らないため）。</p>
+      <p>CLI のコード自体は公開してかまいません。守るべきなのはデータに入るための認証情報で、これは <b>Cloudflare 公式のツールが発行するものをそのまま使います</b>。<code>iw</code> は公式 CLI を呼ぶ薄い包み（ラッパー）で、独自の認証の仕組みは作りません。共有の鍵も、ログが残らない Bypass も使いません。</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>順位</th><th>方式</th><th>使う場面</th><th>アプリに届くもの</th></tr></thead>
+        <thead><tr><th>用途</th><th>包む公式ツール</th><th>やること</th><th>アプリ・Cloudflare での記録</th></tr></thead>
         <tbody>
-          <tr><td>1</td><td><b>Access Managed OAuth</b>（2026-03〜、open beta）。<code>iw login</code> が API を呼んで 401 と <code>WWW-Authenticate</code> のメタデータ（RFC 9728）を受け取り、クライアントを自動登録（RFC 7591）。<code>127.0.0.1</code> で待ち受けて、ブラウザで Authorization Code + PKCE のログイン（Google Workspace）を行う</td><td>人が使う CLI（既定）</td><td>ブラウザと同じ <code>Cf-Access-Jwt-Assertion</code>。既存の jose 検証と <code>withAudit()</code> がそのまま使える</td></tr>
-          <tr><td>2</td><td><code>cloudflared access login</code> で得たトークンを <code>cf-access-token</code> ヘッダで送る</td><td>Managed OAuth が使えない環境で、cloudflared が入っている人</td><td>同上</td></tr>
-          <tr><td>3</td><td>サービストークン（strict 設定・タグ付き）+ <code>kind = 'agent'</code> のユーザー</td><td>CI などの無人実行</td><td><code>common_name</code>（<code>sub</code> は空）。トークンごとに担当の agent ユーザーと発行者を記録</td></tr>
+          <tr><td><b>データの読み書き</b>（clone / sync / export など）</td><td><code>cloudflared access</code></td><td><code>iw login</code> = <code>cloudflared access login https://watch.indx.example</code>（ブラウザで Google Workspace / OTP）。以降のリクエストごとに <code>cloudflared access token -app=…</code> で取ったトークンを <code>cf-access-token</code> ヘッダで送る</td><td>本人の ID に結びついたトークン。Access のログイン記録に残り、アプリには本人として届く。<code>login_sessions.client = 'iw:cloudflared'</code>、<code>activity_log.via = 'cli'</code></td></tr>
+          <tr><td><b>デプロイ</b>（<code>iw deploy</code> / <code>iw dev</code>）</td><td><code>wrangler</code></td><td><code>wrangler login</code>（OAuth）か環境変数 <code>CLOUDFLARE_API_TOKEN</code> をそのまま使う。リソース作成・デプロイ・マイグレーションは wrangler のコマンドを順に呼ぶ</td><td>Cloudflare の監査ログ（Audit Logs v2）に本人として残る</td></tr>
+          <tr><td><b>無人実行</b>（CI・MCP）</td><td>Access のサービストークン</td><td><code>CF-Access-Client-Id</code> / <code>CF-Access-Client-Secret</code> を環境変数から送る（strict 設定・タグ付き）</td><td><code>auth_kind = 'service_token'</code>。トークンごとに担当の agent ユーザーと発行者を記録</td></tr>
         </tbody>
       </table></div>
       <ul>
-        <li><b>トークンの保存</b>: access token（既定 15 分）と refresh token を OS のキーチェーンに保存します。更新のたびに Access のポリシーが評価し直されるので、退職者や契約終了の顧客はすぐに使えなくなります。</li>
-        <li><b>アプリ側の API</b>: Access が <code>Authorization</code> ヘッダを使うため、INDX Watch の API は独自の <code>Authorization</code> を使いません。</li>
-        <li><b>記録</b>: CLI からの操作は <code>activity_log.via = 'cli'</code>、<code>login_sessions.auth_kind = 'cli_oauth'</code> です。</li>
+        <li><b>インストール不要のまま</b>: <code>cloudflared</code> が入っていなければ、<code>iw</code> が公式の配布元（GitHub Releases）から OS に合った単一バイナリを取得し、チェックサムを確かめて <code>~/.cache/indx-watch/</code> に置きます。<code>wrangler</code> は npx で呼びます。</li>
+        <li><b>トークンの置き場所</b>: <code>cloudflared</code> 自身の保存場所（<code>~/.cloudflared/</code>）に任せ、<code>iw</code> は保存しません。期限（Access アプリのセッション時間）が切れたら <code>iw</code> が自動で <code>cloudflared access login</code> をやり直します。</li>
+        <li><b>公式の位置づけ</b>: <code>cloudflared access token</code> は「利用者本人が、コマンドラインから API を使うためのもの」として案内されています（無人のサービス向けではない）。<code>iw</code> の使い方はこれに一致します。</li>
+        <li><b>次の候補</b>: Access の Managed OAuth（2026-03〜 open beta）が正式になったら、<code>cloudflared</code> なしで同じことができるようにします（<code>login_sessions.client = 'iw:oauth'</code>）。設計は変わりません。</li>
+        <li><b>アプリ側の API</b>: Access が <code>Authorization</code> ヘッダを使う場合があるため、INDX Watch の API は独自の <code>Authorization</code> を使いません。</li>
       </ul>
       <div class="callout warn"><strong>M2 の最初に PoC で確かめること</strong><ul>
-        <li>One-time PIN + Independent MFA の顧客が Managed OAuth を使えるか。使えない場合、顧客は CLI を使わずブラウザのみとする。</li>
-        <li>OAuth 経由の JWT に <code>identity_nonce</code> が入るか。入らない場合は <code>sub</code> + OAuth クライアント + 最初の <code>iat</code> でログインセッションを区切る。</li>
-        <li>OAuth 経由で <code>get-identity</code> が使えるか（Cookie を前提にしているため）。使えない場合、IdP は Access のログ（<code>access_events.connection</code>）から補う。</li>
-        <li>Access のログに CLI のログインがどう残るか。</li>
+        <li><code>cf-access-token</code> で入ったリクエストが、オリジンに <code>Cf-Access-Jwt-Assertion</code>（本人の <code>sub</code>・<code>email</code>・<code>identity_nonce</code>）付きで届くこと。</li>
+        <li>そのトークンを <code>CF_Authorization</code> Cookie として渡して <code>get-identity</code> が使えるか。使えない場合、IdP は Access のログ（<code>access_events.connection</code>）から補う。</li>
+        <li>One-time PIN + Independent MFA の顧客でも <code>cloudflared access login</code> が通るか。通らない場合、顧客は CLI を使わずブラウザのみとする。</li>
       </ul></div>
     </section>
 
@@ -372,7 +373,7 @@ sequenceDiagram
       <h2>インストール不要の配布</h2>
       <p>「入れる」作業をなくすため、Gradle の <code>gradlew</code> と同じ考え方で、<code>indx-watch/</code> に小さな起動スクリプト <code>iw</code>（Windows は <code>iw.cmd</code>）を置きます。起動スクリプトは <code>watch.toml</code> の <code>[cli] version</code> を読み、その版の CLI を呼びます。チーム全員が同じ版を使えます。</p>
       <ol class="steps">
-        <li><span><b>Node.js 20 以上がある場合（既定）</b>: <code>npx -y @indx/watch@1.0.0 …</code> を実行します。npm のキャッシュに入るので 2 回目からはすぐに起動します。パッケージは npm の非公開スコープ、または R2 に置いた tarball の URL から取得します（<code>npx https://dl.watch.indx.example/cli/indx-watch-1.0.0.tgz</code>）。</span></li>
+        <li><span><b>Node.js 20 以上がある場合（既定）</b>: <code>npx -y @indx/watch@1.0.0 …</code> を実行します。npm のキャッシュに入るので 2 回目からはすぐに起動します。パッケージは npm の公開パッケージ <code>@indx/watch</code> です（R2 に置いた tarball の URL からも取得できます）。</span></li>
         <li><span><b>Node がない場合</b>: R2 から単一バイナリ（Bun でビルド。macOS arm64 / x64、Linux x64 / arm64、Windows x64）を取得し、<code>sha256</code> を確かめてから <code>~/.cache/indx-watch/1.0.0/</code> に置いて実行します。</span></li>
       </ol>
       <div class="table-wrap"><table>
@@ -384,7 +385,7 @@ sequenceDiagram
         </tbody>
       </table></div>
       <ul>
-        <li>配布物に秘密は含めません（認証はすべて <code>iw login</code> で行う）。中身のコードが社外に見えてよいかは、<a href="../guides/dev-plan.html#risks">R-09</a> で決めます。</li>
+        <li><b>公開してよい</b>（2026-11-19 決定）: CLI のコードと配布物に秘密は含まれず、データに入るには <code>iw login</code>（Cloudflare Access の本人確認）が必要です。npm は公開パッケージ（<code>@indx/watch</code>）でかまいません。</li>
         <li><b>エディタ</b>: 各ファイルの先頭の <code>#:schema</code> 行（直後に空行を 1 行）で、Tombi（推奨）か Even Better TOML が補完と検証をします。</li>
       </ul>
     </section>
@@ -419,7 +420,7 @@ gateway = "indx-watch"              # Anthropic のキーは AI Gateway の BYOK
         <li><span><b>確認</b>: ヘルスチェックを行い、URL と、人が残りで行うこと（IdP の接続、Logpush、BYOK キーの登録など未設定の項目）を表示する。</span></li>
       </ol>
       <ul>
-        <li><b>Cloudflare の認証情報</b>: <code>CLOUDFLARE_API_TOKEN</code>（必要な権限は S13 とこのページの表に記載）か、<code>wrangler login</code> の OAuth を使う。<code>watch.toml</code> には書かない。</li>
+        <li><b>Cloudflare の認証情報</b>: <code>iw deploy</code> は <code>wrangler</code> を呼ぶだけなので、<code>wrangler login</code> の OAuth か <code>CLOUDFLARE_API_TOKEN</code> をそのまま使う。Access アプリとポリシーの作成は Cloudflare API を呼ぶため、Access の編集権限を持つ <code>CLOUDFLARE_API_TOKEN</code> があるときだけ自動で行い、なければ手順を表示する。<code>watch.toml</code> には書かない。</li>
         <li><b>更新</b>: <code>[deploy] version</code> を上げて <code>iw deploy</code> すると、マイグレーション → runner → web の順に更新する。</li>
         <li><b>手元で同じアプリ</b>: <code>iw dev</code> は同じ成果物を wrangler のローカル環境（D1・R2 の模擬）で起動し、フォルダの中身を取り込んで <code>http://localhost</code> で開きます。画面での変更はフォルダに書き戻されます（手元のサーバーと同期する）。<code>iw serve</code>（読み取り専用の閲覧）より機能が多い「手元の INDX Watch」です。</li>
         <li><b>INDX Watch 自身の開発</b>: このリポジトリの GitHub Actions は従来どおりソースからデプロイします。<code>iw deploy</code> はリリース済みの版を、利用するチームが自分のアカウントに立てるための手段です。</li>
@@ -535,7 +536,7 @@ gateway = "indx-watch"              # Anthropic のキーは AI Gateway の BYOK
         <li>サーバーと手元で別の項目を変えると自動でまとまり、同じ項目だと衝突になって push が止まる。</li>
         <li>ローカル専用モードで、<code>iw check</code>・<code>iw report</code>・<code>iw run</code>・<code>iw serve</code> がサーバーなしで動く。</li>
         <li>macOS / Linux / Windows で、追加のインストールなしに <code>./iw clone</code> が動く（Node があれば npx、なければ単一バイナリ。初回の取得を含めて 30 秒以内）。</li>
-        <li><code>iw login</code> 後の CLI からの書き込みが、ブラウザと同じ本人の ID で <code>activity_log</code> に残る。</li>
+        <li><code>iw login</code>（<code>cloudflared access</code>）後の CLI からの書き込みが、ブラウザと同じ本人の ID で <code>activity_log</code> に残る。</li>
         <li>空の Cloudflare アカウントに対して、<code>indx-watch/</code> から <code>iw deploy</code> 1 回で INDX Watch が立ち上がり、フォルダのデータが画面に出る（IdP 接続など人の作業は一覧で表示される）。</li>
       </ul>
     </section>

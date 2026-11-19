@@ -65,7 +65,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
   - forced `tool_choice` は使わず、`auto` と `strict: true` にする。
   - `stop_reason: "refusal"` を確認し、fallbacks を設定する。
   - Anthropic SDK の使い方は推測せず、`claude-api` スキルか公式ドキュメントで確認する。
-- **形式と CLI**: `packages/bundle`（zod の型が正、JSON Schema を生成、正規化した TOML と content_hash、行 ↔ Bundle の変換、3 方向マージ、アーカイブ）。CLI `apps/cli` は npx（`@indx/watch`）で配布し、`indx-watch/iw` 起動スクリプトが版を固定する。CLI の認証は Access Managed OAuth（`iw login`、PKCE + loopback）。Bypass や共有の鍵は使わない。
+- **形式と CLI**: `packages/bundle`（zod の型が正、JSON Schema を生成、正規化した TOML と content_hash、行 ↔ Bundle の変換、3 方向マージ、アーカイブ）。CLI `apps/cli` は npx（`@indx/watch`）で配布し、`indx-watch/iw` 起動スクリプトが版を固定する。CLI のコードは公開してよい。認証は Cloudflare 公式ツールを包むだけにする（独自の認証は作らない）。データの読み書きは `cloudflared access login` / `cloudflared access token` を呼んで `cf-access-token` ヘッダで送り、デプロイは `wrangler`（`wrangler login` か `CLOUDFLARE_API_TOKEN`）を呼ぶ。`cloudflared` が無ければ公式の配布元から取得する。Bypass や共有の鍵は使わない。
 - **ツール**: pnpm workspaces、TypeScript strict、Biome、vitest、`@cloudflare/vitest-pool-workers`、Drizzle（D1）、Tailwind + shadcn/ui、next-intl。
 - **Cloudflare の確認**: Cloudflare の機能・上限・API を前提にするときは、developers.cloudflare.com と changelog を Web で確認する。ドキュメントと食い違ったら `architecture.html` の確認メモを更新する。
 
@@ -156,7 +156,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
 | 4 | I: T-201→T-205 実行 Workflow・エージェント・ジャッジ・レビュー待ち・Human in the Loop（S06）を順番に | `runner/{workflows/run,agent,browser,fixtures}`、`core/judges`、`(app)/review` |
 | 4 | J: T-206 テストメール | `runner/email.ts` |
 | 4 | K: T-207 + T-208 AI 仕様取り込み（S10）と各画面の AI ボタン | `p/[key]/specs/import`、`runner/workflows/ai-import.ts` |
-| 4 | K2: T-211 CLI `iw` と同期 API（Managed OAuth は実機がないので、ローカルでは Access 模擬のトークンで通す） | `apps/cli`、`app/api/sync/v1`、`bundle/src/merge.ts`、S13 の CLI 部分 |
+| 4 | K2: T-211 CLI `iw` と同期 API（`cloudflared` は実機の Access がないので、ローカルでは Access 模擬のトークンを返すフェイクに差し替えて通す） | `apps/cli`、`app/api/sync/v1`、`bundle/src/merge.ts`、S13 の CLI 部分 |
 | 4 | L: T-209 AI 要約 | S02 の要約部分、`core/llm/prompts` |
 | 5 | M: T-301→T-303 GitHub 連携（S11） | `api/github`、`lib/github.ts`、`p/[key]/deployments` |
 | 5 | N: T-304 + T-305 定期実行・script・visual | `runner/workflows/dispatch.ts`、`runner/browser/script.ts`、`core/judges/visual.ts` |
@@ -269,7 +269,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
      - Email Routing
      - GitHub App
      - vinext でのデプロイ
-     - CLI の Access Managed OAuth（OTP の顧客、`identity_nonce`、`get-identity` の扱い）
+     - CLI の `cloudflared access` 経由の本人確認（オリジンに届く JWT、`get-identity`、OTP の顧客）
      - 空の Cloudflare アカウントへの `iw deploy`
   5. **docs の変更**: どのページの何をなぜ変えたか。
   6. **判断したこと**: ドキュメントに無く、自分で決めたこと。
