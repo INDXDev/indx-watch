@@ -1,0 +1,3 @@
+code,discount,expires,expected_message
+SUMMER10,0.10,2099-12-31,
+OLD5,0.05,2020-01-01,This coupon has expired

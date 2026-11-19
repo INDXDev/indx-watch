@@ -1,0 +1,5 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/blob-pointer.json
+
+sha256 = "8760bc67a01b22044c4098fddeb3a749cd395c4757fab3740aa626cd0da51e1b"
+size = 8295
+media_type = "image/png"

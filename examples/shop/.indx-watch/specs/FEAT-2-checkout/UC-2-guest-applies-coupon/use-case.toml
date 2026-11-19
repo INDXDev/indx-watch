@@ -1,0 +1,32 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01JF3Q8M5X2V7K9D4R6T1W0Y21"
+key = "UC-2"
+title = "Guest applies a coupon at checkout"
+status = "ready"
+actor = "Guest shopper"
+goal = "Pay a discounted price for the items in the cart."
+priority = "P0"
+links = ["https://github.com/INDXDev/indx-watch/issues/2"]
+
+[[criteria]]
+id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y22"
+key = "AC-2.1"
+text = "A valid coupon reduces the order total by its discount."
+
+[[criteria]]
+id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y23"
+key = "AC-2.2"
+text = "An expired coupon shows \"This coupon has expired\" and the total does not change."
+
+[criteria.i18n.ja]
+text = "期限切れのクーポンは「This coupon has expired」と表示され、合計は変わらない。"
+status = "reviewed"
+source_hash = "000000000000"
+
+[i18n.ja]
+title = "ゲストが購入時にクーポンを使う"
+actor = "ゲストの購入者"
+goal = "カートの商品を割引価格で購入したい。"
+status = "machine"
+source_hash = "000000000000"

@@ -1,0 +1,21 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y36"
+key = "TC-6"
+title = "Confirmation page is readable on a phone"
+status = "ready"
+tags = ["mobile", "visual"]
+covers = ["AC-3.1"]
+mode = "manual"
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "On a phone (or a 390 px wide browser window), add any product to the cart and place the order."
+expected = "The confirmation page fits the screen without horizontal scrolling and the order number is fully visible."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "human"

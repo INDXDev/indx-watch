@@ -1,0 +1,33 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y33"
+key = "TC-3"
+title = "Valid coupon reduces the total"
+status = "ready"
+tags = ["coupon", "smoke"]
+covers = ["AC-2.1"]
+mode = "playwright"
+preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
+
+[[fixtures]]
+ref = "FX-1"
+rows = ["SUMMER10"]
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
+expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
+evidence = ["screenshot"]
+
+[[steps]]
+instruction = "Press \"Place order\"."
+expected = "The confirmation page shows an order number."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/coupon.spec.ts"]

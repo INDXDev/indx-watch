@@ -1,0 +1,9 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json
+
+id = "fx_01JF3Q8M5X2V7K9D4R6T1W0Y41"
+key = "FX-1"
+title = "Coupon codes"
+status = "ready"
+kind = "dataset"
+files = ["coupons.csv"]
+row_key = "code"

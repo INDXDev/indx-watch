@@ -1,0 +1,8 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/release.json
+
+id = "rel_01JF3Q8M5X2V7K9D4R6T1W0Y02"
+version = "v1.2.0"
+title = "Coupons and sign-in"
+state = "testing"
+target_date = 2026-12-01
+refs = ["v1.2.0", "release/1.2"]

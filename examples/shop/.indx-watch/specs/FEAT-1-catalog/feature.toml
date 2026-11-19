@@ -1,0 +1,12 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json
+
+id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y10"
+key = "FEAT-1"
+title = "Catalog"
+description = "Browsing and searching products."
+
+[i18n.ja]
+title = "カタログ"
+description = "商品の一覧と検索。"
+status = "reviewed"
+source_hash = "000000000000"

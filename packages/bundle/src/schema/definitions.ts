@@ -1,0 +1,328 @@
+/**
+ * Schemas for every definition file in .indx-watch/ (docs/spec/bundle-format.md).
+ * FROZEN CONTRACT for v0.1: additive changes only; change requests go to the lead.
+ */
+import { z } from 'zod';
+import {
+  AiMeta,
+  DateTime,
+  DefStatus,
+  Extra,
+  idOf,
+  keyOf,
+  LocalDate,
+  Locale,
+  Origin,
+  Priority,
+  SecretRef,
+  Sha256,
+  Tag,
+  translation,
+} from './common.js';
+
+/** Fields shared by most definitions, in canonical order after id/key/title. */
+const lifecycle = {
+  status: DefStatus.optional(),
+  origin: Origin.optional(),
+  approved_by: z.string().optional(),
+  tags: z.array(Tag).optional(),
+};
+const tail = {
+  notes: z.string().optional(),
+  ai: AiMeta.optional(),
+  x: Extra.optional(),
+};
+
+// ---------- project.toml ----------
+export const Gate = z.strictObject({
+  p0_coverage: z.number().min(0).max(1).optional(),
+  p0_all_pass: z.boolean().optional(),
+  p1_pass_rate: z.number().min(0).max(1).optional(),
+  max_needs_review: z.number().int().min(0).optional(),
+  max_untested: z.number().int().min(0).optional(),
+  allow_stale: z.boolean().optional(),
+  require_evidence: z.boolean().optional(),
+});
+export type Gate = z.infer<typeof Gate>;
+export const GATE_DEFAULTS: Required<Gate> = {
+  p0_coverage: 1,
+  p0_all_pass: true,
+  p1_pass_rate: 0.95,
+  max_needs_review: 0,
+  max_untested: 0,
+  allow_stale: false,
+  require_evidence: true,
+};
+
+export const DecisionPolicy = z.strictObject({
+  llm_pass_confidence: z.number().min(0).max(1).optional(),
+  llm_fail_confidence: z.number().min(0).max(1).optional(),
+  visual_threshold: z.number().min(0).max(1).optional(),
+  require_human_for: z.array(Priority).optional(),
+});
+export type DecisionPolicy = z.infer<typeof DecisionPolicy>;
+export const DECISION_POLICY_DEFAULTS: Required<DecisionPolicy> = {
+  llm_pass_confidence: 0.8,
+  llm_fail_confidence: 0.8,
+  visual_threshold: 0.01,
+  require_human_for: [],
+};
+
+export const StoreConfig = z.strictObject({
+  url: z.string().regex(/^(file|s3|https?):\/\//),
+  mode: z.enum(['git', 'workspace']).optional(),
+  evidence: z.enum(['on-demand', 'all', 'none']).optional(),
+  endpoint: z.string().url().optional(),
+  region: z.string().optional(),
+  force_path_style: z.boolean().optional(),
+});
+export type StoreConfig = z.infer<typeof StoreConfig>;
+
+export const HostingConfig = z.strictObject({
+  provider: z.literal('cloudflare'),
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+  r2_bucket: z.string().optional(),
+  d1_database: z.string().optional(),
+  access_team: z.string().optional(),
+  access_aud: z.string().optional(),
+  branch: z.string().optional(),
+});
+export type HostingConfig = z.infer<typeof HostingConfig>;
+
+export const Project = z.strictObject({
+  schema_version: z.number().int().positive(),
+  id: idOf('prj'),
+  key: keyOf('project'),
+  name: z.string().min(1),
+  source_locale: Locale,
+  locales: z.array(Locale).min(1),
+  default_environment: z.string().optional(),
+  current_release: z.string().optional(),
+  gate: Gate.optional(),
+  decision_policy: DecisionPolicy.optional(),
+  fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
+  store: StoreConfig.optional(),
+  hosting: HostingConfig.optional(),
+  glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
+  notes: z.string().optional(),
+  x: Extra.optional(),
+});
+export type Project = z.infer<typeof Project>;
+
+// ---------- environments/<name>.toml ----------
+const Hook = z.strictObject({
+  method: z.enum(['POST', 'PUT']).optional(),
+  url: z.string().min(1),
+  secret_ref: SecretRef.optional(),
+});
+export const Environment = z.strictObject({
+  id: idOf('env'),
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  title: z.string().min(1),
+  base_url: z.string().url(),
+  accounts: z.array(keyOf('fixture')).optional(),
+  guide: z.string().optional(),
+  access: z
+    .strictObject({
+      method: z.enum(['public', 'basic', 'cloudflare_access', 'vpn', 'sso', 'other']),
+      secret_refs: z.array(SecretRef).optional(),
+    })
+    .optional(),
+  hooks: z.strictObject({ seed: Hook.optional(), reset: Hook.optional() }).optional(),
+  i18n: z.partialRecord(Locale, translation({ title: z.string().optional(), guide: z.string().optional() })).optional(),
+  ...tail,
+});
+export type Environment = z.infer<typeof Environment>;
+
+// ---------- releases/<version>.toml ----------
+export const Release = z.strictObject({
+  id: idOf('rel'),
+  version: z.string().min(1),
+  title: z.string().optional(),
+  state: z.enum(['planning', 'testing', 'ready', 'released']),
+  target_date: LocalDate.optional(),
+  refs: z.array(z.string()).optional(),
+  ...tail,
+});
+export type Release = z.infer<typeof Release>;
+
+// ---------- specs/<FEAT>/feature.toml ----------
+export const Feature = z.strictObject({
+  id: idOf('fea'),
+  key: keyOf('feature'),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  i18n: z
+    .partialRecord(Locale, translation({ title: z.string().optional(), description: z.string().optional() }))
+    .optional(),
+  ...tail,
+});
+export type Feature = z.infer<typeof Feature>;
+
+// ---------- specs/<FEAT>/<UC>/use-case.toml ----------
+export const Criterion = z.strictObject({
+  id: idOf('ac'),
+  key: keyOf('criterion'),
+  text: z.string().min(1),
+  notes: z.string().optional(),
+  i18n: z.partialRecord(Locale, translation({ text: z.string() })).optional(),
+});
+export type Criterion = z.infer<typeof Criterion>;
+
+export const UseCase = z.strictObject({
+  id: idOf('uc'),
+  key: keyOf('useCase'),
+  title: z.string().min(1),
+  ...lifecycle,
+  actor: z.string().min(1),
+  goal: z.string().min(1),
+  priority: Priority,
+  links: z.array(z.string().url()).optional(),
+  criteria: z.array(Criterion).min(1),
+  i18n: z
+    .partialRecord(
+      Locale,
+      translation({ title: z.string().optional(), actor: z.string().optional(), goal: z.string().optional() }),
+    )
+    .optional(),
+  ...tail,
+});
+export type UseCase = z.infer<typeof UseCase>;
+
+// ---------- specs/<FEAT>/<UC>/TC-<n>-<slug>.toml ----------
+export const Mode = z.enum(['manual', 'playwright', 'agent', 'hybrid']);
+export type Mode = z.infer<typeof Mode>;
+export const EvidenceKind = z.enum(['screenshot', 'video', 'trace', 'log', 'file']);
+export type EvidenceKind = z.infer<typeof EvidenceKind>;
+export const JudgeKind = z.enum(['assert', 'visual', 'llm', 'human']);
+export type JudgeKind = z.infer<typeof JudgeKind>;
+
+export const Step = z.strictObject({
+  instruction: z.string().min(1),
+  expected: z.string().min(1),
+  evidence: z.array(EvidenceKind).optional(),
+  i18n: z
+    .partialRecord(Locale, z.strictObject({ instruction: z.string().optional(), expected: z.string().optional() }))
+    .optional(),
+});
+export type Step = z.infer<typeof Step>;
+
+export const FixtureRef = z.strictObject({
+  ref: keyOf('fixture'),
+  rows: z.array(z.string()).optional(),
+  apply: z.enum(['before_run']).optional(),
+});
+export type FixtureRef = z.infer<typeof FixtureRef>;
+
+export const JudgeConfig = z.strictObject({
+  kind: JudgeKind,
+  rubric: z.array(z.string()).optional(),
+  baseline: z.string().optional(),
+});
+export type JudgeConfig = z.infer<typeof JudgeConfig>;
+
+export const TestCase = z.strictObject({
+  id: idOf('tc'),
+  key: keyOf('testCase'),
+  title: z.string().min(1),
+  ...lifecycle,
+  covers: z.array(keyOf('criterion')).min(1),
+  priority: Priority.optional(),
+  mode: Mode,
+  preconditions: z.string().optional(),
+  fixtures: z.array(FixtureRef).optional(),
+  steps: z.array(Step).min(1),
+  judges: z.array(JudgeConfig).optional(),
+  decision_policy: DecisionPolicy.optional(),
+  automation: z.strictObject({ files: z.array(z.string()).optional() }).optional(),
+  i18n: z
+    .partialRecord(Locale, translation({ title: z.string().optional(), preconditions: z.string().optional() }))
+    .optional(),
+  ...tail,
+});
+export type TestCase = z.infer<typeof TestCase>;
+
+/** Fields whose canonical form defines the test case version (docs/spec/concepts.md#versions-and-staleness). */
+export const TEST_CASE_VERSION_FIELDS = [
+  'covers',
+  'mode',
+  'preconditions',
+  'fixtures',
+  'steps',
+  'judges',
+  'decision_policy',
+] as const;
+
+// ---------- fixtures/<FX>/fixture.toml ----------
+export const FixtureKind = z.enum(['dataset', 'seed', 'file', 'account']);
+export type FixtureKind = z.infer<typeof FixtureKind>;
+export const Fixture = z.strictObject({
+  id: idOf('fx'),
+  key: keyOf('fixture'),
+  title: z.string().min(1),
+  ...lifecycle,
+  kind: FixtureKind,
+  files: z.array(z.string().regex(/^[^/\\]+$/)).optional(),
+  row_key: z.string().optional(),
+  hook: z.enum(['seed', 'reset']).optional(),
+  account: z
+    .strictObject({
+      username: z.string().min(1),
+      secret_ref: SecretRef,
+      fields: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
+  i18n: z.partialRecord(Locale, translation({ title: z.string().optional() })).optional(),
+  ...tail,
+});
+export type Fixture = z.infer<typeof Fixture>;
+
+/** Fields excluded from the fixture version hash. */
+export const FIXTURE_VERSION_EXCLUDED = ['title', 'status', 'origin', 'approved_by', 'tags', 'notes', 'ai', 'x', 'i18n'] as const;
+
+// ---------- <file>.blob.toml ----------
+export const BlobPointer = z.strictObject({
+  sha256: Sha256,
+  size: z.number().int().min(0),
+  media_type: z.string().min(1),
+});
+export type BlobPointer = z.infer<typeof BlobPointer>;
+
+// ---------- plans/<PLAN>-<slug>.toml ----------
+export const Assignee = z.string().regex(/^(ci|agent:[a-z0-9-]+|[^@\s]+@[^@\s]+)$/);
+export const PlanItem = z.strictObject({
+  test_case: keyOf('testCase'),
+  assignee: Assignee.optional(),
+  environment: z.string().optional(),
+  due: LocalDate.optional(),
+  notes: z.string().optional(),
+});
+export type PlanItem = z.infer<typeof PlanItem>;
+export const Plan = z.strictObject({
+  id: idOf('pln'),
+  key: keyOf('plan'),
+  title: z.string().min(1),
+  release: z.string().optional(),
+  environment: z.string().optional(),
+  due: LocalDate.optional(),
+  items: z.array(PlanItem).optional(),
+  ...tail,
+});
+export type Plan = z.infer<typeof Plan>;
+
+// ---------- registry ----------
+export const FILE_TYPES = {
+  project: Project,
+  environment: Environment,
+  release: Release,
+  feature: Feature,
+  'use-case': UseCase,
+  'test-case': TestCase,
+  fixture: Fixture,
+  'blob-pointer': BlobPointer,
+  plan: Plan,
+} as const;
+export type FileType = keyof typeof FILE_TYPES;
+
+/** Datetime used in AiMeta etc. re-exported for convenience. */
+export { DateTime, Sha256 };

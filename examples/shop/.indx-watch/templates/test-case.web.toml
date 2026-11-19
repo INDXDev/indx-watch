@@ -1,0 +1,12 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+mode = "manual"
+tags = ["web"]
+
+[[steps]]
+instruction = "Open {{env.base_url}}."
+expected = "The home page loads without errors."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "human"

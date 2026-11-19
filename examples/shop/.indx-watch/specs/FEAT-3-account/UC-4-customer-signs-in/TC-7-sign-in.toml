@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y37"
+key = "TC-7"
+title = "Sign in with valid credentials"
+status = "ready"
+tags = ["auth", "smoke"]
+covers = ["AC-4.1"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-3"
+
+[[steps]]
+instruction = "Open \"Sign in\", enter {{FX-3.username}} and the account password, and press \"Sign in\"."
+expected = "The header shows \"Welcome back, Casey\"."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/sign-in.spec.ts"]
