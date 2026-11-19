@@ -116,6 +116,8 @@ export const CommandData = {
     pulled: z.object({ records: z.number(), blobs: z.number() }),
     snapshot: z.string().nullable(),
     cursor: z.string().nullable(),
+    /** non-fatal problems (unreadable log objects, records held back) */
+    warnings: z.array(z.string()).optional(),
   }),
   serve: z.object({ url: z.string() }),
   report: z.object({

@@ -29,6 +29,12 @@ A plan report (`--plan PLAN-1`) replaces section 4 with plan items grouped by as
 
 The HTML report is a single file with inline CSS, no JavaScript required, readable in light and dark mode and printable. It uses the same design tokens as the UI ([design](../design/index.html)).
 
+## Rendering rules
+
+- The run log shows a CI link and, for pull requests, a `PR #n` link (internal audience only).
+- HTML reports carry a Content-Security-Policy `meta` tag; links are only rendered for `http(s)` and relative URLs; in Markdown, `&`, `<` and `>` in user-written text are escaped.
+- When nothing is gated yet (the `has_gated_tests` check fails), the verdict is shown as a neutral "nothing to judge yet" state rather than a failure banner.
+
 ## Locale
 
 `--locale en|ja` chooses UI labels and content translations (falls back to the source text, marked as such). Literal on-screen strings stay as written ([i18n.md](i18n.md#literal-strings)).

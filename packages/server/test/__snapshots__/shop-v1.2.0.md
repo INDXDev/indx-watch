@@ -5,10 +5,11 @@ _Test report · internal_
 - **Scope:** staging
 - **Generated:** 2026-11-19 00:00 UTC · by qa@shop.test
 
-> **✕ Not ready to ship** — 3 of 7 readiness checks fail.
+> **✕ Not ready to ship** — 3 of 8 readiness checks fail.
 
 | Check | Now | Needed | Result |
 | --- | ---: | ---: | --- |
+| At least one P0/P1 test case is in scope | `8` | `≥ 1` | ✓ Pass |
 | Every P0 criterion has a test | `6/6` | `≥ 1.00` | ✓ Pass |
 | Every P0 test passes _TC-4, TC-6, TC-8_ | `3/6` | `6/6` | ✕ Fail |
 | P1 tests pass (or are waived) | `2/2 (1.00)` | `≥ 0.95` | ✓ Pass |
@@ -19,7 +20,7 @@ _Test report · internal_
 
 ## Summary
 
-✓ Pass: **4** · ✕ Fail: **1** · ? Needs review: **1** · ↻ Outdated: **1** · ○ Not tested: **1** · ≈ Waived: **1**
+✓ Pass: **4** · ✕ Fail: **1** · ? Needs review: **1** · ↻ Outdated: **1** · ○ Not tested: **0** · ≈ Waived: **1**
 
 Acceptance criteria with a test: **8/9 (89%)**
 
@@ -27,7 +28,7 @@ Acceptance criteria with a test: **8/9 (89%)**
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | P0 | 3 | 1 | 1 | 1 | 0 | 0 | 6/6 |
 | P1 | 1 | 0 | 0 | 0 | 0 | 1 | 2/2 |
-| P2 | 0 | 0 | 0 | 0 | 1 | 0 | 0/1 |
+| P2 | 0 | 0 | 0 | 0 | 0 | 0 | 0/1 |
 
 ## Use cases
 

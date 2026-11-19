@@ -7,7 +7,14 @@ import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { blobRefs, checkRecord, createResultStore, type LocalReplica } from '@indx-watch/store';
 import { openObjectStore, openReplica } from '@indx-watch/store/node';
-import { type StateStore, type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
+import {
+  pointerBlobs,
+  type StateStore,
+  type SyncOptions,
+  type SyncResult,
+  syncOnce,
+  watch,
+} from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -153,7 +160,11 @@ export const dataCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
-      if (!a['pull-only']) scan((await iwb.loadDetailed(p.fs)).files, 'sync');
+      if (!a['pull-only']) {
+        const leaks = (await iwb.scanBundleSecrets(p.fs)).filter((x) => x.severity === 'error');
+        if (leaks.length)
+          fail('SECRETS_FOUND', `Refusing to sync: the secret scan found ${leaks.length} problem(s)`, leaks);
+      }
       const evidence = str(a.evidence) ?? p.bundle.project.data.store?.evidence;
       if (evidence && !['on-demand', 'all', 'none'].includes(evidence))
         fail('USAGE', '--evidence: on-demand, all or none');
@@ -176,10 +187,12 @@ export const dataCommands: Record<string, Spec> = {
           evidence: evidence as SyncOptions['evidence'],
           full: !!a.full,
           bundle: a.snapshot ? snapshot : undefined,
+          extraBlobs: pointerBlobs(p.bundle),
         },
       };
       if (!a.watch) {
         const r = await syncOnce(opts);
+        for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
         if (found.length) fail('SECRETS_FOUND', held(), found, r, syncText(r));
         return { data: r, text: syncText(r) };
       }
@@ -194,6 +207,7 @@ export const dataCommands: Record<string, Spec> = {
         onResult: (r) => {
           last = r;
           if (r.pushed.records + r.pulled.records) ctx.log(syncText(r));
+          for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
           if (found.length) ctx.log([held(), ...found.splice(0).map(problemLine)].join('\n  '));
         },
         onError: (e) => ctx.log(`sync error: ${(e as Error).message}`),

@@ -79,6 +79,8 @@ Rewrite files in canonical form. Equivalent to the formatting part of `check --f
 
 ### `iw new <kind>`
 
+When the actor is an agent, `uc`, `ac`, `tc` and `fixture` are always created as `origin = "ai"` drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). A new use case defaults to priority `P1`.
+
 Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `fixture`, `env`, `release`, `plan`.
 
 | Flag | Applies to | |
@@ -102,6 +104,8 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 `data`: `{ "kind": string, "id": string, "key": string, "file": string }`
 
 ### `iw approve <ref>`
+
+For an acceptance criterion, `approve` sets `status = "ready"` and `approved_by` (criteria have no `approved_version`); the returned `version` is the use case's content hash.
 
 Approve a draft use case, test case or fixture (or a draft acceptance criterion): sets `status = "ready"`, `approved_by` from your identity and `approved_version`. Refused for agents. `data`: `{ "ref", "file", "version", "approved_by" }`
 
@@ -164,6 +168,8 @@ Accept a known failure for a release. `--release`, `--reason` required. Applies 
 
 ### `iw retract <record-id>`
 
+Agents may only retract records they recorded themselves (same `actor.id`, kind `agent`); otherwise exit 2.
+
 Hide a run or other record recorded by mistake (`--reason` required). `data`: `{ "retraction": RetractionRecord }`
 
 ### `iw deployment add`
@@ -191,6 +197,8 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 
 ### `iw serve`
 
+If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`.
+
 Start the server and web UI on Node: readiness dashboard, spec tree, test case view, manual runner, run viewer with review, fixture browser, report preview.
 
 | Flag | Default | |
@@ -204,6 +212,8 @@ Start the server and web UI on Node: readiness dashboard, spec tree, test case v
 Prints the URL. With `--json`, prints `{ "url": string }` once listening and keeps running.
 
 ### `iw report`
+
+Without `--out`, `html` and `pdf` reports are written to `report-<release or plan>.<ext>`, and customer reports to `report-<release or plan>.customer.<ext>`.
 
 Render a report offline from the bundle plus the local replica. See [reports.md](reports.md).
 

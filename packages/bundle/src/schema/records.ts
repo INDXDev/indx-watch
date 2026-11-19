@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { FxVersion, idOf, Locale, Sha256, TcVersion } from './common.js';
 import { DateTime, EvidenceKind, JudgeKind } from './definitions.js';
 
+/** http(s) URLs only: other schemes (javascript:, file:) are never rendered as links. */
+const HttpUrl = z.string().regex(/^https?:\/\/[^\s]+$/i);
+
 export const ActorKind = z.enum(['human', 'ci', 'agent']);
 export type ActorKind = z.infer<typeof ActorKind>;
 export const Actor = z.strictObject({
@@ -32,13 +35,13 @@ export const Build = z.strictObject({
     .optional(),
   ref: z.string().optional(),
   dirty: z.boolean().optional(),
-  url: z.string().url().optional(),
+  url: HttpUrl.optional(),
 });
 export type Build = z.infer<typeof Build>;
 
 export const CiContext = z.strictObject({
   provider: z.string(),
-  url: z.string().url().optional(),
+  url: HttpUrl.optional(),
   run_id: z.string().optional(),
   run_attempt: z.number().int().optional(),
   job: z.string().optional(),
@@ -161,7 +164,7 @@ export const DeploymentRecord = z.strictObject({
   environment: z.string().min(1),
   build: Build,
   release: z.string().optional(),
-  url: z.string().url().optional(),
+  url: HttpUrl.optional(),
 });
 export type DeploymentRecord = z.infer<typeof DeploymentRecord>;
 

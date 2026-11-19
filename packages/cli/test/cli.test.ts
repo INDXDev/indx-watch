@@ -42,13 +42,23 @@ describe('acceptance criteria (docs/spec/cli.md)', () => {
       'new',
       'uc',
       '--title',
-      'Sign up',
+      'Guest applies a coupon',
       '--ac',
-      'A confirmation email is sent',
+      'A valid coupon reduces the total',
       '--ready',
     ]);
     expect(uc.json.data.key).toBe('UC-1');
-    const tc = ['new', 'tc', '--uc', 'UC-1', '--title', 'x', '--step', 'Sign up => Email arrives', '--ready'];
+    const tc = [
+      'new',
+      'tc',
+      '--uc',
+      'UC-1',
+      '--title',
+      'x',
+      '--step',
+      'Apply SUMMER10 => Total drops by 10%',
+      '--ready',
+    ];
     expect(iwJson(dir, 'new', tc).json.data.key).toBe('TC-1');
     expect(iwJson(dir, 'check', ['check']).code).toBe(0);
   });

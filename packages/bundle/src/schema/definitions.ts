@@ -83,8 +83,14 @@ export type StoreConfig = z.infer<typeof StoreConfig>;
 export const HostingConfig = z.strictObject({
   provider: z.literal('cloudflare'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-  r2_bucket: z.string().optional(),
-  d1_database: z.string().optional(),
+  r2_bucket: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,62}$/)
+    .optional(),
+  d1_database: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,62}$/)
+    .optional(),
   access_team: z.string().optional(),
   access_aud: z.string().optional(),
   branch: z.string().optional(),

@@ -48,7 +48,7 @@ interface Seen {
 }
 
 const PREFIX = '[indx-watch]';
-const iso = (ms: number) => new Date(ms).toISOString();
+const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const log = (msg: string) => console.log(`${PREFIX} ${msg}`);
 const warn = (msg: string) => {
   console.warn(`${PREFIX} ${msg}`);

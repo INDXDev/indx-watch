@@ -85,14 +85,18 @@ export const specCommands: Record<string, Spec> = {
         ['feature', { title: 'General' }],
       ] as const)
         files.push((await iwb.createDefinition(fs, bundle!, { kind, fields })).file);
-      return { data: { dir, files }, text: `Created ${dir} (${key}). Next: iw new uc --title "…" --ac "…"` };
+      const bin = /(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch';
+      return {
+        data: { dir, files },
+        text: `Created ${dir} (${key}). Next: ${bin} new uc --title "…" --ac "…"`,
+      };
     },
   },
 
   check: {
     description: 'Validate the whole bundle (schemas, format, references, secrets)',
     args: {
-      fix: B('Canonicalize, regenerate slugs, renumber duplicate keys'),
+      fix: B('Canonicalize, fix key parts of names, renumber duplicate keys'),
       strict: B('Warnings are errors'),
     },
     async run(ctx, a) {

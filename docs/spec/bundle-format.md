@@ -140,7 +140,7 @@ definition = "A code that reduces the order total."
 | `schema_version` | yes | Integer. See [Versioning](#versioning). |
 | `key` | yes | `^[A-Z][A-Z0-9]{1,9}$`. |
 | `source_locale`, `locales` | yes | `en` and/or `ja` in v1. |
-| `default_environment` | no | Environment name used when none is given. |
+| `default_environment` | no | Environment used for manual runs (UI, `iw record`) that name none. `iw status`, `iw report` and the dashboard cover all environments unless one is chosen. |
 | `current_release` | no | Release used by `iw status` and runs when none is given. |
 | `default_branch` | no | Branch whose builds fall back to `current_release` (default `main`). |
 | `[gate]` | no | Readiness gate thresholds; defaults in [concepts](concepts.md#readiness-gate). |

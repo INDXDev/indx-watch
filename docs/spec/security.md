@@ -37,6 +37,15 @@ Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity 
 
 **Trust levels.** `git` and `env` identities are self-asserted, like git commit authors. Reports show `via` so readers can tell an Access-verified approval from a self-asserted one. The gate can require verified identities for human judgements on P0 (`gate.require_verified_human`, *v0.2*).
 
+## Browser requests
+
+The server protects writes made from a browser against cross-site requests and DNS rebinding:
+
+- Every non-GET request must carry `Content-Type: application/json`, `X-IW-Request: 1`, or `If-None-Match` (store uploads). A plain HTML form cannot send any of them.
+- Requests whose `Origin` is another origin, or with `Sec-Fetch-Site: cross-site`, are rejected with 403.
+- When `iw serve` listens on a loopback address, requests whose `Host` is not `localhost`, `127.0.0.1` or `[::1]` (with the server's port) are rejected.
+- Links in reports and the UI are only rendered for `http(s)` and relative URLs; record URLs are validated as `http(s)` by the schema. HTML reports carry a Content-Security-Policy `meta` tag.
+
 ## Access control
 
 INDX Watch has no user database or roles in v0.1. Access is the storage's and host's access:
@@ -49,13 +58,15 @@ INDX Watch has no user database or roles in v0.1. Access is the storage's and ho
 | Hosted on Cloudflare | A Cloudflare Access application in front of the Worker; policies decide who gets in (e.g. a Google Workspace group, one-time PIN for invited customers). |
 | `iw serve --host 0.0.0.0` | Anyone on the network. A warning is printed. Use only on trusted networks. |
 
+`IW_ACCESS_TOKEN` and the `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` service token are only ever sent to `https://` store URLs or to loopback `http://` URLs; any other `http://` store URL with them set fails (exit 4).
+
 The CLI reaches a hosted server behind Access with `cloudflared access token -app=<url>` and sends the result as the `cf-access-token` header; in CI, use an Access **service token** (`CF-Access-Client-Id` / `CF-Access-Client-Secret` from secrets). INDX Watch stores no tokens.
 
 Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted app, derived from Access identity groups; see the [roadmap](../roadmap.md).
 
 ## Secrets
 - Bundle files contain **secret references only** (`env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`).
-- `iw check` runs a secret scan over every bundle file and data file: known token formats (AWS keys, GitHub tokens, Slack tokens, private key blocks, JWTs, Anthropic/OpenAI keys) and high-entropy strings in fields named like `password`, `token`, `secret`, `key`. Findings are errors. `iw sync` and `iw export` refuse to run while there are secret errors.
+- `iw check` runs a secret scan over every bundle file and data file: known token formats (AWS keys, GitHub tokens, Slack tokens, private key blocks, JWTs, Anthropic/OpenAI keys) and high-entropy strings in fields named like `password`, `token`, `secret`, `key`. Findings are errors. `iw sync` and `iw export` refuse to run while there are secret errors in any file under the bundle (including unknown files), and `iw sync` also scans every record it is about to push; pulled records are not scanned.
 - Account fixtures are resolved at execution time from the referenced source (`env:` from the process environment in v0.1). Resolved values are never written to records, logs, reports or the index, and the UI shows them masked with a copy button (the copy action is recorded on the hosted app).
 - Evidence can contain secrets (a screenshot of a token). The manual runner and the Playwright reporter warn when a step's evidence type is `log` or `trace` for steps that use account fixtures. Treat the result store as sensitive.
 

@@ -150,7 +150,7 @@
             },
             "url": {
               "type": "string",
-              "format": "uri"
+              "pattern": "^https?:\\/\\/[^\\s]+$"
             }
           },
           "additionalProperties": false
@@ -163,7 +163,7 @@
             },
             "url": {
               "type": "string",
-              "format": "uri"
+              "pattern": "^https?:\\/\\/[^\\s]+$"
             },
             "run_id": {
               "type": "string"
@@ -863,7 +863,7 @@
             },
             "url": {
               "type": "string",
-              "format": "uri"
+              "pattern": "^https?:\\/\\/[^\\s]+$"
             }
           },
           "additionalProperties": false
@@ -873,7 +873,7 @@
         },
         "url": {
           "type": "string",
-          "format": "uri"
+          "pattern": "^https?:\\/\\/[^\\s]+$"
         }
       },
       "required": [

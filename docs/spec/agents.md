@@ -53,13 +53,13 @@ The hosted server exposes the same tools over Streamable HTTP at `/mcp` *(v0.2)*
 | `report` | `release?`, `format` (`md`/`json`) | report text or data | read-only |
 | `sync` | — | sync counts | network |
 
-Each tool's output is exactly the `data` of the matching CLI command (`CommandData` in `packages/cli/src/json.ts`; `report` returns the Markdown text or `ReportData`), returned as `structuredContent` with an output schema. `record_run.steps[]` items are `{ index, status, note? }`. Every write made through `iw mcp` is recorded with `actor.kind = "agent"`. Tools that write are annotated `destructiveHint: false, idempotentHint: false`; read tools `readOnlyHint: true`. There is no `approve`, `review` or `waive` tool.
+Each tool's output is exactly the `data` of the matching CLI command (`CommandData` in `packages/cli/src/json.ts`; `report` returns the Markdown text or `ReportData`), returned as `structuredContent` with an output schema. `record_run.steps[]` items are `{ index, status, note? }`. Every write made through `iw mcp` is recorded with `actor.kind = "agent"`. Tools that write are annotated `destructiveHint: false, idempotentHint: false`; read tools `readOnlyHint: true`. There is no `approve`, `review` or `waive` tool. `new` has no origin input: it always creates AI drafts. `new` and `record_run` take a `model` (fallback `IW_AGENT_MODEL`, then the MCP client's name with a warning). CLI warnings are returned as a second text block.
 
 ## Rules for AI-written content
 
 1. **Draft first.** Anything an agent creates has `status = "draft"`, `origin = "ai"` and an `[ai]` table (`model`, `skill`, `created_at`). `iw new --origin ai` does this.
 2. **Humans approve.** Only a human runs `iw approve`, which records who approved which version. `iw check` rejects a `ready` `ai` item whose `approved_version` is not its current version. Drafts never count towards readiness.
-3. **Agents never review.** `iw approve`, `iw review` and `iw waive` refuse agent actors. Agents may record runs they executed, with `actor.kind = "agent"`.
+3. **Agents never review.** `iw approve`, `iw review` and `iw waive` refuse agent actors. Agents may record runs they executed, with `actor.kind = "agent"`. Agents may retract only records they recorded themselves.
 4. **Confidence is mandatory for agent verdicts.** An agent-recorded verdict becomes an `llm` judgement with the given `confidence`; below the policy threshold it is `needs_review` ([decision policy](concepts.md#decision-policy)).
 5. **Evidence or it did not happen.** Agent `pass` verdicts must attach evidence (screenshot, log or the Playwright result); `iw record` warns otherwise and the gate's `require_evidence` treats them as missing.
 6. **Literal strings stay literal.** Quoted on-screen strings are copied exactly ([i18n](i18n.md#literal-strings)).

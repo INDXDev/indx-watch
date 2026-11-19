@@ -97,7 +97,7 @@ else console.log('{"ok":true}');
   ) {
     writeFileSync(join(tmp, 'work/.indx-watch/project.toml'), projectToml);
     for (const f of ['log', 'output', 'summary']) writeFileSync(join(tmp, f), '');
-    const res = spawnSync('bash', ['-c', mainScript()], {
+    const res = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', mainScript()], {
       cwd: join(tmp, 'work'),
       encoding: 'utf8',
       env: {

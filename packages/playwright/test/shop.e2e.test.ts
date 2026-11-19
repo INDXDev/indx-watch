@@ -25,7 +25,10 @@ describe.skipIf(!chromium)('examples/shop with the reporter', () => {
       encoding: 'utf8',
       timeout: 180_000,
       env: {
-        ...process.env,
+        // the host's CI context (e.g. a pull_request run on GitHub) must not leak into this local run
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([k]) => !/^(CI|GITHUB_\w+|CLAUDECODE|CODEX_\w+)$/.test(k)),
+        ),
         IW_REPORTER: '1',
         IW_RUN_GROUP: group,
         IW_STORE: `file://${store}`,

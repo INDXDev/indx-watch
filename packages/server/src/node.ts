@@ -125,17 +125,32 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   // background sync when [store] is configured
   let stopSync: (() => Promise<void>) | undefined;
   let store: ResultStore | undefined;
-  const project = (await loadModel()).model.project;
-  if (project.store) {
-    Object.assign(sync, { configured: opts.sync !== false, store: project.store.url });
+  const { model: m0 } = await loadModel();
+  const project = m0.project;
+  const cfg = project.store && { ...project.store, url: process.env.IW_STORE ?? project.store.url };
+  if (cfg) {
+    Object.assign(sync, { configured: opts.sync !== false, store: cfg.url });
     try {
-      store = createResultStore(SN.openObjectStore(project.store, { bundleDir: dir }));
-      const state = await fileStateStore(dir, project.store.url);
-      const [writer, evidence] = [await writerId(dir), project.store.evidence ?? 'on-demand'];
+      store = createResultStore(SN.openObjectStore(cfg, { bundleDir: dir }));
+      const state = await fileStateStore(dir, cfg.url);
+      const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
+        f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
+      );
+      const [writer, evidence] = [await writerId(dir), cfg.evidence ?? 'on-demand'];
       const onResult = () =>
         Object.assign(sync, { lastSyncAt: new Date().toISOString(), lastError: undefined });
       const onError = (e: unknown) => Object.assign(sync, { lastError: message(e) });
-      const o = { replica, store, state, projectId: project.id, writer, evidence, onResult, onError };
+      const o = {
+        replica,
+        store,
+        state,
+        projectId: project.id,
+        writer,
+        evidence,
+        extraBlobs,
+        onResult,
+        onError,
+      };
       if (opts.sync !== false) stopSync = syncWatch(o);
     } catch (e) {
       sync.lastError = message(e);

@@ -61,7 +61,7 @@ Writes use `If-None-Match: *` (on GCS: `x-goog-if-generation-match: 0`), so noth
 
 ### Store HTTP endpoints
 
-A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; 412 with `If-None-Match: *` when it exists), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
+A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; always create-only: 412 when the key exists, with or without `If-None-Match`; 400 for keys outside the layout, invalid manifests or log objects, records of another project, and blobs whose content does not match their key), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
 
 ## Records
 
@@ -133,8 +133,8 @@ Because every operation is a union of immutable items, sync is idempotent, order
 **Push**
 
 1. Run the secret scan; refuse if it reports errors.
-2. Collect local records not in the pushed set (`cache/sync/<store>.json`).
-3. Upload every blob they reference that the store does not have (`HEAD`, then conditional `PUT`).
+2. Collect local records not in the pushed set (`cache/sync/<store>.json`). Records that fail the secret scan are held back with a warning.
+3. Upload every blob they reference that the store does not have (`HEAD`, then conditional `PUT`), plus the blobs of fixture pointer files in the bundle.
 4. Upload records in log objects of ≤ 1,000 records, keyed by a fresh ULID, *after* their blobs.
 5. Add their IDs to the pushed set.
 6. With `--snapshot` (the GitHub Action passes it on the default branch): if the definitions hash differs from the last pushed snapshot and the working tree is clean, upload the bundle tarball and a `bundle` record. Plain local `iw sync` never publishes snapshots.
@@ -142,8 +142,8 @@ Because every operation is a union of immutable items, sync is idempotent, order
 **Pull**
 
 1. List `v1/log/` with `StartAfter` = the ULID of (cursor time − 15 minutes) — the **lookback window** that absorbs clock skew and slow uploads between writers.
-2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent, mark them as pushed.
-3. Advance the cursor to min(greatest key seen, ULID of the reader's current time), so one writer with a clock running ahead cannot push every reader's cursor into the future.
+2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent, mark them as pushed. Unreadable log objects (corrupt, or from a newer format) are skipped with a warning and remembered as seen; unknown top-level fields are accepted. Records of another project are ignored with a warning.
+3. Advance the cursor to min(greatest key seen, ULID of the reader's current time), so one writer with a clock running ahead cannot push every reader's cursor into the future. When no key has been seen, the cursor stays unset.
 4. Every 24 hours (or with `--full`, or when `cache/` was deleted), list the whole log once to catch writers whose clocks were wrong by more than the window and to rebuild the pushed set.
 5. Blobs are fetched per `[store].evidence`: `on-demand` (when a page, report or command needs them — read-through from `iw serve`), `all`, or `none`.
 

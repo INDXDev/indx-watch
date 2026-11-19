@@ -35,8 +35,9 @@ footer{margin-top:32px;color:var(--text-muted);font-size:13px}
 <p class="muted small">Test report · internal</p>
 <h1>Shop — Release v1.2.0</h1>
 <dl class="meta"><dt>Scope</dt><dd>staging</dd><dt>Generated</dt><dd>2026-11-19 00:00 UTC · by qa@shop.test</dd></dl>
-<div class="verdict s-fail" role="status"><strong>✕ Not ready to ship</strong><p>3 of 7 readiness checks fail.</p></div>
+<div class="verdict s-fail" role="status"><strong>✕ Not ready to ship</strong><p>3 of 8 readiness checks fail.</p></div>
 <div class="wrap"><table><thead><tr><th>Check</th><th class="num">Now</th><th class="num">Needed</th><th>Result</th></tr></thead><tbody>
+<tr><td>At least one P0/P1 test case is in scope</td><td class="num"><code>8</code></td><td class="num"><code>≥ 1</code></td><td><span class="badge s-pass">✓ Pass</span></td></tr>
 <tr><td>Every P0 criterion has a test</td><td class="num"><code>6/6</code></td><td class="num"><code>≥ 1.00</code></td><td><span class="badge s-pass">✓ Pass</span></td></tr>
 <tr><td>Every P0 test passes <span class="muted small">TC-4, TC-6, TC-8</span></td><td class="num"><code>3/6</code></td><td class="num"><code>6/6</code></td><td><span class="badge s-fail">✕ Fail</span></td></tr>
 <tr><td>P1 tests pass (or are waived)</td><td class="num"><code>2/2 (1.00)</code></td><td class="num"><code>≥ 0.95</code></td><td><span class="badge s-pass">✓ Pass</span></td></tr>
@@ -46,12 +47,12 @@ footer{margin-top:32px;color:var(--text-muted);font-size:13px}
 <tr><td>Passing P0 results have evidence</td><td class="num"><code>3/3</code></td><td class="num"><code>3/3</code></td><td><span class="badge s-pass">✓ Pass</span></td></tr>
 </tbody></table></div>
 <h2>Summary</h2>
-<div class="counts"><div class="count s-pass"><b>4</b>✓ Pass</div><div class="count s-fail"><b>1</b>✕ Fail</div><div class="count s-needs_review"><b>1</b>? Needs review</div><div class="count s-stale"><b>1</b>↻ Outdated</div><div class="count s-untested"><b>1</b>○ Not tested</div><div class="count s-waived"><b>1</b>≈ Waived</div></div>
+<div class="counts"><div class="count s-pass"><b>4</b>✓ Pass</div><div class="count s-fail"><b>1</b>✕ Fail</div><div class="count s-needs_review"><b>1</b>? Needs review</div><div class="count s-stale"><b>1</b>↻ Outdated</div><div class="count s-untested"><b>0</b>○ Not tested</div><div class="count s-waived"><b>1</b>≈ Waived</div></div>
 <p>Acceptance criteria with a test: <strong>8/9 (89%)</strong></p>
 <div class="wrap"><table><thead><tr><th>Priority</th><th class="num">Pass</th><th class="num">Fail</th><th class="num">Needs review</th><th class="num">Outdated</th><th class="num">Not tested</th><th class="num">Waived</th><th class="num">AC coverage</th></tr></thead><tbody>
 <tr><td>P0</td><td class="num">3</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">6/6</td></tr>
 <tr><td>P1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">2/2</td></tr>
-<tr><td>P2</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">0/1</td></tr>
+<tr><td>P2</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0/1</td></tr>
 </tbody></table></div>
 <h2>Use cases</h2>
 <div class="uc"><p><span class="key">UC-1</span> Shopper finds a product · P1 · <span class="badge s-waived">≈ Waived</span> · done</p><ul><li><span class="key">AC-1.1</span> The home page lists every product with its name and price. — <span class="key">TC-1</span> <span class="badge s-pass">✓ Pass</span></li><li><span class="key">AC-1.2</span> Searching by part of a product name shows only matching products. — <span class="key">TC-2</span> <span class="badge s-waived">≈ Waived</span></li></ul></div>

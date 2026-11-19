@@ -8,8 +8,8 @@ Requires Node.js 22.13 or later.
 
 ```bash
 npx indx-watch init                       # creates .indx-watch/ (project, environment, release, feature)
-npx indx-watch new uc --title "Sign up" --ac "A confirmation email is sent" --ready
-npx indx-watch new tc --uc UC-1 --title "Sign up by email" --step "Sign up => The email arrives" --ready
+npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
+npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
 npx indx-watch check                      # validate everything
 npx indx-watch serve                      # web UI on http://127.0.0.1:4321
 ```
