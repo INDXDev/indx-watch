@@ -163,6 +163,9 @@ importers:
       jose:
         specifier: ^6.2.18
         version: 6.2.18
+      modern-tar:
+        specifier: ^0.8.6
+        version: 0.8.6
 
   packages/store:
     dependencies:
