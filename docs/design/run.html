@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Run viewer and review — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/runs/run_…); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav">
+        <a href="index.html">← All screens</a> · <a href="manual-runner.html">Manual runner</a> ·
+        <a href="fixtures.html">Test data (fixtures) →</a>
+      </p>
+      <h1>Run viewer and review <code>#/runs/run_…</code></h1>
+      <p>Show one run with its evidence and explain its verdict; let a person decide when it needs review.</p>
+      <ul>
+        <li>
+          Data: GET <code>/api/runs/:id</code> (<code>RunDetail</code>): the verdict and the decision-policy rule number
+          that produced it.
+        </li>
+        <li>“How verdicts are decided” lists the ten rules with the matching one highlighted.</li>
+        <li>
+          Review: verdict + mandatory reason → <code>POST /api/runs/:id/judgements</code>. The run itself is never
+          edited.
+        </li>
+        <li>Stale runs (older test case version) say so and offer a re-run.</li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/">Readiness</a><a href="#/specs" aria-current="page">Specs</a><a href="#/fixtures">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Run · <a href="#/tc/TC-6">TC-6</a></p>
+          <h1>Confirmation page is readable on a phone</h1>
+          <p class="muted mono small">run_01JFB2Q8M5X2V7K9D4R6T1W006</p>
+        </div>
+      </div>
+      <div class="verdict s-needs_review">
+        <span class="badge s-needs_review badge-lg"><span class="icon" aria-hidden="true">?</span>Needs review</span>
+        <div class="grow">
+          <strong>Decided by rule 9: nobody has judged it yet</strong>
+          <p>no judgements yet</p>
+          <details>
+            <summary>How verdicts are decided</summary>
+            <ol class="rules">
+              <li class="">a person reviewed it — their latest verdict counts</li>
+              <li class="">it was reported or judged blocked or skipped</li>
+              <li class="">an automated check failed</li>
+              <li class="">an AI judge is confident it failed</li>
+              <li class="">the screenshot differs from the approved baseline</li>
+              <li class="">an AI judge is unsure or failed it</li>
+              <li class="">this test always needs a person (priority or hybrid mode)</li>
+              <li class="">every judgement passed</li>
+              <li class="hit" aria-current="step">nobody has judged it yet</li>
+              <li class="">the judgements do not agree on a result</li>
+            </ol>
+          </details>
+        </div>
+      </div>
+      <section class="card" id="review" aria-labelledby="review-h">
+        <header class="card-head"><h2 id="review-h">This run needs a person's decision</h2></header>
+        <p class="muted">Your review is added as a new judgement; the run itself is never edited.</p>
+        <fieldset class="seg seg-status">
+          <legend class="sr">Verdict</legend>
+          <label class="s-pass"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✓</span>Pass</label
+          ><label class="s-fail"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✕</span>Fail</label
+          ><label class="s-blocked"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">‖</span>Blocked</label
+          ><label class="s-skipped"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">»</span>Skipped</label
+          >
+        </fieldset>
+        <label class="field"><span>Reason (required)</span><textarea rows="3" aria-required="true"></textarea></label>
+        <div class="actions"><button type="button" class="btn btn-primary" disabled="">Save review</button></div>
+      </section>
+      <div class="split">
+        <div class="stack">
+          <section class="card">
+            <header class="card-head"><h2>Steps</h2></header>
+            <ol class="steps">
+              <li class="step">
+                <span class="step-n">1</span>
+                <div class="grow stack-sm">
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                  <div class="shots">
+                    <figure class="shot">
+                      <a
+                        href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22400%22%20viewBox%3D%220%200%20640%20400%22%3E%3Crect%20width%3D%22640%22%20height%3D%22400%22%20fill%3D%22%23f4f1ea%22%2F%3E%3Crect%20width%3D%22640%22%20height%3D%2248%22%20fill%3D%22%232b2f36%22%2F%3E%3Ctext%20x%3D%2220%22%20y%3D%2231%22%20font-family%3D%22sans-serif%22%20font-size%3D%2218%22%20fill%3D%22%23fff%22%3EShop%20%E2%80%94%20Order%20(390%20px)%3C%2Ftext%3E%3Crect%20x%3D%2220%22%20y%3D%2280%22%20width%3D%22600%22%20height%3D%22120%22%20rx%3D%228%22%20fill%3D%22%23fff%22%20stroke%3D%22%23d9d4c7%22%2F%3E%3Ctext%20x%3D%2240%22%20y%3D%22148%22%20font-family%3D%22sans-serif%22%20font-size%3D%2220%22%20fill%3D%22%232b2f36%22%3EThank%20you%20for%20your%20order%20%C2%B7%20SHOP-10%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2220%22%20y%3D%22230%22%20width%3D%22220%22%20height%3D%2244%22%20rx%3D%226%22%20fill%3D%22%232f6f4e%22%2F%3E%3Ctext%20x%3D%2244%22%20y%3D%22258%22%20font-family%3D%22sans-serif%22%20font-size%3D%2216%22%20fill%3D%22%23fff%22%3EPlace%20order%3C%2Ftext%3E%3C%2Fsvg%3E"
+                        target="_blank"
+                        rel="noreferrer"
+                        ><img
+                          alt="step-1.png"
+                          loading="lazy"
+                          src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22640%22%20height%3D%22400%22%20viewBox%3D%220%200%20640%20400%22%3E%3Crect%20width%3D%22640%22%20height%3D%22400%22%20fill%3D%22%23f4f1ea%22%2F%3E%3Crect%20width%3D%22640%22%20height%3D%2248%22%20fill%3D%22%232b2f36%22%2F%3E%3Ctext%20x%3D%2220%22%20y%3D%2231%22%20font-family%3D%22sans-serif%22%20font-size%3D%2218%22%20fill%3D%22%23fff%22%3EShop%20%E2%80%94%20Order%20(390%20px)%3C%2Ftext%3E%3Crect%20x%3D%2220%22%20y%3D%2280%22%20width%3D%22600%22%20height%3D%22120%22%20rx%3D%228%22%20fill%3D%22%23fff%22%20stroke%3D%22%23d9d4c7%22%2F%3E%3Ctext%20x%3D%2240%22%20y%3D%22148%22%20font-family%3D%22sans-serif%22%20font-size%3D%2220%22%20fill%3D%22%232b2f36%22%3EThank%20you%20for%20your%20order%20%C2%B7%20SHOP-10%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2220%22%20y%3D%22230%22%20width%3D%22220%22%20height%3D%2244%22%20rx%3D%226%22%20fill%3D%22%232f6f4e%22%2F%3E%3Ctext%20x%3D%2244%22%20y%3D%22258%22%20font-family%3D%22sans-serif%22%20font-size%3D%2216%22%20fill%3D%22%23fff%22%3EPlace%20order%3C%2Ftext%3E%3C%2Fsvg%3E"
+                      /></a>
+                      <figcaption>step-1.png<span class="muted"> · 47.1 KB</span></figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Judgements (0)</h2></header>
+            <p class="muted">No judgements yet.</p>
+            <div class="table-wrap" hidden="">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Judge</th>
+                    <th>Verdict</th>
+                    <th>Reason</th>
+                    <th>By</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="card">
+            <header class="card-head"><h2>Details</h2></header>
+            <dl class="meta">
+              <div>
+                <dt>Who</dt>
+                <dd>Alex (human)</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>cli</dd>
+              </div>
+              <div>
+                <dt>Release</dt>
+                <dd>v1.2.0</dd>
+              </div>
+              <div>
+                <dt>Environment</dt>
+                <dd>staging</dd>
+              </div>
+              <div>
+                <dt>Build</dt>
+                <dd><code>a1b2c3d4e5f6</code></dd>
+              </div>
+              <div>
+                <dt>CI job</dt>
+                <dd>—</dd>
+              </div>
+              <div>
+                <dt>Started</dt>
+                <dd>Nov 19, 2026, 7:40 AM</dd>
+              </div>
+              <div>
+                <dt>Ended</dt>
+                <dd>Nov 19, 2026, 7:46 AM</dd>
+              </div>
+              <div>
+                <dt>Language read</dt>
+                <dd>en</dd>
+              </div>
+              <div>
+                <dt>Version</dt>
+                <dd><code>tcv:3f9a1c2b7e06</code></dd>
+              </div>
+            </dl>
+            <ul class="list small">
+              <li><a class="key" href="#/fixtures/FX-2">FX-2</a><code>fxv:91be03d2a402</code></li>
+            </ul>
+            <p class="">Recorded with iw record from my phone; please check the screenshot.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>

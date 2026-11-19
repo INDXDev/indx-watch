@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manual runner — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/tc/TC-3/run); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav">
+        <a href="index.html">← All screens</a> · <a href="test-case.html">Test case</a> ·
+        <a href="run.html">Run viewer and review →</a>
+      </p>
+      <h1>Manual runner <code>#/tc/TC-3/run</code></h1>
+      <p>
+        Walk a tester through the steps: pass / fail / blocked / skip per step, notes, screenshots, then one verdict.
+      </p>
+      <ul>
+        <li>
+          “Before you start” gathers the environment URL and guide, preconditions and test data, so nobody has to ask.
+        </li>
+        <li>
+          Screenshots: file picker or paste from the clipboard into the active step → <code>POST /api/blobs</code> (raw
+          body, <code>X-Filename</code>).
+        </li>
+        <li>
+          The verdict is suggested from the steps and can be changed; fail/blocked/skipped require a reason. Save →
+          <code>POST /api/runs</code> with <code>locale</code> = the language shown.
+        </li>
+        <li>The actor comes from the server identity, never from the form. Nothing is written until “Save result”.</li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/">Readiness</a><a href="#/specs" aria-current="page">Specs</a><a href="#/fixtures">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Manual run · <a href="#/tc/TC-3">TC-3</a></p>
+          <h1><span>Valid coupon reduces the total</span></h1>
+          <p class="chips">
+            <span class="chip">v1.2.0</span><span class="chip">Staging</span><span class="chip">Reading in English</span
+            ><code>tcv:3f9a1c2b7e03</code>
+          </p>
+        </div>
+      </div>
+      <section class="card">
+        <header class="card-head"><h2>Before you start</h2></header>
+        <div class="before">
+          <div>
+            <h3>Where</h3>
+            <p><a href="http://localhost:4173" target="_blank" rel="noreferrer">http://localhost:4173 ↗</a></p>
+            <p class="">
+              Open the base URL in any browser. No VPN is needed.<br />Sign in with the account in FX-3 when a step asks
+              you to.
+            </p>
+          </div>
+          <div>
+            <h3>Preconditions</h3>
+            <p>
+              <span>The cart contains one </span><span class="literal">"Canvas Tote"</span><span> (price 40.00).</span>
+            </p>
+          </div>
+          <div>
+            <h3>Test data</h3>
+            <ul class="list small">
+              <li>
+                <span class="key">FX-1</span> Coupon codes<span> code: <code>SUMMER10</code></span
+                ><span> discount: <code>0.10</code></span
+                ><span> expires: <code>2099-12-31</code></span
+                ><span> expected_message: <code></code></span>
+              </li>
+              <li><span class="key">FX-2</span> Catalog with three products</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <ol class="run-steps">
+        <li class="card run-step active done s-pass">
+          <div class="step-n" aria-hidden="true"><span class="icon" aria-hidden="true">✓</span></div>
+          <div class="grow stack-sm">
+            <h3 class="sr">Step 1</h3>
+            <p class="instruction">
+              <span>Open the cart and enter </span><code class="placeholder" title="FX-1.code">SUMMER10</code
+              ><span> in the coupon field, then press </span><span class="literal">"Apply"</span><span>.</span>
+            </p>
+            <p class="expected">
+              <span class="label">Expected</span> <span>The discount line shows </span
+              ><span class="literal">"-4.00"</span><span> and the total is </span><span class="literal">"36.00"</span
+              ><span>.</span>
+            </p>
+            <fieldset class="seg seg-status">
+              <legend class="sr">Result of step 1</legend>
+              <label class="s-pass"
+                ><input class="sr" type="radio" name="r" checked="" /><span class="icon" aria-hidden="true">✓</span
+                >Pass</label
+              ><label class="s-fail"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✕</span>Fail</label
+              ><label class="s-blocked"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">‖</span>Blocked</label
+              ><label class="s-skipped"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">»</span>Skipped</label
+              >
+            </fieldset>
+            <label class="field"
+              ><span class="sr">Note for step 1</span
+              ><textarea rows="1" placeholder="Note (optional)">Discount line showed -4.00, total 36.00.</textarea>
+            </label>
+            <div class="shots">
+              <label class="drop"
+                ><input accept="image/*" multiple="" class="sr" type="file" /><span>＋ Add screenshot</span
+                ><span class="muted small">or paste (Ctrl+V / ⌘V) here</span></label
+              >
+            </div>
+          </div>
+        </li>
+        <li class="card run-step">
+          <div class="step-n" aria-hidden="true">2</div>
+          <div class="grow stack-sm">
+            <h3 class="sr">Step 2</h3>
+            <p class="instruction"><span>Press </span><span class="literal">"Place order"</span><span>.</span></p>
+            <p class="expected">
+              <span class="label">Expected</span> <span>The confirmation page shows an order number.</span>
+            </p>
+            <fieldset class="seg seg-status">
+              <legend class="sr">Result of step 2</legend>
+              <label class="s-pass"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✓</span>Pass</label
+              ><label class="s-fail"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✕</span>Fail</label
+              ><label class="s-blocked"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">‖</span>Blocked</label
+              ><label class="s-skipped"
+                ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">»</span>Skipped</label
+              >
+            </fieldset>
+            <label class="field"
+              ><span class="sr">Note for step 2</span><textarea rows="1" placeholder="Note (optional)"></textarea>
+            </label>
+            <div class="shots">
+              <label class="drop"
+                ><input accept="image/*" multiple="" class="sr" type="file" /><span>＋ Add screenshot</span
+                ><span class="muted small">click this step, then paste</span></label
+              >
+            </div>
+          </div>
+        </li>
+      </ol>
+      <section class="card" id="finish" aria-labelledby="finish-h">
+        <header class="card-head"><h2 id="finish-h">Finish</h2></header>
+        <p class="muted">1 of 2 steps recorded</p>
+        <fieldset class="seg seg-status seg-lg">
+          <legend class="sr">Your verdict</legend>
+          <label class="s-pass"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✓</span>Pass</label
+          ><label class="s-fail"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">✕</span>Fail</label
+          ><label class="s-blocked"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">‖</span>Blocked</label
+          ><label class="s-skipped"
+            ><input class="sr" type="radio" name="r" /><span class="icon" aria-hidden="true">»</span>Skipped</label
+          >
+        </fieldset>
+        <label class="field"><span>Note (optional)</span><textarea rows="3" aria-required="false"></textarea></label>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" disabled="">Save result</button
+          ><a class="btn btn-ghost" href="#/tc/TC-3">Cancel</a>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>

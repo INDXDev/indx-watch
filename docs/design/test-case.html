@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test case — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/tc/TC-4); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav">
+        <a href="index.html">← All screens</a> · <a href="spec-tree.html">Spec tree</a> ·
+        <a href="manual-runner.html">Manual runner →</a>
+      </p>
+      <h1>Test case <code>#/tc/TC-4</code></h1>
+      <p>
+        Everything about one test case: steps, test data, the criteria it covers, its result in this release and its run
+        history.
+      </p>
+      <ul>
+        <li>
+          Data: GET <code>/api/test-cases/TC-4?release=&env=</code> (<code>TestCaseDetail</code>) plus the spec tree for
+          AC text.
+        </li>
+        <li>
+          Fixture placeholders (<code class="placeholder">OLD5</code>) are filled from the selected dataset row; hover
+          shows <code>FX-1.code</code>.
+        </li>
+        <li>
+          Translations are used when present and not stale; an outdated one shows the source text with a “translation
+          outdated” badge.
+        </li>
+        <li>The primary action is always “Run manually”.</li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/">Readiness</a><a href="#/specs" aria-current="page">Specs</a><a href="#/fixtures">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow"><a href="#/specs">Specs</a> › UC-2</p>
+          <h1><span class="key">TC-4</span> <span>Expired coupon is rejected</span></h1>
+          <p class="chips">
+            <span class="chip">ready</span><span class="prio prio-P0">P0</span><span class="chip">playwright</span
+            ><span class="chip">#coupon</span
+            ><code title="Test case version: changes when steps, data or covered criteria change"
+              >tcv:3f9a1c2b7e04</code
+            >
+          </p>
+        </div>
+        <a class="btn btn-primary" href="#/tc/TC-4/run">▶ Run manually</a>
+      </div>
+      <div class="split">
+        <div class="stack">
+          <section class="card">
+            <header class="card-head"><h2>Preconditions</h2></header>
+            <p>
+              <span>The cart contains one </span><span class="literal">"Canvas Tote"</span><span> (price 40.00).</span>
+            </p>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Steps (1)</h2></header>
+            <ol class="steps">
+              <li class="step">
+                <span class="step-n" aria-hidden="true">1</span>
+                <div class="grow">
+                  <p>
+                    <span>Open the cart and enter </span><code class="placeholder" title="FX-1.code">OLD5</code
+                    ><span> in the coupon field, then press </span><span class="literal">"Apply"</span><span>.</span>
+                  </p>
+                  <p class="expected">
+                    <span class="label">Expected</span> <span>The message </span
+                    ><span class="literal">"This coupon has expired"</span><span> appears and the total stays </span
+                    ><span class="literal">"40.00"</span><span>.</span>
+                  </p>
+                  <p class="muted small">Evidence: screenshot</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Run history (1)</h2></header>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Verdict</th>
+                    <th>Who</th>
+                    <th>Where</th>
+                    <th>Version</th>
+                    <th class="num">Evidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><a href="#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W004">Nov 18, 2026, 10:10 PM</a></td>
+                    <td>
+                      <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+                    </td>
+                    <td>GitHub Actions <span class="muted small">· playwright</span></td>
+                    <td class="small">staging <code>a1b2c3d</code></td>
+                    <td><code class="small">tcv:3f9a1c2b7e04</code></td>
+                    <td class="num">1</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <div class="stack">
+          <section class="card">
+            <header class="card-head"><h2>Result in this release</h2></header>
+            <p class="result-line">
+              <span class="badge s-fail badge-lg"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+            </p>
+            <a href="#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W004">Latest run →</a>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Covers</h2></header>
+            <ul class="list">
+              <li>
+                <span class="key">AC-2.2</span
+                ><span class="grow"
+                  ><span>An expired coupon shows </span><span class="literal">"This coupon has expired"</span
+                  ><span> and the total does not change.</span></span
+                ><span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+              </li>
+            </ul>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Test data</h2></header>
+            <div class="fx-mini">
+              <p><a class="key" href="#/fixtures/FX-1">FX-1</a> Coupon codes <span class="chip">dataset</span></p>
+              <p class="muted small mono">fxv:91be03d2a401</p>
+              <p class="small">Rows: <code>OLD5</code></p>
+            </div>
+            <div class="fx-mini">
+              <p>
+                <a class="key" href="#/fixtures/FX-2">FX-2</a> Catalog with three products
+                <span class="chip">seed</span>
+              </p>
+              <p class="muted small mono">fxv:91be03d2a402</p>
+            </div>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Details</h2></header>
+            <dl class="meta">
+              <div>
+                <dt>Judged by</dt>
+                <dd>assert</dd>
+              </div>
+              <div>
+                <dt>Automated in</dt>
+                <dd><code>examples/shop/tests/coupon.spec.ts</code></dd>
+              </div>
+              <div>
+                <dt>File</dt>
+                <dd><code>specs/…/UC-2/TC-4.toml</code></dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,1633 @@
+{
+  "project": {
+    "project": {
+      "key": "SHOP",
+      "name": "Shop",
+      "source_locale": "en",
+      "locales": ["en", "ja"],
+      "default_environment": "staging",
+      "current_release": "v1.2.0"
+    },
+    "releases": [
+      {
+        "version": "v1.2.0",
+        "title": "Coupons and sign-in",
+        "state": "testing"
+      }
+    ],
+    "environments": [
+      {
+        "name": "staging",
+        "title": "Staging",
+        "base_url": "http://localhost:4173",
+        "guide": "Open the base URL in any browser. No VPN is needed.\nSign in with the account in FX-3 when a step asks you to.",
+        "access": "public"
+      }
+    ],
+    "identity": {
+      "kind": "human",
+      "id": "alex@shop.test",
+      "name": "Alex",
+      "via": "git"
+    },
+    "mode": "local",
+    "sync": {
+      "configured": true,
+      "store": "file://../store",
+      "lastSyncAt": "2026-11-19T08:55:00Z"
+    },
+    "problems": []
+  },
+  "testCases": [
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y31",
+      "key": "TC-1",
+      "title": "Product list shows names and prices",
+      "status": "ready",
+      "tags": ["catalog", "smoke"],
+      "covers": ["AC-1.1"],
+      "mode": "playwright",
+      "fixtures": [
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Open the home page.",
+          "expected": "Three products are listed, each with a name and a price, including \"Canvas Tote\" at \"40.00\".",
+          "evidence": ["screenshot"]
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/catalog.spec.ts"]
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y32",
+      "key": "TC-2",
+      "title": "Search filters products by name",
+      "status": "ready",
+      "tags": ["catalog"],
+      "covers": ["AC-1.2"],
+      "mode": "playwright",
+      "fixtures": [
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Type \"mug\" in the search box.",
+          "expected": "Only \"Enamel Mug\" is listed.",
+          "evidence": ["screenshot"]
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/catalog.spec.ts"]
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y33",
+      "key": "TC-3",
+      "title": "Valid coupon reduces the total",
+      "status": "ready",
+      "tags": ["coupon", "smoke"],
+      "covers": ["AC-2.1"],
+      "mode": "playwright",
+      "preconditions": "The cart contains one \"Canvas Tote\" (price 40.00).",
+      "fixtures": [
+        {
+          "ref": "FX-1",
+          "rows": ["SUMMER10"]
+        },
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\".",
+          "expected": "The discount line shows \"-4.00\" and the total is \"36.00\".",
+          "evidence": ["screenshot"]
+        },
+        {
+          "instruction": "Press \"Place order\".",
+          "expected": "The confirmation page shows an order number."
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/coupon.spec.ts"]
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y34",
+      "key": "TC-4",
+      "title": "Expired coupon is rejected",
+      "status": "ready",
+      "tags": ["coupon"],
+      "covers": ["AC-2.2"],
+      "mode": "playwright",
+      "preconditions": "The cart contains one \"Canvas Tote\" (price 40.00).",
+      "fixtures": [
+        {
+          "ref": "FX-1",
+          "rows": ["OLD5"]
+        },
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\".",
+          "expected": "The message \"This coupon has expired\" appears and the total stays \"40.00\".",
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。",
+              "expected": "「This coupon has expired」と表示され、合計は「40.00」のまま。",
+              "status": "reviewed",
+              "source_hash": "000000000000"
+            }
+          }
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/coupon.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "期限切れのクーポンは使えない",
+          "status": "reviewed",
+          "source_hash": "000000000000"
+        }
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y35",
+      "key": "TC-5",
+      "title": "Placing an order shows a confirmation and empties the cart",
+      "status": "ready",
+      "tags": ["smoke"],
+      "covers": ["AC-3.1", "AC-3.2"],
+      "mode": "playwright",
+      "fixtures": [
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Add \"Enamel Mug\" to the cart, open the cart and press \"Place order\".",
+          "expected": "The page shows \"Thank you for your order\" and an order number like \"SHOP-1001\".",
+          "evidence": ["screenshot"]
+        },
+        {
+          "instruction": "Open the cart again.",
+          "expected": "The cart shows \"Your cart is empty\"."
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/checkout.spec.ts"]
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y36",
+      "key": "TC-6",
+      "title": "Confirmation page is readable on a phone",
+      "status": "ready",
+      "tags": ["mobile", "visual"],
+      "covers": ["AC-3.1"],
+      "mode": "manual",
+      "fixtures": [
+        {
+          "ref": "FX-2",
+          "apply": "before_run"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "On a phone (or a 390 px wide browser window), add any product to the cart and place the order.",
+          "expected": "The confirmation page fits the screen without horizontal scrolling and the order number is fully visible.",
+          "evidence": ["screenshot"]
+        }
+      ],
+      "judges": [
+        {
+          "kind": "human"
+        }
+      ]
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y37",
+      "key": "TC-7",
+      "title": "Sign in with valid credentials",
+      "status": "ready",
+      "tags": ["auth", "smoke"],
+      "covers": ["AC-4.1"],
+      "mode": "playwright",
+      "fixtures": [
+        {
+          "ref": "FX-3"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Open \"Sign in\", enter {{FX-3.username}} and the account password, and press \"Sign in\".",
+          "expected": "The header shows \"Welcome back, Casey\".",
+          "evidence": ["screenshot"]
+        }
+      ],
+      "judges": [
+        {
+          "kind": "assert"
+        }
+      ],
+      "automation": {
+        "files": ["examples/shop/tests/sign-in.spec.ts"]
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y38",
+      "key": "TC-8",
+      "title": "Wrong password is rejected",
+      "status": "ready",
+      "tags": ["auth"],
+      "covers": ["AC-4.2"],
+      "mode": "manual",
+      "fixtures": [
+        {
+          "ref": "FX-3"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Open \"Sign in\", enter {{FX-3.username}} and the password \"wrong-password\", and press \"Sign in\".",
+          "expected": "The message \"Email or password is incorrect\" appears.",
+          "evidence": ["screenshot"]
+        },
+        {
+          "instruction": "Reload the page.",
+          "expected": "The header still shows \"Sign in\"."
+        }
+      ],
+      "judges": [
+        {
+          "kind": "human"
+        }
+      ],
+      "i18n": {
+        "ja": {
+          "title": "誤ったパスワードではサインインできない",
+          "status": "machine",
+          "source_hash": "000000000000"
+        }
+      }
+    },
+    {
+      "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y39",
+      "key": "TC-9",
+      "title": "Uploaded review photo appears as a thumbnail",
+      "status": "draft",
+      "origin": "ai",
+      "tags": ["reviews"],
+      "covers": ["AC-5.1"],
+      "mode": "manual",
+      "fixtures": [
+        {
+          "ref": "FX-3"
+        },
+        {
+          "ref": "FX-4"
+        }
+      ],
+      "steps": [
+        {
+          "instruction": "Sign in with {{FX-3.username}} and open \"Canvas Tote\".",
+          "expected": "The product page shows a \"Write a review\" form."
+        },
+        {
+          "instruction": "Attach the file from FX-4 and press \"Post review\".",
+          "expected": "The review appears with a thumbnail of the photo.",
+          "evidence": ["screenshot"]
+        }
+      ],
+      "judges": [
+        {
+          "kind": "human"
+        }
+      ],
+      "ai": {
+        "model": "claude-opus-5-5",
+        "skill": "write-test-cases",
+        "created_at": "2026-11-19T03:00:00Z"
+      }
+    }
+  ],
+  "specTree": {
+    "scope": {
+      "release": "v1.2.0",
+      "environment": "staging"
+    },
+    "features": [
+      {
+        "key": "FEAT-1",
+        "title": "Catalog",
+        "description": "Browsing and searching products.",
+        "i18n": {
+          "ja": {
+            "title": "カタログ",
+            "description": "商品の一覧と検索。",
+            "status": "reviewed",
+            "source_hash": "000000000000"
+          }
+        },
+        "useCases": [
+          {
+            "key": "UC-1",
+            "title": "Shopper finds a product",
+            "priority": "P1",
+            "status": "pass",
+            "done": true,
+            "criteria": [
+              {
+                "key": "AC-1.1",
+                "text": "The home page lists every product with its name and price.",
+                "status": "pass",
+                "testCases": [
+                  {
+                    "key": "TC-1",
+                    "title": "Product list shows names and prices",
+                    "mode": "playwright",
+                    "status": "pass"
+                  }
+                ]
+              },
+              {
+                "key": "AC-1.2",
+                "text": "Searching by part of a product name shows only matching products.",
+                "status": "pass",
+                "testCases": [
+                  {
+                    "key": "TC-2",
+                    "title": "Search filters products by name",
+                    "mode": "playwright",
+                    "status": "pass"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "FEAT-2",
+        "title": "Checkout",
+        "description": "Cart, coupons and placing an order.",
+        "i18n": {
+          "ja": {
+            "title": "購入手続き",
+            "description": "カート・クーポン・注文確定。",
+            "status": "reviewed",
+            "source_hash": "000000000000"
+          }
+        },
+        "useCases": [
+          {
+            "key": "UC-2",
+            "title": "Guest applies a coupon at checkout",
+            "priority": "P0",
+            "status": "fail",
+            "done": false,
+            "i18n": {
+              "ja": {
+                "title": "ゲストが購入時にクーポンを使う",
+                "actor": "ゲストの購入者",
+                "goal": "カートの商品を割引価格で購入したい。",
+                "status": "machine",
+                "source_hash": "000000000000"
+              }
+            },
+            "criteria": [
+              {
+                "key": "AC-2.1",
+                "text": "A valid coupon reduces the order total by its discount.",
+                "status": "pass",
+                "testCases": [
+                  {
+                    "key": "TC-3",
+                    "title": "Valid coupon reduces the total",
+                    "mode": "playwright",
+                    "status": "pass"
+                  }
+                ]
+              },
+              {
+                "key": "AC-2.2",
+                "text": "An expired coupon shows \"This coupon has expired\" and the total does not change.",
+                "status": "fail",
+                "i18n": {
+                  "ja": {
+                    "text": "期限切れのクーポンは「This coupon has expired」と表示され、合計は変わらない。",
+                    "status": "reviewed",
+                    "source_hash": "000000000000"
+                  }
+                },
+                "testCases": [
+                  {
+                    "key": "TC-4",
+                    "title": "Expired coupon is rejected",
+                    "mode": "playwright",
+                    "status": "fail"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "UC-3",
+            "title": "Guest places an order",
+            "priority": "P0",
+            "status": "needs_review",
+            "done": false,
+            "criteria": [
+              {
+                "key": "AC-3.1",
+                "text": "Placing an order shows a confirmation page with an order number.",
+                "status": "needs_review",
+                "testCases": [
+                  {
+                    "key": "TC-5",
+                    "title": "Placing an order shows a confirmation and empties the cart",
+                    "mode": "playwright",
+                    "status": "pass"
+                  },
+                  {
+                    "key": "TC-6",
+                    "title": "Confirmation page is readable on a phone",
+                    "mode": "manual",
+                    "status": "needs_review"
+                  }
+                ]
+              },
+              {
+                "key": "AC-3.2",
+                "text": "After the order is placed, the cart is empty.",
+                "status": "pass",
+                "testCases": [
+                  {
+                    "key": "TC-5",
+                    "title": "Placing an order shows a confirmation and empties the cart",
+                    "mode": "playwright",
+                    "status": "pass"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "FEAT-3",
+        "title": "Account",
+        "description": "Signing in and customer content.",
+        "i18n": {
+          "ja": {
+            "title": "アカウント",
+            "description": "サインインと購入者の投稿。",
+            "status": "reviewed",
+            "source_hash": "000000000000"
+          }
+        },
+        "useCases": [
+          {
+            "key": "UC-4",
+            "title": "Customer signs in",
+            "priority": "P0",
+            "status": "stale",
+            "done": false,
+            "criteria": [
+              {
+                "key": "AC-4.1",
+                "text": "Valid credentials show \"Welcome back, Casey\".",
+                "status": "pass",
+                "testCases": [
+                  {
+                    "key": "TC-7",
+                    "title": "Sign in with valid credentials",
+                    "mode": "playwright",
+                    "status": "pass"
+                  }
+                ]
+              },
+              {
+                "key": "AC-4.2",
+                "text": "A wrong password shows \"Email or password is incorrect\" and the customer stays signed out.",
+                "status": "stale",
+                "testCases": [
+                  {
+                    "key": "TC-8",
+                    "title": "Wrong password is rejected",
+                    "mode": "manual",
+                    "status": "stale"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "UC-5",
+            "title": "Customer adds a photo to a review",
+            "priority": "P2",
+            "status": "uncovered",
+            "done": false,
+            "criteria": [
+              {
+                "key": "AC-5.1",
+                "text": "An uploaded PNG appears as a thumbnail under the review.",
+                "status": "uncovered",
+                "testCases": [
+                  {
+                    "key": "TC-9",
+                    "title": "Uploaded review photo appears as a thumbnail",
+                    "mode": "manual",
+                    "status": "untested"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "status": {
+    "scope": {
+      "release": "v1.2.0",
+      "environment": "staging"
+    },
+    "gate": {
+      "passed": false,
+      "checks": [
+        {
+          "key": "p0_coverage",
+          "passed": true,
+          "actual": "6/6",
+          "expected": "≥ 1.00"
+        },
+        {
+          "key": "p0_all_pass",
+          "passed": false,
+          "actual": "3/6",
+          "expected": "6/6",
+          "items": ["TC-4", "TC-6", "TC-8"]
+        },
+        {
+          "key": "p1_pass_rate",
+          "passed": true,
+          "actual": "2/2 (1.00)",
+          "expected": "≥ 0.95"
+        },
+        {
+          "key": "max_needs_review",
+          "passed": false,
+          "actual": "1",
+          "expected": "≤ 0",
+          "items": ["TC-6"]
+        },
+        {
+          "key": "max_untested",
+          "passed": true,
+          "actual": "0",
+          "expected": "≤ 0"
+        },
+        {
+          "key": "allow_stale",
+          "passed": false,
+          "actual": "1",
+          "expected": "≤ 0",
+          "items": ["TC-8"]
+        },
+        {
+          "key": "require_evidence",
+          "passed": true,
+          "actual": "3/3",
+          "expected": "3/3"
+        }
+      ]
+    },
+    "coverage": {
+      "covered": 8,
+      "total": 9,
+      "ratio": 0.8888888888888888
+    },
+    "useCases": [
+      {
+        "key": "UC-1",
+        "title": "Shopper finds a product",
+        "priority": "P1",
+        "status": "pass",
+        "done": true,
+        "criteria": [
+          {
+            "key": "AC-1.1",
+            "status": "pass",
+            "testCases": ["TC-1"]
+          },
+          {
+            "key": "AC-1.2",
+            "status": "pass",
+            "testCases": ["TC-2"]
+          }
+        ]
+      },
+      {
+        "key": "UC-2",
+        "title": "Guest applies a coupon at checkout",
+        "priority": "P0",
+        "status": "fail",
+        "done": false,
+        "criteria": [
+          {
+            "key": "AC-2.1",
+            "status": "pass",
+            "testCases": ["TC-3"]
+          },
+          {
+            "key": "AC-2.2",
+            "status": "fail",
+            "testCases": ["TC-4"]
+          }
+        ]
+      },
+      {
+        "key": "UC-3",
+        "title": "Guest places an order",
+        "priority": "P0",
+        "status": "needs_review",
+        "done": false,
+        "criteria": [
+          {
+            "key": "AC-3.1",
+            "status": "needs_review",
+            "testCases": ["TC-5", "TC-6"]
+          },
+          {
+            "key": "AC-3.2",
+            "status": "pass",
+            "testCases": ["TC-5"]
+          }
+        ]
+      },
+      {
+        "key": "UC-4",
+        "title": "Customer signs in",
+        "priority": "P0",
+        "status": "stale",
+        "done": false,
+        "criteria": [
+          {
+            "key": "AC-4.1",
+            "status": "pass",
+            "testCases": ["TC-7"]
+          },
+          {
+            "key": "AC-4.2",
+            "status": "stale",
+            "testCases": ["TC-8"]
+          }
+        ]
+      },
+      {
+        "key": "UC-5",
+        "title": "Customer adds a photo to a review",
+        "priority": "P2",
+        "status": "uncovered",
+        "done": false,
+        "criteria": [
+          {
+            "key": "AC-5.1",
+            "status": "uncovered",
+            "testCases": ["TC-9"]
+          }
+        ]
+      }
+    ],
+    "testCases": [
+      {
+        "key": "TC-1",
+        "status": "pass",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W001",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-2",
+        "status": "pass",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W002",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-3",
+        "status": "pass",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W003",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-4",
+        "status": "fail",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W004",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-5",
+        "status": "pass",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W005",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-6",
+        "status": "needs_review",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W006",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-7",
+        "status": "pass",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W007",
+        "stale": false,
+        "waived": false,
+        "hasEvidence": true
+      },
+      {
+        "key": "TC-8",
+        "status": "stale",
+        "latestRun": "run_01JFB2Q8M5X2V7K9D4R6T1W008",
+        "stale": true,
+        "waived": false,
+        "hasEvidence": true
+      }
+    ],
+    "counts": {
+      "pass": 5,
+      "fail": 1,
+      "needs_review": 1,
+      "untested": 0,
+      "stale": 1,
+      "waived": 0,
+      "uncovered": 1,
+      "blocked": 0,
+      "skipped": 0
+    }
+  },
+  "fixtures": [
+    {
+      "key": "FX-1",
+      "file": "fixtures/FX-1-coupons/fixture.toml",
+      "version": "fxv:91be03d2a401",
+      "usedBy": ["TC-3", "TC-4"],
+      "data": {
+        "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y41",
+        "key": "FX-1",
+        "title": "Coupon codes",
+        "status": "ready",
+        "kind": "dataset",
+        "files": ["coupons.csv"],
+        "row_key": "code"
+      },
+      "files": [
+        {
+          "name": "coupons.csv",
+          "sha256": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+          "size": 104,
+          "pointer": false,
+          "media_type": "text/csv"
+        }
+      ],
+      "preview": {
+        "rows": [
+          {
+            "code": "SUMMER10",
+            "discount": "0.10",
+            "expires": "2099-12-31",
+            "expected_message": ""
+          },
+          {
+            "code": "OLD5",
+            "discount": "0.05",
+            "expires": "2020-01-01",
+            "expected_message": "This coupon has expired"
+          }
+        ]
+      }
+    },
+    {
+      "key": "FX-2",
+      "file": "fixtures/FX-2-catalog/fixture.toml",
+      "version": "fxv:91be03d2a402",
+      "usedBy": ["TC-1", "TC-2", "TC-3", "TC-4", "TC-5", "TC-6"],
+      "data": {
+        "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+        "key": "FX-2",
+        "title": "Catalog with three products",
+        "status": "ready",
+        "kind": "seed",
+        "files": ["catalog.json"],
+        "hook": "seed"
+      },
+      "files": [
+        {
+          "name": "catalog.json",
+          "sha256": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+          "size": 412,
+          "pointer": false,
+          "media_type": "application/json"
+        }
+      ],
+      "preview": {
+        "text": "{\n  \"products\": [\n    { \"id\": \"tote\", \"name\": \"Canvas Tote\", \"price\": 40 },\n    { \"id\": \"mug\", \"name\": \"Enamel Mug\", \"price\": 18 },\n    { \"id\": \"cap\", \"name\": \"Wool Cap\", \"price\": 25 }\n  ],\n  …\n}"
+      }
+    },
+    {
+      "key": "FX-3",
+      "file": "fixtures/FX-3-staging-customer/fixture.toml",
+      "version": "fxv:91be03d2a403",
+      "usedBy": ["TC-7", "TC-8", "TC-9"],
+      "data": {
+        "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y43",
+        "key": "FX-3",
+        "title": "Staging customer account",
+        "status": "ready",
+        "kind": "account",
+        "account": {
+          "username": "casey@shop.test",
+          "secret_ref": "env:SHOP_CUSTOMER_PASSWORD"
+        }
+      },
+      "files": []
+    },
+    {
+      "key": "FX-4",
+      "file": "fixtures/FX-4-review-photo/fixture.toml",
+      "version": "fxv:91be03d2a404",
+      "usedBy": ["TC-9"],
+      "data": {
+        "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y44",
+        "key": "FX-4",
+        "title": "Review photo",
+        "status": "ready",
+        "kind": "file",
+        "files": ["review-photo.png"]
+      },
+      "files": [
+        {
+          "name": "review-photo.png",
+          "sha256": "8760bc67a01b22044c4098fddeb3a749cd395c4757fab3740aa626cd0da51e1b",
+          "size": 8295,
+          "pointer": true,
+          "media_type": "image/png"
+        }
+      ]
+    }
+  ],
+  "fixtureValues": {
+    "FX-1": [
+      {
+        "code": "SUMMER10",
+        "discount": "0.10",
+        "expires": "2099-12-31",
+        "expected_message": ""
+      },
+      {
+        "code": "OLD5",
+        "discount": "0.05",
+        "expires": "2020-01-01",
+        "expected_message": "This coupon has expired"
+      }
+    ],
+    "FX-3": [
+      {
+        "username": "casey@shop.test"
+      }
+    ]
+  },
+  "plans": [
+    {
+      "key": "PLAN-1",
+      "title": "v1.2.0 regression",
+      "release": "v1.2.0",
+      "environment": "staging",
+      "due": "2026-11-28",
+      "items": [
+        {
+          "test_case": "TC-6",
+          "assignee": "alex@shop.test",
+          "due": "2026-11-26",
+          "status": "review"
+        },
+        {
+          "test_case": "TC-8",
+          "assignee": "sam@shop.test",
+          "status": "review"
+        },
+        {
+          "test_case": "TC-9",
+          "assignee": "agent:claude",
+          "status": "todo"
+        },
+        {
+          "test_case": "TC-3",
+          "assignee": "ci",
+          "status": "done"
+        },
+        {
+          "test_case": "TC-4",
+          "assignee": "ci",
+          "status": "done"
+        },
+        {
+          "test_case": "TC-5",
+          "assignee": "ci",
+          "status": "done"
+        },
+        {
+          "test_case": "TC-7",
+          "assignee": "ci",
+          "status": "done"
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W001",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:04Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y31",
+        "key": "TC-1",
+        "version": "tcv:3f9a1c2b7e01"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W001",
+          "kind": "assert",
+          "verdict": "pass",
+          "test": "TC-1"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:04Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W002",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:09Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y32",
+        "key": "TC-2",
+        "version": "tcv:3f9a1c2b7e02"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W002",
+          "kind": "assert",
+          "verdict": "pass",
+          "test": "TC-2"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:09Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W003",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:15Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y33",
+        "key": "TC-3",
+        "version": "tcv:3f9a1c2b7e03"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y41",
+          "key": "FX-1",
+          "version": "fxv:91be03d2a401",
+          "rows": ["SUMMER10"]
+        },
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W003",
+          "kind": "assert",
+          "verdict": "pass",
+          "test": "TC-3"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:15Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W004",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:21Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y34",
+        "key": "TC-4",
+        "version": "tcv:3f9a1c2b7e04"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y41",
+          "key": "FX-1",
+          "version": "fxv:91be03d2a401",
+          "rows": ["OLD5"]
+        },
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "fail",
+          "note": "Saw \"Invalid coupon\" instead of \"This coupon has expired\".",
+          "evidence": ["e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W004",
+          "kind": "assert",
+          "verdict": "fail",
+          "reason": "expect(locator).toHaveText(\"This coupon has expired\")\nReceived: \"Invalid coupon\"",
+          "test": "coupon.spec.ts › TC-4 expired coupon"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:21Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W005",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:30Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y35",
+        "key": "TC-5",
+        "version": "tcv:3f9a1c2b7e05"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W005",
+          "kind": "assert",
+          "verdict": "pass",
+          "test": "TC-5"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:30Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W006",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-19T07:46:12Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y36",
+        "key": "TC-6",
+        "version": "tcv:3f9a1c2b7e06"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y42",
+          "key": "FX-2",
+          "version": "fxv:91be03d2a402"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [],
+      "actor": {
+        "kind": "human",
+        "id": "alex@shop.test",
+        "name": "Alex",
+        "via": "git"
+      },
+      "source": "cli",
+      "started_at": "2026-11-19T07:40:00Z",
+      "ended_at": "2026-11-19T07:46:12Z",
+      "note": "Recorded with iw record from my phone; please check the screenshot.",
+      "locale": "en"
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W007",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-18T22:10:41Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y37",
+        "key": "TC-7",
+        "version": "tcv:3f9a1c2b7e07"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y43",
+          "key": "FX-3",
+          "version": "fxv:91be03d2a403"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7"]
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W007",
+          "kind": "assert",
+          "verdict": "pass",
+          "test": "TC-7"
+        }
+      ],
+      "actor": {
+        "kind": "ci",
+        "id": "github-actions",
+        "name": "GitHub Actions",
+        "via": "github"
+      },
+      "source": "playwright",
+      "ended_at": "2026-11-18T22:10:41Z",
+      "ci": {
+        "provider": "github",
+        "url": "https://github.com/INDXDev/indx-watch/actions/runs/1",
+        "job": "e2e"
+      },
+      "automation": {
+        "framework": "playwright",
+        "project": "chromium"
+      }
+    },
+    {
+      "kind": "run",
+      "id": "run_01JFB2Q8M5X2V7K9D4R6T1W008",
+      "v": 1,
+      "project": "prj_01JF3Q8M5X2V7K9D4R6T1W0Y00",
+      "at": "2026-11-12T09:05:30Z",
+      "test_case": {
+        "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y38",
+        "key": "TC-8",
+        "version": "tcv:0b7c55e1d902"
+      },
+      "fixtures": [
+        {
+          "id": "fx_01JF3Q8M5X2V7K9D4R6T1W0Y43",
+          "key": "FX-3",
+          "version": "fxv:91be03d2a403"
+        }
+      ],
+      "release": "v1.2.0",
+      "environment": "staging",
+      "build": {
+        "commit": "a1b2c3d4e5f6",
+        "ref": "release/1.2"
+      },
+      "reported": null,
+      "steps": [
+        {
+          "index": 1,
+          "status": "pass",
+          "evidence": ["e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8"]
+        },
+        {
+          "index": 2,
+          "status": "pass"
+        }
+      ],
+      "evidence": [
+        {
+          "sha256": "e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8",
+          "name": "step-1.png",
+          "media_type": "image/png",
+          "size": 48213,
+          "kind": "screenshot",
+          "step": 1
+        }
+      ],
+      "judgements": [
+        {
+          "id": "jdg_01JFB2Q8M5X2V7K9D4R6T1W008",
+          "kind": "human",
+          "verdict": "pass",
+          "by": {
+            "kind": "human",
+            "id": "sam@shop.test",
+            "name": "Sam",
+            "via": "git"
+          },
+          "at": "2026-11-12T09:05:30Z"
+        }
+      ],
+      "actor": {
+        "kind": "human",
+        "id": "sam@shop.test",
+        "name": "Sam",
+        "via": "git"
+      },
+      "source": "manual",
+      "started_at": "2026-11-12T09:02:00Z",
+      "ended_at": "2026-11-12T09:05:30Z",
+      "locale": "ja"
+    }
+  ],
+  "decisions": {
+    "run_01JFB2Q8M5X2V7K9D4R6T1W004": {
+      "verdict": "fail",
+      "rule": 3,
+      "reason": "assert judgement failed: coupon.spec.ts › TC-4 expired coupon"
+    },
+    "run_01JFB2Q8M5X2V7K9D4R6T1W006": {
+      "verdict": "needs_review",
+      "rule": 9,
+      "reason": "no judgements yet"
+    },
+    "run_01JFB2Q8M5X2V7K9D4R6T1W008": {
+      "verdict": "pass",
+      "rule": 1,
+      "reason": "human judgement by Sam"
+    }
+  },
+  "shots": {
+    "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1": [
+      "Shop — Home",
+      "Canvas Tote 40.00 · Enamel Mug 18.00 · Wool Cap 25.00"
+    ],
+    "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2": [
+      "Shop — Search \"mug\"",
+      "Enamel Mug 18.00"
+    ],
+    "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3": [
+      "Shop — Cart",
+      "SUMMER10 applied · -4.00 · Total 36.00"
+    ],
+    "e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4": [
+      "Shop — Cart",
+      "Invalid coupon · Total 40.00"
+    ],
+    "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5": [
+      "Shop — Order",
+      "Thank you for your order · SHOP-1001"
+    ],
+    "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6": [
+      "Shop — Order (390 px)",
+      "Thank you for your order · SHOP-10…"
+    ],
+    "e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7": [
+      "Shop — Header",
+      "Welcome back, Casey"
+    ],
+    "e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8": [
+      "Shop — Sign in",
+      "Email or password is incorrect"
+    ]
+  },
+  "useCaseOf": {
+    "1": "UC-1",
+    "2": "UC-1",
+    "3": "UC-2",
+    "4": "UC-2",
+    "5": "UC-3",
+    "6": "UC-3",
+    "7": "UC-4",
+    "8": "UC-4",
+    "9": "UC-5"
+  },
+  "priority": {
+    "UC-1": "P1",
+    "UC-2": "P0",
+    "UC-3": "P0",
+    "UC-4": "P0",
+    "UC-5": "P2"
+  },
+  "tcStatus": {
+    "TC-1": "pass",
+    "TC-2": "pass",
+    "TC-3": "pass",
+    "TC-4": "fail",
+    "TC-5": "pass",
+    "TC-6": "needs_review",
+    "TC-7": "pass",
+    "TC-8": "stale",
+    "TC-9": "untested"
+  }
+}
