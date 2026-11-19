@@ -9,11 +9,14 @@ Requirements: Node 22.13+, pnpm 10.
 ```bash
 git clone https://github.com/INDXDev/indx-watch && cd indx-watch
 pnpm install
-pnpm ci                       # lint, typecheck, tests, schemas, docs links, example check
+pnpm verify                   # what CI's check job runs: lint, typecheck, tests, schemas, docs links, purity,
+                              # line budget, build, example check, sample report, Worker dry-run build
 pnpm iw serve --dir examples/shop/.indx-watch   # UI with the sample project
 ```
 
-End-to-end tests of the sample app: `pnpm --filter shop exec playwright install chromium && pnpm --filter shop test`.
+End-to-end tests (after `pnpm build` and `pnpm exec playwright install chromium`): `pnpm --filter shop test` for the sample app, `pnpm e2e` for this repository's own test cases in `e2e/`.
+
+`pnpm ci` does not work: pnpm reserves `ci` as a built-in command, so the script is called `verify`.
 
 ## Repository map
 
@@ -36,6 +39,10 @@ Implement `ObjectStore` from `packages/store/src/ports.ts` in `packages/store/sr
 ### Add or change a skill
 
 Skills live in `skills/<name>/SKILL.md` (Agent Skills format, portable frontmatter only). Test them on `examples/shop` and update the table in [agents.md](docs/spec/agents.md#skills).
+
+### Use sample data
+
+[`examples/shop`](examples/shop) is the only sample project, and `examples/shop/store/` holds the only sample results (the ones [reports.md](docs/spec/reports.md#example) documents). Docs, skills and guides use only them. A unit test may build hand-made records over the shop bundle to test one scenario; keep them inside the test and do not call them sample results.
 
 ### Add a UI string
 

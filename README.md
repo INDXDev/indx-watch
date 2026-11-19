@@ -5,7 +5,7 @@
 [![CI](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> Status: **v0.1, pre-release.** The file format is versioned (`schema_version = 1`); expect additive changes.
+> Status: **v0.1, pre-release, not yet on npm** — build from source to try it ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
 
 ## Why
 
@@ -21,16 +21,33 @@ Read the [vision](docs/vision.md) for the full problem statement.
 
 Requires Node 22.13+.
 
+**Before the first npm release**, build the CLI from source (needs pnpm 10, e.g. `corepack enable`):
+
+```bash
+git clone https://github.com/INDXDev/indx-watch && cd indx-watch
+pnpm install && pnpm build
+npm install --global ./packages/cli   # puts `iw` on your PATH; or run `node packages/cli/dist/bin.js`
+```
+
+Then, in a folder outside the clone, type `iw` wherever the steps below say `npx indx-watch`. Once `indx-watch` is published on npm, `npx indx-watch` works without a clone.
+
 ```bash
 npx indx-watch init demo && cd demo
 npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
 npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
 npx indx-watch check
-npx indx-watch serve          # readiness dashboard + manual test runner at http://127.0.0.1:4321
+npx indx-watch record TC-1 --verdict pass --step 1=pass   # you ran the step and it passed
+npx indx-watch status
 npx indx-watch report --format html --out report.html
 ```
 
-Everything above works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+To run the test case in the browser instead of `record`, start the readiness dashboard and manual runner in a second terminal (it keeps running):
+
+```bash
+npx indx-watch serve --open   # http://127.0.0.1:4321
+```
+
+Once installed, everything works offline. After publishing, install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
 
 ## Features
 

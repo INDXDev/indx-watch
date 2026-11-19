@@ -12,7 +12,16 @@ test('init and create a use case and a test case', { tag: ['@TC-1'] }, async () 
   await test.step('2. iw new uc / tc', async () => {
     const cwd = join(dir, 'demo');
     const uc = iw(
-      ['new', 'uc', '--title', 'Sign up', '--ac', 'A confirmation email is sent', '--ready', '--json'],
+      [
+        'new',
+        'uc',
+        '--title',
+        'Guest applies a coupon',
+        '--ac',
+        'A valid coupon reduces the total',
+        '--ready',
+        '--json',
+      ],
       { cwd },
     );
     expect(uc.code, uc.stderr).toBe(0);
@@ -23,9 +32,9 @@ test('init and create a use case and a test case', { tag: ['@TC-1'] }, async () 
         '--uc',
         uc.json.data.key,
         '--title',
-        'Sign up sends an email',
+        'Valid coupon',
         '--step',
-        'Sign up => Email arrives',
+        'Apply SUMMER10 => Total drops by 10%',
         '--ready',
         '--json',
       ],

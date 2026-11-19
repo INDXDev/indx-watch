@@ -10,7 +10,7 @@
 | Output | Human-readable by default. `--json` prints exactly one JSON document to stdout (the **envelope** below) and nothing else; logs go to stderr. |
 | Color | Off when stdout is not a TTY or `NO_COLOR` is set. |
 | Identity | See [security.md](security.md#identity). Override with `IW_ACTOR`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`. |
-| Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of ≥ 8 characters after `run_`. |
+| Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of ≥ 8 characters after `run_`; runs recorded together share the ULID timestamp prefix, so scripts and agents should pass the full ID. |
 | Agents | When the actor is an agent (see [security.md](security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
 | Running tests | v0.1 has no test executor: automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; anything else is recorded with `iw record`. An `iw run` executor arrives with the agent mode in v0.2. |
 | Non-interactive | Commands never prompt when stdin is not a TTY or `--yes` is given; missing input is an error (exit 2). |
@@ -279,7 +279,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [ ] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [ ] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [ ] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
-- [ ] In an empty directory, `iw init` → `iw new uc --title "Sign up" --ac "A confirmation email is sent" --ready` → `iw new tc --uc UC-1 --title "x" --step "Sign up => Email arrives" --ready` → `iw check` exits 0.
+- [ ] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.
 - [ ] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [ ] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [ ] No command prompts when stdin is not a TTY.

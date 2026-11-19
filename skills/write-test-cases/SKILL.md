@@ -18,7 +18,7 @@ You turn a use case (or a PRD, issue or diff) into acceptance criteria (ACs) and
 1. **Read the use case and what exists.**
 
    ```bash
-   iw show UC-5 --json      # criteria (key, text, status) and the test cases covering each
+   iw show UC-5 --json      # criteria (key, text; status only on drafts, absent = ready) and the test cases covering each
    iw list tcs --uc UC-5 --json
    iw list fixtures --json  # reuse fixtures before inventing data
    ```

@@ -54,6 +54,8 @@ Last verified: 2026-11-19
 - On a fork `pull_request`, `GITHUB_TOKEN` is read-only and secrets are not passed. OIDC on fork PRs is assumed to be unavailable (unverified on a current official page). (verified 2026-11-19, https://docs.github.com/en/actions/concepts/security/github_token)
 - A PR conversation comment is an issue comment and needs `pull-requests: write` or `issues: write`. A commit status needs `statuses: write`. Check-run write is GitHub App only, and with `GITHUB_TOKEN` you cannot choose the check suite. (verified 2026-11-19, https://docs.github.com/en/rest/issues/comments , https://docs.github.com/en/rest/checks/runs)
 - `actions/upload-artifact` is at v7 (v7.0.2). It runs on `node24`. Artifacts are immutable, matrix jobs need unique names, and **hidden files are excluded by default**, so uploading `.indx-watch/` needs `include-hidden-files: true`. It outputs `artifact-id`, `artifact-url` and `artifact-digest`. It is not supported on GHES. (verified 2026-11-19, https://github.com/actions/upload-artifact)
+- `pnpm/action-setup` v4 declares `runs.using: node20`; v6 (latest v6.1.1) declares `node24` and reads the pnpm version from `packageManager` in `package.json` when `version` is not set. (verified 2026-11-19, https://github.com/pnpm/action-setup/releases , https://raw.githubusercontent.com/pnpm/action-setup/v6/action.yml)
+- `npx <absolute path to a .tgz> <cmd>` fails on npm 10 and 11: libnpmexec resolves the path as a local binary and tries to execute the tarball (exit 126). Install the tarball (`npm install --save-dev ./pkg.tgz`) and run `npx <bin>`, or use `npx --package <tgz> -- <bin>`. (verified 2026-11-19 with npm 10.9 and 11.x, reproduced locally)
 - A Marketplace listing needs a public repo with a single `action.yml` at the root. Actions in subfolders work (`owner/repo/path@ref`) but are not listed. (verified 2026-11-19, https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace)
 - With immutable releases (GA 2025-10-28), the documented pattern is an immutable release per exact version plus plain moving tags (`v1`). (verified 2026-11-19, https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases)
 
@@ -238,4 +240,5 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 
 ## Changelog
 
+- 2026-11-19: Added `pnpm/action-setup` runtimes and the `npx <tgz>` pitfall (review fixes).
 - 2026-11-19: First version, compiled from the Phase 0 research. Spot-checked on the web: R2 conditional PUT, `node:sqlite` stability, `z.toJSONSchema`, Codex skill locations, Hono static assets and `ctx.access` with Static Assets, the MCP 2026-07-28 changelog, D1 limits, Claude Code's AGENTS.md loading, GitHub Node 20 removal, and npm versions.

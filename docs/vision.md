@@ -50,7 +50,7 @@ These are non-negotiable. Each links to where it is specified.
 | QA lead / PM | Plans a release, assigns test cases, reviews `needs_review` verdicts, decides go/no-go from the computed gate. |
 | Tester (incl. business staff) | Opens the browser, follows plain-language steps, attaches screenshots. |
 | Coding agent | Reads the spec, writes draft test cases, runs them, triages failures, writes reports — through `iw --json` or MCP. |
-| Customer / stakeholder | Receives a readable report (HTML/PDF) or a time-limited share link. |
+| Customer / stakeholder | Receives a readable report (HTML/PDF) or, from v0.2, a time-limited share link. |
 
 ## Non-goals
 

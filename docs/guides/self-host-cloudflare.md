@@ -13,7 +13,7 @@ flowchart LR
 
 ## Prerequisites
 
-- A Cloudflare account. The Free plan works for a small team; Workers Paid is recommended (10 ms CPU per request on Free is tight for large bundles). See [platform notes](../research/platform-notes.md#limits).
+- A Cloudflare account. The Free plan works for a small team; Workers Paid is recommended because the Free CPU limit per request is tight for large bundles ([limits](../research/platform-notes.md#limits)).
 - A Cloudflare Zero Trust organization. Its **team name** is the `<team>` in `<team>.cloudflareaccess.com` (shown under Zero Trust → Settings).
 - Node ≥ 22.13 and the `indx-watch` package (`npx indx-watch …` works).
 - `wrangler` 4. `iw deploy` uses `wrangler` from your `PATH`, or runs `npx --yes wrangler@4` when it is missing. Log in once with `npx wrangler login`, or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (start from the "Edit Cloudflare Workers" token template and add D1 Edit and Workers R2 Storage Edit).
@@ -144,7 +144,7 @@ The bundle (definitions) still travels through git. CI on the default branch run
 
 ## Costs and limits
 
-The free tiers of Workers, R2 (10 GB-month, egress free) and D1 cover a small team. Watch the Workers Free CPU limit (10 ms per request), the request body limit (100 MB on Free and Pro zones; large evidence such as videos is better kept small), and D1's 500 MB per database on Free. Current numbers, with dates and sources, are in [platform notes](../research/platform-notes.md#cloudflare); check them before relying on them.
+The free tiers of Workers, R2 and D1 cover a small team. Watch the Workers CPU limit per request, the request body limit (keep large evidence such as videos small) and the D1 database size limit. The current numbers, with dates and sources, are in [platform notes](../research/platform-notes.md#limits) ([D1](../research/platform-notes.md#d1), [R2](../research/platform-notes.md#r2)); check them before relying on them.
 
 ## Upgrade
 

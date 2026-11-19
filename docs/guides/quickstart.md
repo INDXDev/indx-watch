@@ -4,6 +4,14 @@ From an empty folder to a shareable readiness report in about a minute, fully of
 
 `iw` and `npx indx-watch` are the same CLI ([cli.md](../spec/cli.md)). This guide uses `npx indx-watch` in step 1 and `iw` after that. To get the short name, install the package (`npm install --global indx-watch`) or define `alias iw="npx indx-watch"`.
 
+**Before the first npm release** `npx indx-watch` cannot download the package yet. Build it from source once (pnpm 10, e.g. via `corepack enable`) and use `iw` everywhere, in a folder outside the clone:
+
+```bash
+git clone https://github.com/INDXDev/indx-watch && cd indx-watch
+pnpm install && pnpm build
+npm install --global ./packages/cli   # or call node <clone>/packages/cli/dist/bin.js
+```
+
 ## 1. Create a bundle
 
 ```bash
@@ -67,7 +75,7 @@ iw new tc --uc UC-1 --title "Valid coupon reduces the total" \
 }
 ```
 
-The test case covers every AC of `UC-1` by default (`--covers` changes that). `--ready` says a person wrote and approved it; without it, items start as `draft` and do not count towards readiness until someone runs `iw approve`. Open the generated TOML files: they are plain text, meant to be read and edited. How to write good ones: [writing test cases](writing-test-cases.md).
+The test case covers every AC of `UC-1` by default (`--covers` changes that). `--ready` says a person wrote and approved it; without it, items start as `draft` and do not count towards readiness until someone runs `iw approve`. Open the generated TOML files: they are plain text, meant to be read and edited. Their first line (`#:schema https://…/schemas/v1/….json`) gives editors with a TOML language server (such as Taplo) completion and validation; the editor downloads the schema from GitHub, so completion needs a network connection. How to write good ones: [writing test cases](writing-test-cases.md).
 
 ## 3. Check the bundle
 
@@ -86,7 +94,15 @@ iw check
 }
 ```
 
-## 4. Open the dashboard
+## 4. Keep it in git
+
+```bash
+git init && git add .indx-watch && git commit -m "Add INDX Watch bundle"
+```
+
+Definitions travel through git and pull requests. Results stay out of git (`runs/` is ignored) and travel through a result store. From now on every run records the commit it tested.
+
+## 5. Open the dashboard
 
 ```bash
 iw serve --open
@@ -96,11 +112,11 @@ iw serve --open
 http://127.0.0.1:4321
 ```
 
-The readiness dashboard shows release `v0.1.0`: one use case, coverage 1/1, and `TC-1` as `untested`.
+`serve` keeps running; use a second terminal for the next commands. The readiness dashboard shows release `v0.1.0`: one use case, coverage 1/1, and `TC-1` as `untested`.
 
-## 5. Run the test case manually
+## 6. Run the test case manually
 
-In the browser, open `TC-1` and start a run. Follow the step against your app, mark it passed, attach a screenshot and finish the run. The run is written to `.indx-watch/runs/` with your git identity, the commit, the release and the environment.
+In the browser, open `TC-1` and start a run. Follow the step against your app, mark it passed, attach a screenshot and finish the run. The run is written to `.indx-watch/runs/` with your git identity, the commit (from step 4), the release and the environment.
 
 Without the browser, the same result from the terminal:
 
@@ -139,21 +155,13 @@ iw status --json
 
 How the status, coverage and gate are computed: [concepts](../spec/concepts.md#computed-done).
 
-## 6. Share a report
+## 7. Share a report
 
 ```bash
 iw report --format html --out report.html
 ```
 
-`report.html` is one self-contained file (inline CSS, embedded screenshot thumbnails, no network) that you can email or attach to a ticket. Use `--format md` for a PR comment and `--audience customer` to remove internal details. Contents and formats: [reports](../spec/reports.md).
-
-## 7. Keep it in git
-
-```bash
-git init && git add .indx-watch && git commit -m "Add INDX Watch bundle"
-```
-
-Definitions travel through git and pull requests. Results stay out of git (`runs/` is ignored) and travel through a result store.
+`report.html` is one self-contained file (inline CSS, no network; screenshot thumbnails are embedded for failing and open P0–P1 items) that you can email or attach to a ticket. Use `--format md` for a PR comment and `--audience customer` to remove internal details. Contents and formats: [reports](../spec/reports.md).
 
 ## Next
 
