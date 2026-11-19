@@ -81,6 +81,10 @@ interface Model {
 
 Everything the CLI, server, reporter, MCP server and reports show is a function of `Model` and a `Scope`. There is no second implementation of any rule.
 
+## HTTP API {#http-api}
+
+The server's routes, request and response types are defined in [`packages/server/src/contract.ts`](../packages/server/src/contract.ts) (`ROUTES` and the exported interfaces). The web UI and the `http` store adapter use only these. `/api/store/*` exposes the [store protocol](spec/sync.md#store-layout) so a hosted server can act as a result store for `iw sync`.
+
 ## Data flow
 
 ```mermaid
