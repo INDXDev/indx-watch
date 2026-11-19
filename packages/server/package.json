@@ -9,12 +9,13 @@
     "./worker": "./src/worker.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.9",
     "@indx-watch/bundle": "workspace:*",
     "@indx-watch/core": "workspace:*",
     "@indx-watch/store": "workspace:*",
     "@indx-watch/sync": "workspace:*",
-    "@hono/node-server": "^2.1.9",
     "hono": "^4.13.19",
-    "jose": "^6.2.18"
+    "jose": "^6.2.18",
+    "modern-tar": "^0.8.6"
   }
 }
