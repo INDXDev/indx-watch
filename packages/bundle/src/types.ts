@@ -2,7 +2,17 @@
  * In-memory shape of a loaded bundle and the file-system port it is loaded through.
  * FROZEN CONTRACT for v0.1.
  */
-import type { BlobPointer, Environment, Feature, Fixture, Plan, Project, Release, TestCase, UseCase } from './schema/definitions.js';
+import type {
+  BlobPointer,
+  Environment,
+  Feature,
+  Fixture,
+  Plan,
+  Project,
+  Release,
+  TestCase,
+  UseCase,
+} from './schema/definitions.js';
 
 /** File access relative to the bundle root ('.indx-watch/'). Paths use '/'. */
 export interface BundleFs {

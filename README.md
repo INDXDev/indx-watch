@@ -23,14 +23,14 @@ Requires Node 22.13+.
 
 ```bash
 npx indx-watch init demo && cd demo
-npx iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
-npx iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
-npx iw check
-npx iw serve          # readiness dashboard + manual test runner at http://127.0.0.1:4321
-npx iw report --format html --out report.html
+npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
+npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
+npx indx-watch check
+npx indx-watch serve          # readiness dashboard + manual test runner at http://127.0.0.1:4321
+npx indx-watch report --format html --out report.html
 ```
 
-Everything above works offline. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+Everything above works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
 
 ## Features
 

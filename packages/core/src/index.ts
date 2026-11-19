@@ -32,7 +32,7 @@ export function localize(
   entity: { i18n?: Partial<Record<Locale, Record<string, unknown>>> | undefined } & Record<string, unknown>,
   field: string,
   locale: Locale,
-  opts?: { currentSourceHash?: string; allowStale?: boolean },
+  opts?: LocalizeOptions,
 ): { text: string; locale: Locale; fallback: boolean; stale: boolean } {
   const o = (opts ?? {}) as LocalizeOptions;
   const source = typeof entity[field] === 'string' ? (entity[field] as string) : '';

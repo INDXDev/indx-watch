@@ -133,7 +133,9 @@ export const Environment = z.strictObject({
     })
     .optional(),
   hooks: z.strictObject({ seed: Hook.optional(), reset: Hook.optional() }).optional(),
-  i18n: z.partialRecord(Locale, translation({ title: z.string().optional(), guide: z.string().optional() })).optional(),
+  i18n: z
+    .partialRecord(Locale, translation({ title: z.string().optional(), guide: z.string().optional() }))
+    .optional(),
   ...tail,
 });
 export type Environment = z.infer<typeof Environment>;
@@ -191,7 +193,11 @@ export const UseCase = z.strictObject({
   i18n: z
     .partialRecord(
       Locale,
-      translation({ title: z.string().optional(), actor: z.string().optional(), goal: z.string().optional() }),
+      translation({
+        title: z.string().optional(),
+        actor: z.string().optional(),
+        goal: z.string().optional(),
+      }),
     )
     .optional(),
   ...tail,
@@ -211,7 +217,10 @@ export const Step = z.strictObject({
   expected: z.string().min(1),
   evidence: z.array(EvidenceKind).optional(),
   i18n: z
-    .partialRecord(Locale, translation({ instruction: z.string().optional(), expected: z.string().optional() }))
+    .partialRecord(
+      Locale,
+      translation({ instruction: z.string().optional(), expected: z.string().optional() }),
+    )
     .optional(),
 });
 export type Step = z.infer<typeof Step>;
@@ -245,7 +254,10 @@ export const TestCase = z.strictObject({
   decision_policy: DecisionPolicy.optional(),
   automation: z.strictObject({ files: z.array(z.string()).optional() }).optional(),
   i18n: z
-    .partialRecord(Locale, translation({ title: z.string().optional(), preconditions: z.string().optional() }))
+    .partialRecord(
+      Locale,
+      translation({ title: z.string().optional(), preconditions: z.string().optional() }),
+    )
     .optional(),
   ...tail,
 });
@@ -290,7 +302,18 @@ export const Fixture = z.strictObject({
 export type Fixture = z.infer<typeof Fixture>;
 
 /** Fields excluded from the fixture version hash. */
-export const FIXTURE_VERSION_EXCLUDED = ['title', 'status', 'origin', 'approved_by', 'tags', 'notes', 'ai', 'x', 'i18n'] as const;
+export const FIXTURE_VERSION_EXCLUDED = [
+  'title',
+  'status',
+  'origin',
+  'approved_by',
+  'approved_version',
+  'tags',
+  'notes',
+  'ai',
+  'x',
+  'i18n',
+] as const;
 
 // ---------- <file>.blob.toml ----------
 export const BlobPointer = z.strictObject({

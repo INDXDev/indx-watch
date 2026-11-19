@@ -122,10 +122,10 @@ Compute coverage, use case status and the readiness gate for a scope.
 {
   "scope": { "release": "v1.2.0", "environment": null },
   "gate": { "passed": false, "checks": [ { "key": "p0_all_pass", "passed": false, "actual": "3/4", "expected": "4/4" } ] },
-  "coverage": { "covered": 9, "total": 9, "ratio": 1 },
+  "coverage": { "covered": 8, "total": 9, "ratio": 0.889 },
   "useCases": [ { "key": "UC-2", "title": "…", "priority": "P0", "status": "fail", "criteria": [ { "key": "AC-2.1", "status": "pass", "testCases": ["TC-3"] } ] } ],
   "testCases": [ { "key": "TC-3", "status": "pass", "latestRun": "run_01J…", "stale": false } ],
-  "counts": { "pass": 5, "fail": 1, "needs_review": 1, "untested": 2, "stale": 0, "waived": 0, "uncovered": 0 }
+  "counts": { "pass": 5, "fail": 1, "needs_review": 1, "untested": 2, "stale": 0, "waived": 0, "uncovered": 1 }
 }
 ```
 

@@ -3,8 +3,8 @@
  * FROZEN CONTRACT for v0.1: additive changes only.
  */
 import { z } from 'zod';
-import { DateTime, EvidenceKind, JudgeKind } from './definitions.js';
 import { FxVersion, idOf, Locale, Sha256, TcVersion } from './common.js';
+import { DateTime, EvidenceKind, JudgeKind } from './definitions.js';
 
 export const ActorKind = z.enum(['human', 'ci', 'agent']);
 export type ActorKind = z.infer<typeof ActorKind>;
@@ -26,7 +26,10 @@ export const StepStatus = z.enum(['pass', 'fail', 'blocked', 'skipped']);
 export type StepStatus = z.infer<typeof StepStatus>;
 
 export const Build = z.strictObject({
-  commit: z.string().regex(/^[0-9a-f]{7,64}$/).optional(),
+  commit: z
+    .string()
+    .regex(/^[0-9a-f]{7,64}$/)
+    .optional(),
   ref: z.string().optional(),
   dirty: z.boolean().optional(),
   url: z.string().url().optional(),
@@ -96,7 +99,14 @@ export const RunRecord = z.strictObject({
   ...envelope,
   test_case: TcRef,
   fixtures: z
-    .array(z.strictObject({ id: idOf('fx'), key: z.string(), version: FxVersion, rows: z.array(z.string()).optional() }))
+    .array(
+      z.strictObject({
+        id: idOf('fx'),
+        key: z.string(),
+        version: FxVersion,
+        rows: z.array(z.string()).optional(),
+      }),
+    )
     .default([]),
   release: z.string().optional(),
   environment: z.string().optional(),

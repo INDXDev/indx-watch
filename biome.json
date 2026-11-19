@@ -9,11 +9,15 @@
     "includes": [
       "**",
       "!**/dist",
-      "!schemas/**",
+      "!schemas",
       "!**/*.html",
-      "!examples/shop/store/**",
-      "!**/.indx-watch/runs/**",
-      "!**/.indx-watch/cache/**"
+      "!examples/shop/store",
+      "!**/.indx-watch/runs",
+      "!**/.indx-watch/cache",
+      "!**/*.md",
+      "!examples/shop/.indx-watch",
+      "!.indx-watch",
+      "!**/*.toml"
     ]
   },
   "formatter": {
@@ -30,7 +34,7 @@
   },
   "linter": {
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "noNonNullAssertion": "off"
       },
@@ -41,11 +45,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "packages/core/src/**",
-        "packages/bundle/src/**",
-        "!packages/bundle/src/node/**"
-      ],
+      "includes": ["packages/core/src/**", "packages/bundle/src/**", "!packages/bundle/src/node/**"],
       "linter": {
         "rules": {
           "style": {

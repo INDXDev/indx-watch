@@ -38,7 +38,7 @@ flowchart TB
 | `bundle` | `packages/bundle` | Zod schemas for every file and record (→ JSON Schema), canonical TOML parse/format, IDs and keys, content hashes and versions, loading a bundle through a `BundleFs` port, `check`, archive read/write. `src/node/` holds the Node `BundleFs`. |
 | `core` | `packages/core` | Builds the in-memory **model** from a bundle and records; `decide`, latest results, AC/UC status, coverage, `evaluateGate`, plan item status, staleness, flakiness, `localize`, report data. Pure. |
 | `store` | `packages/store` | Ports `ObjectStore`, `Index`, `IdentityProvider`, `ContextProvider`, `BrowserProvider`, `LlmClient`; adapters (`fs`, `s3`, `r2`, `http`, `memory`; `sqlite`, `d1`, `memory` index; `git`, `github`, `cloudflare-access` identity); `ResultStore` (record/blob protocol on top of `ObjectStore`); the local replica. |
-| `sync` | `packages/sync` | Push/pull algorithm, lookback cursor, watch mode, bundle snapshots, workspace-mode file merge. |
+| `sync` | `packages/sync` | Push/pull algorithm, lookback cursor, watch mode, bundle snapshots (workspace-mode merge: v0.2). |
 | `server` | `packages/server` | `createApp(deps)` Hono app: JSON API, `/api/store/*` protocol endpoint, report rendering (md/html), static SPA. `node.ts` and `worker.ts` entry points. |
 | `web` | `packages/web` | SPA: readiness dashboard, spec tree, test case, manual runner, run viewer + review, fixtures, report preview. Builds to static files embedded in the npm package. |
 | `cli` | `packages/cli` | `iw` commands ([cli.md](spec/cli.md)), JSON envelopes, MCP server (`iw mcp`), `iw deploy` (wrangler wrapper). Published as `indx-watch` with everything bundled. |
@@ -99,11 +99,11 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
 ## Line budget
-Counted as non-blank, non-comment lines of `src/` (tests excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description.
+Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations.
 
 | Package | Budget |
 |---|---|
-| bundle | 1,800 |
+| bundle | 2,000 |
 | core | 1,200 |
 | store | 1,200 |
 | sync | 600 |
@@ -111,7 +111,7 @@ Counted as non-blank, non-comment lines of `src/` (tests excluded) by `scripts/l
 | web | 3,000 |
 | cli (incl. MCP, deploy) | 2,000 |
 | playwright | 400 |
-| **Total** | **11,400** |
+| **Total** | **11,600** |
 
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.

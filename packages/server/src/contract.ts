@@ -2,10 +2,17 @@
  * HTTP API between the web UI / http store adapter and the server (docs/architecture.md#http-api).
  * FROZEN CONTRACT for v0.1: additive changes only. All JSON; errors are { error: { code, message } } with 4xx/5xx.
  */
-import type { Actor, Locale, RunRecord, StepStatus, TestCase, Fixture, Judgement } from '@indx-watch/bundle';
-import type { Decision, ReportData, Scope, Status, StatusResult, TestCaseStatus } from '@indx-watch/core';
+import type { Actor, Fixture, Judgement, Locale, RunRecord, StepStatus, TestCase } from '@indx-watch/bundle';
+import type {
+  Decision,
+  Model,
+  ReportData,
+  Scope,
+  Status,
+  StatusResult,
+  TestCaseStatus,
+} from '@indx-watch/core';
 import type { IdentityProvider, ObjectStore } from '@indx-watch/store';
-import type { Model } from '@indx-watch/core';
 
 export const ROUTES = {
   health: 'GET /healthz',
@@ -30,6 +37,34 @@ export const ROUTES = {
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
 } as const;
 
+/**
+ * Response types per route (all JSON): project → ProjectInfo; status → StatusResult; specs → SpecTree; testCase → TestCaseDetail;
+ * fixtures → FixtureDetail[]; fixture → FixtureDetail; plans → PlanView[]; plan → PlanView; runs → RunSummary[]; run → RunDetail;
+ * createRun → ManualRunResult; addJudgement → ReviewResult; uploadBlob → BlobResult; report → text/markdown or text/html.
+ *
+ * Translations: wherever an entity's `i18n` tables are returned, the server sets `status: "stale"` on a table whose source_hash no
+ * longer matches the current source, so clients only need to check `status`.
+ */
+export interface PlanView {
+  key: string;
+  title: string;
+  release?: string;
+  environment?: string;
+  due?: string;
+  items: {
+    test_case: string;
+    assignee?: string;
+    environment?: string;
+    due?: string;
+    status: 'todo' | 'done' | 'blocked' | 'review';
+  }[];
+}
+
+export interface ReviewResult {
+  judgement: Judgement;
+  decision: Decision;
+}
+
 /** GET /api/store/list response. PUT returns 201 (created) or 412 (exists with If-None-Match: *). GET/HEAD 404 when absent. */
 export interface StoreListResponse {
   keys: { key: string; size: number; etag?: string }[];
@@ -37,9 +72,23 @@ export interface StoreListResponse {
 }
 
 export interface ProjectInfo {
-  project: { key: string; name: string; source_locale: Locale; locales: Locale[]; default_environment?: string; current_release?: string };
+  project: {
+    key: string;
+    name: string;
+    source_locale: Locale;
+    locales: Locale[];
+    default_environment?: string;
+    current_release?: string;
+  };
   releases: { version: string; title?: string; state: string }[];
-  environments: { name: string; title: string; base_url: string; guide?: string; access?: string }[];
+  environments: {
+    name: string;
+    title: string;
+    base_url: string;
+    guide?: string;
+    access?: string;
+    i18n?: unknown;
+  }[];
   identity: Actor;
   mode: 'local' | 'hosted';
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
@@ -60,7 +109,20 @@ export interface SpecTree {
       status: Status;
       done: boolean;
       i18n?: unknown;
-      criteria: { key: string; text: string; status: Status; testCases: { key: string; title: string; mode: string; status: Status }[]; i18n?: unknown }[];
+      criteria: {
+        key: string;
+        text: string;
+        status: Status;
+        testCases: {
+          key: string;
+          title: string;
+          mode: string;
+          status: Status;
+          lifecycle: 'draft' | 'ready' | 'deprecated';
+          i18n?: unknown;
+        }[];
+        i18n?: unknown;
+      }[];
     }[];
   }[];
 }
@@ -88,7 +150,15 @@ export interface TestCaseDetail {
   priority: string;
   useCase: string;
   data: TestCase;
-  fixtures: { key: string; title: string; kind: string; version: string; rows?: string[]; values?: Record<string, string>[] }[];
+  /** values: selected dataset rows; for account fixtures `[{ username }]` only, never secrets */
+  fixtures: {
+    key: string;
+    title: string;
+    kind: string;
+    version: string;
+    rows?: string[];
+    values?: Record<string, string>[];
+  }[];
   status: TestCaseStatus;
   runs: RunSummary[];
 }
@@ -136,7 +206,7 @@ export interface ReviewInput {
   reason: string;
 }
 
-/** POST /api/blobs: raw body; headers Content-Type and X-Filename. */
+/** POST /api/blobs: raw body; headers Content-Type and X-Filename (ASCII only; clients replace other characters with '_'). */
 export interface BlobResult {
   sha256: string;
   size: number;

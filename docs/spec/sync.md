@@ -26,7 +26,7 @@ flowchart LR
 
 ```text
 .indx-watch/runs/
-├── records/2026-11/run_01JF7Z3K0W8N2Q4R6S8T0V2X4Y.json   # one file per record, by record ID, grouped by month
+├── records/2026-11/run_01JF7Z3K0W8N2Q4R6S8T0V2X4Y.json   # one file per record, by record ID, grouped by the month of the ID's ULID time
 └── blobs/sha256/87/8760bc67a01b22044c4098fddeb3a749cd395c4757fab3740aa626cd0da51e1b
 ```
 
@@ -111,7 +111,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `judgement` | `run` (run ID), `judgement` (as in the run: `id`, `kind`, `verdict`, `confidence`, `diff_ratio`, `reason`, `test`, `flaky`, `by`, `at`) | A later judgement, e.g. a human review. |
 | `waiver` | `release`, `test_case` (ID + key), `reason`, `version` (test case version it applies to), `run`, `revokes` (waiver ID) | Accept a known failure of that version; a later waiver with `revokes` cancels one. |
 | `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment (`iw deployment add`). |
-| `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over sorted `path sha256` lines, to skip unchanged snapshots), `files` (count) | A snapshot of definitions for hosted viewers in git mode. |
+| `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over the sorted lines `<path> <sha256>\n` of every definition file — excluding `cache/`, `runs/` and dot-files — to skip unchanged snapshots), `files` (count) | A snapshot of definitions for hosted viewers in git mode. |
 | `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
 | `file` | reserved | Workspace mode (v0.2). |
 

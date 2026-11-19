@@ -20,9 +20,17 @@ export interface ObjectStore {
    * Write an object. With ifNoneMatch, resolves to false (and does not overwrite) when the key exists;
    * adapters without native conditional writes emulate it with head() (best effort).
    */
-  put(key: string, body: Uint8Array | string, opts?: { ifNoneMatch?: boolean; contentType?: string }): Promise<boolean>;
+  put(
+    key: string,
+    body: Uint8Array | string,
+    opts?: { ifNoneMatch?: boolean; contentType?: string },
+  ): Promise<boolean>;
   /** Lexicographic listing; at most `limit` (default 1000) keys after `startAfter`. */
-  list(opts: { prefix: string; startAfter?: string; limit?: number }): Promise<{ keys: ObjectInfo[]; truncated: boolean }>;
+  list(opts: {
+    prefix: string;
+    startAfter?: string;
+    limit?: number;
+  }): Promise<{ keys: ObjectInfo[]; truncated: boolean }>;
   delete(key: string): Promise<void>;
 }
 
@@ -138,5 +146,9 @@ export interface LlmJudgement {
   model: string;
 }
 export interface LlmClient {
-  judge(input: { rubric: string[]; expected: string; observation: BrowserObservation }): Promise<LlmJudgement>;
+  judge(input: {
+    rubric: string[];
+    expected: string;
+    observation: BrowserObservation;
+  }): Promise<LlmJudgement>;
 }

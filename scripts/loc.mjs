@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CODE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css|sql)$/;
+const CODE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|sql)$/; // logic only: CSS and JSON are not budgeted
 
 function budgets() {
   const doc = readFileSync(join(root, 'docs/architecture.md'), 'utf8');

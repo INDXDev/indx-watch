@@ -17,7 +17,9 @@ export interface NodeServerOptions {
   identityHeader?: string;
 }
 
-export async function startNodeServer(opts: NodeServerOptions): Promise<{ url: string; close(): Promise<void> }> {
+export async function startNodeServer(
+  opts: NodeServerOptions,
+): Promise<{ url: string; close(): Promise<void> }> {
   void opts;
   throw new Error('not implemented (T-107)');
 }

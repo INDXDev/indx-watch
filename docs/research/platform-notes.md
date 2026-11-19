@@ -81,6 +81,7 @@ Last verified: 2026-11-19
 - Codex custom prompts are deprecated: "Use skills for reusable instructions". (verified 2026-11-19, https://learn.chatgpt.com/docs/custom-prompts)
 - Codex reads `AGENTS.override.md` or `AGENTS.md` (one per directory) from the git root down to the cwd, joins them root-first, and stops at `project_doc_max_bytes`, which defaults to 32 KiB. (verified 2026-11-19, https://learn.chatgpt.com/docs/agent-configuration/agents-md)
 - The portable Codex plugin format is a root `plugin.json` per Agent Plugins 1.0.0. Codex also accepts `.codex-plugin/plugin.json` and reads `$REPO_ROOT/.claude-plugin/marketplace.json` as a legacy-compatible marketplace. (verified 2026-11-19, https://developers.openai.com/codex/plugins/build.md , https://agent-plugins.org/)
+- Agent environment markers used for automatic `actor.kind = "agent"`: Claude Code sets `CLAUDECODE=1` in shell-tool child processes; Codex injects `CODEX_THREAD_ID` (and `CODEX_SESSION_ID`) into shell-tool child environments. `CODEX_SANDBOX_NETWORK_DISABLED` is only set when network access is off, so it is not a reliable marker. (verified 2026-11-19, https://raw.githubusercontent.com/openai/codex/main/codex-rs/core/src/exec_env.rs)
 
 ## MCP
 
@@ -169,6 +170,7 @@ Last verified: 2026-11-19
 - MinIO (AIStor docs) lists `If-Match` and `If-None-Match` for `PutObject` and `CopyObject`. (verified 2026-11-19, https://docs.min.io/aistor/developers/s3-api-compatibility/)
 - The MinIO community edition entered maintenance mode in December 2025. (verified 2026-11-19, https://www.infoq.com/news/2025/12/minio-s3-api-alternatives)
 - Reports that the MinIO repository is archived come only from secondary sources (unverified, https://itsfoss.com/news/minio-moves-away-from-open-source/). Do not make MinIO the only local S3 used in CI.
+- `dl.min.io` returns 410 Gone for community binaries ("community releases are no longer served"); the adapter test suite therefore uses an in-process S3-compatible fake and runs the MinIO variant only when a `minio` binary is on PATH. (verified 2026-11-19, https://dl.min.io/)
 - Local filesystem: `fs.open(path, 'wx')` fails if the path exists. `link(tmp, final)` gives atomic create-if-absent with full content, whereas `rename` overwrites on POSIX. `readdir` order is unspecified, so sort the keys. (verified 2026-11-19, https://nodejs.org/api/fs.html#file-system-flags)
 
 ## Sync prior art

@@ -102,8 +102,12 @@ export const CommandData = {
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
   'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
   login: z.object({ url: z.string() }),
-  'fixture add': z.object({ files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })) }),
-  'fixture fetch': z.object({ files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })) }),
+  'fixture add': z.object({
+    files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })),
+  }),
+  'fixture fetch': z.object({
+    files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })),
+  }),
   sync: z.object({
     pushed: z.object({ records: z.number(), blobs: z.number() }),
     pulled: z.object({ records: z.number(), blobs: z.number() }),
@@ -123,7 +127,9 @@ export const CommandData = {
     changes: z.array(z.string()),
   }),
   deploy: z.object({
-    resources: z.array(z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() })),
+    resources: z.array(
+      z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() }),
+    ),
     commands: z.array(z.string()),
     url: z.string().nullable(),
   }),

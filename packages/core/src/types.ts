@@ -26,7 +26,16 @@ import type {
 export type Verdict = VerdictValue;
 
 /** Status of a test case / AC / use case within a scope (docs/spec/concepts.md#computed-done). */
-export type Status = 'pass' | 'fail' | 'needs_review' | 'stale' | 'untested' | 'waived' | 'uncovered' | 'blocked' | 'skipped';
+export type Status =
+  | 'pass'
+  | 'fail'
+  | 'needs_review'
+  | 'stale'
+  | 'untested'
+  | 'waived'
+  | 'uncovered'
+  | 'blocked'
+  | 'skipped';
 /** Order used to pick the worst status: earlier = worse. */
 export const STATUS_ORDER: readonly Status[] = [
   'uncovered',
@@ -171,7 +180,10 @@ export interface StatusResult {
   coverage: { covered: number; total: number; ratio: number };
   useCases: UseCaseStatus[];
   testCases: TestCaseStatus[];
-  counts: Record<'pass' | 'fail' | 'needs_review' | 'untested' | 'stale' | 'waived' | 'uncovered' | 'blocked' | 'skipped', number>;
+  counts: Record<
+    'pass' | 'fail' | 'needs_review' | 'untested' | 'stale' | 'waived' | 'uncovered' | 'blocked' | 'skipped',
+    number
+  >;
 }
 
 export type PlanItemStatus = 'todo' | 'done' | 'blocked' | 'review';

@@ -24,8 +24,20 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12(@types/node@22.20.5)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15))
 
+  examples/shop:
+    devDependencies:
+      '@indx-watch/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      '@playwright/test':
+        specifier: ^1.65.1
+        version: 1.65.1
+
   packages/bundle:
     dependencies:
+      modern-tar:
+        specifier: ^0.8.6
+        version: 0.8.6
       smol-toml:
         specifier: ^1.9.1
         version: 1.9.1
@@ -154,6 +166,9 @@ importers:
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
+      jose:
+        specifier: ^6.2.18
+        version: 6.2.18
 
   packages/sync:
     dependencies:
@@ -163,6 +178,9 @@ importers:
       '@indx-watch/store':
         specifier: workspace:*
         version: link:../store
+      modern-tar:
+        specifier: ^0.8.6
+        version: 0.8.6
 
   packages/web:
     dependencies:
@@ -173,6 +191,9 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@indx-watch/server':
+        specifier: workspace:*
+        version: link:../server
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0

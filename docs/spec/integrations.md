@@ -53,7 +53,7 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | Field | GitHub Actions source | Local source |
 |---|---|---|
 | `build.commit` | PR head SHA from `GITHUB_EVENT_PATH` for `pull_request*` events, else `GITHUB_SHA` | `git rev-parse HEAD` |
-| `build.ref` | `GITHUB_HEAD_REF` (PR) or `GITHUB_REF` | `git symbolic-ref` |
+| `build.ref` | `refs/heads/$GITHUB_HEAD_REF` (PR) or `GITHUB_REF` | `git symbolic-ref HEAD` |
 | `build.dirty` | `false` | `git status --porcelain` non-empty |
 | `ci.provider` / `ci.url` | `github` / `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT` | — |
 | `ci.run_id`, `ci.run_attempt`, `ci.job`, `ci.workflow`, `ci.event` | `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_WORKFLOW`, `GITHUB_EVENT_NAME` | — |
