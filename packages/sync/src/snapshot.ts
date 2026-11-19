@@ -1,8 +1,8 @@
-/** バンドルのスナップショット（定義ファイルの tar）と definitions_hash。 */
+/** Bundle snapshots (a tar of the definition files) and definitions_hash. */
 import { type BundleFs, sha256Hex } from '@indx-watch/bundle';
 import { packTar } from 'modern-tar';
 
-/** 定義ファイルを集める。cache/・runs/ とドットで始まる名前（.gitignore など）は含めない。 */
+/** Collect the definition files, leaving out cache/, runs/ and names starting with a dot (.gitignore and the like). */
 async function collect(fs: BundleFs, dir: string, out: string[]): Promise<void> {
   for (const e of await fs.list(dir)) {
     if (e.name.startsWith('.') || (!dir && (e.name === 'cache' || e.name === 'runs'))) continue;
@@ -18,7 +18,7 @@ export async function definitionsHash(files: { path: string; sha256: string }[])
   return sha256Hex(lines.join(''));
 }
 
-/** 決まった順序・mtime 0・uid/gid 0・mode 0644 の tar を作る（同じ中身なら同じバイト列）。 */
+/** A tar in sorted order with mtime 0, uid/gid 0 and mode 0644: the same content always gives the same bytes. */
 export async function snapshotBundle(
   fs: BundleFs,
 ): Promise<{ tar: Uint8Array; hash: string; files: number }> {

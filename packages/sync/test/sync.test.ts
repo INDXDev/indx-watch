@@ -17,6 +17,7 @@ import { PROJECT, retraction, runRecord } from '../../store/test/helpers/records
 import {
   emptyState,
   memoryStateStore,
+  pointerBlobs,
   type SyncOptions,
   type SyncResult,
   syncOnce,
@@ -29,7 +30,7 @@ const enc = new TextEncoder();
 const MIN = 60_000;
 const actor = { kind: 'ci', id: 'github:octocat', via: 'github' } as const;
 
-/** GET の回数を数える ObjectStore ラッパー（転送量の確認用）。fail で特定の put を失敗させる。 */
+/** ObjectStore wrapper that counts GETs (to check transfers); `fail` makes chosen puts fail. */
 function instrumented(inner: ObjectStore, fail?: (key: string) => boolean) {
   const stats = { gets: 0, puts: 0 };
   const store: ObjectStore = {
@@ -65,7 +66,7 @@ function clone(objects: ObjectStore, writer: string, extra: Partial<SyncOptions>
   return { replica, state, opts, sync: (o: Partial<SyncOptions> = {}) => syncOnce({ ...opts, ...o }) };
 }
 
-/** 別プロセスの書き手を真似て、任意の時刻のキーでログオブジェクトを直接置く。 */
+/** Put a log object directly under a key of any time, like a writer in another process. */
 async function putLog(objects: ObjectStore, ms: number, records: AnyRecord[]) {
   const key = `v1/log/${ulidFloor(ms).slice(0, 10)}${Math.random()
     .toString(36)
@@ -105,7 +106,7 @@ describe('syncOnce', () => {
     const rb1 = await b.sync();
     expect(rb1).toMatchObject({ pushed: { records: 1, blobs: 0 }, pulled: { records: 1, blobs: 0 } });
     expect(await b.replica.getRecord(run.id)).toEqual(run);
-    expect(await b.replica.hasBlob(sha)).toBe(false); // on-demand（既定）
+    expect(await b.replica.hasBlob(sha)).toBe(false); // on-demand (the default)
     expect(await a.sync({ evidence: 'all' })).toMatchObject({ pulled: { records: 1 } });
     expect(await a.replica.getRecord(rb.id)).toEqual(rb);
 
@@ -128,13 +129,14 @@ describe('syncOnce', () => {
     const r = await a.sync();
     expect(r).toMatchObject({ pushed: { records: 0, blobs: 0 }, pulled: { records: 0, blobs: 0 } });
     expect(stats.puts).toBe(before.puts);
-    expect(stats.gets - before.gets).toBe(1); // ストアのマニフェスト確認だけ
+    expect(stats.gets - before.gets).toBe(1); // only the store manifest check
   });
 
   it('pulls a log object keyed 10 minutes before the reader’s cursor (lookback window)', async () => {
     const objects = memoryObjectStore();
     const T = Date.now();
     const reader = clone(objects, 'reader', { now: () => T });
+    await putLog(objects, T, [runRecord()]);
     await reader.sync();
     const late = runRecord();
     await putLog(objects, T - 10 * MIN, [late]);
@@ -142,7 +144,7 @@ describe('syncOnce', () => {
     await putLog(objects, T - 40 * MIN, [veryLate]);
     expect(await reader.sync({ now: () => T + 1000 })).toMatchObject({ pulled: { records: 1 } });
     expect(await reader.replica.getRecord(late.id)).not.toBeNull();
-    // 窓より古いキーは日次の全件リスト（または --full）で拾う
+    // keys older than the window are picked up by the daily full listing (or --full)
     expect(await reader.replica.getRecord(veryLate.id)).toBeNull();
     expect(await reader.sync({ now: () => T + 25 * 60 * MIN })).toMatchObject({ pulled: { records: 1 } });
     expect(await reader.replica.getRecord(veryLate.id)).not.toBeNull();
@@ -178,7 +180,7 @@ describe('syncOnce', () => {
     expect(await a.sync()).toMatchObject({ pushed: { records: 1, blobs: 0 } });
     expect((await storeRecords(inner)).map((r) => r.id)).toEqual([run.id]);
 
-    // blob のアップロードが失敗したら、ログオブジェクトは書かれない
+    // when a blob upload fails, no log object is written
     const inner2 = memoryObjectStore();
     const b = clone(instrumented(inner2, (k) => k.startsWith('v1/blobs/')).store, 'writer-b');
     await withEvidence(b.replica, 'other evidence');
@@ -222,6 +224,105 @@ describe('syncOnce', () => {
     expect(await storeRecords(objects)).toHaveLength(1);
   });
 
+  it('a reader whose clock runs ahead keeps no cursor on an empty store and still pulls later records', async () => {
+    const objects = memoryObjectStore();
+    const reader = clone(objects, 'reader', { now: () => Date.now() + 20 * MIN });
+    expect((await reader.sync()).cursor).toBeNull();
+    const writer = clone(objects, 'writer');
+    const run = runRecord();
+    await writer.replica.putRecord(run);
+    expect(await writer.sync()).toMatchObject({ pushed: { records: 1 } });
+    expect(await reader.sync()).toMatchObject({ pulled: { records: 1 } });
+    expect(await reader.replica.getRecord(run.id)).toEqual(run);
+  });
+
+  it('skips unreadable log objects with a warning instead of failing every sync', async () => {
+    const objects = memoryObjectStore();
+    const T = Date.now();
+    await createResultStore(objects).init(PROJECT);
+    const good = runRecord();
+    await objects.put(`v1/log/${ulidFloor(T - 3000).slice(0, 10)}AAAAAAAAAAAAAAAA.json`, '{not json');
+    await objects.put(
+      `v1/log/${ulidFloor(T - 2000).slice(0, 10)}AAAAAAAAAAAAAAAA.json`,
+      JSON.stringify({ v: 2, writer: 'w_newer_tool', records: [] }),
+    );
+    await objects.put(
+      `v1/log/${ulidFloor(T - 1000).slice(0, 10)}AAAAAAAAAAAAAAAA.json`,
+      JSON.stringify({ v: 1, writer: 'w', records: [good, { kind: 'run' }], future_field: true }),
+    );
+    const d = clone(objects, 'reader');
+    const mine = runRecord();
+    await d.replica.putRecord(mine);
+    const r = await d.sync();
+    expect(r).toMatchObject({ pulled: { records: 1 }, pushed: { records: 1 } });
+    expect(r.warnings).toEqual([
+      expect.stringMatching(/^v1\/log\/.* is not a valid log object \(skipped\)$/),
+      expect.stringMatching(/newer INDX Watch \(log v2\); upgrade/),
+      expect.stringMatching(/^skipped 1 invalid record\(s\) in v1\/log\//),
+    ]);
+    expect(await d.replica.getRecord(good.id)).toEqual(good);
+    expect((await d.sync()).warnings).toEqual([]); // seen: not read (or reported) again
+  });
+
+  it('skips records of another project, both ways', async () => {
+    const objects = memoryObjectStore();
+    const other = { ...runRecord(), project: 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y99' };
+    await putLog(objects, Date.now(), [other]);
+    const e = clone(objects, 'e');
+    const r = await e.sync();
+    expect(r.pulled.records).toBe(0);
+    expect(r.warnings).toEqual([expect.stringContaining(`skipped ${other.id} in v1/log/`)]);
+    expect(await e.replica.getRecord(other.id)).toBeNull();
+    const local = { ...runRecord(), project: 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y99' };
+    await e.replica.putRecord(local);
+    const p = await e.sync({ direction: 'push' });
+    expect(p.pushed.records).toBe(0);
+    expect(p.warnings).toEqual([expect.stringContaining(`skipped ${local.id} in the local replica`)]);
+  });
+
+  it('warns when the store has another body for a record ID and keeps the local copy', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'a');
+    const run = runRecord();
+    await a.replica.putRecord(run);
+    await a.sync();
+    const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+    const key = await putLog(objects, Date.now(), [forged]);
+    const r = await a.sync();
+    expect(r.warnings).toEqual([
+      `record ${run.id} in ${key} differs from the local copy; kept the local copy`,
+    ]);
+    expect(await a.replica.getRecord(run.id)).toEqual(run);
+  });
+
+  it('a push-only sync on a fresh state does not push records the store already has', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'w');
+    await a.replica.putRecord(runRecord());
+    await a.sync({ direction: 'push' });
+    await a.state.save(emptyState());
+    expect(await a.sync({ direction: 'push' })).toMatchObject({ pushed: { records: 0 } });
+    expect((await objects.list({ prefix: 'v1/log/' })).keys).toHaveLength(1);
+    expect((await a.state.load()).lastFullAt).not.toBeNull();
+  });
+
+  it('uploads fixture pointer blobs given as extraBlobs once, skipping ones not in the replica', async () => {
+    const { store, stats } = instrumented(memoryObjectStore());
+    const a = clone(store, 'a');
+    const sha = await a.replica.putBlob(enc.encode('big fixture file'), 'text/plain');
+    const elsewhere = await sha256Hex('only in another clone');
+    const extraBlobs = [sha, elsewhere];
+    expect(await a.sync({ extraBlobs })).toMatchObject({ pushed: { records: 0, blobs: 1 } });
+    expect(await createResultStore(store).getBlob(sha)).toEqual(enc.encode('big fixture file'));
+    const puts = stats.puts;
+    expect(await a.sync({ extraBlobs })).toMatchObject({ pushed: { blobs: 0 } });
+    expect(stats.puts).toBe(puts);
+    const bundle = {
+      fixtures: [{ dataFiles: [{ pointer: true, sha256: sha }, { sha256: elsewhere }] }],
+    } as unknown as Parameters<typeof pointerBlobs>[0];
+    expect(pointerBlobs(bundle)).toEqual([sha]);
+  });
+
   it('pushes up to 1000 records per log object', async () => {
     const objects = memoryObjectStore();
     const a = clone(objects, 'w');
@@ -231,7 +332,7 @@ describe('syncOnce', () => {
   });
 });
 
-/** examples/shop の定義ファイルを読むだけの BundleFs（テスト用）。 */
+/** BundleFs over the examples/shop definition files (for tests). */
 function dirFs(root: string, files = new Map<string, Uint8Array>()): BundleFs {
   return {
     async read(p) {
@@ -307,7 +408,7 @@ describe('bundle snapshots', () => {
 
     expect((await a.sync({ bundle })).snapshot).toBeNull();
     const b = clone(objects, 'w2');
-    expect((await b.sync({ bundle })).snapshot).toBeNull(); // 同じ定義のスナップショットは取り込み済み
+    expect((await b.sync({ bundle })).snapshot).toBeNull(); // a snapshot of the same definitions exists
     await fs.write('README.md', '# changed\n');
     const changed = await a.sync({ bundle });
     expect(changed.snapshot).toMatch(/^rec_/);
@@ -334,7 +435,7 @@ describe('watch', () => {
       const b = mk('b');
       const errors: unknown[] = [];
       const results: SyncResult[] = [];
-      // A は onResult なし（それでも同期すること）、B は結果を集める
+      // A has no onResult (it must still sync); B collects results
       const stopA = watch({ ...a, intervalMs: 100, onError: (e) => errors.push(e) });
       const stopB = watch({
         ...b,
@@ -343,7 +444,7 @@ describe('watch', () => {
         onResult: (r) => results.push(r),
       });
       const run = runRecord();
-      await openReplica(join(dir, 'a')).putRecord(run); // 別プロセスの書き手（レポーター）を真似る
+      await openReplica(join(dir, 'a')).putRecord(run); // like a writer in another process (the reporter)
       const started = Date.now();
       while (!(await b.replica.getRecord(run.id)) && Date.now() - started < 5000)
         await new Promise((r) => setTimeout(r, 50));
@@ -356,6 +457,45 @@ describe('watch', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('watch errors', () => {
+  it('stops on a store bound to another project and reports it to onFatal', async () => {
+    const objects = memoryObjectStore();
+    await createResultStore(objects).init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01');
+    const a = clone(objects, 'w');
+    const errors: unknown[] = [];
+    const fatal = await new Promise<unknown>((resolve) => {
+      watch({ ...a.opts, intervalMs: 20, onError: (e) => errors.push(e), onFatal: resolve });
+    });
+    expect(fatal).toMatchObject({ code: 'wrong-project' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(errors).toEqual([]); // no retries after the fatal error
+  });
+
+  it('keeps retrying network errors', async () => {
+    const inner = memoryObjectStore();
+    const broken: ObjectStore = {
+      ...inner,
+      url: inner.url,
+      get: async () => {
+        throw Object.assign(new Error('offline'), { code: 'network' });
+      },
+    };
+    const a = clone(broken, 'w');
+    const errors: unknown[] = [];
+    const fatal: unknown[] = [];
+    const stop = watch({
+      ...a.opts,
+      intervalMs: 20,
+      onError: (e) => errors.push(e),
+      onFatal: (e) => fatal.push(e),
+    });
+    await new Promise((r) => setTimeout(r, 150));
+    await stop();
+    expect(errors.length).toBeGreaterThan(1);
+    expect(fatal).toEqual([]);
   });
 });
 
@@ -381,6 +521,8 @@ describe('helpers', () => {
       expect(await (await fileStateStore(dir, 's3://shop-results/watch')).load()).toEqual(state);
       expect(s.path).toMatch(/cache\/sync\/[0-9a-f]{16}\.json$/);
       expect((await fileStateStore(dir, 'file://../store')).path).not.toBe(s.path);
+      // the configured URL and the adapter's normalized URL share one state file
+      expect((await fileStateStore(dir, 's3://shop-results/watch/')).path).toBe(s.path);
       const w = await writerId(dir);
       expect(w).toMatch(/^w_[0-9a-f]{24}$/);
       expect(await writerId(dir)).toBe(w);
