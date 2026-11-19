@@ -44,7 +44,8 @@ export function Runner({ tcKey }: { tcKey: string }) {
 function Run({ d }: { d: TestCaseDetail }) {
   const { t, locale } = useI18n();
   const { project, scope } = useApp();
-  const env = project.environments.find((e) => e.name === scope.env);
+  // a run happens in one environment: the chosen one, else the project default (as the server records it)
+  const env = project.environments.find((e) => e.name === (scope.env ?? project.project.default_environment));
   const values = placeholderValues(d.fixtures);
   const started = useRef(nowIso());
   const [steps, setSteps] = useState<StepState[]>(() => d.data.steps.map(() => ({ note: '', shots: [] })));
@@ -105,7 +106,7 @@ function Run({ d }: { d: TestCaseDetail }) {
     const input: ManualRunInput = {
       test_case: d.key,
       release: scope.release,
-      environment: scope.env,
+      environment: env?.name ?? scope.env,
       started_at: started.current,
       locale,
       steps: steps.flatMap((s, i) => {

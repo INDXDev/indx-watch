@@ -43,6 +43,9 @@ function Readiness({
   const release = project.releases.find((r) => r.version === scope.release);
   const env = project.environments.find((e) => e.name === scope.env);
   const failing = status.gate.checks.filter((c) => !c.passed);
+  // nothing gated (no P0/P1 test case in scope): neutral, not "ready" (docs/spec/concepts.md#gate)
+  const ungated = failing.some((c) => c.key === 'has_gated_tests');
+  const tone = ungated ? 'untested' : status.gate.passed ? 'pass' : 'fail';
   const titles = new Map<string, string>();
   for (const f of specs?.features ?? [])
     for (const uc of f.useCases)
@@ -75,7 +78,8 @@ function Readiness({
             {release?.title && <span className="muted">{release.title}</span>}
           </h1>
           <p className="muted">
-            {release && <Chip>{release.state}</Chip>} {env ? env.title : t('scope.allEnvironments')} ·{' '}
+            {release && <Chip>{release.state}</Chip>}{' '}
+            <strong>{t('dash.scope', { env: env ? env.title : t('scope.allEnvironments') })}</strong> ·{' '}
             {t('dash.coverage', { covered: status.coverage.covered, total: status.coverage.total })}
           </p>
         </div>
@@ -84,14 +88,17 @@ function Readiness({
         </a>
       </div>
 
-      <div className={`verdict ${status.gate.passed ? 's-pass' : 's-fail'}`} role="status">
-        <Icon status={status.gate.passed ? 'pass' : 'fail'} />
+      <div className={`verdict s-${tone}`} role="status">
+        <Icon status={tone} />
         <div>
           <strong>
-            {status.gate.passed
-              ? t('dash.ready')
-              : t('dash.notReady', { failed: failing.length, total: status.gate.checks.length })}
+            {ungated
+              ? t('dash.ungated')
+              : status.gate.passed
+                ? t('dash.ready')
+                : t('dash.notReady', { failed: failing.length, total: status.gate.checks.length })}
           </strong>
+          {ungated && <p>{t('dash.ungated.detail')}</p>}
           {next ? (
             <p>
               {t('dash.next')}{' '}
@@ -244,6 +251,18 @@ function Readiness({
                   </tr>
                 );
               })}
+              {useCases.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    {t('dash.useCases.empty')}{' '}
+                    {!all && status.useCases.length > 0 && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAll(true)}>
+                        {t('dash.showAll')}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -11,6 +11,13 @@ type Evidence = RunDetail['record']['evidence'][number];
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
 const RULES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+/** CI run and pull request links of a record: web URLs only; the PR next to a GitHub Actions run. Pure; tested. */
+export function ciLinks(ci?: { url?: string | undefined; pr?: number | undefined }) {
+  const url = ci?.url && /^https?:\/\//i.test(ci.url) ? ci.url : undefined;
+  const github = ci?.pr && url?.includes('/actions/runs/');
+  return { url, pr: github ? url!.replace(/\/actions\/runs\/.*$/, `/pull/${ci!.pr}`) : undefined };
+}
+
 export function RunView({ id }: { id: string }) {
   const run = useApi(() => api.run(id), [id]);
   return <Load state={run}>{(r) => <Detail r={r} reload={run.reload} />}</Load>;
@@ -23,6 +30,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
   const byStep = new Map<number, Evidence[]>();
   for (const e of rec.evidence) byStep.set(e.step ?? 0, [...(byStep.get(e.step ?? 0) ?? []), e]);
   const ev = (sha: string) => rec.evidence.find((e) => e.sha256 === sha);
+  const ci = ciLinks(rec.ci);
   return (
     <>
       <div className="page-head">
@@ -144,7 +152,8 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
                 [t('scope.release'), rec.release],
                 [t('scope.environment'), rec.environment],
                 [t('run.build'), rec.build.commit && <code>{rec.build.commit.slice(0, 12)}</code>],
-                [t('run.ci'), rec.ci?.url && <a href={rec.ci.url}>{rec.ci.job ?? rec.ci.provider} ↗</a>],
+                [t('run.ci'), ci.url && <a href={ci.url}>{rec.ci?.job ?? rec.ci?.provider} ↗</a>],
+                [t('run.pr'), rec.ci?.pr && (ci.pr ? <a href={ci.pr}>#{rec.ci.pr} ↗</a> : `#${rec.ci.pr}`)],
                 [t('run.started'), date(rec.started_at)],
                 [t('run.ended'), date(rec.ended_at)],
                 [t('run.locale'), rec.locale],

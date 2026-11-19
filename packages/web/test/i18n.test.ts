@@ -40,6 +40,7 @@ describe('messages', () => {
       'max_untested',
       'allow_stale',
       'require_evidence',
+      'has_gated_tests',
     ])
       expect(keys.has(`gate.${g}`), g).toBe(true);
     for (let n = 1; n <= 10; n++) expect(keys.has(`rule.${n}`), `rule.${n}`).toBe(true);

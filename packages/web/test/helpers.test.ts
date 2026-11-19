@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { query, reportPath, safeName } from '../src/api';
+import { api, query, reportPath, safeName, setTransport } from '../src/api';
 import { parseRoute } from '../src/router';
+import { ciLinks } from '../src/screens/Run';
 import { needsReason, suggestVerdict } from '../src/screens/Runner';
 import { placeholderValues } from '../src/screens/TestCase';
 
@@ -84,5 +85,36 @@ describe('manual runner', () => {
       { key: 'FX-2', title: 'Catalog with three products', kind: 'seed', version: 'fxv:91be03d2a402' },
     ]);
     expect(values).toEqual({ 'FX-1.code': 'OLD5', 'FX-1.discount': '0.05' });
+  });
+});
+
+describe('ciLinks()', () => {
+  it('links the CI run and the pull request; web URLs only', () => {
+    const url = 'https://github.com/acme/shop/actions/runs/987/attempts/2';
+    expect(ciLinks({ url, pr: 12 })).toEqual({ url, pr: 'https://github.com/acme/shop/pull/12' });
+    expect(ciLinks({ url })).toEqual({ url, pr: undefined });
+    expect(ciLinks({ url: 'https://ci.example/build/1', pr: 3 })).toEqual({
+      url: 'https://ci.example/build/1',
+      pr: undefined,
+    });
+    expect(ciLinks({ url: 'javascript:alert(1)//actions/runs/1', pr: 1 })).toEqual({});
+    expect(ciLinks(undefined)).toEqual({});
+  });
+});
+
+describe('writes', () => {
+  it('carry X-IW-Request so the server can refuse cross-site writes', async () => {
+    const sent: RequestInit[] = [];
+    setTransport({
+      fetch: async (_path, init) => {
+        sent.push(init ?? {});
+        return Response.json({});
+      },
+      blobUrl: (sha) => sha,
+    });
+    await api.createRun({ test_case: 'TC-1', verdict: 'pass' } as never);
+    await api.review('run_x', { verdict: 'pass', reason: 'ok' });
+    await api.uploadBlob(new Blob(['x'], { type: 'image/png' }), 'a.png');
+    for (const init of sent) expect((init.headers as Record<string, string>)['X-IW-Request']).toBe('1');
   });
 });
