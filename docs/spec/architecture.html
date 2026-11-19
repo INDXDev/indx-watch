@@ -508,9 +508,10 @@ preview 環境で実行: https://watch.indx.example/p/SHOP/deployments</code></p
           <p><b>決定</b>: 実行中の進捗はポーリング（2 秒間隔、実行中の画面のみ）で表示する。Durable Objects（SQLite、Free プランでも利用可）は禁止はしないが、v1 の必須部品にはしない。</p>
           <p><b>理由</b>: リアルタイム共同編集やロックの要件が v1 にはない。状態の置き場所が D1 と二重になるのを避ける。</p>
           <p><b>見直す条件</b>: ブラウザセッションの再利用、Sandbox SDK の導入、実行ビューアのライブ配信が必要になったとき。</p></div>
-        <div class="card"><span class="id">ADR-004</span><h3>D1 を唯一の正にする</h3>
-          <p><b>決定</b>: 仕様・計画・結果は D1 が正。リポジトリへの YAML 書き出しは M3 以降に「エクスポート」として提供し、取り込みは AI 仕様取り込み経由とする。</p>
-          <p><b>理由</b>: ビジネス職がブラウザで編集でき、実行結果と同じ DB で結合できる。リポジトリと DB の双方向同期は衝突処理のコストが大きい。</p></div>
+        <div class="card"><span class="id">ADR-004</span><h3>形式（Watch Bundle）を正にし、D1 は同期の中心にする（2026-11-19 改訂）</h3>
+          <p><b>決定</b>: 単一の情報源は Watch Bundle 形式（型が決まったディレクトリ構成）とその中身。クラウドの D1 + R2 は共有・同期・画面・AI 実行の中心として全データを持つ。手元の <code>indx-watch/</code> は CLI <code>iw</code> で双方向に同期する作業コピー。いつでも失うものなく書き出し・取り込みでき、<code>iw deploy</code> で別アカウントにも立てられる（<a href="portability.html">SPEC-10</a>）。</p>
+          <p><b>理由</b>: Cloudflare にロックインしない。手元のファイルなら Git・エディタ・AI がそのまま使える。双方向同期の衝突は、正規化した内容ハッシュによる楽観ロックと項目単位の 3 方向マージで小さく抑える。</p>
+          <p><b>前の決定</b>: 「D1 を唯一の正にし、YAML は片方向の書き出しのみ」（v0.2）を置き換え。</p></div>
         <div class="card"><span class="id">ADR-005</span><h3>エージェントは Playwright の自前ツールで操作する</h3>
           <p><b>決定</b>: Claude の computer use ではなく、a11y ツリーの <code>ref</code> を使う自前ツール（navigate / click / fill など）で操作する。</p>
           <p><b>理由</b>: DOM を直接扱えるので座標推定より安定し、トークンが少なく安い。操作ログがそのまま Playwright スクリプトに変換できる。</p>

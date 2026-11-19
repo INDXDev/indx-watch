@@ -34,13 +34,13 @@
       <div class="eyebrow">SPEC-04 · データモデル</div>
       <h1>データモデル（D1 / R2）</h1>
       <p class="lead">INDX Watch のすべての情報は Cloudflare D1（SQLite）に入り、ファイル本体だけを R2 に置きます。このページの DDL が実装の起点です。実装後は <code>packages/db/schema.ts</code> とこのページを同じコミットで更新します。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="architecture.html">アーキテクチャ</a></span></div>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.3</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="architecture.html">アーキテクチャ</a></span></div>
     </header>
 
     <section id="policy">
       <h2>方針</h2>
       <ul>
-        <li><b>D1 が単一の情報源</b>。仕様・計画・実行・判定・AI 提案・監査ログまで 1 つの DB に入れる。GitHub や YAML は入出力にすぎない。</li>
+        <li><b>形式が正、D1 は中心の置き場所</b>。単一の情報源は Watch Bundle 形式とその中身（<a href="portability.html">SPEC-10</a>）。D1 は仕様・計画・実行・判定・AI 提案・監査ログまで全部を持つ中心の置き場所で、手元の作業コピーと同期し、いつでも失うものなく書き出せる。テーブルを変えるときは Bundle の型と対応表も同時に変える。</li>
         <li>主キーは <code>TEXT</code> の <code>{prefix}_{ULID}</code>。時系列で並ぶので、作成日時順のインデックスを別に持たなくてよい。</li>
         <li>日時は <code>INTEGER</code>（UNIX ミリ秒、UTC）。表示時に JST に変換。</li>
         <li>列挙値は <code>TEXT</code> + <code>CHECK</code> 制約。</li>
@@ -128,6 +128,8 @@ erDiagram
           <tr><td><code>search_index</code></td><td>原文・翻訳の全文検索（FTS5）。</td><td>M2</td></tr>
           <tr><td rowspan="2">記録</td><td><code>comments</code></td><td>任意の対象へのコメント。</td><td>M1</td></tr>
           <tr><td><code>activity_log</code></td><td>監査ログ（すべての変更）。誰が・いつ・どこから（IP / 国 / 都市 / Ray ID / ログインセッション）。</td><td>M1</td></tr>
+          <tr><td rowspan="2">同期・書き出し</td><td><code>sync_changes</code></td><td>変更番号（CLI の差分同期と楽観ロック）。</td><td>M1</td></tr>
+          <tr><td><code>data_transfers</code></td><td>書き出し・取り込みのジョブ。</td><td>M1</td></tr>
           <tr><td rowspan="5">ログイン・作業記録</td><td><code>login_sessions</code></td><td>Access のログインセッション（IdP、場所、端末、WARP）。</td><td>M1</td></tr>
           <tr><td><code>access_events</code></td><td>Access の認証ログ（成功・失敗・拒否）。</td><td>M1</td></tr>
           <tr><td><code>page_views</code></td><td>画面の閲覧と表示時間。</td><td>M1</td></tr>
@@ -172,7 +174,7 @@ CREATE TABLE project_members (
 
 CREATE TABLE project_counters (
   project_id  TEXT NOT NULL REFERENCES projects(id),
-  kind        TEXT NOT NULL CHECK (kind IN ('FEAT','UC','TC','FX','PLAN','RUN')),
+  kind        TEXT NOT NULL CHECK (kind IN ('FEAT','UC','TC','FX','PLAN','RUN','REV')),  -- REV = 同期の変更番号
   next_value  INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (project_id, kind)
 );</code></pre>
@@ -626,7 +628,7 @@ CREATE TABLE activity_log (
   target_type  TEXT NOT NULL,
   target_id    TEXT NOT NULL,
   diff_json    TEXT,                              -- 変更前後
-  via          TEXT NOT NULL DEFAULT 'web' CHECK (via IN ('web','mcp','github','runner','system')),
+  via          TEXT NOT NULL DEFAULT 'web' CHECK (via IN ('web','cli','mcp','github','runner','system')),
   login_session_id TEXT REFERENCES login_sessions(id),  -- 人の操作のとき
   ray_id       TEXT,                              -- CF-Ray。Access ログ・Workers Logs と突き合わせる
   ip           TEXT,                              -- CF-Connecting-IP
@@ -640,6 +642,40 @@ CREATE INDEX activity_target ON activity_log(target_type, target_id, created_at 
 CREATE INDEX activity_project_time ON activity_log(project_id, created_at DESC);
 CREATE INDEX activity_actor_time ON activity_log(actor_id, created_at DESC);</code></pre>
 
+<h3 id="sync">同期・書き出し（ポータビリティ）</h3>
+<p class="small muted">ファイル形式（Watch Bundle）と CLI は <a href="portability.html">ポータビリティとローカル同期</a>。</p>
+<pre><code>-- プロジェクト内で単調増加する変更番号。CLI の pull はこの番号より後の変更だけを取る
+CREATE TABLE sync_changes (
+  project_id   TEXT NOT NULL REFERENCES projects(id),
+  rev          INTEGER NOT NULL,                  -- project_counters('REV') で採番
+  entity_type  TEXT NOT NULL,                     -- feature / use_case / test_case / fixture / environment / release / plan / run ...
+  entity_id    TEXT NOT NULL,
+  op           TEXT NOT NULL CHECK (op IN ('upsert','archive')),
+  content_hash TEXT NOT NULL,                     -- 正規化した Bundle 表現の sha256（楽観ロックの基準）
+  actor_id     TEXT NOT NULL REFERENCES users(id),
+  via          TEXT NOT NULL,                     -- web / cli / mcp ...
+  created_at   INTEGER NOT NULL,
+  PRIMARY KEY (project_id, rev)
+);
+CREATE INDEX sync_changes_entity ON sync_changes(entity_type, entity_id, rev DESC);
+
+-- 書き出し・取り込みのジョブ
+CREATE TABLE data_transfers (
+  id             TEXT PRIMARY KEY,                -- dtx_...
+  project_id     TEXT REFERENCES projects(id),    -- null はインスタンス全体
+  kind           TEXT NOT NULL CHECK (kind IN ('export','import')),
+  scope          TEXT NOT NULL CHECK (scope IN ('working','full')),
+  include_audit  INTEGER NOT NULL DEFAULT 0,      -- ログイン・行動ログを含める（admin のみ）
+  dry_run        INTEGER NOT NULL DEFAULT 0,      -- import の事前確認
+  status         TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','succeeded','failed')),
+  r2_key         TEXT,                            -- transfers/{id}/bundle.tar.zst
+  manifest_json  TEXT,                            -- 件数・schema_version・sha256
+  report_json    TEXT,                            -- import の差分レポート
+  requested_by   TEXT NOT NULL REFERENCES users(id),
+  created_at     INTEGER NOT NULL,
+  finished_at    INTEGER
+);</code></pre>
+
 <h3 id="identity">ログイン・作業記録</h3>
 <p class="small muted">何をどこから取るか、保持と閲覧権限は <a href="identity-audit.html">認証・行動ログ</a>。</p>
 <pre><code>-- Worker が観測した Access セッション。identity_nonce が変わったら新しい行
@@ -647,7 +683,7 @@ CREATE TABLE login_sessions (
   id                TEXT PRIMARY KEY,             -- lgs_...
   user_id           TEXT NOT NULL REFERENCES users(id),
   identity_nonce    TEXT NOT NULL UNIQUE,         -- JWT identity_nonce（Access のセッション識別子）
-  auth_kind         TEXT NOT NULL CHECK (auth_kind IN ('identity','service_token')),
+  auth_kind         TEXT NOT NULL CHECK (auth_kind IN ('identity','cli_oauth','service_token')),  -- cli_oauth = Access Managed OAuth（iw login）
   access_iat        INTEGER NOT NULL,             -- JWT iat = Access でログインした時刻
   access_exp        INTEGER NOT NULL,             -- 最後に見た JWT の exp
   jwt_country       TEXT,                         -- JWT country（認証時の国）
@@ -817,6 +853,7 @@ CREATE TABLE ingest_cursors (
           <tr><td>フィクスチャ</td><td><code>fixtures/{project_key}/{fixture_id}/v{n}/{filename}</code></td><td><code>fixtures/SHOP/fx_01JC.../v4/coupons.csv</code></td><td>無期限</td></tr>
           <tr><td>ベースライン</td><td><code>baselines/{project_key}/{test_case_id}/{env}/{step}.png</code></td><td><code>baselines/SHOP/tc_01JB.../staging/5.png</code></td><td>無期限（置き換え時に旧版を 90 日残す）</td></tr>
           <tr><td>Cloudflare ログ（Logpush）</td><td><code>cf-logs/{dataset}/{YYYYMMDD}/...</code>（<code>access_requests</code>、<code>audit_logs_v2</code>、<code>device_posture_results</code>）</td><td><code>cf-logs/access_requests/20261119/...ndjson.gz</code></td><td>3 年</td></tr>
+          <tr><td>書き出し・取り込み</td><td><code>transfers/{transfer_id}/bundle.tar.zst</code></td><td><code>transfers/dtx_01JF.../bundle.tar.zst</code></td><td>7 日</td></tr>
           <tr><td>テストメール</td><td><code>emails/{project_key}/{run_id}/{message_id}.eml</code></td><td><code>emails/SHOP/run_01JD.../a1b2.eml</code></td><td>180 日</td></tr>
           <tr><td>AI 取り込みの入力</td><td><code>imports/{project_key}/{suggestion_id}/{filename}</code></td><td><code>imports/SHOP/sug_01JE.../prd.pdf</code></td><td>90 日</td></tr>
         </tbody>

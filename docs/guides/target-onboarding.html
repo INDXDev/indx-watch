@@ -23,7 +23,7 @@
     <li><a href="#env-checklist">環境ごとの必須情報</a></li>
     <li><a href="#entry-guide">入り方ガイドの書き方</a></li>
     <li><a href="#app-side">対象アプリ側に用意するもの</a></li>
-    <li><a href="#yaml">設定ファイル（任意）</a></li>
+    <li><a href="#yaml">リポジトリに置く indx-watch/</a></li>
     <li><a href="#uat">顧客 UAT 環境を開く</a></li>
     <li><a href="#verify">動作確認チェックリスト</a></li>
     <li><a href="#troubles">よくあるつまずき</a></li>
@@ -229,49 +229,32 @@ Slack #shop-dev（担当: 鈴木 翔）</code></pre>
     </section>
 
     <section id="yaml">
-      <h2>設定ファイル <code>.indx-watch/project.yaml</code>（任意）</h2>
-      <div class="callout"><strong>DB が正です</strong><p>プロジェクトの設定は INDX Watch のデータベースが唯一の正です。このファイルは「最初の登録をまとめて行う」ためと「環境や自動実行の設定変更を PR でレビューする」ためのインポート元です。ファイルを変更して main にマージすると、GitHub App が差分を検出して <a href="../screens/s09-environments.html">S09</a> に「設定ファイルからの変更案」を出し、管理者が承認したときだけ反映されます。DB 側で直接変えた内容がファイルに書き戻されることはありません。</p></div>
-<pre><code># .indx-watch/project.yaml（indxdev/indx-shop リポジトリ）
-project:
-  key: SHOP
-  name: INDX Shop（サンプル）
+      <h2>リポジトリに置く <code>indx-watch/</code>（任意）</h2>
+      <div class="callout"><strong>形式が正、フォルダは作業コピー</strong><p>プロジェクトのデータは Watch Bundle 形式で管理します（<a href="../spec/portability.html">SPEC-10</a>）。対象アプリのリポジトリに <code>indx-watch/</code> を置くと、clone した人は <code>./iw clone</code> だけで仕様・環境・フィクスチャを手元にそろえられます。既定では <code>watch.toml</code> と起動スクリプトだけがコミットされ、中身は Git に入りません（同期はサーバーが担う）。</p></div>
+<pre><code># indxdev/indx-shop リポジトリで
+$ mkdir indx-watch && cd indx-watch
+$ curl -fsSL https://dl.watch.indx.example/init.sh | sh -s -- SHOP
+$ git add watch.toml iw iw.cmd .gitignore && git commit -m "INDX Watch の作業コピー設定を追加"
+$ ./iw login && ./iw clone</code></pre>
+      <p>最初の登録をファイルでまとめて行いたい場合は、<code>iw init SHOP --local</code>（ローカル専用モード）で作業コピーを作り、<code>environments/staging.toml</code> などを書いてから、<code>watch.toml</code> に <code>server</code> を設定して <code>./iw push</code> します。</p>
+<pre><code>#:schema https://dl.watch.indx.example/schemas/v1/environment.json
 
-environments:
-  - name: staging
-    kind: staging
-    default: true
-    base_url: https://staging.shop.example.com
-    access: { kind: cf_access, secret_ref: SHOP_STAGING_CF_CLIENT_ID }
-    reset_hook:
-      reset: { method: POST, path: /__test/reset }
-      seed:  { method: POST, path: /__test/seed }
-      run_before: each_run
-    entry_guide: ./entry/staging.md          # 入り方ガイド（Markdown）
-  - name: uat
-    kind: uat
-    base_url: https://uat.shop.example.com
-    access: { kind: cf_access, secret_ref: SHOP_UAT_ACCESS }
-    entry_guide: ./entry/uat.md
-  - name: preview
-    kind: preview
-    base_url: https://pr-{pr_number}.shop.example.com
-    access: { kind: cf_access, secret_ref: SHOP_STAGING_CF_CLIENT_ID }
+# indx-watch/environments/staging.toml
+name = "staging"
+kind = "staging"
+default = true
+base_url = "https://staging.shop.example.com"
+access = { kind = "cf_access", secret_ref = "SHOP_STAGING_CF_CLIENT_ID" }
+entry_guide = """
+社内ネットワーク不要。下のボタンで開くと自動でログイン画面を通過します。
+"""
 
-automation:
-  smoke:
-    tags: [smoke]                  # このタグの付いた ready のテストケースが対象
-    on_deployment: [staging, preview]
-    environment_from_deployment: true
-  nightly:
-    cron: "0 18 * * *"             # UTC。JST 3:00
-    environment: staging
-    selector: { priority: [P0, P1] }
-
-notifications:
-  github_checks: true              # PR に Check Run を付ける
-  failed_run_issue: suggest        # 失敗時に Issue 案を作る（suggest / auto / off）
-  slack_channel: "#shop-qa"</code></pre>
-      <p class="muted small">秘密値はこのファイルにも書きません。<code>secret_ref</code> の参照名だけを書きます。</p>
+[reset_hook]
+reset = { method = "POST", path = "/__test/reset" }
+seed = { method = "POST", path = "/__test/seed" }
+run_before = "each_run"</code></pre>
+      <p>自動実行と通知は <code>project.toml</code> の <code>[[schedules]]</code> と <code>[notify]</code> に書きます。仕様もリポジトリでレビューしたい場合は <code>watch.toml</code> の <code>[sync] commit = ["specs"]</code> を設定します。</p>
+      <p class="muted small">秘密値はファイルに書きません。<code>secret_ref</code> の参照名だけを書きます。<code>iw check</code> は秘密らしい値を見つけると push を止めます。</p>
     </section>
 
     <section id="uat">

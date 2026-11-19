@@ -36,7 +36,7 @@ INDX Watch は、社内（と招待した顧客）だけが使う、AI ネイテ
 
 中心となる考え方:
 
-- **D1 が単一の情報源**: 仕様、フィクスチャ、環境、リリース / デプロイ、アサイン、実行、証拠、判定、AI の提案、ログをすべて 1 つの DB に置く。ファイルは R2。
+- **形式が正（ロックインしない）**: 単一の情報源は Watch Bundle 形式（型が決まったディレクトリ構成の TOML などのファイル群）とその中身。Cloudflare の D1 + R2 は共有・同期・画面・AI 実行の中心として全データを持つが、置き場所の 1 つにすぎない。`indx-watch/` に `watch.toml` を置けば、npx の CLI `iw` で一瞬で取り出し・同期・フル書き出し・別アカウントへのデプロイ（`iw deploy`）ができる。
 - **完了は計算で決まる**: ユースケースはすべての完了条件（AC）が合格で完了。リリースは Go / No-Go の条件で判定。
 - **AI は提案、人が承認**: AI の生成物は `draft` で入る。AI の判定は信頼度付きで、足りなければ人のレビューへ。
 - **すべて版で残す**: テストケースとフィクスチャは不変の版を積み上げる。実行は使った版を記録する。
@@ -49,8 +49,8 @@ INDX Watch は、社内（と招待した顧客）だけが使う、AI ネイテ
 1. `AGENTS.md`（用語・ID・スタック・作業ルールの要約。最優先の正）
 2. `docs/guides/dev-plan.html`（タスク T-101〜T-406、依存、完了条件、**ファイル構成の正**、ID と記録の QA、リスク）
 3. `docs/spec/domain.html`、`docs/spec/data-model.html`、`docs/spec/interactions.html`（ドメイン、DDL、ER、シーケンス、CRUD）
-4. `docs/spec/architecture.html`（Cloudflare 構成と「最新仕様の確認メモ」）、`docs/spec/identity-audit.html`、`docs/spec/i18n.html`、`docs/spec/ai.html`
-5. `docs/spec/ux.html` と `docs/screens/s01〜s12-*.html`（各画面のモックと「この画面の完了条件」）
+4. `docs/spec/architecture.html`（Cloudflare 構成と「最新仕様の確認メモ」）、`docs/spec/portability.html`（Watch Bundle・CLI・同期・書き出し・デプロイ）、`docs/spec/identity-audit.html`、`docs/spec/i18n.html`、`docs/spec/ai.html`
+5. `docs/spec/ux.html` と `docs/screens/s01〜s13-*.html`（各画面のモックと「この画面の完了条件」）
 6. `docs/guides/implementation.html`（規約・コード例）、`docs/guides/target-onboarding.html`
 
 HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読めば十分です。画面モックは、実装後にスクリーンショットと見比べるためにブラウザでも開いてください。
@@ -65,6 +65,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
   - forced `tool_choice` は使わず、`auto` と `strict: true` にする。
   - `stop_reason: "refusal"` を確認し、fallbacks を設定する。
   - Anthropic SDK の使い方は推測せず、`claude-api` スキルか公式ドキュメントで確認する。
+- **形式と CLI**: `packages/bundle`（zod の型が正、JSON Schema を生成、正規化した TOML と content_hash、行 ↔ Bundle の変換、3 方向マージ、アーカイブ）。CLI `apps/cli` は npx（`@indx/watch`）で配布し、`indx-watch/iw` 起動スクリプトが版を固定する。CLI の認証は Access Managed OAuth（`iw login`、PKCE + loopback）。Bypass や共有の鍵は使わない。
 - **ツール**: pnpm workspaces、TypeScript strict、Biome、vitest、`@cloudflare/vitest-pool-workers`、Drizzle（D1）、Tailwind + shadcn/ui、next-intl。
 - **Cloudflare の確認**: Cloudflare の機能・上限・API を前提にするときは、developers.cloudflare.com と changelog を Web で確認する。ドキュメントと食い違ったら `architecture.html` の確認メモを更新する。
 
@@ -124,6 +125,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
    - app-shell（左ナビは全項目入り）、共通 UI 部品、色トークン。
    - next-intl。メッセージは**画面ごとのファイル**（`messages/{ja,en}/S05.json` など）に分け、読み込み時にまとめる。並列作業での衝突を避けるため。
 5. **T-105**: 認証・ログインセッション・`withAudit()`・閲覧ビーコン・告知と同意・`requireRole()`・guest の絞り込み・Access 模擬。
+5b. **T-119**: `packages/bundle`（全エンティティの型・正規化・変換・検証）と、`withAudit()` 内での `sync_changes` 記録。SHOP のシードで往復テスト（変換 → 読み込み → 再変換でハッシュ一致）を通す。
 6. **T-106**: runner の雛形、Queue と RPC のメッセージ型、Workflows の骨組み。
 7. **テスト基盤**: vitest-pool-workers の設定、ローカル E2E（Playwright で `pnpm dev` を叩く。ユーザーは Access 模擬で切り替える）、`tests/sample-shop/`。
 
@@ -132,6 +134,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
 
 - `packages/db/schema/**` とマイグレーション
 - `packages/core/src/{ports,messages}.ts` と `domain/**`
+- `packages/bundle/src/schema/**` と `canonical.ts`
 - ルートの `package.json` と各 `package.json` の依存
 - app-shell とナビ
 - 共通 UI 部品
@@ -148,14 +151,17 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
 | 2 | F: T-113 + T-114 計画・マイタスク（S08・S01） | `p/[key]/plans`、`(app)/page.tsx` |
 | 2 | G: T-115 手動ランナー（S05、S06 の手動実行表示） | `p/[key]/runs` |
 | 2 | H: T-117 ログイン・作業履歴（S12） | `admin/activity`、`lib/cf-api.ts` |
+| 2 | H2: T-120 フル書き出し・取り込み（S13 の書き出し部分） | `bundle/src/archive.ts`、`runner/workflows/{export,import}.ts`、`p/[key]/data` |
 | 3 | あなた: T-116 リリース準備状況（S02）→ **T-118 M1 受け入れ** → **draft PR を作成** | `p/[key]/releases` |
 | 4 | I: T-201→T-205 実行 Workflow・エージェント・ジャッジ・レビュー待ち・Human in the Loop（S06）を順番に | `runner/{workflows/run,agent,browser,fixtures}`、`core/judges`、`(app)/review` |
 | 4 | J: T-206 テストメール | `runner/email.ts` |
-| 4 | K: T-207 + T-208 AI 仕様取り込み（S10）と各画面の AI ボタン | `p/[key]/specs/import`、`runner/workflows/import.ts` |
+| 4 | K: T-207 + T-208 AI 仕様取り込み（S10）と各画面の AI ボタン | `p/[key]/specs/import`、`runner/workflows/ai-import.ts` |
+| 4 | K2: T-211 CLI `iw` と同期 API（Managed OAuth は実機がないので、ローカルでは Access 模擬のトークンで通す） | `apps/cli`、`app/api/sync/v1`、`bundle/src/merge.ts`、S13 の CLI 部分 |
 | 4 | L: T-209 AI 要約 | S02 の要約部分、`core/llm/prompts` |
 | 5 | M: T-301→T-303 GitHub 連携（S11） | `api/github`、`lib/github.ts`、`p/[key]/deployments` |
 | 5 | N: T-304 + T-305 定期実行・script・visual | `runner/workflows/dispatch.ts`、`runner/browser/script.ts`、`core/judges/visual.ts` |
 | 5 | O: T-306 MCP サーバー | `app/mcp` |
+| 5 | O2: T-308 + T-309 常時同期・`iw run`・`iw serve`・`iw deploy`・`iw dev`（deploy は `--dry-run` と wrangler のローカル環境で確認） | `apps/cli/src/commands/{run,serve,deploy,dev}.ts`、`apps/cli/src/sync/watch.ts` |
 | 6 | P: T-401 顧客 UAT、Q: T-402 + T-403 分析・flaky、R: T-404 + T-405 作業セッション・異常検知 | 各画面・`core/audit` |
 | 最後 | あなた: T-210 / T-307 / T-406 の受け入れ（ローカル + フェイク）→ 検証ウェーブ → PR を ready に | — |
 
@@ -176,17 +182,19 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
 
 ### 6.4 検証ウェーブ（最後に Workflow で）
 
-領域ごとの検証エージェントを、**実装したエージェントとは別に**起動する。領域は次の 5 つ。
+領域ごとの検証エージェントを、**実装したエージェントとは別に**起動する。領域は次の 6 つ。
 
 - 認証と記録
 - 仕様・TC・フィクスチャ
 - 計画・実行・判定
 - AI
 - GitHub・MCP・UAT
+- ポータビリティ（Bundle・CLI・書き出し・デプロイ）
 
 検証エージェントには結論ではなくコードとドキュメントを渡し、次を確認させる。
 
 - 担当画面の「この画面の完了条件」と、dev-plan の各タスクの完了条件を 1 つずつ確認し、満たしていない項目を挙げる。
+- ポータビリティの領域では、SPEC-10 の完了条件を実際に試す。具体的には、`iw clone` → 無変更の push で差分 0 になること、フル書き出し → 取り込み → 再書き出しでハッシュが一致すること、ローカル専用モードで動くこと。
 - `AGENTS.md` の作業ルール 1〜10 に違反していないか（`withAudit` / `localize` の通し忘れ、秘密の扱い、AI の draft）。
 - 画面のスクリーンショット（Playwright、ja と en、ライト / ダーク）を `docs/screens/` のモックと見比べ、大きな違いを挙げる。
 - dev-plan の「ID と記録の QA」（WATCH-TC-1〜8）を、ローカルで手順どおりに確認する。
@@ -237,7 +245,7 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
 - 完了条件ごとの ○ / × と、× の理由
 - 追加・変更したファイル
 - 変えた docs
-- 契約の変更依頼
+- 契約の変更依頼（Bundle の型の変更を含む）
 - 要実機確認の項目
 ```
 
@@ -261,6 +269,8 @@ HTML は `<main>` 内のテキストと表、`<pre>` の図とコードを読め
      - Email Routing
      - GitHub App
      - vinext でのデプロイ
+     - CLI の Access Managed OAuth（OTP の顧客、`identity_nonce`、`get-identity` の扱い）
+     - 空の Cloudflare アカウントへの `iw deploy`
   5. **docs の変更**: どのページの何をなぜ変えたか。
   6. **判断したこと**: ドキュメントに無く、自分で決めたこと。
   7. **既知の問題**。

@@ -216,6 +216,7 @@ flowchart LR
         <tbody>
           <tr><td>社員</td><td>12 時間</td><td>IdP 側で必須</td><td>Google Workspace（決定）</td></tr>
           <tr><td>顧客・委託テスター（guest）</td><td>8 時間</td><td>Independent MFA またはパスキーを必須</td><td>One-time PIN（新規アカウントでは手動で追加が必要）</td></tr>
+          <tr><td>CLI（<code>iw</code>）</td><td>Access Managed OAuth（access 15 分・refresh はセッション時間）。<code>auth_kind = cli_oauth</code>、<code>via = cli</code>。<a href="portability.html#auth">SPEC-10</a></td><td>ブラウザでのログインと同じ</td><td>Google Workspace</td></tr>
           <tr><td>サービストークン（MCP）</td><td>トークンの有効期限で管理（90 日で更新）</td><td>—</td><td>Service Auth</td></tr>
         </tbody>
       </table></div>
@@ -333,7 +334,7 @@ flowchart LR
       </ul>
     </section>
 
-    <nav class="pager"><a href="i18n.html"><small>前へ</small>SPEC-08 多言語</a><a href="../guides/implementation.html"><small>次へ</small>GUIDE-01 実装ガイド</a></nav>
+    <nav class="pager"><a href="i18n.html"><small>前へ</small>SPEC-08 多言語</a><a href="portability.html"><small>次へ</small>SPEC-10 ポータビリティ</a></nav>
   </div>
 </main>
 <script src="../assets/docs.js"></script>

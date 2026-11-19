@@ -8,7 +8,7 @@ INDX Watch gives business people, engineers and QA one shared place to answer th
 2. **Has it been verified, and how do we know?** Test cases cover acceptance criteria. Every run records the exact spec version, fixture versions and deployment it ran against, along with screenshots and judge reasoning.
 3. **Who does what next?** Test plans assign each test case to a person (or the AI browser agent) on a specific environment, with priority and due date.
 
-All of this lives in a single Cloudflare D1 database, which is the single source of truth. Files (evidence, fixture data, visual baselines) live in R2.
+The single source of truth is the **Watch Bundle format**: a typed, fixed directory layout of TOML files plus data files. The hosted instance on Cloudflare (D1 for records, R2 for files) is the hub for sharing, sync, the web UI and AI runs. It is not a lock-in: drop a `watch.toml` into an `indx-watch/` folder and the zero-install CLI `iw` (via npx) clones the whole project in seconds, syncs both ways like a shared drive, exports everything losslessly, and can even deploy a fresh instance to another Cloudflare account with `iw deploy`.
 
 > **Status: M0 complete, ready for M1.** There is no application code yet. The `docs/` folder holds the specification, and `docs/guides/dev-plan.html` lists the tasks to execute in order, starting with human setup (H-01–H-07) and T-101.
 
@@ -21,6 +21,7 @@ All of this lives in a single Cloudflare D1 database, which is the single source
 - **No one gets lost.** Each environment has an entry guide (URL, how to get in, test accounts, reset hooks), so a tester can start from "My tasks" without asking anyone.
 - **Japanese and English.** The UI and the content people write (use cases, steps, comments) work in both languages. Each text has one source language, AI translations are reviewed by people, and every run records which language the tester read.
 - **Full activity trail.** Using Cloudflare Access identity and logs, INDX Watch records who logged in (including failed attempts), when, from where, on which device, and what they did.
+- **No lock-in.** Every project can be exported and imported without loss, used fully offline in local-only mode, or redeployed elsewhere. Cloudflare-specific parts sit behind replaceable ports.
 - **Small codebase.** One Next.js app plus one runner Worker. The project leans on Cloudflare managed services instead of custom infrastructure.
 
 ## Architecture at a glance
@@ -46,12 +47,15 @@ CLAUDE.md        Claude Code entry point (imports AGENTS.md)
 docs/            Single source of truth, as HTML (Japanese)
   index.html       Entry point
   spec/            Layer 1: what and why (PRD, domain, UX, data model, architecture, AI,
-                   ER and communication flows, i18n, identity and audit logs)
-  screens/         Layer 2: one page per screen (mockup + screen spec), S01–S12
+                   ER and communication flows, i18n, identity and audit logs,
+                   portability: Watch Bundle, CLI, sync, export, deploy)
+  screens/         Layer 2: one page per screen (mockup + screen spec), S01–S13
   guides/          Layer 2: implementation guide, target app onboarding,
                    development plan (component/file layout, tasks T-101–T-406)
 apps/web/        Next.js app (planned)
 apps/runner/     Execution Worker (planned)
+apps/cli/        iw CLI distributed via npx: clone, sync, check, export, deploy (planned)
+packages/bundle/ Watch Bundle format: schemas, canonical TOML, mapping, merge (planned)
 packages/core/   Domain types, decision policy, judges, LLM client (planned)
 packages/db/     Drizzle schema and D1 migrations (planned)
 ```

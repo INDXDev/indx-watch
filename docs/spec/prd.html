@@ -244,7 +244,7 @@
           <tr><td><span class="id">Q-04</span></td><td>LLM の月間予算上限と、超過時の扱い</td><td>プロジェクトあたり USD 300、超過で agent 実行を停止</td><td>事業責任者・M2 着手前</td></tr>
           <tr><td><span class="id">Q-05</span></td><td>テスト対象環境のリセット手段（DB シード API があるか）</td><td>各アプリに <code>POST /__test/reset</code> 相当の API を用意してもらう。無い場合は seed フィクスチャを手順として実行</td><td>各アプリのテックリード・M1 中</td></tr>
           <tr><td><span class="id">Q-06</span></td><td>通知先の Slack ワークスペースとチャンネル設計</td><td>プロジェクトごとに 1 チャンネル、個人宛は DM</td><td>QA リード・M3 着手前</td></tr>
-          <tr><td><span class="id">Q-07</span></td><td>テスト仕様をリポジトリにも YAML で書き出すか（双方向同期の要否）</td><td>D1 を正とし、M3 以降に片方向のエクスポートのみ検討</td><td>テックリード・M3 着手前</td></tr>
+          <tr><td><span class="id">Q-07</span></td><td>テスト仕様をリポジトリにも YAML で書き出すか（双方向同期の要否）</td><td><b>決定（2026-11-19）</b>: Watch Bundle 形式（TOML）を正とし、CLI <code>iw</code> で双方向に同期する。既定では Git に入れず、<code>[sync] commit</code> で仕様だけコミットも可（<a href="portability.html">SPEC-10</a>）</td><td>テックリード・M3 着手前</td></tr>
           <tr><td><span class="id">Q-08</span></td><td>証拠に個人情報が写り込む場合のマスキング方針</td><td>テスト環境ではダミーデータのみを使うことを前提にし、マスキングは M4 で検討</td><td>情シス・M2 中</td></tr>
         </tbody>
       </table></div>

@@ -22,7 +22,9 @@ INDX Watch は **AI ネイティブな E2E テスト / QA 管理プラットフ�
 - ビジネス職・エンジニア・QA で使う道具がバラバラで、顧客受け入れテスト（UAT）も別運用。
 - AI（ブラウザエージェント・LLM 判定）を使いたいが、判定の根拠と人のレビューをどう組み込むか決まっていない。
 
-INDX Watch はこれを **1 つのデータベース（D1）を単一の情報源** として解決します。仕様（ユースケース・完了条件・テストケース）、フィクスチャ、環境、リリース／デプロイメント、アサイン、実行結果、証拠、AI の判定がすべて同じモデルでつながります。
+INDX Watch はこれを **1 つのデータモデル** で解決します。仕様（ユースケース・完了条件・テストケース）、フィクスチャ、環境、リリース／デプロイメント、アサイン、実行結果、証拠、AI の判定がすべて同じモデルでつながります。
+
+**単一の情報源は「Watch Bundle 形式」（型が決まったディレクトリ構成のファイル群）とその中身です。** Cloudflare（D1 + R2）は共有・同期・画面・AI 実行の中心ですが、あくまで置き場所の 1 つで、ロックインしません。`indx-watch/` フォルダに `watch.toml` を置けば、npx の CLI `iw` で一瞬で取り出し・同期・フル書き出し・別アカウントへのデプロイ（`iw deploy`）ができます（`docs/spec/portability.html`）。
 
 ## 2. 大事にしていること（設計原則）
 
@@ -35,6 +37,7 @@ INDX Watch はこれを **1 つのデータベース（D1）を単一の情報�
 7. **コードは少なく** — Next.js 1 アプリ + ランナー Worker 1 つ。Cloudflare のマネージド機能（D1 / R2 / Browser Run / Workflows / Queues / Access）に任せ、自前実装を増やさない。
 8. **日本語と英語の両方で使える** — 外国籍のテスターもいる。仕様・手順は原文 + 翻訳（AI 翻訳 → 人が確認）で持ち、実行時にどの言語で読んだかを記録する。
 9. **誰が・いつ・どこで・どう作業したかを残す** — Cloudflare Access の ID とリクエスト情報で、ログイン（失敗含む）・場所・端末・操作・作業時間を記録する。目的と閲覧権限を決めて告知する。
+10. **ロックインしない** — 形式が正。いつでも失うものなく書き出し・取り込みでき、手元（ローカル専用モード）でも使える。Cloudflare 固有の部品は `ports.ts` の差し替え口の向こうに置く。
 
 ## 3. 用語とドメインモデル（要約）
 
@@ -90,7 +93,9 @@ ID 規約:
 - **apps/web**: Next.js（App Router）を **vinext**（Cloudflare 推奨・Vite ベース）で Cloudflare Workers にデプロイ。互換性問題が出たら `@opennextjs/cloudflare` にフォールバック。UI は Tailwind CSS + shadcn/ui、多言語は `next-intl`。データ取得は Server Components、更新は Server Actions。外部向けは Route Handlers（`/api/github/webhook`、`/api/runner/*`、`/mcp`）。
 - **apps/runner**: 素の Worker。Cloudflare Workflows（実行の各ステップを耐久的に処理。人のレビュー待ちは `step.waitForEvent`、定期実行は Workflow の `schedules`）、Queues（実行・翻訳・ログ取り込みのジョブ）、Browser Run（旧 Browser Rendering。`@cloudflare/playwright`、録画、Live View、Human in the Loop）、Email Worker（テストメールの受信）、Access ログの取り込み。
 - **packages/db**: Drizzle ORM のスキーマとマイグレーション（D1）。
-- **packages/core**: ドメイン型（zod）、判定ポリシー、ジャッジ、LLM クライアント、ID 生成。web と runner の両方から使う。
+- **packages/core**: ドメイン型（zod）、判定ポリシー、ジャッジ、LLM クライアント、ID 生成、外部への差し替え口（`ports.ts`）。web・runner・CLI から使う。
+- **packages/bundle**: Watch Bundle 形式（zod の型・JSON Schema・正規化した TOML・D1 の行との変換・3 方向マージ・フル書き出し）。web・runner・CLI 共通。
+- **apps/cli**: CLI `iw`（npx で配布。`indx-watch/iw` 起動スクリプトが版を固定）。clone / pull / push / sync / check / report / export / import / deploy / dev。認証は Access Managed OAuth（`iw login`）。
 - **データ**: D1（メタデータ全部）、R2（証拠ファイル・フィクスチャ本体・ベースライン画像）。
 - **認証**: Cloudflare Access（Zero Trust）を Worker 単位で付ける。Worker は `jose` で `Cf-Access-Jwt-Assertion` を検証し（`ctx.access` は Static Assets のある Worker では使えない）、`sub` / `identity_nonce` でユーザーとセッションを特定、新しいセッションでは `get-identity` を 1 回呼ぶ。顧客（guest）は One-time PIN + Independent MFA で個別招待。`/api/github/webhook` だけ Access をバイパスし HMAC 署名で検証。失敗・拒否ログインは Logpush（`access_requests` → R2）と REST で取り込む（`docs/spec/identity-audit.html`）。
 - **LLM**: Anthropic Claude を Cloudflare AI Gateway 経由で呼ぶ（BYOK、spend limits、`cf-aig-metadata` に project_key / run_id、秘密を含む本文はログに残さない）。翻訳も Claude。既定モデル: ブラウザエージェント・仕様生成 = `claude-opus-5-5`、LLM ジャッジ・分類 = `claude-sonnet-5-5`、大量の軽い処理 = `claude-haiku-5-5`。プロジェクト設定で変更可能。判定は構造化出力（`output_config.format`）で JSON を受け取る。
@@ -116,7 +121,8 @@ ID 規約:
 │   │   ├── ai.html             # AI ネイティブ設計（実行モード・ジャッジ・判定ポリシー・MCP）
 │   │   ├── interactions.html   # ER 図（全テーブル）・コンポーネント間通信・アクター別シーケンス・CRUD
 │   │   ├── i18n.html           # 多言語（日本語・英語）設計
-│   │   └── identity-audit.html # 認証・ログイン・行動ログ（Cloudflare Access の ID と各種ログ）
+│   │   ├── identity-audit.html # 認証・ログイン・行動ログ（Cloudflare Access の ID と各種ログ）
+│   │   └── portability.html    # ポータビリティ: Watch Bundle 形式・iw CLI・同期・書き出し・iw deploy
 │   ├── screens/            # 第 2 層: 画面ごとの UX アーティファクト（モック + 画面仕様）
 │   ├── prompts/            # Claude Code に貼るプロンプト（implement-all.md: 一括実装）
 │   └── guides/             # 第 2 層: どう作るか / どう使うか
@@ -124,10 +130,12 @@ ID 規約:
 │       ├── target-onboarding.html  # テスト対象アプリ・環境の登録ガイド
 │       └── dev-plan.html           # 開発プラン: ドキュメント運用・コンポーネント / ファイル構成の正・タスク T-xxx
 ├── apps/
+│   ├── cli/                # iw CLI（npx: @indx/watch）。同期・書き出し・iw deploy
 │   ├── web/                # Next.js（UI + API）→ Worker: indx-watch-web
 │   └── runner/             # 実行基盤（Workflows / Queues / Browser Run / Email）→ Worker: indx-watch-runner
 └── packages/
-    ├── core/               # ドメイン型・判定ポリシー・ジャッジ・LLM クライアント
+    ├── bundle/             # Watch Bundle 形式（型・正規化・変換・マージ・アーカイブ）
+    ├── core/               # ドメイン型・判定ポリシー・ジャッジ・LLM クライアント・ports
     └── db/                 # Drizzle スキーマ・D1 マイグレーション
 ```
 
@@ -149,6 +157,7 @@ ID 規約:
 | S10 | AI 仕様取り込み | `/p/[key]/specs/import` |
 | S11 | GitHub・デプロイメント | `/p/[key]/deployments` |
 | S12 | ログイン・作業履歴（admin） | `/admin/activity` |
+| S13 | データの持ち出し（書き出し・取り込み・CLI） | `/p/[key]/data` |
 
 ## 6. 作業ルール（エージェント向け）
 
@@ -162,6 +171,7 @@ ID 規約:
 8. AI が生成・変更したデータは `origin = 'ai'` と生成元（モデル・プロンプトバージョン）を記録し、人の承認なしに `ready` にしない。
 9. UI 文言は平易な日本語（英語も平易に）。ビジネス職が読んで分かる言葉にする（例: 「Webhook 設定」ではなく「GitHub 通知」）。
 10. ドキュメント HTML は `docs/assets/docs.css` の共有スタイルを使う。色はトークン（CSS 変数）経由のみ。
+11. **Bundle の型を先に**。新しい項目は `packages/bundle` の zod の型と対応表（`portability.html#mapping`）に足してから使う。ファイルの書き出しは必ず正規化関数を通す。
 
 ## 7. 現在のフェーズ
 

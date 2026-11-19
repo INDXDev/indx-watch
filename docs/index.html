@@ -57,6 +57,7 @@
             <li><a href="spec/interactions.html"><span class="code">SPEC-07</span><span><b>ER・通信フロー</b><span class="d">全テーブルの ER 図、コンポーネント間の通信、アクター別のシーケンス、CRUD</span></span></a></li>
             <li><a href="spec/i18n.html"><span class="code">SPEC-08</span><span><b>多言語（日本語・英語）</b><span class="d">原文と翻訳の持ち方、AI 翻訳と確認、実行時の記録</span></span></a></li>
             <li><a href="spec/identity-audit.html"><span class="code">SPEC-09</span><span><b>認証・行動ログ</b><span class="d">Cloudflare Access の ID とログで、誰が・いつ・どこで・どう作業したかを記録</span></span></a></li>
+            <li><a href="spec/portability.html"><span class="code">SPEC-10</span><span><b>ポータビリティとローカル同期</b><span class="d">Watch Bundle 形式、npx の CLI、同期、フル書き出し、フォルダから 1 コマンドでデプロイ</span></span></a></li>
           </ul>
         </div>
         <div class="layer l2" id="guides">
@@ -87,6 +88,7 @@
         <a href="screens/s10-ai-import.html"><span class="code">S10</span><b>AI 仕様取り込み</b><span class="who">ビジネス・QA / PRD や PR から仕様を作る</span></a>
         <a href="screens/s11-github-deployments.html"><span class="code">S11</span><b>GitHub・デプロイメント</b><span class="who">エンジニア / PR の影響テストと Check Run</span></a>
         <a href="screens/s12-activity-audit.html"><span class="code">S12</span><b>ログイン・作業履歴</b><span class="who">管理者 / ログイン・場所・端末・作業の記録</span></a>
+        <a href="screens/s13-data-portability.html"><span class="code">S13</span><b>データの持ち出し</b><span class="who">QA リード・全員 / 書き出し・取り込み・CLI</span></a>
       </div>
     </section>
 
@@ -108,7 +110,7 @@
     <section id="decisions">
       <h2>決まっていること</h2>
       <div class="grid">
-        <div class="card"><h3>単一の情報源は D1</h3><p class="small">仕様・計画・実行・判定・AI 提案・監査ログを 1 つの DB に。ファイル本体だけ R2。</p></div>
+        <div class="card"><h3>形式が正、ロックインしない</h3><p class="small">単一の情報源は Watch Bundle 形式。Cloudflare は共有と同期の中心。<code>indx-watch/</code> に置けば CLI で一瞬で取り出し・同期・デプロイ。</p></div>
         <div class="card"><h3>Next.js + Worker 2 つ</h3><p class="small">UI と API は Next.js（vinext で Workers）。実行は Workflows・Queues・Browser Run のランナー Worker。</p></div>
         <div class="card"><h3>社内だけが入れる</h3><p class="small">Cloudflare Access を Worker に付け、社内ドメインと招待した顧客のメールだけ許可。</p></div>
         <div class="card"><h3>日本語と英語</h3><p class="small">画面も、ユースケースや手順の中身も日英で使える。原文 + AI 翻訳 + 人の確認。</p></div>

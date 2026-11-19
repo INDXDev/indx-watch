@@ -80,7 +80,8 @@
           <tr><td>言語</td><td>UI と中身の両方を日本語・英語に対応。原文 + AI 翻訳 + 人の確認</td><td>2026-11-19</td><td><a href="../spec/i18n.html">SPEC-08</a></td></tr>
           <tr><td>Next.js の動かし方</td><td>vinext（問題があれば OpenNext）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
           <tr><td>ブラウザ実行</td><td>Browser Run + <code>@cloudflare/playwright</code>。Playwright Test・動画・Firefox が必要になったら Containers（v2）</td><td>2026-11-19</td><td><a href="../spec/architecture.html">SPEC-05</a></td></tr>
-          <tr><td>単一の情報源</td><td>仕様・計画・実行・ログはすべて D1。ファイルは R2。ドキュメントは <code>docs/</code></td><td>2026-11-19</td><td><a href="../spec/data-model.html">SPEC-04</a></td></tr>
+          <tr><td>単一の情報源</td><td><b>Watch Bundle 形式</b>（型とディレクトリ構成）が正。クラウドの D1 + R2 は共有と同期の中心、手元の <code>indx-watch/</code> は作業コピー。いつでも失うものなく書き出し・取り込みでき、Cloudflare にロックインしない</td><td>2026-11-19</td><td><a href="../spec/portability.html">SPEC-10</a></td></tr>
+          <tr><td>CLI の配布</td><td>npx（<code>indx-watch/iw</code> の起動スクリプトが版を固定して呼ぶ）。フォルダから <code>iw deploy</code> で Cloudflare に一式を構築できる</td><td>2026-11-19</td><td><a href="../spec/portability.html#install">SPEC-10</a></td></tr>
           <tr><td>リンター・フォーマッター</td><td>Biome（1 ツールで lint と format。設定が少ない）</td><td>2026-11-19</td><td>このページ</td></tr>
           <tr><td>テスト</td><td>vitest。Worker のコードは <code>@cloudflare/vitest-pool-workers</code>（D1・R2・Queue をローカルで再現）</td><td>2026-11-19</td><td><a href="#quality">品質ゲート</a></td></tr>
         </tbody>
@@ -105,6 +106,7 @@
           <tr><td>多言語</td><td><a href="../spec/i18n.html">SPEC-08</a></td><td><code>messages/</code>、<code>packages/core/src/i18n</code></td></tr>
           <tr><td>ログイン・行動ログ</td><td><a href="../spec/identity-audit.html">SPEC-09</a></td><td><code>apps/web/lib/{auth,audit}.ts</code>、<code>apps/runner/src/ingest</code></td></tr>
           <tr><td>画面の見た目・完了条件</td><td><code>docs/screens/sNN-*.html</code></td><td><code>apps/web/app/**/page.tsx</code></td></tr>
+          <tr><td>ファイル形式・同期・CLI・書き出し・デプロイ</td><td><a href="../spec/portability.html">SPEC-10</a></td><td><code>packages/bundle</code>、<code>apps/cli</code>、<code>app/api/sync</code></td></tr>
           <tr><td>ファイル構成・タスク・順番</td><td>このページ</td><td>GitHub Issue</td></tr>
         </tbody>
       </table></div>
@@ -212,6 +214,7 @@ flowchart TB
 │   │   │   ├── (app)/admin/activity/page.tsx            # S12 ログイン・作業履歴                            T-117
 │   │   │   ├── (app)/admin/activity/users/[id]/page.tsx # S12 ユーザー詳細                                  T-117
 │   │   │   ├── (app)/admin/projects/page.tsx            # プロジェクト・メンバー管理（admin）               T-108
+│   │   │   ├── (app)/p/[key]/data/page.tsx              # S13 データの持ち出し（書き出し・取り込み・CLI）   T-120 / T-211
 │   │   │   └── (app)/p/[key]/
 │   │   │       ├── releases/[version]/page.tsx          # S02                                               T-116
 │   │   │       ├── specs/page.tsx                       # S03                                               T-109
@@ -228,6 +231,7 @@ flowchart TB
 │   │   │   ├── beacon/route.ts          # 閲覧ビーコン（visible_ms）                                         T-105
 │   │   │   ├── files/[...key]/route.ts  # R2 の証拠・フィクスチャ配信（権限チェック後）                     T-112
 │   │   │   ├── upload-url/route.ts      # R2 presigned PUT URL（10 分）                                     T-112
+│   │   │   ├── sync/v1/[...op]/route.ts # 同期 API（changes / push / blobs / transfers）                    T-211
 │   │   │   ├── github/webhook/route.ts  # HMAC 検証。Access Bypass                                          T-301
 │   │   │   └── runner/[event]/route.ts  # runner からの進捗通知                                             T-201
 │   │   ├── app/mcp/route.ts             # MCP サーバー（サービストークン）                                  T-306
@@ -253,16 +257,34 @@ flowchart TB
 │           ├── queues/translate.ts    # 翻訳ジョブ                                                          T-110
 │           ├── queues/log-ingest.ts   # Logpush のファイル → access_events                                  T-107
 │           ├── workflows/run.ts       # RunWorkflow                                                         T-201
-│           ├── workflows/import.ts    # ImportWorkflow（AI 仕様取り込み）                                   T-207
+│           ├── workflows/ai-import.ts # AiImportWorkflow（AI 仕様取り込み）                                 T-207
 │           ├── workflows/ingest.ts    # IngestWorkflow（Access REST / GraphQL / ユーザー同期。schedules）  T-107
 │           ├── workflows/dispatch.ts  # ScheduleDispatchWorkflow（schedules → Queue）                       T-304
+│           ├── workflows/export.ts    # ExportWorkflow（フル書き出し → R2）                                  T-120
+│           ├── workflows/import.ts    # ImportBundleWorkflow（dry-run レポート → 適用）                       T-120
 │           ├── agent/loop.ts          # エージェントのループ（Claude + ツール）                             T-202
 │           ├── agent/tools.ts         # navigate / click / fill / ... / wait_for_email / request_human / finish  T-202
 │           ├── browser/session.ts     # Browser Run 起動、対象ホストだけに認証ヘッダ（page.route）、録画    T-201
 │           ├── browser/script.ts      # script モード                                                       T-305
 │           ├── fixtures.ts            # リセット・シードフック                                              T-201
 │           └── email.ts               # テストメール受信 → R2・D1 → sendEvent                               T-206
+│   └── cli/                     # iw CLI（npx で配布: @indx/watch）
+│       ├── package.json         # bin: iw。web / runner のビルド成果物と wrangler 設定のひな形を同梱    T-211
+│       ├── src/commands/{init,login,clone,status,diff,pull,push,sync,check,new,report,open,export,import}.ts   T-211
+│       ├── src/commands/{run,serve}.ts                 # 手元での実行記録・閲覧                         T-308
+│       ├── src/commands/{deploy,dev}.ts                # Cloudflare への構築 / 手元で同じアプリ          T-309
+│       ├── src/sync/{state,merge,watch}.ts             # .watch/ の状態、3 方向マージ、常時同期          T-211 / T-308
+│       └── templates/{iw,iw.cmd,gitignore,watch.toml}  # init が置くファイル                             T-211
 └── packages/
+    ├── bundle/src/              # Watch Bundle 形式（サーバー・runner・CLI 共通）
+    │   ├── schema/v1/*.ts       # zod の型（watch, project, environment, release, feature, use-case,
+    │   │                        # test-case, fixture, plan, run, manifest）                                T-119
+    │   ├── jsonschema.ts        # JSON Schema の生成（schemas/v1/*.json）                                  T-119
+    │   ├── canonical.ts         # 正規化した TOML の書き出し・読み込み・content_hash                       T-119
+    │   ├── mapping/*.ts         # D1 の行 ↔ Bundle の変換                                                  T-119
+    │   ├── merge.ts             # 項目単位の 3 方向マージ                                                  T-211
+    │   ├── archive.ts           # フル書き出し（manifest・NDJSON・blobs）の読み書き                        T-120
+    │   └── validate.ts          # 構成・参照・秘密らしい値の検査（iw check と push 時）                    T-119
     ├── core/src/
     │   ├── ids.ts               # newId(prefix), 表示キー整形                                                T-103
     │   ├── domain/              # zod: Step, Judge, DecisionPolicy, FixtureRef, Settings, ResetHook ...     T-103
@@ -289,9 +311,9 @@ flowchart TB
         <thead><tr><th>段階</th><th>ゴール</th><th>タスク</th><th>目安</th><th>終わったと言える状態</th></tr></thead>
         <tbody>
           <tr><td>M0.5</td><td>人が行う準備</td><td>H-01〜H-07</td><td>半日</td><td>Claude Code がデプロイまでできる権限と設定がそろっている</td></tr>
-          <tr><td>M1</td><td>手動 QA が回る。誰がやったかが ID で残る。日英対応</td><td>T-101〜T-118</td><td>5〜6 週</td><td>T-118 のシナリオが通る</td></tr>
-          <tr><td>M2</td><td>AI が仕様を作り、ブラウザでテストし、判定する</td><td>T-201〜T-210</td><td>4 週</td><td>T-210 のシナリオが通る</td></tr>
-          <tr><td>M3</td><td>GitHub・定期実行・ビジュアル差分・MCP</td><td>T-301〜T-307</td><td>3〜4 週</td><td>T-307 のシナリオが通る</td></tr>
+          <tr><td>M1</td><td>手動 QA が回る。誰がやったかが ID で残る。日英対応。データを形式ごと書き出せる</td><td>T-101〜T-120</td><td>5〜6 週</td><td>T-118 のシナリオが通る</td></tr>
+          <tr><td>M2</td><td>AI が仕様を作り、ブラウザでテストし、判定する。CLI でローカルと同期できる</td><td>T-201〜T-211</td><td>4 週</td><td>T-210 のシナリオが通る</td></tr>
+          <tr><td>M3</td><td>GitHub・定期実行・ビジュアル差分・MCP。フォルダから 1 コマンドでデプロイ</td><td>T-301〜T-309</td><td>3〜4 週</td><td>T-307 のシナリオが通る</td></tr>
           <tr><td>M4</td><td>顧客 UAT と運用の改善</td><td>T-401〜T-406</td><td>3 週</td><td>T-406 のシナリオが通る</td></tr>
         </tbody>
       </table></div>
@@ -322,6 +344,11 @@ flowchart LR
   T114 --> T118
   T116 --> T118
   T117 --> T118
+  T105 --> T119["T-119 Bundle 形式"]
+  T103 --> T119
+  T119 --> T120["T-120 書き出し・取り込み"]
+  T106 --> T120
+  T120 --> T118
       </pre>
       <p class="small muted">並行できる組の例: T-102 と T-103 / T-106・T-107 と T-108〜T-109 / T-112 と T-111。</p>
     </section>
@@ -426,9 +453,17 @@ flowchart LR
         <details class="task"><summary><span class="tid">T-117</span><b>ログイン・作業履歴（S12）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-105 T-107</span></span></summary><div class="tbody">
           <p><b>完了条件</b></p><ul><li><a href="../screens/s12-activity-audit.html">S12</a> の完了条件のうち、ログイン一覧・拒否一覧・ユーザーのタイムライン・セッション失効・CSV 書き出しを満たす（作業セッション集計と異常検知は M4）。</li><li>S12 の閲覧・書き出しが <code>activity_log</code> に残る。manager には IP・都市が見えない。</li></ul>
         </div></details>
+        <details class="task"><summary><span class="tid">T-119</span><b>Watch Bundle 形式と変更番号</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-103 T-105</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>packages/bundle</code> の型（zod）・JSON Schema 生成・正規化（TOML の書き出しと <code>content_hash</code>）・D1 の行 ↔ Bundle の変換・検証。<code>withAudit()</code> の中で <code>sync_changes</code> に変更番号と内容ハッシュを記録</dd><dt>参照</dt><dd><a href="../spec/portability.html">SPEC-10</a>、<a href="../spec/data-model.html#sync">SPEC-04 同期・書き出し</a></dd></dl>
+          <p><b>完了条件</b></p><ul><li>SHOP のシードを Bundle に変換 → 読み込み → 再変換で、全ファイルのハッシュが一致する（往復テスト）。</li><li>SPEC-10 のファイル例（<code>use-case.toml</code>、<code>TC-130….toml</code>）がそのまま型の検証を通る。</li><li>画面からの全ての書き込みで <code>sync_changes</code> が 1 行増える（テストで確認）。</li><li>秘密らしい値を含むファイルを検証が拒否する。</li></ul>
+        </div></details>
+        <details class="task"><summary><span class="tid">T-120</span><b>フル書き出し・取り込み（S13 の書き出し部分）</b><span class="meta"><span class="badge who-c">Claude</span><span class="tag">T-119 T-106</span></span></summary><div class="tbody">
+          <dl class="kv"><dt>作るもの</dt><dd><code>packages/bundle/src/archive.ts</code>、runner の ExportWorkflow / ImportBundleWorkflow、<code>data_transfers</code>、<a href="../screens/s13-data-portability.html">S13</a> の書き出し・取り込み、毎週のフル書き出しバックアップ</dd></dl>
+          <p><b>完了条件</b></p><ul><li>フル書き出し → 空の D1 に取り込み → 再度フル書き出しで、<code>manifest.json</code> の件数と全ハッシュが一致する。</li><li>取り込みの dry-run が、追加・更新・衝突・番号の振り直しをレポートする。</li><li><code>--include-audit</code> は admin のみ。書き出しが <code>activity_log</code> に残る。</li></ul>
+        </div></details>
         <details class="task"><summary><span class="tid">T-118</span><b>M1 受け入れ</b><span class="meta"><span class="badge who-c">Claude</span><span class="badge who-h">人</span><span class="tag">全 M1</span></span></summary><div class="tbody">
           <p>staging で、実際の Google Workspace アカウントと OTP を使って以下を通します。結果は WATCH プロジェクトの RUN として残します。</p>
-          <ol class="steps"><li><span>佐藤（manager）が PLAN-4 を作り、TC-129 を田中に、TC-128 を英語設定の Alex Kim にアサインする。</span></li><li><span>田中が S01 → S05 で TC-129 を実行し、スクリーンショット付きで不合格にする。S02 に反映される。</span></li><li><span>Alex が英語の手順（AI 翻訳）で TC-128 を実行する。実行記録に <code>display_locale = en</code> と翻訳の状態が残る。</span></li><li><span>招待していないメールで OTP を試すと、S12 の拒否一覧に出る。</span></li><li><span>admin が S12 で、田中と Alex のログイン（IdP・場所・端末）から各判定までを ID でたどれる。</span></li></ol>
+          <ol class="steps"><li><span>佐藤（manager）が PLAN-4 を作り、TC-129 を田中に、TC-128 を英語設定の Alex Kim にアサインする。</span></li><li><span>田中が S01 → S05 で TC-129 を実行し、スクリーンショット付きで不合格にする。S02 に反映される。</span></li><li><span>Alex が英語の手順（AI 翻訳）で TC-128 を実行する。実行記録に <code>display_locale = en</code> と翻訳の状態が残る。</span></li><li><span>招待していないメールで OTP を試すと、S12 の拒否一覧に出る。</span></li><li><span>admin が S12 で、田中と Alex のログイン（IdP・場所・端末）から各判定までを ID でたどれる。</span></li><li><span>S13 から SHOP をフル書き出しし、別の空の D1 に取り込んで同じ画面になる。</span></li></ol>
         </div></details>
       </div>
     </section>
@@ -447,7 +482,8 @@ flowchart LR
           <tr><td><span class="id">T-207</span></td><td>AI 仕様取り込み（S10、ImportWorkflow、<code>ai_suggestions</code>）</td><td>T-110</td><td><a href="../screens/s10-ai-import.html">S10</a> の完了条件。採用したものが draft・<code>origin = ai</code> で入る</td><td>S10</td></tr>
           <tr><td><span class="id">T-208</span></td><td>TC 生成・手順の曖昧さ指摘（S03・S04 の AI ボタン）、計画の割り振り提案（S08）</td><td>T-207</td><td>各画面の AI 部分の完了条件</td><td>S03 S04 S08</td></tr>
           <tr><td><span class="id">T-209</span></td><td>AI 要約（S02 のリスク、失敗のトリアージ）</td><td>T-203</td><td>要約が言及する TC / RUN がリンクになり、データ更新で「古い要約」になる</td><td>S02</td></tr>
-          <tr><td><span class="id">T-210</span></td><td>M2 受け入れ</td><td>全 M2</td><td>PRD を貼る → UC/AC/TC の draft → 承認 → Watch Agent が TC-128 を pass、TC-130 は needs_review → レビューで確定。AI Gateway のログに <code>cf.user_id</code> と <code>run_id</code> が付く</td><td>—</td></tr>
+          <tr><td><span class="id">T-211</span></td><td>CLI <code>iw</code>（npx 配布・起動スクリプト・<code>init / login / clone / status / diff / pull / push / sync / check / new / report / open / export / import</code>）と同期 API <code>/api/sync/v1</code>、S13 の CLI 接続表示</td><td>T-120</td><td>SPEC-10 の完了条件のうち、往復差分 0・項目単位マージと衝突・<code>via = 'cli'</code> の記録・オフラインの <code>check</code> / <code>report</code></td><td><a href="../spec/portability.html">SPEC-10</a></td></tr>
+          <tr><td><span class="id">T-210</span></td><td>M2 受け入れ</td><td>全 M2</td><td>PRD を貼る → UC/AC/TC の draft → 承認 → Watch Agent が TC-128 を pass、TC-130 は needs_review → レビューで確定。AI Gateway のログに <code>cf.user_id</code> と <code>run_id</code> が付く。別の PC で <code>./iw clone</code> → TC を編集 → <code>./iw sync</code> で画面に新しい版が出る</td><td>—</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -463,7 +499,9 @@ flowchart LR
           <tr><td><span class="id">T-304</span></td><td>定期実行（<code>schedules</code> と ScheduleDispatchWorkflow）</td><td>T-201</td><td>毎朝 7:00 JST の P0 スモークが動く</td></tr>
           <tr><td><span class="id">T-305</span></td><td>script モードと visual ジャッジ・ベースライン承認</td><td>T-203</td><td>差分が閾値超えで needs_review、人が承認したものだけが基準になる</td></tr>
           <tr><td><span class="id">T-306</span></td><td>MCP サーバー（サービストークン、ツール一覧は SPEC-06）</td><td>T-207</td><td>Claude Code から TC の draft 作成と実行開始ができ、<code>activity_log.via = 'mcp'</code></td></tr>
-          <tr><td><span class="id">T-307</span></td><td>M3 受け入れ</td><td>全 M3</td><td>PR を出すと影響テストが preview で走り、Check Run と S11 に結果が出る</td></tr>
+          <tr><td><span class="id">T-308</span></td><td><code>iw sync --live</code>（常時同期）、<code>iw run</code>（手元で手動実行を記録）、<code>iw serve</code>（手元の閲覧画面）</td><td>T-211</td><td>ローカル専用モードで check / report / run / serve がサーバーなしで動く。<code>iw run</code> の結果を push すると本人の実行として記録される</td></tr>
+          <tr><td><span class="id">T-309</span></td><td><code>iw deploy</code>（Cloudflare への構築・更新・Access・データ投入）と <code>iw dev</code>（同じアプリを手元で）</td><td>T-211 T-120</td><td>空の Cloudflare アカウントに <code>indx-watch/</code> から 1 回で立ち上がり、2 回目は差分なし。<code>iw dev</code> の画面での変更がフォルダに書き戻される</td></tr>
+          <tr><td><span class="id">T-307</span></td><td>M3 受け入れ</td><td>全 M3</td><td>PR を出すと影響テストが preview で走り、Check Run と S11 に結果が出る。検証用アカウントに <code>iw deploy</code> で SHOP の複製を立てられる</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -545,6 +583,8 @@ flowchart LR
           <tr><td>R-05</td><td>Secrets Store（beta）の仕様変更</td><td>秘密の読み出し</td><td>T-108</td><td><code>lib/secrets.ts</code> で Worker secrets に切り替え</td></tr>
           <tr><td>R-06</td><td>最初の実対象リポジトリが未定（H-06）</td><td>M1 後半の検証</td><td>T-118</td><td>SHOP と WATCH で M1 を受け入れ、実対象は M2 前に登録</td></tr>
           <tr><td>R-07</td><td>社員端末に WARP を入れるか未定</td><td>端末の詳細（OS・シリアル）が取れない</td><td>—</td><td>入れない前提で UA 解析。入れる場合は Logpush <code>device_posture_results</code> を追加</td></tr>
+          <tr><td>R-09</td><td>CLI（npm パッケージ・単一バイナリ）を Access の外に置くと、コードが社外から取得できる</td><td>知的財産</td><td>T-211</td><td>npm の非公開スコープ + 社員のみ。顧客には CLI を配らずブラウザのみ</td></tr>
+          <tr><td>R-10</td><td>Access Managed OAuth が open beta。OTP の顧客・<code>identity_nonce</code>・<code>get-identity</code> の扱いが未確認</td><td>CLI の本人確認</td><td>T-211 の最初に PoC</td><td><code>cloudflared access</code> のトークン（<code>cf-access-token</code>）を使う</td></tr>
           <tr><td>R-08</td><td>LLM コストが見積もり（月 約 $1,200）を超える</td><td>予算</td><td>T-202</td><td>spend limit・安定した TC を script へ移す</td></tr>
         </tbody>
       </table></div>
@@ -557,6 +597,7 @@ flowchart LR
         <tbody>
           <tr><td>2026-11-19</td><td>初版: PRD・ドメイン・UX・データモデル・アーキテクチャ・AI・画面 S01〜S11・実装ガイド・対象登録ガイド</td></tr>
           <tr><td>2026-11-19</td><td>Cloudflare 最新仕様の反映（vinext、Browser Run、Worker 単位 Access、Workflow schedules、Email Routing）。ER・通信フロー（SPEC-07）、多言語（SPEC-08）、認証・行動ログ（SPEC-09）、S12 を追加</td></tr>
+          <tr><td>2026-11-19</td><td>ポータビリティ（SPEC-10、S13）を追加。単一の情報源を「Watch Bundle 形式」と定義し、CLI <code>iw</code>（npx）・同期・フル書き出し・<code>iw deploy</code> のタスク T-119 / T-120 / T-211 / T-308 / T-309 を追加</td></tr>
           <tr><td>2026-11-19</td><td>一括実装プロンプト <code>docs/prompts/implement-all.md</code> を追加（worktree × Workflow で全タスクを 1 PR に）</td></tr>
           <tr><td>2026-11-19</td><td>開発プラン（GUIDE-03）を追加。IdP を Google Workspace に確定。ログは ID の対応づけが目的で人事評価に使わないことを確定。作業セッション集計を M4 に移動。ファイル構成とロードマップの正をこのページに一本化</td></tr>
         </tbody>
