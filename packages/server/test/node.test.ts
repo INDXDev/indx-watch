@@ -8,14 +8,18 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { request } from 'node:http';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProjectInfo, RunSummary, TestCaseDetail } from '../src/index.js';
-import { requestIdentity, startNodeServer, writeGuard } from '../src/node.js';
+import { hostGuard, requestIdentity, startNodeServer, writeGuard } from '../src/node.js';
 import { ROOT, SHOT, sampleRecords, shop } from './helpers.js';
 
 const env = { IW_ACTOR: 'alex@shop.test', IW_ACTOR_NAME: 'Alex' };
+/** the runner's agent and CI context must not leak into the server (a PR build has no release for manual runs) */
+const UNSET = ['CLAUDECODE', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'IW_ACTOR_KIND', 'IW_RELEASE', 'CI'];
+UNSET.push('GITHUB_ACTIONS', 'GITHUB_REF', 'GITHUB_HEAD_REF', 'GITHUB_EVENT_PATH', 'GITHUB_SHA');
 let tmp: string;
 let dir: string;
 let web: string;
@@ -23,11 +27,9 @@ let server: { url: string; close(): Promise<void> };
 const saved: Record<string, string | undefined> = {};
 
 beforeAll(async () => {
-  for (const k of [...Object.keys(env), 'CLAUDECODE', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'IW_ACTOR_KIND'])
-    saved[k] = process.env[k];
+  for (const k of [...Object.keys(env), ...UNSET]) saved[k] = process.env[k];
   Object.assign(process.env, env);
-  for (const k of ['CLAUDECODE', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'IW_ACTOR_KIND'])
-    delete process.env[k];
+  for (const k of UNSET) delete process.env[k];
   tmp = mkdtempSync(join(tmpdir(), 'iw-server-'));
   dir = join(tmp, '.indx-watch');
   cpSync(join(ROOT, 'examples/shop/.indx-watch'), dir, {
@@ -85,7 +87,7 @@ describe('startNodeServer', () => {
     const up = await api<{ sha256: string }>('/api/blobs', {
       method: 'POST',
       body: SHOT,
-      headers: { 'content-type': 'image/png' },
+      headers: { 'content-type': 'image/png', 'x-iw-request': '1' },
     });
     const res = await api<{ run: { id: string; actor: { id: string } } }>('/api/runs', {
       method: 'POST',
@@ -152,9 +154,9 @@ describe('startNodeServer', () => {
       try {
         const url = lan.url.replace('127.0.0.1', ip);
         expect((await fetch(`${url}/api/project`)).status).toBe(200);
-        const post = await fetch(`${url}/api/blobs`, { method: 'POST', body: 'x' });
-        expect(post.status).toBe(403);
-        expect((await fetch(`${lan.url}/api/blobs`, { method: 'POST', body: 'x' })).status).toBe(201);
+        const init = { method: 'POST', body: 'x', headers: { 'x-iw-request': '1' } };
+        expect((await fetch(`${url}/api/blobs`, init)).status).toBe(403);
+        expect((await fetch(`${lan.url}/api/blobs`, init)).status).toBe(201);
       } finally {
         await lan.close();
       }
@@ -164,6 +166,33 @@ describe('startNodeServer', () => {
     expect(writeGuard('POST', '::1')).toBeUndefined();
     expect(writeGuard('POST', '::ffff:127.0.0.1')).toBeUndefined();
     expect(writeGuard('POST', '10.0.0.7', 'X-Forwarded-Email')).toBeUndefined();
+  });
+
+  it('answers only requests addressed to a loopback name (DNS rebinding)', async () => {
+    const port = new URL(server.url).port;
+    const get = (host: string) =>
+      new Promise<number>((ok, no) =>
+        request({ host: '127.0.0.1', port, path: '/api/project', headers: { host } }, (r) => {
+          r.resume();
+          ok(r.statusCode ?? 0);
+        })
+          .on('error', no)
+          .end(),
+      );
+    expect(await get(`attacker.example:${port}`)).toBe(403);
+    expect(await get('127.0.0.1')).toBe(403);
+    expect(await get(`localhost:${port}`)).toBe(200);
+    expect(hostGuard(`[::1]:${port}`, Number(port))).toBeUndefined();
+    expect(hostGuard(`127.0.0.1:${port}`, Number(port))).toBeUndefined();
+    expect(hostGuard(null, Number(port))?.status).toBe(403);
+  });
+
+  it('fails fast with a clear error when the port is taken', async () => {
+    const port = Number(new URL(server.url).port);
+    const t0 = Date.now();
+    const err = await startNodeServer({ dir, port, sync: false, webRoot: web }).catch((e) => e);
+    expect(err).toMatchObject({ code: 'CONFLICT', message: expect.stringMatching(/already in use.*--port/) });
+    expect(Date.now() - t0).toBeLessThan(2000);
   });
 
   it('resolves identities: header, loopback process identity, read-only guests', async () => {

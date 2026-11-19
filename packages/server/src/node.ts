@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
-import { loadBundle } from '@indx-watch/bundle';
+import { BundleError, loadBundle } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { buildModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
@@ -60,6 +60,16 @@ export function staticAssets(root: string): (request: Request) => Promise<Respon
 export function writeGuard(method: string, address: string, identityHeader?: string): Response | undefined {
   if (READS.has(method) || LOOPBACK.test(address) || identityHeader) return undefined;
   const error = { code: 'forbidden', message: 'writes from other machines need --identity-header' };
+  return Response.json({ error }, { status: 403 });
+}
+
+/**
+ * A server bound to loopback answers only requests addressed to loopback names (DNS rebinding:
+ * docs/spec/security.md#browser-requests).
+ */
+export function hostGuard(host: string | null, port: number): Response | undefined {
+  if (new RegExp(`^(localhost|127\\.0\\.0\\.1|\\[::1\\]):${port}$`, 'i').test(host ?? '')) return undefined;
+  const error = { code: 'forbidden', message: `unexpected Host ${host}: open http://127.0.0.1:${port}` };
   return Response.json({ error }, { status: 403 });
 }
 
@@ -154,23 +164,41 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   };
   const app = createApp(deps);
 
+  const hostname = opts.host ?? '127.0.0.1';
+  const local = hostname === 'localhost' || LOOPBACK.test(hostname);
+  let port = 0;
   const fetch = (request: Request, env: unknown) => {
     const address = (env as HttpBindings).incoming?.socket?.remoteAddress ?? '';
     remote.set(request, address);
-    return writeGuard(request.method, address, opts.identityHeader) ?? app.fetch(request);
+    const host = local ? hostGuard(request.headers.get('host'), port) : undefined;
+    return host ?? writeGuard(request.method, address, opts.identityHeader) ?? app.fetch(request);
   };
-  const server = serve({ hostname: opts.host ?? '127.0.0.1', port: opts.port ?? 4321, fetch });
-  await new Promise((ok, no) => (server.listening ? ok(0) : server.once('listening', ok).once('error', no)));
-  const { address, port, family } = server.address() as AddressInfo;
+  const stop = async () => {
+    clearTimeout(timer);
+    watcher.close();
+    unsubscribe();
+    await stopSync?.();
+  };
+  const server = serve({ hostname, port: opts.port ?? 4321, fetch });
+  try {
+    await new Promise((ok, no) =>
+      server.listening ? ok(0) : server.once('listening', ok).once('error', no),
+    );
+  } catch (e) {
+    await stop();
+    const code = (e as { code?: string }).code;
+    if (code !== 'EADDRINUSE' && code !== 'EACCES') throw e;
+    const why = code === 'EACCES' ? 'is not allowed' : 'is already in use (another iw serve?)';
+    throw new BundleError('CONFLICT', `Port ${opts.port ?? 4321} on ${hostname} ${why}. Use --port <n>.`);
+  }
+  const { address, family, ...a } = server.address() as AddressInfo;
+  port = a.port;
   const any = ['0.0.0.0', '::'].includes(address);
   const host = any ? '127.0.0.1' : family === 'IPv6' ? `[${address}]` : address;
   return {
     url: `http://${host}:${port}`,
     async close() {
-      clearTimeout(timer);
-      watcher.close();
-      unsubscribe();
-      await stopSync?.();
+      await stop();
       const closed = new Promise((ok) => server.close(ok));
       (server as { closeAllConnections?: () => void }).closeAllConnections?.();
       await closed;

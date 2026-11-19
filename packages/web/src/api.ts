@@ -98,10 +98,12 @@ async function call<T>(path: string, init?: RequestInit, as: 'json' | 'text' = '
   }
   return (as === 'json' ? res.json() : res.text()) as Promise<T>;
 }
+/** Marks writes as coming from this app: the server refuses writes a cross-site page could send (docs/spec/security.md). */
+const WRITE = { 'X-IW-Request': '1' };
 const post = <T>(path: string, body: unknown) =>
   call<T>(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...WRITE },
     body: JSON.stringify(body),
   });
 const scopeQ = (s: Scope) => ({ release: s.release, env: s.env });
@@ -123,7 +125,11 @@ export const api = {
   uploadBlob: (file: Blob, name: string) =>
     call<BlobResult>('api/blobs', {
       method: 'POST',
-      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': safeName(name) },
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-Filename': safeName(name),
+        ...WRITE,
+      },
       body: file,
     }),
   report: (q: ReportQuery) => call<string>(reportPath(q), undefined, 'text'),
