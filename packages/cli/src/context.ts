@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import type { Actor, Bundle, BundleFs } from '@indx-watch/bundle';
+import type { Actor, Bundle, BundleFs, Problem } from '@indx-watch/bundle';
 import { AnyRecord, loadBundle, newId, parseRef, parseToml } from '@indx-watch/bundle';
 import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
 import { buildModel, type Model, type RunView } from '@indx-watch/core';
@@ -92,3 +92,23 @@ export async function fromInput(ctx: Ctx, a: Args): Promise<Record<string, unkno
 /** Release of a scope: flag → IW_RELEASE → project.current_release. */
 export const releaseOf = (ctx: Ctx, p: Project, a: Args) =>
   str(a.release) ?? ctx.env.IW_RELEASE ?? p.bundle.project.data.current_release;
+
+/** A release or environment that names nothing: NOT_FOUND when given as a flag (a typo), else a warning. */
+export function checkScope(m: Model, a: Args, scope: { release?: string; environment?: string }): Problem[] {
+  const runs = [...m.runs.values()].map((v) => v.record);
+  const known = {
+    release: (v: string) =>
+      m.releases.some((r) => r.version === v || r.refs?.includes(v)) || runs.some((r) => r.release === v),
+    env: (v: string) => m.environments.some((e) => e.name === v) || runs.some((r) => r.environment === v),
+  };
+  const warnings: Problem[] = [];
+  const given = { release: scope.release, env: scope.environment };
+  for (const flag of ['release', 'env'] as const) {
+    const [v, what] = [given[flag], flag === 'env' ? 'environment' : 'release'];
+    if (!v || known[flag](v)) continue;
+    const message = `Unknown ${what} ${v}: not in ${what}s/ and no runs use it`;
+    if (str(a[flag])) fail('NOT_FOUND', message);
+    warnings.push({ severity: 'warning', code: `unknown-${what}`, message });
+  }
+  return warnings;
+}

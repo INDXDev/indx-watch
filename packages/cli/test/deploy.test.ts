@@ -9,6 +9,7 @@ import {
   PENDING_ID,
   planDeploy,
   shellQuote,
+  winArg,
 } from '../src/deploy/index.js';
 import { CommandData } from '../src/json.js';
 
@@ -211,11 +212,59 @@ describe('deploy', () => {
   it('fails with EXTERNAL_TOOL when wrangler is not logged in', async () => {
     const { dir, dist } = setup();
     const { exec, calls } = fakeExec({ onPath: true, loggedIn: false });
-    await expect(deploy({ dir, distDir: dist, dryRun: true, exec, log: () => {} })).rejects.toMatchObject({
+    await expect(deploy({ dir, distDir: dist, exec, log: () => {} })).rejects.toMatchObject({
       code: 'EXTERNAL_TOOL',
       message: expect.stringContaining('wrangler login'),
     });
     expect(mutating(calls)).toEqual([]);
+  });
+
+  it('dry run without a Cloudflare login still prints the plan, with a warning', async () => {
+    const { dir, dist } = setup();
+    const { exec, calls } = fakeExec({ onPath: true, loggedIn: false });
+    const lines: string[] = [];
+    const warnings: string[] = [];
+    const data = await deploy({
+      ...{ dir, distDir: dist, dryRun: true, exec },
+      ...{ log: (l: string) => lines.push(l), warn: (w: string) => warnings.push(w) },
+    });
+    expect(data.resources.map((r) => r.exists)).toEqual([false, false, false]);
+    expect(data.commands).toHaveLength(3);
+    expect(warnings).toEqual([expect.stringContaining('wrangler login')]);
+    expect(mutating(calls)).toEqual([]);
+    const config = join(dir, 'cache', 'deploy', 'wrangler.jsonc');
+    expect(readFileSync(config, 'utf8')).toContain('"bucket_name": "shop-watch"');
+    const out = lines.join('\n');
+    expect(out).toContain('R2 bucket shop-watch (binding STORE): create');
+    expect(out).toContain('D1 database shop-watch (binding DB): create');
+    expect(out).toContain('Worker shop-watch: deploy');
+    expect(out).toContain(`Config: ${config}`);
+  });
+
+  it('refuses resource names that are not plain names, before running wrangler', async () => {
+    for (const [hosting, name] of [
+      [
+        '[hosting]\nprovider = "cloudflare"\nname = "w"\nr2_bucket = "x & calc.exe"\naccess_team = "t"\n',
+        undefined,
+      ],
+      [
+        '[hosting]\nprovider = "cloudflare"\nname = "w"\nd1_database = "--help"\naccess_team = "t"\n',
+        undefined,
+      ],
+      [undefined, '-x'],
+    ] as const) {
+      const { dir, dist } = setup(hosting);
+      const { exec, calls } = fakeExec({ onPath: true });
+      const opts = { dir, distDir: dist, dryRun: true, exec, log: () => {}, ...(name ? { name } : {}) };
+      await expect(deploy(opts)).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it('quotes arguments for cmd.exe on Windows and refuses shell characters', () => {
+    expect(winArg('deploy')).toBe('deploy');
+    expect(winArg('C:\\Users\\Jo Do\\wrangler.jsonc')).toBe('"C:\\Users\\Jo Do\\wrangler.jsonc"');
+    for (const bad of ['a&b', 'x|y', '%PATH%', 'a"b', 'a^b', 'a\nb']) expect(() => winArg(bad)).toThrow();
   });
 
   it('reports a missing [hosting] table as INVALID_CONFIG and a missing bundle as NO_BUNDLE', async () => {

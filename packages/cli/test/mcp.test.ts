@@ -77,6 +77,18 @@ describe('iw mcp', () => {
     expect(r.structuredContent).toMatchObject({ verdict: 'needs_review', rule: 6 });
     expect(r.structuredContent.run.actor.kind).toBe('agent');
     expect(r.structuredContent.run.judgements[0]).toMatchObject({ kind: 'llm', confidence: 0.6 });
+    // no evidence and no model: the CLI's warnings come back as a second text block
+    const warnings = JSON.parse(r.content[1].text).warnings.map((w: { code: string }) => w.code);
+    expect(warnings).toEqual(expect.arrayContaining(['no-evidence', 'no-model']));
+    expect(r.structuredContent.run.actor.model).toBe('test/1'); // the MCP client, for lack of a model
+    const m = await call('record_run', {
+      test_case: 'TC-9',
+      verdict: 'fail',
+      confidence: 0.9,
+      model: 'claude-x',
+    });
+    expect(m.structuredContent.run.actor.model).toBe('claude-x');
+    expect(m.structuredContent.run.judgements[0].by.model).toBe('claude-x');
   });
 
   it('new writes AI drafts; show, list, check and errors', async () => {
@@ -90,6 +102,7 @@ describe('iw mcp', () => {
       kind: 'tc',
       uc: 'UC-5',
       fields,
+      origin: 'human', // not an input: agents always write AI drafts
       model: 'claude-opus-5-5',
       skill: 'write-test-cases',
     });
@@ -97,11 +110,26 @@ describe('iw mcp', () => {
     expect((await call('show', { ref: 'TC-10' })).structuredContent).toMatchObject({
       status: 'draft',
       origin: 'ai',
+      ai: { model: 'claude-opus-5-5' },
+    });
+    const ac = await call('new', { kind: 'ac', uc: 'UC-5', fields: { text: 'Agent AC' }, model: 'm' });
+    expect((await call('show', { ref: ac.structuredContent.key })).structuredContent).toMatchObject({
+      status: 'draft',
+      origin: 'ai',
     });
     expect((await call('list', { kind: 'tcs', uc: 'UC-5' })).structuredContent.items).toHaveLength(2);
     expect((await call('check')).structuredContent.errors).toBe(0);
     const missing = await call('show', { ref: 'TC-99' });
     expect(missing.isError).toBe(true);
+    expect(JSON.parse(missing.content[0].text)).toMatchObject({ code: 'NOT_FOUND' });
+    // bundle errors keep their code and details, as in iw --json
+    const dup = await call('new', {
+      kind: 'tc',
+      uc: 'UC-5',
+      fields: { ...fields, key: 'TC-10' },
+      model: 'm',
+    });
+    expect(JSON.parse(dup.content[0].text).code).toBe('CONFLICT');
   });
 
   it('report json returns report data', async () => {

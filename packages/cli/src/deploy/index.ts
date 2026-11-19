@@ -36,6 +36,8 @@ export interface DeployOptions {
   exec?: Exec;
   /** Progress and instructions (default: stderr, so `--json` stays clean) */
   log?: (line: string) => void;
+  /** Warnings for the JSON envelope (default: log) */
+  warn?: (message: string) => void;
   /** Directory holding `worker.js` and `web/` (default: the CLI's own dist) */
   distDir?: string;
 }
@@ -90,14 +92,28 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
     ...(opts.public ? { public: true } : {}),
   };
   const names = resourceNames(hosting, opts.name);
+  // names become wrangler arguments: no flags, no shell characters
+  for (const [what, v] of Object.entries(names))
+    if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(v))
+      throw new DeployError('INVALID_CONFIG', `invalid ${what} "${v}"`);
   const { run } = await wranglerRunner(opts.exec ?? nodeExec);
-  const existing = await discover(run, names);
+  // a dry run also works without a Cloudflare login: it then plans as if nothing existed yet
+  const existing = await discover(run, names).catch((e: unknown) => {
+    if (!opts.dryRun || !(e instanceof DeployError)) throw e;
+    (opts.warn ?? log)(`${e.message}. Resources are shown as missing; they may already exist.`);
+    return { r2: [] as string[], d1: [] };
+  });
   const plan = planDeploy(hosting, existing, planOpts);
   await writeConfig(configPath, plan);
   log(opts.public ? PUBLIC_WARNING : accessSteps(hosting, names.worker));
   const data = { resources: plan.resources, commands: plan.commands, url: null as string | null };
   if (opts.dryRun) {
-    log(['Dry run: nothing was changed. Commands:', ...plan.commands.map((c) => `  ${c}`)].join('\n'));
+    const rows = plan.resources.map((r) => {
+      const verb = r.exists ? 'exists' : r.type === 'worker' ? 'deploy' : 'create';
+      return `  ${LABEL[r.type].replace('%s', r.name)}: ${verb}`;
+    });
+    const [head, cmds] = ['Dry run: nothing was changed. Resources:', plan.commands.map((c) => `  ${c}`)];
+    log([head, ...rows, `Config: ${configPath}`, 'Commands:', ...cmds].join('\n'));
     return data;
   }
   for (const path of [worker, join(assets, 'index.html')]) {
@@ -156,6 +172,7 @@ function defaultDistDir(): string {
 }
 
 const posix = (p: string) => p.split(sep).join('/');
+const LABEL = { r2: 'R2 bucket %s (binding STORE)', d1: 'D1 database %s (binding DB)', worker: 'Worker %s' };
 
 const PUBLIC_WARNING =
   'WARNING: deploying with --public. Anyone who has the URL can read and write this project. Put Cloudflare Access in front of it as soon as possible.';

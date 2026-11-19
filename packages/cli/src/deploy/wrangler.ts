@@ -27,14 +27,20 @@ export class DeployError extends Error {
   }
 }
 
+/**
+ * One argument for cmd.exe: wrangler and npx are .cmd files on Windows and need a shell, which joins the
+ * arguments unquoted. Quote spaces; refuse characters cmd.exe would interpret even inside quotes.
+ */
+export function winArg(arg: string): string {
+  if (/["%!^&|<>\r\n]/.test(arg)) throw new Error(`cannot pass ${JSON.stringify(arg)} through cmd.exe`);
+  return /\s/.test(arg) ? `"${arg}"` : arg;
+}
+
 export const nodeExec: Exec = (file, args, opts) =>
   new Promise((resolve, reject) => {
-    const options = {
-      env: opts?.env ?? process.env,
-      maxBuffer: 64 << 20,
-      shell: process.platform === 'win32',
-    };
-    execFile(file, args, options, (err, stdout, stderr) => {
+    const win = process.platform === 'win32';
+    const options = { env: opts?.env ?? process.env, maxBuffer: 64 << 20, shell: win };
+    execFile(file, win ? args.map(winArg) : args, options, (err, stdout, stderr) => {
       if (err && typeof err.code === 'string') return reject(err);
       resolve({ code: err ? Number(err.code ?? 1) : 0, stdout: String(stdout), stderr: String(stderr) });
     });

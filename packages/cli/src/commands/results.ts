@@ -113,7 +113,9 @@ export const resultCommands: Record<string, Spec> = {
       const store = p.bundle.project.data.store ?? ctx.env.IW_STORE;
       if (a.sync && store) await (await import('./data.js')).dataCommands.sync!.run(ctx, { dir: a.dir });
       const scope = { release: cx.releaseOf(ctx, p, a), environment: str(a.env) ?? ctx.env.IW_ENV };
-      const s = core.computeStatus(await cx.loadModel(p), scope);
+      const m = await cx.loadModel(p);
+      const warnings = cx.checkScope(m, a, scope);
+      const s = core.computeStatus(m, scope);
       const data = {
         ...s,
         scope: { release: scope.release ?? null, environment: scope.environment ?? null },
@@ -121,7 +123,7 @@ export const resultCommands: Record<string, Spec> = {
       const text = statusText(s, scope.release, scope.environment);
       const failed = s.gate.checks.filter((c) => !c.passed);
       if (a.gate && !s.gate.passed) fail('GATE_FAILED', 'The readiness gate failed', failed, data, text);
-      return { data, text };
+      return { data, warnings, text };
     },
   },
 
@@ -395,8 +397,13 @@ export const resultCommands: Record<string, Spec> = {
       const p = await cx.openProject(ctx, a);
       let target = str(a.id)!;
       if (target.startsWith('run_')) target = cx.resolveRun(await cx.loadModel(p), target).record.id;
-      else if (!(await p.replica.getRecord(target).catch(() => null)))
+      const rec =
+        (await p.replica.getRecord(target).catch(() => null)) ??
         fail('NOT_FOUND', `Record ${target} not found`);
+      // agents may only take back their own records: hiding someone else's result is a review
+      const actor = await cx.actorOf(ctx);
+      if (actor.kind === 'agent' && (rec.actor.kind !== 'agent' || rec.actor.id !== actor.id))
+        fail('USAGE', `Agents can only retract their own records; ${target} was recorded by ${rec.actor.id}`);
       const retraction = await cx.append(ctx, p, 'retraction', { target, reason: str(a.reason) });
       return { data: { retraction }, text: `Retracted ${target}` };
     },
