@@ -22,7 +22,7 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 1. **The link is a tag.** `@TC-<n>` (or `@<PROJECT>:TC-<n>`, or the machine ID `@tc_01J…`) in the test's `tag` details or title. Tags are static, visible in every Playwright report and usable with `--grep @TC-3`. Annotations carry metadata, never identity.
 2. **Many-to-many.** A test may carry several TC tags; a TC may be implemented by several tests.
-3. **One run per (test case, Playwright project)** per `playwright test` invocation. Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message with known secret values redacted, `test` = title path). The run's verdict comes from the [decision policy](concepts.md#decision-policy); how runs of several projects, rows and shards combine into one result is defined once in [computed done](concepts.md#computed-done).
+3. **One run per (test case, Playwright project)** per `playwright test` invocation — and per set of selected fixture rows (item 6), since each row is its own [variant](concepts.md#computed-done). Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message with known secret values redacted, `test` = title path). The run's verdict comes from the [decision policy](concepts.md#decision-policy); how runs of several projects, rows and shards combine into one result is defined once in [computed done](concepts.md#computed-done).
 4. **Outcome mapping** from `test.outcome()` after all retries: `expected` → `pass`; `unexpected` → `fail` (`interrupted` → run reported as `blocked`); `flaky` → `pass` with `flaky: true` on the judgement; `skipped` → run reported as `skipped`.
 5. **Steps.** If a test uses `test.step('1. …')` / `test.step('2. …')`, step results map by the leading number to TC steps. Otherwise step results are omitted.
 6. **Fixtures.** The run records the current version of every fixture the TC references (computed from the bundle at the commit under test). A test may add `test.info().annotations.push({ type: '_iw.fixture', description: 'FX-1:SUMMER10' })` to record selected rows.
@@ -39,8 +39,9 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 | `release` | `IW_RELEASE` → release resolution in [bundle-format](bundle-format.md#releasesversiontoml) | |
 | `environment` | `IW_ENV` → `project.default_environment` | |
 | `evidence` | `all` | `all`, `failures`, `none` |
-| `strict` | `false` | Fail on unlinked tests and unknown keys |
-| `sync` | `true` when a store is configured | Push after the run |
+| `strict` | `false` | Fail the Playwright run on unlinked tests, unknown keys, a missing bundle or a failed push |
+| `sync` | `true` when a store is configured | Push after the run (store: `IW_STORE` → `[store].url`) |
+| `traces` | `auto` | `always` keeps traces and videos of test cases that use an `account` fixture |
 | `dryRun` | `false` | Print what would be recorded |
 
 ### Sharding
@@ -79,6 +80,7 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 | Input | Default | |
 |---|---|---|
 | `version` | the action's tag | `indx-watch` npm version to run |
+| `cli` | `auto` | `npm` runs `npx indx-watch@<version>`; `local` runs `packages/cli/dist/bin.js` from the action's own checkout (this repository's CI, after `pnpm build`); `auto` uses the local build when present |
 | `dir` | `.indx-watch` discovery | |
 | `release`, `environment` | project defaults | Scope |
 | `store` | `[store].url` | Override store URL |
@@ -90,7 +92,7 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 
 Outputs: `gate` (`pass`/`fail`), `report` (path of the Markdown report), `pass`, `fail`, `untested` counts.
 
-Steps it runs: `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional `iw deployment add --env <deployment>` → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
+Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sync pushes it) → `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
 
 PR comments and check runs are *v0.2* (they need `pull-requests: write` / `checks: write`); the job summary needs no permissions.
 
