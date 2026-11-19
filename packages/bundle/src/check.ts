@@ -11,7 +11,7 @@ import { TRANSLATABLE_FIELDS as TF, translationSourceHash, useCaseVersion } from
 import { slugify } from './write.js';
 
 export interface CheckOptions {
-  /** canonicalize, regenerate slugs, renumber duplicate keys */
+  /** canonicalize, fix the key part of names, renumber duplicate keys (slugs are cosmetic and kept) */
   fix?: boolean;
   /** keys known from the result store (retired keys must not be reused) */
   knownKeys?: Iterable<string>;
@@ -50,8 +50,8 @@ export async function checkBundle(fs: BundleFs, opts?: CheckOptions): Promise<Ch
   }
   const problems = [...loaded.problems];
   if (loaded.bundle) problems.push(...(await semanticChecks(loaded.bundle, deps)));
+  problems.push(...(await scanBundleSecrets(fs)));
   for (const f of loaded.files) {
-    problems.push(...scanSecrets(f.path, f.text));
     const canonical = canonicalText(f);
     if (canonical === null || canonical === f.text) continue;
     const hint =
@@ -77,7 +77,8 @@ const TOKENS: [string, RegExp][] = [
   ['AWS access key ID', /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/],
   ['GitHub token', /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/],
   ['Slack token', /\bxox[abprs]-[A-Za-z0-9-]{10,}/],
-  ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----/],
+  ['password in a URL', /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:(?!\{\{)[^\s/@]+@/i],
   ['JWT', /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/],
   ['Anthropic API key', /\bsk-ant-[A-Za-z0-9_-]{20,}/],
   ['OpenAI API key', /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/],
@@ -85,7 +86,9 @@ const TOKENS: [string, RegExp][] = [
 const SENSITIVE =
   /(passw|pwd|passphrase|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)/i;
 const ALWAYS = /(passw|pwd|passphrase)/i;
-const ASSIGN = /["']?([A-Za-z0-9_.-]+)["']?\s*[:=]\s*["']([^"'\n]*)["']/g;
+const ASSIGN = /["']?([A-Za-z0-9_.-]+)["']?\s*[:=]\s*(?:"{3}|'{3}|["'])([^"'\n]*)["']/g;
+/** unquoted values: `password: hunter22`, `"pin": 12345678`, .netrc `password Hunter2Prod` (needs a digit) */
+const BARE = /([A-Za-z0-9_.-]+)["']?(?:[ \t]*[:=][ \t]*|[ \t]+)([^\s"'`,;{}()[\]<>]{6,})/g;
 
 function entropy(s: string): number {
   const counts = new Map<string, number>();
@@ -112,9 +115,26 @@ export function scanSecrets(file: string, text: string): Problem[] {
   for (const [i, l] of lines.entries()) {
     for (const [what, re] of TOKENS) if (re.test(l)) found(i + 1, what);
     for (const m of l.matchAll(ASSIGN)) if (suspicious(m[1]!, m[2]!)) found(i + 1, `value of "${m[1]}"`);
+    for (const m of l.matchAll(BARE))
+      if (/\d/.test(m[2]!) && !/^[A-Z]+-\d/.test(m[2]!) && suspicious(m[1]!, m[2]!))
+        found(i + 1, `value of "${m[1]}"`);
     if (i > 0)
       for (const [c, v] of l.split(',').entries())
         if (suspicious(header[c] ?? '', v.trim())) found(i + 1, `column "${header[c]}"`);
+  }
+  return out;
+}
+
+const dec = new TextDecoder();
+/**
+ * Secret scan of every file under the bundle (what a snapshot or an export packs: unknown files, README.md and
+ * dot files too), not only the files the format recognises. Binary files (with a NUL byte) are skipped.
+ */
+export async function scanBundleSecrets(fs: BundleFs): Promise<Problem[]> {
+  const out: Problem[] = [];
+  for (const p of await walk(fs, '')) {
+    const bytes = await fs.read(p);
+    if (bytes && !bytes.includes(0)) out.push(...scanSecrets(p, dec.decode(bytes)));
   }
   return out;
 }
@@ -240,6 +260,18 @@ async function semanticChecks(b: Bundle, deps: CheckDeps): Promise<Problem[]> {
   for (const t of b.testCases) await ai(t.data, t.file, async () => t.version);
   for (const f of b.fixtures) await ai(f.data, f.file, async () => f.version);
   for (const u of b.useCases) await ai(u.data, u.file, () => useCaseVersion(u.data));
+  for (const u of b.useCases)
+    for (const [i, c] of u.data.criteria.entries()) {
+      if (c.origin !== 'ai') continue;
+      if (!c.ai) err('missing-ai-meta', u.file, 'origin "ai" requires an [ai] table', `criteria[${i}].ai`);
+      if ((c.status ?? 'ready') === 'ready' && !c.approved_by)
+        err(
+          'ai-not-approved',
+          u.file,
+          'AI-proposed criterion is ready without approval; run iw approve',
+          `criteria[${i}].status`,
+        );
+    }
 
   // translations: stale source hash, unexpected locale, dropped literals
   const locales = new Set<string>(p.locales.filter((l) => l !== p.source_locale));
@@ -327,18 +359,40 @@ async function fix(fs: BundleFs, b: Bundle, files: SeenFile[], deps: CheckDeps, 
         }
       }
     }
-  // criteria numbered for another use case, or duplicated inside one → the next free number
+  // criteria numbered for another use case, or duplicated inside one → the next free number.
+  // Duplicates keep the one on the default branch (else the smaller ID); covers follow the renumbered one.
+  const moved: { from: string; to: string; id: string }[] = [];
   for (const uc of b.useCases) {
     const d = get(uc.file, uc.data);
-    const used = new Set<string>();
+    const own = `AC-${d.key.slice(3)}.`;
+    const keeper = new Map<string, string>(); // key → ID that keeps it
+    for (const key of new Set(d.criteria.map((c) => c.key).filter((k) => k.startsWith(own)))) {
+      const dups = d.criteria.filter((c) => c.key === key).sort((x, y) => (x.id < y.id ? -1 : 1));
+      const onBranch = await Promise.all(dups.map((c) => deps.onDefaultBranch?.(c.id)));
+      keeper.set(key, dups[Math.max(0, onBranch.indexOf(true))]!.id);
+    }
+    const used = new Set(keeper.keys());
     const criteria = d.criteria.map((c) => {
-      if (!used.has(c.key) && c.key.startsWith(`AC-${d.key.slice(3)}.`)) return used.add(c.key) && c;
+      if (keeper.get(c.key) === c.id) return c;
       const to = nextCriterionKey(d.key, [...seen, ...used]);
       used.add(to);
       renumber(c.key, to, c.id);
+      moved.push({ from: c.key, to, id: c.id });
       return { ...c, key: to };
     });
-    if (used.size && criteria.some((c, i) => c !== d.criteria[i])) data.set(uc.file, { ...d, criteria });
+    if (criteria.some((c, i) => c !== d.criteria[i])) data.set(uc.file, { ...d, criteria });
+  }
+  // a key that no longer exists anywhere moves in every test case; a key that is still taken moves only
+  // in test cases not on the default branch (without git: created after the renumbered criterion)
+  const left = new Set(b.useCases.flatMap((u) => get(u.file, u.data).criteria.map((c) => c.key)));
+  for (const t of moved.length ? b.testCases : []) {
+    const td = get(t.file, t.data);
+    const branch = deps.onDefaultBranch ? !(await deps.onDefaultBranch(t.data.id)) : undefined;
+    const covers = td.covers.map((k) => {
+      const m = moved.find((x) => x.from === k && (!left.has(k) || (branch ?? t.data.id > x.id)));
+      return m?.to ?? k;
+    });
+    if (covers.some((k, i) => k !== td.covers[i])) data.set(t.file, { ...td, covers });
   }
 
   // rename the key part of directories and files (original path → new last segment)

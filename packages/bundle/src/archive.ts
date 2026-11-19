@@ -87,7 +87,18 @@ export async function createArchive(input: {
   return { tar: new Uint8Array(tar), manifest };
 }
 
-/** Parse and verify every hash; throws on mismatch. */
+/** Only the v1 layout, and bundle paths without '.', '..', empty segments, backslashes or NUL (no zip-slip). */
+const safePath = (p: string) =>
+  p === 'manifest.json' ||
+  p === 'records.ndjson' ||
+  /^blobs\/sha256\/[0-9a-f]{2}\/[0-9a-f]{64}$/.test(p) ||
+  (p.startsWith('bundle/') &&
+    p
+      .slice(7)
+      .split('/')
+      .every((s) => s && s !== '.' && s !== '..' && !/[\\\0]/.test(s)));
+
+/** Parse and verify every hash; throws on mismatch or an entry outside the layout. */
 export async function readArchive(tar: Uint8Array): Promise<{
   manifest: ArchiveManifest;
   bundleFiles: ArchiveEntry[];
@@ -97,6 +108,8 @@ export async function readArchive(tar: Uint8Array): Promise<{
   const entries = (await unpackTar(tar, { strict: true }))
     .filter((e) => (e.header.type ?? 'file') === 'file')
     .map((e) => ({ path: e.header.name, data: new Uint8Array(e.data ?? new Uint8Array()) }));
+  for (const e of entries)
+    if (!safePath(e.path)) throw new Error(`archive entry ${JSON.stringify(e.path)} is not allowed`);
   const m = entries.find((e) => e.path === 'manifest.json');
   const manifest = JSON.parse(m ? dec.decode(m.data) : '{}') as ArchiveManifest;
   if (manifest.format !== 'indx-watch-archive' || manifest.version !== 1)

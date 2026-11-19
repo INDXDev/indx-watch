@@ -62,6 +62,26 @@ describe('serializer rules', () => {
     expect(parseToml(out)).toEqual({ a: 'one\ntwo\n', b: 'say "hi"\\', x: 'tab\there' });
   });
 
+  it('escapes trailing spaces in multi-line strings, so the file has no trailing whitespace', () => {
+    const out = canonicalBody({ notes: 'line one  \nline two\t\n' });
+    expect(out).toBe('notes = """\nline one\\u0020\\u0020\nline two\\t\n"""\n');
+    expect(out.split('\n').some((l) => /[ \t]$/.test(l))).toBe(false);
+    expect(parseToml(out).notes).toBe('line one  \nline two\t\n');
+    expect(canonicalBody(parseToml(out))).toBe(out);
+  });
+
+  it('reads CRLF files like LF files', () => {
+    expect(parseToml('a = """\r\none\r\ntwo\r\n"""\r\nb = 1\r\n')).toEqual({ a: 'one\ntwo\n', b: 1 });
+  });
+
+  it('writes [x] values as plain data: integral numbers as integers, dates as strings', () => {
+    const out = formatTomlBody('feature', {
+      ...parseToml('id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y10"\nkey = "FEAT-1"\ntitle = "C"\n'),
+      x: parseToml('ratio = 5.0\nwhen = 2026-12-01\n'),
+    });
+    expect(out).toContain('[x]\nratio = 5\nwhen = "2026-12-01"\n');
+  });
+
   it('sorts free-form [x] tables', () => {
     const out = formatTomlBody('feature', {
       id: 'fea_01JF3Q8M5X2V7K9D4R6T1W0Y10',

@@ -7,6 +7,7 @@ import {
   type Priority,
   Priority as PrioritySchema,
 } from '@indx-watch/bundle';
+import { byTimeThenId } from './decide.js';
 import type { ReportData } from './index.js';
 import { byKey, PRIORITY_RANK } from './model.js';
 import { activeWaiver, computeStatus, gateOf, planItemStatus, runsInScope } from './status.js';
@@ -37,7 +38,9 @@ export function reportData(
     priorities.map((p) => [p, {} as Record<string, number>]),
   ) as Record<Priority, Record<string, number>>;
   for (const t of status.testCases) {
-    const c = countsByPriority[model.testCases.get(t.key)!.priority];
+    const node = model.testCases.get(t.key)!;
+    if (node.data.status !== 'ready') continue; // drafts do not count (as in status.counts)
+    const c = countsByPriority[node.priority];
     c[t.status] = (c[t.status] ?? 0) + 1;
   }
   for (const u of status.useCases) {
@@ -80,21 +83,14 @@ export function reportData(
   const waivers: ReportData['waivers'] = [];
   if (scope.release)
     for (const t of status.testCases) {
-      const w = activeWaiver(model, scope.release, model.testCases.get(t.key)!.data.id);
+      // only waivers that turned a fail into waived; a stale waiver (other version) is not listed
+      const w = t.waived && activeWaiver(model, scope.release, model.testCases.get(t.key)!.data.id);
       if (w) waivers.push({ testCase: t.key, reason: w.reason, by: who(w.actor), at: w.at });
     }
 
   const runs = [...model.testCases.values()]
     .flatMap((t) => runsInScope(model, t.data.id, scope).map((v) => ({ v, key: t.data.key })))
-    .sort((a, b) =>
-      a.v.record.ended_at < b.v.record.ended_at
-        ? -1
-        : a.v.record.ended_at > b.v.record.ended_at
-          ? 1
-          : a.v.record.id < b.v.record.id
-            ? -1
-            : 1,
-    )
+    .sort((a, b) => byTimeThenId(a.v.record.ended_at, a.v.record.id, b.v.record.ended_at, b.v.record.id))
     .map(({ v, key }) => ({
       id: v.record.id,
       testCase: key,

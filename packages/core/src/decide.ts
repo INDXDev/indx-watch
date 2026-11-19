@@ -6,14 +6,23 @@ import type { Decision, Verdict } from './types.js';
 
 const HUMAN_VERDICTS = new Set(['pass', 'fail', 'blocked', 'skipped']);
 
+/** Timestamps compared as instants ('…:00Z' and '…:00.100Z' mix), then IDs; missing times sort first. */
+export const byTimeThenId = (at: string | undefined, a: string, bt: string | undefined, b: string): number =>
+  (Date.parse(at ?? '') || 0) - (Date.parse(bt ?? '') || 0) || (a < b ? -1 : a > b ? 1 : 0);
+
 /** Judgement order: by `at`, then `id`. */
-export const byAtThenId = (a: Judgement, b: Judgement): number =>
-  (a.at ?? '') < (b.at ?? '') ? -1 : (a.at ?? '') > (b.at ?? '') ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+export const byAtThenId = (a: Judgement, b: Judgement): number => byTimeThenId(a.at, a.id, b.at, b.id);
 
 export function decide(
   judgements: readonly Judgement[],
   policy: Required<DecisionPolicy>,
-  ctx: { priority: Priority; mode: string; reported: 'blocked' | 'skipped' | null },
+  ctx: {
+    priority: Priority;
+    mode: string;
+    reported: 'blocked' | 'skipped' | null;
+    /** judge kinds the test case declares; rule 8 needs a judgement of each */
+    judges?: readonly string[];
+  },
 ): Decision {
   const js = [...judgements].sort(byAtThenId);
   const d = (verdict: Verdict, rule: number, reason: string): Decision => ({ verdict, rule, reason });
@@ -63,6 +72,8 @@ export function decide(
       ctx.mode === 'hybrid' ? 'Hybrid mode needs a human' : `${ctx.priority} needs a human`,
     );
   if (js.length === 0) return d('needs_review', 9, 'No judgements');
+  const missing = (ctx.judges ?? []).filter((k) => !js.some((j) => j.kind === k));
+  if (missing.length) return d('needs_review', 10, `No ${[...new Set(missing)].join(', ')} judgement yet`);
   if (js.every((j) => j.verdict === 'pass' || (j.kind === 'visual' && j.verdict === 'diff')))
     return d('pass', 8, 'Every judgement passed');
   return d('needs_review', 10, 'Judgements are inconclusive');

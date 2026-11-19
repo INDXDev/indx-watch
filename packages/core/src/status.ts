@@ -2,6 +2,7 @@
  * Computed done, coverage, readiness gate and plan items (docs/spec/concepts.md#computed-done).
  */
 import { GATE_DEFAULTS, type Priority, type WaiverRecord } from '@indx-watch/bundle';
+import { byTimeThenId } from './decide.js';
 import { byKey } from './model.js';
 import {
   type GateCheck,
@@ -22,8 +23,7 @@ const rank = (s: Status) => STATUS_ORDER.indexOf(s);
 export const worst = <S extends Status>(xs: readonly S[]): S =>
   xs.reduce((a, b) => (rank(b) < rank(a) ? b : a));
 const later = (a: RunView, b: RunView) =>
-  a.record.ended_at > b.record.ended_at ||
-  (a.record.ended_at === b.record.ended_at && a.record.id > b.record.id);
+  byTimeThenId(a.record.ended_at, a.record.id, b.record.ended_at, b.record.id) > 0;
 export const gateOf = (model: Model) => ({ ...GATE_DEFAULTS, ...model.project.gate });
 
 const runIndex = new WeakMap<Model, Map<string, RunView[]>>();
@@ -49,7 +49,7 @@ export function activeWaiver(model: Model, release: string, tcId: string): Waive
   const revoked = new Set(model.waivers.map((w) => w.revokes).filter(Boolean));
   return model.waivers
     .filter((w) => !w.revokes && !revoked.has(w.id) && w.release === release && w.test_case.id === tcId)
-    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1))
+    .sort((a, b) => byTimeThenId(a.at, a.id, b.at, b.id))
     .at(-1);
 }
 
@@ -181,7 +181,9 @@ export function computeStatus(model: Model, scope: Scope): StatusResult {
     blocked: 0,
     skipped: 0,
   };
-  for (const t of testCases) counts[t.status as keyof typeof counts]++;
+  // drafts are listed but not counted, like the gate and coverage
+  for (const t of testCases)
+    if (isReady(model.testCases.get(t.key)!.data.status)) counts[t.status as keyof typeof counts]++;
   return {
     scope,
     gate: gateFrom(model, scope, table),
@@ -259,6 +261,8 @@ function gateFrom(model: Model, scope: Scope, table: Map<string, TestCaseStatus>
   const is = (k: string, ...s: Status[]) => s.includes(st(k).status);
   const p0Pass = p0.filter((k) => is(k, 'pass'));
   const checks: GateCheck[] = [
+    // nothing gated is never "ready": an empty or P2-only scope fails here, not as n/a everywhere
+    check('has_gated_tests', p01.length > 0, String(p01.length), '≥ 1', []),
     ratio(
       'p0_coverage',
       coveredAcs,

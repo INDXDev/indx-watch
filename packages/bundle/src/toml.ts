@@ -16,9 +16,13 @@ function normalize(v: unknown): unknown {
   return v;
 }
 
-/** Parse TOML text. Dates/datetimes are normalized to strings ('2026-12-01', '2026-11-19T04:05:12Z'). The '#:schema' line is ignored. */
+/**
+ * Parse TOML text. Dates/datetimes are normalized to strings ('2026-12-01', '2026-11-19T04:05:12Z'). The '#:schema'
+ * line is ignored. CRLF becomes LF first, so a Windows checkout gives the same values and versions.
+ */
 export function parseToml(text: string): Record<string, unknown> {
-  return normalize(parse(text, { unsafeKeyBehaviour: 'throw' })) as Record<string, unknown>;
+  const lf = text.replace(/\r\n/g, '\n');
+  return normalize(parse(lf, { unsafeKeyBehaviour: 'throw' })) as Record<string, unknown>;
 }
 
 /** Canonical text for a file of the given type, including the '#:schema' header line and blank line. */
@@ -120,7 +124,11 @@ function basic(s: string): string {
 }
 
 function multiline(s: string): string {
-  const body = s.replace(/\n*$/, '\n').replace(/\\/g, '\\\\').replace(CONTROL_BUT_LF, escapeChar);
+  const body = s
+    .replace(/\n*$/, '\n')
+    .replace(/\\/g, '\\\\')
+    .replace(CONTROL_BUT_LF, escapeChar)
+    .replace(/ +$/gm, (m) => '\\u0020'.repeat(m.length)); // no trailing whitespace in the file
   return `"""\n${body.replace(/"""/g, '""\\"')}"""`;
 }
 

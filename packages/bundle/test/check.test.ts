@@ -76,6 +76,42 @@ describe('check problems', () => {
     expect(codes(await checkBundle(fs))).toEqual(['ai-not-approved']);
   });
 
+  it('an AI-proposed criterion keeps its [ai] table and counts only once a human approves it', async () => {
+    const fs = memFs();
+    const { createDefinition, approveDefinition } = await import('../src/write.js');
+    const load = async () => (await loadBundle(fs)).bundle!;
+    const ai = { model: 'test', skill: 'write-test-cases' };
+    const now = new Date('2026-11-19T04:00:00Z');
+    const fields = { text: 'The photo can be removed.' };
+    const r = await createDefinition(fs, await load(), {
+      kind: 'criterion',
+      parent: 'UC-5',
+      fields,
+      origin: 'ai',
+      ai,
+      now,
+    });
+    const uc = parseToml(fs.text(r.file)!) as { criteria: Record<string, unknown>[] };
+    expect(uc.criteria.at(-1)).toMatchObject({
+      status: 'draft',
+      origin: 'ai',
+      ai: { ...ai, created_at: '2026-11-19T04:00:00Z' },
+    });
+    expect(codes(await checkBundle(fs))).toEqual([]);
+    // a hand edit to ready does not count
+    fs.files.set(
+      r.file,
+      new TextEncoder().encode(
+        fs.text(r.file)!.replace(/status = "draft"\norigin = "ai"/, 'status = "ready"\norigin = "ai"'),
+      ),
+    );
+    expect(codes(await checkBundle(fs))).toEqual(['ai-not-approved']);
+    await approveDefinition(fs, await load(), r.key, 'alex@shop.test');
+    const after = parseToml(fs.text(r.file)!) as { criteria: Record<string, unknown>[] };
+    expect(after.criteria.at(-1)).toMatchObject({ status: 'ready', approved_by: 'alex@shop.test' });
+    expect(codes(await checkBundle(fs))).toEqual([]);
+  });
+
   it('unresolved covers and fixture refs', async () => {
     const fs = memFs();
     fs.files.set(
@@ -125,6 +161,34 @@ describe('check problems', () => {
       'Possible secret (value of "password"); use a reference such as env:NAME',
     ]);
     expect(r.problems.some((p) => p.message.includes('hunter22'))).toBe(false);
+  });
+
+  it('secrets in files the format does not know are errors too (what a snapshot packs)', async () => {
+    const fs = memFs();
+    const key = ['-----BEGIN OPENSSH', 'PRIVATE KEY-----'].join(' ');
+    fs.files.set('fixtures/FX-1-coupons/creds.env', new TextEncoder().encode('AWS=AKIAIOSFODNN7EXAMPL3\n'));
+    fs.files.set('specs/notes.md', new TextEncoder().encode(`${key}\n`));
+    const r = await checkBundle(fs);
+    expect(r.problems.filter((p) => p.code === 'secret').map((p) => p.file)).toEqual([
+      'fixtures/FX-1-coupons/creds.env',
+      'specs/notes.md',
+    ]);
+  });
+
+  it('finds multi-line, URL, unquoted and PGP secrets', () => {
+    const hits = (t: string) => scanSecrets('a.toml', t).length;
+    expect(hits("password = '''hunter22'''")).toBe(1);
+    expect(hits('password = """hunter22"""')).toBe(1);
+    expect(hits('base_url = "https://admin:S3cretPassw0rd@staging.shop.test"')).toBe(1);
+    expect(hits('{"password": 12345678}')).toBe(1);
+    expect(hits('machine api.internal login deploy password Hunter2Prod')).toBe(1);
+    expect(hits('password: hunter22')).toBe(1);
+    expect(hits(['-----BEGIN PGP PRIVATE', 'KEY BLOCK-----'].join(' '))).toBe(1);
+    // plain prose, references and placeholders stay quiet
+    expect(hits('instruction = "Enter a wrong password and press Sign in"')).toBe(0);
+    expect(hits('instruction = "Type the password from FX-3.password"')).toBe(0);
+    expect(hits('base_url = "https://casey:{{FX-3.password}}@staging.shop.test"')).toBe(0);
+    expect(hits('password_ref = "env:SHOP_PASSWORD"')).toBe(0);
   });
 
   it('secret scan ignores references and placeholders', () => {
@@ -236,6 +300,44 @@ describe('check --fix renumbers duplicate keys', () => {
       onDefaultBranch: async (id) => id.endsWith('Y33'),
     } as CheckDeps);
     expect(r.renumbered).toEqual([{ from: 'TC-3', to: 'TC-10', id: 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y30' }]);
+  });
+
+  const UC2 = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/use-case.toml';
+  const edit = (fs: ReturnType<typeof memFs>, path: string, f: (t: string) => string) =>
+    fs.files.set(path, new TextEncoder().encode(f(fs.text(path)!)));
+
+  it('renumbers a criterion numbered for another use case and moves the covers that point at it', async () => {
+    const fs = memFs();
+    edit(fs, UC2, (t) => t.replace('key = "AC-2.1"', 'key = "AC-9.1"'));
+    edit(fs, TC3, (t) => t.replace('covers = ["AC-2.1"]', 'covers = ["AC-9.1"]'));
+    expect(codes(await checkBundle(fs))).toEqual(['invalid-key']);
+    const r = await checkBundle(fs, { fix: true });
+    expect(r.renumbered.map((x) => `${x.from}>${x.to}`)).toEqual(['AC-9.1>AC-2.3']);
+    expect(r.errors).toBe(0);
+    expect(parseToml(fs.text(TC3)!).covers).toEqual(['AC-2.3']);
+  });
+
+  it('a duplicate criterion key keeps the default-branch one; only branch test cases follow', async () => {
+    const fs = memFs();
+    const branchAc = 'ac_01JF3Q8M5X2V7K9D4R6T1W0Z99';
+    const block = `[[criteria]]\nid = "${branchAc}"\nkey = "AC-2.1"\ntext = "Branch criterion."\n\n`;
+    edit(fs, UC2, (t) => t.replace('[[criteria]]', `${block}[[criteria]]`));
+    const branchTc = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-10-branch.toml';
+    fs.files.set(
+      branchTc,
+      new TextEncoder().encode(
+        fs
+          .text(TC3)!
+          .replace('tc_01JF3Q8M5X2V7K9D4R6T1W0Y33', 'tc_01JF3Q8M5X2V7K9D4R6T1W0Z98')
+          .replace('key = "TC-3"', 'key = "TC-10"'),
+      ),
+    );
+    const onDefaultBranch = async (id: string) => !id.includes('0Z9');
+    const r = await checkBundle(fs, { fix: true, onDefaultBranch } as CheckDeps);
+    expect(r.renumbered).toEqual([{ from: 'AC-2.1', to: 'AC-2.3', id: branchAc }]);
+    expect(r.errors).toBe(0);
+    expect(parseToml(fs.text(TC3)!).covers).toEqual(['AC-2.1']);
+    expect(parseToml(fs.text(branchTc)!).covers).toEqual(['AC-2.3']);
   });
 
   it('renumbers a use case with its criteria, covers and directory', async () => {

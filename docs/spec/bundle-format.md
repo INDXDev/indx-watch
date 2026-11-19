@@ -38,9 +38,10 @@ The Zod schemas in [`packages/bundle/src/schema/`](../../packages/bundle/src/sch
 
 Rules:
 
-- **Identity is the `id` inside a file**, not its path. Directory and file names are `{KEY}-{slug}`; the slug is cosmetic and `iw fmt` regenerates it from the title. Moving or renaming a file never changes identity.
+- **Identity is the `id` inside a file**, not its path. Directory and file names are `{KEY}-{slug}`; the slug is cosmetic: `iw new` writes it from the title, and `iw check --fix` only rewrites the key part of a name (a title change keeps the slug). Moving or renaming a file never changes identity.
 - A use case directory must be inside a feature directory; test case files must be inside a use case directory. A test case may still cover ACs of other use cases.
-- Files and directories not described here produce a warning from `iw check` and are ignored, except `README.md` files, which are allowed anywhere.
+- Files and directories not described here produce a warning from `iw check` and are ignored, except `README.md` files, which are allowed anywhere. The secret scan still covers every file in the folder, because snapshots and exports pack them.
+- Symbolic links are ignored: tools do not list them and refuse to read or write a path whose real location is outside the folder.
 - The folder is `.indx-watch/` at the repository root by default. Commands find it by walking up from the current directory; `--dir` or `IW_DIR` override this.
 
 ## Common rules for every TOML file
@@ -55,14 +56,14 @@ key = "TC-3"
 | Rule | Detail |
 |---|---|
 | Schema line | Line 1 is `#:schema <url>` for that file type, line 2 is blank. Tombi and Taplo use it for completion and validation. See [platform notes](../research/platform-notes.md#toml-and-editor-tooling). |
-| Encoding | UTF-8, LF line endings, exactly one trailing newline, no trailing whitespace, no tabs. |
+| Encoding | UTF-8, LF line endings, exactly one trailing newline, no trailing whitespace, no tabs. Readers treat CRLF as LF (a Windows checkout with `core.autocrlf` gives the same values and versions); `iw fmt` writes LF. In multi-line strings, spaces at the end of a line are written as `\u0020`. |
 | Key order | The order in which fields are listed in this spec (= the Zod schema), except that every value written as a table or array of tables comes after all plain values, as TOML requires. A table that contains only sub-tables gets no header of its own (`[hooks.seed]`, not `[hooks]` + `[hooks.seed]`). Unknown keys are errors, except inside an `[x]` table, which is free-form and sorted alphabetically. |
-| Optional fields | Omitted when empty (empty string, empty array, empty table, `false` for booleans whose default is `false`). |
+| Optional fields | Omitted when empty (empty string, empty array, empty table). Booleans are written as given, `false` included. |
 | Strings | Basic strings (`"…"`). Strings containing a newline use multi-line basic strings (`"""` on its own line … `"""`), with a trailing newline normalized to exactly one. |
 | Arrays | Arrays of scalars are inline if the line fits in 100 characters, otherwise one item per line with a trailing comma. |
 | Tables in arrays | Arrays of objects are written as arrays of tables (`[[steps]]`). Nested objects inside them use dotted sub-tables (`[steps.i18n.ja]`). |
 | Datetimes | RFC 3339 offset datetimes in UTC with `Z`, second precision (`2026-11-19T04:05:12Z`). Dates are local dates (`2026-12-01`). |
-| Numbers | Fields declared as integers are written without separators; all other numbers are floats with at least one decimal digit (`1.0`, `0.95`). |
+| Numbers | Fields declared as integers are written without separators; all other numbers are floats with at least one decimal digit (`1.0`, `0.95`). Inside `[x]`, values are plain data: an integral number is written as an integer (`5.0` → `5`) and a date or datetime as a string. |
 | Comments | Allowed but **not preserved** when a tool rewrites the file. Use `notes` fields for anything that must survive. |
 
 **Canonical form.** `formatToml(parse(file))` is the canonical form. For any valid canonical file, parse → format is byte-identical. `iw check` reports non-canonical files; `iw fmt` rewrites them. All tools write through the same serializer. See [ADR 0004](../adr/0004-canonical-toml.md).
@@ -247,8 +248,9 @@ status = "machine"
 source_hash = "9fba5a63e3e8"
 ```
 
-- `priority`: `P0`–`P3`.
+- `priority`: `P0`–`P3`. `iw new uc` writes `P1` unless told otherwise, so a new use case is gated.
 - `criteria`: at least one. `key` is `AC-{uc}.{n}`. A criterion has an optional `status`: `ready` (default), `draft` (e.g. proposed by an AI; does not count) or `retired` (kept so its key is never reused). Do not delete criteria.
+- A criterion may also have `origin`, `approved_by` and an `[criteria.ai]` table (`model`, `skill`, `created_at`), like other AI-written items. An `origin = "ai"` criterion needs the `[ai]` table, and counts as `ready` only with `approved_by` (written by `iw approve AC-n.m`); `iw check` reports `ai-not-approved` otherwise.
 
 ## `specs/<FEAT>/<UC>/TC-<n>-<slug>.toml`
 
