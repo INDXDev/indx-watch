@@ -1,0 +1,4 @@
+# The image installs indx-watch from npm or from a packed tarball; nothing else is needed.
+*
+!LICENSE
+!indx-watch-*.tgz
