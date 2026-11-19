@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Release readiness — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav"><a href="index.html">← All screens</a> · <a href="spec-tree.html">Spec tree →</a></p>
+      <h1>Release readiness <code>#/</code></h1>
+      <p>Answer “can we ship v1.2.0?” in one glance, then say what to do next.</p>
+      <ul>
+        <li>
+          The verdict banner comes from <code>evaluateGate()</code> (GET <code>/api/status</code>); the UI never
+          recomputes it.
+        </li>
+        <li>
+          “Next step” links the first open item of a failing check: a failure → its run, needs review → the review form,
+          stale/untested → the manual runner.
+        </li>
+        <li>
+          Gate checks show <em>Now</em> vs <em>Needed</em> and the offending keys. Status tiles always carry icon +
+          word, never color alone.
+        </li>
+        <li>
+          P0/P1 use cases by default (“Show all” adds P2/P3). Plan items assigned to the signed-in person are
+          highlighted.
+        </li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/" aria-current="page">Readiness</a><a href="#/specs">Specs</a><a href="#/fixtures">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Release readiness</p>
+          <h1>v1.2.0 <span class="muted">Coupons and sign-in</span></h1>
+          <p class="muted"><span class="chip">testing</span> Staging · 8 of 9 criteria have a test</p>
+        </div>
+        <a class="btn" href="#/report">Report</a>
+      </div>
+      <div class="verdict s-fail" role="status">
+        <span class="icon" aria-hidden="true">✕</span>
+        <div>
+          <strong>Not ready to ship: 3 of 7 checks fail.</strong>
+          <p>
+            Next step:
+            <a href="#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W004">look at why TC-4 failed (Expired coupon is rejected)</a>
+          </p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <section class="card" id="gate" aria-labelledby="gate-h">
+          <header class="card-head"><h2 id="gate-h">Gate checks</h2></header>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th class="num">Now</th>
+                  <th class="num">Needed</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="">
+                  <td>Every P0 criterion has a test</td>
+                  <td class="num mono">6/6</td>
+                  <td class="num mono">≥ 1.00</td>
+                  <td>
+                    <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                  </td>
+                </tr>
+                <tr class="row-fail">
+                  <td>
+                    Every P0 test passes
+                    <div class="items">
+                      <a href="#/tc/TC-4">TC-4</a><a href="#/tc/TC-6">TC-6</a><a href="#/tc/TC-8">TC-8</a>
+                    </div>
+                  </td>
+                  <td class="num mono">3/6</td>
+                  <td class="num mono">6/6</td>
+                  <td>
+                    <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+                  </td>
+                </tr>
+                <tr class="">
+                  <td>P1 tests pass (or are waived)</td>
+                  <td class="num mono">2/2 (1.00)</td>
+                  <td class="num mono">≥ 0.95</td>
+                  <td>
+                    <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                  </td>
+                </tr>
+                <tr class="row-fail">
+                  <td>
+                    P0–P1 results waiting for review
+                    <div class="items"><a href="#/tc/TC-6">TC-6</a></div>
+                  </td>
+                  <td class="num mono">1</td>
+                  <td class="num mono">≤ 0</td>
+                  <td>
+                    <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+                  </td>
+                </tr>
+                <tr class="">
+                  <td>P0–P1 tests not run or blocked</td>
+                  <td class="num mono">0</td>
+                  <td class="num mono">≤ 0</td>
+                  <td>
+                    <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                  </td>
+                </tr>
+                <tr class="row-fail">
+                  <td>
+                    P0–P1 results from an older version
+                    <div class="items"><a href="#/tc/TC-8">TC-8</a></div>
+                  </td>
+                  <td class="num mono">1</td>
+                  <td class="num mono">≤ 0</td>
+                  <td>
+                    <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+                  </td>
+                </tr>
+                <tr class="">
+                  <td>Passing P0 results have evidence</td>
+                  <td class="num mono">3/3</td>
+                  <td class="num mono">3/3</td>
+                  <td>
+                    <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card" id="counts" aria-labelledby="counts-h">
+          <header class="card-head"><h2 id="counts-h">Test results</h2></header>
+          <div class="tiles">
+            <div class="tile s-pass">
+              <span class="tile-n">5</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">✓</span> Pass</span>
+            </div>
+            <div class="tile s-fail">
+              <span class="tile-n">1</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">✕</span> Fail</span>
+            </div>
+            <div class="tile s-needs_review">
+              <span class="tile-n">1</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">?</span> Needs review</span>
+            </div>
+            <div class="tile s-stale">
+              <span class="tile-n">1</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">↻</span> Outdated</span>
+            </div>
+            <div class="tile s-blocked tile-zero">
+              <span class="tile-n">0</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">‖</span> Blocked</span>
+            </div>
+            <div class="tile s-untested tile-zero">
+              <span class="tile-n">0</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">○</span> Not tested</span>
+            </div>
+            <div class="tile s-waived tile-zero">
+              <span class="tile-n">0</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">≈</span> Waived</span>
+            </div>
+            <div class="tile s-uncovered">
+              <span class="tile-n">1</span
+              ><span class="tile-l"><span class="icon" aria-hidden="true">!</span> No test</span>
+            </div>
+          </div>
+          <div class="meter-row">
+            <span>Criteria with a test</span
+            ><span class="bar" role="presentation"><span style="width: 89%"></span></span
+            ><span class="mono">8/9 (89%)</span>
+          </div>
+        </section>
+      </div>
+      <section class="card" id="open" aria-labelledby="open-h">
+        <header class="card-head"><h2 id="open-h">Open items (3)</h2></header>
+        <ul class="list">
+          <li>
+            <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span
+            ><a href="#/tc/TC-4" class="key">TC-4</a><span class="grow">Expired coupon is rejected</span
+            ><a class="btn btn-sm" href="#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W004">See failure</a>
+          </li>
+          <li>
+            <span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>Needs review</span
+            ><a href="#/tc/TC-6" class="key">TC-6</a><span class="grow">Confirmation page is readable on a phone</span
+            ><a class="btn btn-sm" href="#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W006">Review</a>
+          </li>
+          <li>
+            <span class="badge s-stale"><span class="icon" aria-hidden="true">↻</span>Outdated</span
+            ><a href="#/tc/TC-8" class="key">TC-8</a><span class="grow">Wrong password is rejected</span
+            ><a class="btn btn-sm" href="#/tc/TC-8/run">Run it</a>
+          </li>
+        </ul>
+      </section>
+      <section class="card" id="ucs" aria-labelledby="ucs-h">
+        <header class="card-head">
+          <h2 id="ucs-h">P0 and P1 use cases</h2>
+          <div class="actions"><button type="button" class="btn btn-sm btn-ghost">Show all</button></div>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Use case</th>
+                <th>Priority</th>
+                <th>Acceptance criteria</th>
+                <th>Status</th>
+                <th class="hide-sm">Done</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="key">UC-1</span> <span>Shopper finds a product</span></td>
+                <td><span class="prio prio-P1">P1</span></td>
+                <td>
+                  <div class="minis">
+                    <span class="mini s-pass" title="AC-1.1: Pass"
+                      ><span class="icon" aria-hidden="true">✓</span>AC-1.1</span
+                    ><span class="mini s-pass" title="AC-1.2: Pass"
+                      ><span class="icon" aria-hidden="true">✓</span>AC-1.2</span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+                </td>
+                <td class="hide-sm"><span class="ok">✓ Yes</span></td>
+              </tr>
+              <tr>
+                <td><span class="key">UC-2</span> <span>Guest applies a coupon at checkout</span></td>
+                <td><span class="prio prio-P0">P0</span></td>
+                <td>
+                  <div class="minis">
+                    <span class="mini s-pass" title="AC-2.1: Pass"
+                      ><span class="icon" aria-hidden="true">✓</span>AC-2.1</span
+                    ><span class="mini s-fail" title="AC-2.2: Fail"
+                      ><span class="icon" aria-hidden="true">✕</span>AC-2.2</span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+                </td>
+                <td class="hide-sm">No</td>
+              </tr>
+              <tr>
+                <td><span class="key">UC-3</span> <span>Guest places an order</span></td>
+                <td><span class="prio prio-P0">P0</span></td>
+                <td>
+                  <div class="minis">
+                    <span class="mini s-needs_review" title="AC-3.1: Needs review"
+                      ><span class="icon" aria-hidden="true">?</span>AC-3.1</span
+                    ><span class="mini s-pass" title="AC-3.2: Pass"
+                      ><span class="icon" aria-hidden="true">✓</span>AC-3.2</span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>Needs review</span>
+                </td>
+                <td class="hide-sm">No</td>
+              </tr>
+              <tr>
+                <td><span class="key">UC-4</span> <span>Customer signs in</span></td>
+                <td><span class="prio prio-P0">P0</span></td>
+                <td>
+                  <div class="minis">
+                    <span class="mini s-pass" title="AC-4.1: Pass"
+                      ><span class="icon" aria-hidden="true">✓</span>AC-4.1</span
+                    ><span class="mini s-stale" title="AC-4.2: Outdated"
+                      ><span class="icon" aria-hidden="true">↻</span>AC-4.2</span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="badge s-stale"><span class="icon" aria-hidden="true">↻</span>Outdated</span>
+                </td>
+                <td class="hide-sm">No</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card" id="plan" aria-labelledby="plan-h">
+        <header class="card-head">
+          <h2 id="plan-h"><span class="key">PLAN-1</span> v1.2.0 regression</h2>
+          <div class="actions"><span class="muted">Due Nov 28, 2026</span></div>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Test case</th>
+                <th>Assigned to</th>
+                <th class="hide-sm">Due</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="row-mine">
+                <td><a class="key" href="#/tc/TC-6">TC-6</a> Confirmation page is readable on a phone</td>
+                <td>alex@shop.test <span class="chip chip-accent">you</span></td>
+                <td class="hide-sm">Nov 26, 2026</td>
+                <td>
+                  <span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>To review</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td><a class="key" href="#/tc/TC-8">TC-8</a> Wrong password is rejected</td>
+                <td>sam@shop.test</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>To review</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td><a class="key" href="#/tc/TC-9">TC-9</a> Uploaded review photo appears as a thumbnail</td>
+                <td>agent:claude</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-untested"><span class="icon" aria-hidden="true">○</span>To do</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td><a class="key" href="#/tc/TC-3">TC-3</a> Valid coupon reduces the total</td>
+                <td>ci</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Done</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td><a class="key" href="#/tc/TC-4">TC-4</a> Expired coupon is rejected</td>
+                <td>ci</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Done</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td>
+                  <a class="key" href="#/tc/TC-5">TC-5</a> Placing an order shows a confirmation and empties the cart
+                </td>
+                <td>ci</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Done</span>
+                </td>
+              </tr>
+              <tr class="">
+                <td><a class="key" href="#/tc/TC-7">TC-7</a> Sign in with valid credentials</td>
+                <td>ci</td>
+                <td class="hide-sm">Nov 28, 2026</td>
+                <td>
+                  <span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Done</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>

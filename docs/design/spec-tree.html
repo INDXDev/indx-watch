@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spec tree — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/specs); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav">
+        <a href="index.html">← All screens</a> · <a href="dashboard.html">Release readiness</a> ·
+        <a href="test-case.html">Test case →</a>
+      </p>
+      <h1>Spec tree <code>#/specs</code></h1>
+      <p>Features → use cases → acceptance criteria → test cases, with the computed status at every level.</p>
+      <ul>
+        <li>Data: GET <code>/api/specs?release=&env=</code> (<code>SpecTree</code>).</li>
+        <li>Filter by key or text (searches the shown language) and “Not passing”.</li>
+        <li>
+          Literal on-screen strings (<span class="literal">"This coupon has expired"</span>) are highlighted and never
+          translated.
+        </li>
+        <li>
+          An AC with no ready test case is <em>No test</em> (uncovered); AI drafts such as TC-9 do not count until
+          approved.
+        </li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/">Readiness</a><a href="#/specs" aria-current="page">Specs</a><a href="#/fixtures">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <h1>Specs</h1>
+          <p class="muted">3 features · 5 use cases · 9 acceptance criteria</p>
+        </div>
+        <div class="filters">
+          <label
+            ><span class="sr">Filter by key or text</span
+            ><input placeholder="Filter by key or text" type="search" value=""
+          /></label>
+          <fieldset class="seg">
+            <legend class="sr">Show</legend>
+            <label><input class="sr" type="radio" checked="" name="r" />All</label
+            ><label><input class="sr" type="radio" name="r" />Not passing</label>
+          </fieldset>
+        </div>
+      </div>
+      <details class="card tree-feature" open="">
+        <summary>
+          <span class="key">FEAT-1</span><strong><span>Catalog</span></strong
+          ><span class="muted grow"><span>Browsing and searching products.</span></span>
+        </summary>
+        <div class="tree-uc">
+          <div class="tree-uc-head">
+            <span class="key">UC-1</span><strong class="grow"><span>Shopper finds a product</span></strong
+            ><span class="prio prio-P1">P1</span
+            ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span
+            ><span class="ok">✓ Done</span>
+          </div>
+          <ul class="tree-acs">
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-1.1</span
+                ><span class="grow"><span>The home page lists every product with its name and price.</span></span
+                ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-1"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-1</span> Product list shows names
+                  and prices <span class="chip">playwright</span><span class="sr">Pass</span></a
+                >
+              </div>
+            </li>
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-1.2</span
+                ><span class="grow"><span>Searching by part of a product name shows only matching products.</span></span
+                ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-2"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-2</span> Search filters products
+                  by name <span class="chip">playwright</span><span class="sr">Pass</span></a
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+      </details>
+      <details class="card tree-feature" open="">
+        <summary>
+          <span class="key">FEAT-2</span><strong><span>Checkout</span></strong
+          ><span class="muted grow"><span>Cart, coupons and placing an order.</span></span>
+        </summary>
+        <div class="tree-uc">
+          <div class="tree-uc-head">
+            <span class="key">UC-2</span><strong class="grow"><span>Guest applies a coupon at checkout</span></strong
+            ><span class="prio prio-P0">P0</span
+            ><span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+          </div>
+          <ul class="tree-acs">
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-2.1</span
+                ><span class="grow"><span>A valid coupon reduces the order total by its discount.</span></span
+                ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-3"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-3</span> Valid coupon reduces the
+                  total <span class="chip">playwright</span><span class="sr">Pass</span></a
+                >
+              </div>
+            </li>
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-2.2</span
+                ><span class="grow"
+                  ><span>An expired coupon shows </span><span class="literal">"This coupon has expired"</span
+                  ><span> and the total does not change.</span></span
+                ><span class="badge s-fail"><span class="icon" aria-hidden="true">✕</span>Fail</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-fail" href="#/tc/TC-4"
+                  ><span class="icon" aria-hidden="true">✕</span><span class="key">TC-4</span> Expired coupon is
+                  rejected <span class="chip">playwright</span><span class="sr">Fail</span></a
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="tree-uc">
+          <div class="tree-uc-head">
+            <span class="key">UC-3</span><strong class="grow"><span>Guest places an order</span></strong
+            ><span class="prio prio-P0">P0</span
+            ><span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>Needs review</span>
+          </div>
+          <ul class="tree-acs">
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-3.1</span
+                ><span class="grow"><span>Placing an order shows a confirmation page with an order number.</span></span
+                ><span class="badge s-needs_review"><span class="icon" aria-hidden="true">?</span>Needs review</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-5"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-5</span> Placing an order shows a
+                  confirmation and empties the cart <span class="chip">playwright</span><span class="sr">Pass</span></a
+                ><a class="tc-chip s-needs_review" href="#/tc/TC-6"
+                  ><span class="icon" aria-hidden="true">?</span><span class="key">TC-6</span> Confirmation page is
+                  readable on a phone <span class="chip">manual</span><span class="sr">Needs review</span></a
+                >
+              </div>
+            </li>
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-3.2</span
+                ><span class="grow"><span>After the order is placed, the cart is empty.</span></span
+                ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-5"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-5</span> Placing an order shows a
+                  confirmation and empties the cart <span class="chip">playwright</span><span class="sr">Pass</span></a
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+      </details>
+      <details class="card tree-feature" open="">
+        <summary>
+          <span class="key">FEAT-3</span><strong><span>Account</span></strong
+          ><span class="muted grow"><span>Signing in and customer content.</span></span>
+        </summary>
+        <div class="tree-uc">
+          <div class="tree-uc-head">
+            <span class="key">UC-4</span><strong class="grow"><span>Customer signs in</span></strong
+            ><span class="prio prio-P0">P0</span
+            ><span class="badge s-stale"><span class="icon" aria-hidden="true">↻</span>Outdated</span>
+          </div>
+          <ul class="tree-acs">
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-4.1</span
+                ><span class="grow"
+                  ><span>Valid credentials show </span><span class="literal">"Welcome back, Casey"</span
+                  ><span>.</span></span
+                ><span class="badge s-pass"><span class="icon" aria-hidden="true">✓</span>Pass</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-pass" href="#/tc/TC-7"
+                  ><span class="icon" aria-hidden="true">✓</span><span class="key">TC-7</span> Sign in with valid
+                  credentials <span class="chip">playwright</span><span class="sr">Pass</span></a
+                >
+              </div>
+            </li>
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-4.2</span
+                ><span class="grow"
+                  ><span>A wrong password shows </span><span class="literal">"Email or password is incorrect"</span
+                  ><span> and the customer stays signed out.</span></span
+                ><span class="badge s-stale"><span class="icon" aria-hidden="true">↻</span>Outdated</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-stale" href="#/tc/TC-8"
+                  ><span class="icon" aria-hidden="true">↻</span><span class="key">TC-8</span> Wrong password is
+                  rejected <span class="chip">manual</span><span class="sr">Outdated</span></a
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="tree-uc">
+          <div class="tree-uc-head">
+            <span class="key">UC-5</span><strong class="grow"><span>Customer adds a photo to a review</span></strong
+            ><span class="prio prio-P2">P2</span
+            ><span class="badge s-uncovered"><span class="icon" aria-hidden="true">!</span>No test</span>
+          </div>
+          <ul class="tree-acs">
+            <li>
+              <div class="tree-ac">
+                <span class="key">AC-5.1</span
+                ><span class="grow"><span>An uploaded PNG appears as a thumbnail under the review.</span></span
+                ><span class="badge s-uncovered"><span class="icon" aria-hidden="true">!</span>No test</span>
+              </div>
+              <div class="tc-chips">
+                <a class="tc-chip s-untested" href="#/tc/TC-9"
+                  ><span class="icon" aria-hidden="true">○</span><span class="key">TC-9</span> Uploaded review photo
+                  appears as a thumbnail <span class="chip">manual</span><span class="sr">Not tested</span></a
+                >
+              </div>
+            </li>
+          </ul>
+        </div>
+      </details>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>

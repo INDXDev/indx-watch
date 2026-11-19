@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test data (fixtures) — INDX Watch design</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <!-- Static mockup. The live screen is packages/web (route #/fixtures/FX-1); markup and classes match it. Sample data: examples/shop. -->
+    <aside class="mock-note" aria-label="Design notes">
+      <p class="mock-nav"><a href="index.html">← All screens</a> · <a href="run.html">Run viewer and review</a></p>
+      <h1>Test data (fixtures) <code>#/fixtures/FX-1</code></h1>
+      <p>
+        Browse datasets, seeds, accounts and files: version, where each file is stored, a preview and which tests use
+        it.
+      </p>
+      <ul>
+        <li>Data: GET <code>/api/fixtures</code> and <code>/api/fixtures/:key</code> (<code>FixtureDetail</code>).</li>
+        <li>
+          Accounts show the username and the secret <em>reference</em> (<code>env:SHOP_CUSTOMER_PASSWORD</code>) only.
+        </li>
+        <li>Large files are blob pointers (“in result store”), e.g. FX-4 review photo.</li>
+      </ul>
+    </aside>
+    <button type="button" class="skip">Skip to content</button>
+    <header class="topbar">
+      <a class="brand" href="#/"
+        ><span class="logo" aria-hidden="true">✓</span>INDX Watch <span class="project">Shop</span></a
+      >
+      <nav class="nav" aria-label="Main">
+        <a href="#/">Readiness</a><a href="#/specs">Specs</a><a href="#/fixtures" aria-current="page">Test data</a
+        ><a href="#/report">Report</a>
+      </nav>
+      <div class="prefs">
+        <label
+          ><span class="sr">Release</span
+          ><select>
+            <option value="v1.2.0" selected="">v1.2.0</option>
+          </select></label
+        ><label
+          ><span class="sr">Environment</span
+          ><select>
+            <option value="">All environments</option>
+            <option value="staging" selected="">Staging</option>
+          </select></label
+        ><label
+          ><span class="sr">Language</span
+          ><select>
+            <option value="en" selected="">English</option>
+            <option value="ja">日本語</option>
+          </select></label
+        ><button type="button" class="btn btn-ghost" title="Color theme">Theme: auto</button>
+      </div>
+    </header>
+    <main id="main" class="page" tabindex="-1">
+      <div class="page-head">
+        <div>
+          <h1>Test data</h1>
+          <p class="muted">Fixtures: datasets, seed data, accounts and files the tests use.</p>
+        </div>
+      </div>
+      <div class="split split-list">
+        <nav class="card fx-list" aria-label="Test data">
+          <ul>
+            <li>
+              <a href="#/fixtures/FX-1" aria-current="true"
+                ><span class="key">FX-1</span><span class="grow"><span>Coupon codes</span></span
+                ><span class="chip">dataset</span></a
+              >
+            </li>
+            <li>
+              <a href="#/fixtures/FX-2"
+                ><span class="key">FX-2</span><span class="grow"><span>Catalog with three products</span></span
+                ><span class="chip">seed</span></a
+              >
+            </li>
+            <li>
+              <a href="#/fixtures/FX-3"
+                ><span class="key">FX-3</span><span class="grow"><span>Staging customer account</span></span
+                ><span class="chip">account</span></a
+              >
+            </li>
+            <li>
+              <a href="#/fixtures/FX-4"
+                ><span class="key">FX-4</span><span class="grow"><span>Review photo</span></span
+                ><span class="chip">file</span></a
+              >
+            </li>
+          </ul>
+        </nav>
+        <div class="stack">
+          <section class="card">
+            <header class="card-head">
+              <h2><span class="key">FX-1</span> <span>Coupon codes</span></h2>
+              <div class="actions"><span class="chip">dataset</span></div>
+            </header>
+            <dl class="meta">
+              <div>
+                <dt>Version</dt>
+                <dd><code>fxv:91be03d2a401</code></dd>
+              </div>
+              <div>
+                <dt>File</dt>
+                <dd><code>fixtures/FX-1-coupons/fixture.toml</code></dd>
+              </div>
+              <div>
+                <dt>Row key</dt>
+                <dd><code>code</code></dd>
+              </div>
+              <div>
+                <dt>Sent to hook</dt>
+                <dd>—</dd>
+              </div>
+              <div>
+                <dt>Used by</dt>
+                <dd><a class="key" href="#/tc/TC-3">TC-3</a><a class="key" href="#/tc/TC-4">TC-4</a></dd>
+              </div>
+            </dl>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Files</h2></header>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th class="num">Size</th>
+                    <th>SHA-256</th>
+                    <th>Stored</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>coupons.csv</code></td>
+                    <td class="num">104 B</td>
+                    <td class="mono small" title="c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0">
+                      c0c0c0c0c0c0…
+                    </td>
+                    <td>in git</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <header class="card-head"><h2>Preview</h2></header>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>code</th>
+                    <th>discount</th>
+                    <th>expires</th>
+                    <th>expected_message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="mono">SUMMER10</td>
+                    <td class="mono">0.10</td>
+                    <td class="mono">2099-12-31</td>
+                    <td class="mono"></td>
+                  </tr>
+                  <tr>
+                    <td class="mono">OLD5</td>
+                    <td class="mono">0.05</td>
+                    <td class="mono">2020-01-01</td>
+                    <td class="mono">This coupon has expired</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer">
+      <span>Signed in as <strong>Alex</strong> (git)</span><span>Local mode</span
+      ><span>Results synced Nov 19, 2026, 8:55 AM</span>
+    </footer>
+  </body>
+</html>
