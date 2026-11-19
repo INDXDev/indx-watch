@@ -1,0 +1,4 @@
+# copied by scripts/copy-assets.mjs at build time
+/schemas/
+/skills/
+/LICENSE

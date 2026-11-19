@@ -43,7 +43,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup && node scripts/copy-assets.mjs"
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/copy-assets.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.9",
