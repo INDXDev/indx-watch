@@ -64,7 +64,7 @@ objectStoreContract('r2 binding (fake, with startAfter)', async () => ({
   store: r2ObjectStore(fakeR2({ honorStartAfter: true })),
 }));
 
-// MinIO: `minio` が PATH にあるときだけ（コミュニティ版の配布は終了しているので通常はスキップ）
+// MinIO: only when `minio` is on PATH (community builds are no longer distributed, so this is usually skipped)
 const minioBin = (() => {
   try {
     return execFileSync('which', ['minio']).toString().trim() || null;
@@ -127,7 +127,7 @@ describe('s3 adapter details', () => {
   it('signs requests and sends x-goog-if-generation-match to GCS instead of If-None-Match', async () => {
     const s3 = await startFakeS3();
     try {
-      // GCS は storage.googleapis.com で判定する。テストでは fetch を偽サーバーへ向け直す
+      // GCS is detected by storage.googleapis.com; the test points fetch at the fake server
       const real = globalThis.fetch;
       globalThis.fetch = ((input: Request | string | URL, init?: RequestInit) => {
         const req = new Request(input, init);

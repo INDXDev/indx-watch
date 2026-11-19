@@ -1,9 +1,9 @@
-/** プロセスの ID とビルド文脈（docs/spec/security.md#identity, docs/spec/integrations.md#ci-identity）。 */
+/** Identity and build context of this process (docs/spec/security.md#identity, docs/spec/integrations.md#ci-identity). */
 import { readFile } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import type { Actor, Build, CiContext } from '@indx-watch/bundle';
 import type { ContextProvider, IdentityProvider } from '../ports.js';
-import { compact } from '../util.js';
+import { compact, parseJson } from '../util.js';
 import { exec } from './exec.js';
 
 type Env = Record<string, string | undefined>;
@@ -13,9 +13,9 @@ interface Opts {
 }
 
 /**
- * コーディングエージェントの環境マーカー（docs/research/platform-notes.md#agent-skills）。
- * Claude Code: CLAUDECODE=1。Codex: シェルツールの子プロセスに CODEX_THREAD_ID / CODEX_SESSION_ID を入れる
- * （openai/codex codex-rs/core/src/exec_env.rs）。
+ * Environment markers of coding agents (docs/research/platform-notes.md#agent-skills).
+ * Claude Code: CLAUDECODE=1. Codex sets CODEX_THREAD_ID / CODEX_SESSION_ID in the child processes of its shell tool
+ * (openai/codex codex-rs/core/src/exec_env.rs).
  */
 export function isAgentEnv(env: Env): boolean {
   return (
@@ -25,7 +25,7 @@ export function isAgentEnv(env: Env): boolean {
 
 const isGithub = (env: Env) => env.GITHUB_ACTIONS === 'true';
 
-/** IW_ACTOR → GitHub Actions → git config → OS ユーザー。エージェント検出は出所に関係なく kind を agent にする。 */
+/** IW_ACTOR → GitHub Actions → git config → OS user. A detected agent makes the kind 'agent' whatever the source. */
 export function processIdentity(opts: Opts = {}): IdentityProvider {
   const env = opts.env ?? process.env;
   const gitEnv = { ...process.env, ...env };
@@ -74,15 +74,15 @@ interface GithubEvent {
   deployment?: { sha?: string };
 }
 
-/** Git と GitHub Actions の環境変数からビルド・CI 文脈を作る。 */
+/** Build and CI context from git and the GitHub Actions environment variables. */
 export function processContext(opts: Opts = {}): ContextProvider {
   const env = opts.env ?? process.env;
   const gitEnv = { ...process.env, ...env };
   let event: Promise<GithubEvent> | undefined;
   const readEvent = () =>
     (event ??= env.GITHUB_EVENT_PATH
-      ? readFile(env.GITHUB_EVENT_PATH, 'utf8').then(
-          (t) => JSON.parse(t) as GithubEvent,
+      ? readFile(env.GITHUB_EVENT_PATH).then(
+          (b) => (parseJson(b) as GithubEvent | null | undefined) ?? {}, // empty or invalid: no event
           (): GithubEvent => ({}),
         )
       : Promise.resolve<GithubEvent>({}));

@@ -145,4 +145,20 @@ describe('accessHeaders', () => {
     expect(await accessHeaders('http://127.0.0.1:4317', {}, run)).toEqual({});
     expect(await accessHeaders('https://watch.shop.test', {}, fakeExec({}))).toEqual({});
   });
+
+  it('sends credentials only over https:// or to this machine', async () => {
+    const service = { CF_ACCESS_CLIENT_ID: 'id', CF_ACCESS_CLIENT_SECRET: 'sec' };
+    for (const env of [service, { IW_ACCESS_TOKEN: 't' }])
+      await expect(accessHeaders('http://watch.shop.test', env, fakeExec({}))).rejects.toMatchObject({
+        code: 'invalid',
+        message: expect.stringMatching(/insecure store URL/),
+      });
+    await expect(accessHeaders('http://127.0.0.1.evil.test', service)).rejects.toMatchObject({
+      code: 'invalid',
+    });
+    expect(await accessHeaders('http://localhost:4317/', service)).toMatchObject({
+      'CF-Access-Client-Id': 'id',
+    });
+    expect(await accessHeaders('http://watch.shop.test', {}, fakeExec({}))).toEqual({});
+  });
 });

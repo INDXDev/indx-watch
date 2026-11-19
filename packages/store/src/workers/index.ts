@@ -1,6 +1,6 @@
 /**
  * Workers-side factories. CONTRACT: signatures frozen.
- * バインディングの型は依存を増やさないよう、使う部分だけをここで定義する。
+ * Binding types are declared here for the parts we use, to avoid another dependency.
  */
 import type { AnyRecord } from '@indx-watch/bundle';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -50,7 +50,7 @@ export function r2ObjectStore(bucket: unknown, prefix?: string): ObjectStore {
       });
       return r !== null;
     },
-    // バインディングの list() は startAfter を保証しないので、カーソルで進めながら手元でも絞る
+    // The binding's list() does not guarantee startAfter: page with the cursor and filter here as well
     async list(opts) {
       const limit = opts.limit ?? 1000;
       const after = opts.startAfter ? p + opts.startAfter : undefined;
@@ -91,7 +91,7 @@ export function d1Index(db: unknown): Index {
   const q = (sql: string, ...args: unknown[]) => d.prepare(sql).bind(...args);
   let ready: Promise<unknown> | undefined;
   const init = () => (ready ??= d.batch(INDEX_SCHEMA.map((s) => d.prepare(s))));
-  // 1 回の batch は 1 つのトランザクション。バインド数の上限に触れないよう 1 行 1 文で 100 文ずつ
+  // One batch is one transaction. One statement per row, 100 per batch, to stay under the bind limit
   const batch = async (stmts: D1Stmt[]) => {
     let changes = 0;
     for (let i = 0; i < stmts.length; i += 100) {
@@ -129,7 +129,7 @@ export function d1Index(db: unknown): Index {
       const { results } = await q(`SELECT json FROM records${where}`, ...used.map(([, v]) => v)).all<{
         json: string;
       }>();
-      // 種類・並び・limit は memory index と同じ filterRecords で揃える
+      // kinds, order and limit follow the memory index through the same filterRecords
       return filterRecords(
         results.map((r) => JSON.parse(r.json) as AnyRecord),
         f,
@@ -189,7 +189,7 @@ export function accessIdentity(opts: { team: string; aud: string }): IdentityPro
         const name = typeof claims.name === 'string' ? claims.name : undefined;
         return compact({ kind: 'human', id: claims.email, name, via: 'cloudflare-access' });
       }
-      // サービストークン: sub が空で common_name にクライアント ID が入る
+      // service token: sub is empty and common_name holds the client ID
       if (typeof claims.common_name === 'string' && claims.common_name) {
         return { kind: 'ci', id: `ci:access:${claims.common_name}`, via: 'cloudflare-access' };
       }

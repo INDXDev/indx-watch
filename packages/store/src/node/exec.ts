@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 
 type Env = Record<string, string | undefined>;
-/** コマンドを実行して stdout を返す。失敗（未インストール・非 0 終了）は null。テストで差し替えられる。 */
+/** Run a command and return stdout; null on failure (not installed, non-zero exit). Replaceable in tests. */
 export type Exec = (
   cmd: string,
   args: string[],

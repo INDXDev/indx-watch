@@ -1,16 +1,16 @@
-/** 小さな共通ヘルパー（ランタイム非依存）。 */
+/** Small shared helpers (runtime-neutral). */
 import { AnyRecord } from '@indx-watch/bundle';
 import { StoreError } from './ports.js';
 
 const enc = new TextEncoder();
 
-/** undefined と空文字の値を落とす（任意フィールドを出力に含めない）。 */
+/** Drop undefined and empty-string values (optional fields stay out of the output). */
 export const compact = <T extends object>(o: T): T =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== '')) as T;
 export const toBytes = (body: Uint8Array | string): Uint8Array =>
   typeof body === 'string' ? enc.encode(body) : body;
 
-/** キーの形を制限する（パストラバーサル防止）。英数字と . _ - / のみ、空・'..' セグメント禁止。 */
+/** Restrict the shape of keys (no path traversal): letters, digits and . _ - / only; no empty, '.' or '..' segments. */
 export function checkKey(key: string): string {
   if (!/^[A-Za-z0-9._\-/]+$/.test(key) || key.split('/').some((s) => s === '' || s === '.' || s === '..')) {
     throw new StoreError('invalid', `invalid object key: ${JSON.stringify(key)}`);
@@ -18,7 +18,7 @@ export function checkKey(key: string): string {
   return key;
 }
 
-/** JSON として読む。壊れていれば undefined（呼び出し側のスキーマ検証で弾く）。 */
+/** Parse JSON; undefined when broken (the caller's schema check rejects it). */
 export function parseJson(raw: Uint8Array): unknown {
   try {
     return JSON.parse(new TextDecoder().decode(raw));
@@ -33,11 +33,11 @@ export function checkSha(sha256: string): string {
   return sha256;
 }
 
-/** blobs/sha256/<aa>/<hash>（ストアでは 'v1/' の下、レプリカでは runs/ の下）。 */
+/** blobs/sha256/<aa>/<hash> (under 'v1/' in a store, under runs/ in a replica). */
 export const blobPath = (sha256: string) => `blobs/sha256/${checkSha(sha256).slice(0, 2)}/${sha256}`;
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-/** ULID の先頭 10 文字（ミリ秒時刻）を読む。 */
+/** Read the first 10 characters of a ULID (the time in ms). */
 export function ulidTime(ulid: string): number {
   let t = 0;
   for (const c of ulid.slice(0, 10)) {
@@ -48,12 +48,12 @@ export function ulidTime(ulid: string): number {
   return t;
 }
 
-/** ID（'run_01J…'）や ULID 文字列から時刻を取り出す。 */
+/** Time of an ID ('run_01J…') or a ULID string. */
 export const idTime = (id: string) => ulidTime(id.slice(id.indexOf('_') + 1));
 
 /**
- * 記録を検証する。厳密スキーマに通ればそのまま（既定値込み）返す。
- * 新しいツールが足した未知のフィールドだけが原因で落ちた場合は、それを除いて再検証し、受け取った値を返す（バイトを保つ）。
+ * Validate a record. When the strict schema accepts it, return the parsed record (defaults included).
+ * When it fails only on unknown fields added by a newer tool, re-check without them and return the value as received (keeping its bytes).
  */
 export function checkRecord(raw: unknown): { record: AnyRecord } | { error: string } {
   const r = AnyRecord.safeParse(raw);
@@ -71,7 +71,7 @@ export function checkRecord(raw: unknown): { record: AnyRecord } | { error: stri
   return { error: r.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ') };
 }
 
-/** 記録が参照する blob のハッシュ（証拠・ステップの証拠・バンドルのスナップショット）。 */
+/** Hashes of the blobs a record references (evidence, step evidence, bundle snapshots, files). */
 export function blobRefs(record: AnyRecord): string[] {
   const out = new Set<string>();
   if (record.kind === 'run') {
@@ -82,7 +82,7 @@ export function blobRefs(record: AnyRecord): string[] {
   return [...out];
 }
 
-/** fetch 失敗やステータスを StoreError に変換する。 */
+/** Turn fetch failures and HTTP statuses into StoreErrors. */
 export function httpError(status: number, what: string): StoreError {
   if (status === 401 || status === 403 || (status >= 300 && status < 400)) {
     return new StoreError('unauthorized', `${what}: HTTP ${status} (check credentials or Access login)`);
@@ -100,7 +100,7 @@ export async function guardedFetch(what: string, f: () => Promise<Response>): Pr
   }
 }
 
-/** 辞書順リストの共通処理（memory / fs / r2 の後段）。 */
+/** Shared lexicographic paging (the last step of the memory, fs and r2 listings). */
 export function pageKeys<T extends { key: string }>(
   sorted: T[],
   opts: { prefix: string; startAfter?: string; limit?: number },

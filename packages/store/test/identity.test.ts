@@ -143,6 +143,13 @@ describe('processContext', () => {
       ref: 'refs/pull/12/merge',
       dirty: false,
     });
+    // an empty or invalid event file (act, local GITHUB_ACTIONS=true runs) is treated as no event
+    for (const text of ['', '{not json', 'null']) {
+      await writeFile(event, text);
+      const ctx = processContext({ env: { ...env, GITHUB_HEAD_REF: '' } });
+      expect((await ctx.build()).commit).toBe('ffffffffffffffffffffffffffffffffffffffff');
+      expect((await ctx.ci())?.pr).toBeUndefined();
+    }
   });
 });
 
