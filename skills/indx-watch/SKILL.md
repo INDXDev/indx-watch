@@ -58,7 +58,7 @@ Exit codes: `0` success, `1` the answer is "no" (check found errors, gate failed
 ```
 
 - Identity is the `id` inside each file (`tc_01J…`). Keys (`TC-3`, `AC-2.1`, `FX-1`) are for people. Never reuse or renumber keys by hand; items are deprecated, not deleted.
-- Commands accept a key (`TC-3`), an ID (`tc_01J…`) or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of at least 8 characters after `run_`.
+- Commands accept a key (`TC-3`), an ID (`tc_01J…`) or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID. Copy the full ID from `latestRun` or `data.run.id`: runs recorded together share their first characters (a ULID starts with its timestamp), so short prefixes are usually ambiguous (`AMBIGUOUS_REF`).
 - Create files with `iw new` (fresh ID, next free key, canonical format). After editing any TOML by hand, run `iw fmt` and `iw check --json`.
 
 ## Rules for agents (always)

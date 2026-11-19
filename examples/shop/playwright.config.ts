@@ -4,6 +4,8 @@ const port = Number(process.env.PORT ?? 4173);
 const baseURL = process.env.SHOP_BASE_URL ?? `http://localhost:${port}`;
 
 // The INDX Watch reporter records one run per tagged test case. Set IW_REPORTER=0 to run without it.
+// In your project write 'indx-watch/playwright' (from the `indx-watch` npm package). This monorepo uses the
+// unpublished workspace package '@indx-watch/playwright', which is the same reporter.
 const reporter: ReporterDescription[] = [['list']];
 // Results stay in the local replica unless IW_STORE is set, so local runs never touch the committed sample store.
 if (process.env.IW_REPORTER !== '0')

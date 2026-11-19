@@ -37,7 +37,7 @@ flowchart TB
 |---|---|---|
 | `bundle` | `packages/bundle` | Zod schemas for every file and record (→ JSON Schema), canonical TOML parse/format, IDs and keys, content hashes and versions, loading a bundle through a `BundleFs` port, `check`, archive read/write. `src/node/` holds the Node `BundleFs`. |
 | `core` | `packages/core` | Builds the in-memory **model** from a bundle and records; `decide`, latest results, AC/UC status, coverage, `evaluateGate`, plan item status, staleness, flakiness, `localize`, report data. Pure. |
-| `store` | `packages/store` | Ports `ObjectStore`, `Index`, `IdentityProvider`, `ContextProvider`, `BrowserProvider`, `LlmClient`; adapters (`fs`, `s3`, `r2`, `http`, `memory`; `sqlite`, `d1`, `memory` index; `git`, `github`, `cloudflare-access` identity); `ResultStore` (record/blob protocol on top of `ObjectStore`); the local replica. |
+| `store` | `packages/store` | Ports `ObjectStore`, `Index`, `IdentityProvider`, `ContextProvider`, `BrowserProvider`, `LlmClient`; adapters (`fs`, `s3`, `r2`, `http`, `memory`; `memory` and `d1` index (`sqlite`: v0.2); `git`, `github`, `cloudflare-access` identity); `ResultStore` (record/blob protocol on top of `ObjectStore`); the local replica. |
 | `sync` | `packages/sync` | Push/pull algorithm, lookback cursor, watch mode, bundle snapshots (workspace-mode merge: v0.2). |
 | `server` | `packages/server` | `createApp(deps)` Hono app: JSON API, `/api/store/*` protocol endpoint, report rendering (md/html), static SPA. `node.ts` and `worker.ts` entry points. |
 | `web` | `packages/web` | SPA: readiness dashboard, spec tree, test case, manual runner, run viewer + review, fixtures, report preview. Builds to static files embedded in the npm package. |
@@ -47,7 +47,7 @@ flowchart TB
 Outside `packages/`: [`action.yml`](../action.yml) (composite action), [`skills/`](../skills) (agent skills), [`schemas/`](../schemas) (generated), [`examples/shop`](../examples/shop) (the one sample), [`.indx-watch/`](../.indx-watch) (this repo's own QA).
 
 ## Ports and adapters
-Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.ts) (the reference; the table abridges it). Only adapter folders may import vendor SDKs (enforced by Biome `noRestrictedImports`).
+Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.ts) (the reference; the table abridges it). Only adapter folders may import vendor SDKs. Biome `noRestrictedImports` enforces this for `core` and `bundle` (no `node:fs`, `aws4fetch` or `hono` outside `bundle/src/node/`); in the other packages review enforces it. `iw login` runs `cloudflared` from `packages/cli/src/commands/` as the one exception.
 
 | Port | Methods (abridged) | Adapters in v0.1 |
 |---|---|---|
@@ -56,8 +56,8 @@ Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.t
 | `BundleFs` | `read`, `write`, `list`, `remove`, `stat` | Node fs, in-memory (tests, Workers snapshot), tar snapshot |
 | `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
-| `BrowserProvider` | `open`, `act`, `observe`, `close` | interface + fake (v0.2: Playwright, Cloudflare Browser Run) |
-| `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }`, `complete` | interface + fake (v0.2: Anthropic, optional gateway) |
+| `BrowserProvider` | `open`, `act`, `observe`, `close` | interface only (v0.2: Playwright, Cloudflare Browser Run) |
+| `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }`, `complete` | interface only (v0.2: Anthropic, optional gateway) |
 
 `ResultStore` (in `store`) implements the [sync protocol](spec/sync.md) once on top of any `ObjectStore`.
 
@@ -133,6 +133,6 @@ Build-time only: TypeScript, tsup (esbuild), Vite, React, Biome, Vitest, Playwri
 ## Acceptance criteria
 
 - [ ] `scripts/loc.mjs` reports every package within budget (CI).
-- [ ] Biome fails if `packages/core` or `packages/bundle` (outside `src/node/`) imports `node:fs`, `aws4fetch` or `hono`.
-- [ ] The packed `indx-watch` tarball contains the CLI, the reporter entry, the web build and `schemas/`, and `npx ./indx-watch-*.tgz --help` works in an empty directory.
-- [ ] The Worker bundle builds with `wrangler deploy --dry-run` from the same `createApp`.
+- [ ] Biome fails if `packages/core` or `packages/bundle` (outside `src/node/`) imports `node:fs`, `aws4fetch` or `hono` (`pnpm check:pure`, CI).
+- [ ] The packed `indx-watch` tarball contains the CLI, the reporter entry, the web build and `schemas/`, and, installed into an empty project (`npm install --save-dev ./indx-watch-*.tgz`), the README quickstart runs with `npx indx-watch` (CI).
+- [ ] The Worker bundle builds with `wrangler deploy --dry-run` from the same `createApp`, using the config `iw deploy` generates (`pnpm check:worker`, CI).

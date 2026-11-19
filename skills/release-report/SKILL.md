@@ -47,7 +47,7 @@ Readiness is computed by one function from the bundle and the results. Your job 
    ```bash
    iw report --release v1.2.0 --format md --out report-v1.2.0.md --json      # PR comments, wikis
    iw report --release v1.2.0 --format html --out report-v1.2.0.html --json  # one self-contained file
-   iw report --release v1.2.0 --format html --audience customer --json       # redacted for customers
+   iw report --release v1.2.0 --format html --audience customer --out report-v1.2.0.customer.html --json  # redacted for customers
    iw report --plan PLAN-1 --format md --json                                # a plan instead of a release
    ```
 
@@ -65,7 +65,7 @@ Readiness is computed by one function from the bundle and the results. Your job 
 
 User: "Can we ship v1.2.0?"
 
-1. `iw status --release v1.2.0 --gate --json` → `ok: false`, `GATE_FAILED`. Suppose `gate.checks` has `p0_all_pass` `"6/7"` vs `"7/7"` with `items: ["TC-4"]` and `max_needs_review` `"1"` vs `"≤ 0"` with `items: ["TC-8"]`; the other checks pass.
-2. Actions: TC-4 (expired coupon, P0) fails → triage and fix, then re-run; TC-8 (wrong password) needs a human review of its latest run (`iw review <run> …`). UC-5 is P2, so its draft TC-9 and TC-10 do not block the gate, but they need `iw approve` to count in the report.
+1. `iw status --release v1.2.0 --gate --json` → `ok: false`, `GATE_FAILED`. With the sample results, `gate.checks` has `p0_all_pass` `"5/6"` vs `"6/6"` with `items: ["TC-8"]`; the other six checks pass (`max_needs_review` `"0"`). Coverage is 8/9 ACs.
+2. Actions: TC-8 (wrong password, P0) failed in a manual run without a screenshot → triage it (`triage-failure`), then re-run with evidence. UC-5 is P2, so its uncovered AC-5.1 (TC-9 is still a draft) does not block the gate; a human runs `iw approve TC-9` when it is ready.
 3. `iw report --release v1.2.0 --format html --out report-v1.2.0.html --json` → `data.file: "report-v1.2.0.html"`.
-4. Reply: "Not ready: p0_all_pass 6/7 (TC-4 failing), max_needs_review 1 (TC-8 waiting for review). Coverage and the other checks pass. Report: report-v1.2.0.html."
+4. Reply: "Not ready: p0_all_pass 5/6 (TC-8 failing). The other six checks pass; coverage 8/9 ACs (AC-5.1 is P2). Report: report-v1.2.0.html."
