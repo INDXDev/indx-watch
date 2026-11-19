@@ -113,7 +113,7 @@
       <h3>更新のルール</h3>
       <ol class="steps">
         <li><span><b>docs → コードの順</b>。仕様が変わる PR では、最初のコミットで docs を、次のコミットでコードを変える。レビューは docs の差分から読む。</span></li>
-        <li><span><b>テーブルを変えたら 3 点セット</b>: <code>packages/db/schema.ts</code>・マイグレーション・<code>data-model.html</code>（必要なら <code>interactions.html</code> の ER 図も）を同じ PR で更新する。</span></li>
+        <li><span><b>テーブルを変えたら 4 点セット</b>: <code>packages/db/schema.ts</code>・マイグレーション・<code>data-model.html</code>（必要なら <code>interactions.html</code> の ER 図も）・<code>packages/bundle</code> の型と <code>portability.html</code> の対応表を同じ PR で更新する。</span></li>
         <li><span><b>画面を足すときはモックから</b>: <code>docs/screens/</code> に HTML を追加し、<code>AGENTS.md</code> の画面表、<code>ux.html</code> の画面一覧、<code>index.html</code> に載せる。</span></li>
         <li><span><b>Cloudflare の仕様は Web で確認</b>: 前提にする機能・上限・料金は developers.cloudflare.com と changelog で確かめ、<code>architecture.html</code> の確認メモに日付と出典を追記する。</span></li>
         <li><span><b>版と日付</b>: 各ページの meta 行の「状態」（ドラフト vX.Y / 確定）と「更新」を変える。大きな変更は <a href="#changelog">変更履歴</a> に 1 行書く。</span></li>
@@ -130,6 +130,8 @@ flowchart LR
   U["利用者のブラウザ"] --> ACC["Cloudflare Access（Google Workspace / OTP）"]
   ACC --> WEB["web Worker（vinext / Next.js）"]
   CC["Claude Code（MCP）"] -- "サービストークン" --> ACC
+  CLI["iw CLI（手元の indx-watch/）"] -- "Managed OAuth / 同期 API" --> ACC
+  CLI -. "iw deploy（wrangler / API）" .-> WEB
   GH["GitHub App"] -- "Webhook（HMAC）" --> WEB
   WEB -- "service binding" --> RUN["runner Worker"]
   WEB --> D1[("D1 indx_watch")]
@@ -161,6 +163,9 @@ flowchart LR
           <tr><td>runner: メール</td><td>テストメールを受信し R2・D1 に保存、Workflow を起こす</td><td>—</td><td><code>apps/runner/src/email.ts</code></td><td>M2</td></tr>
           <tr><td>core: ドメイン</td><td>zod スキーマ、ID、完了計算、判定ポリシー、<code>localize()</code></td><td>D1・R2・fetch に直接触る</td><td><code>packages/core/src/*</code></td><td>M1〜</td></tr>
           <tr><td>core: AI</td><td>Claude クライアント（AI Gateway）、プロンプト（版付き）、ジャッジ、翻訳</td><td>—</td><td><code>packages/core/src/{llm,judges,i18n}</code></td><td>M1〜M2</td></tr>
+          <tr><td>bundle</td><td>Watch Bundle 形式: zod の型・JSON Schema・正規化した TOML・<code>content_hash</code>・行 ↔ Bundle の変換・3 方向マージ・アーカイブ</td><td>DB や fetch に直接触る</td><td><code>packages/bundle/src/*</code></td><td>M1〜</td></tr>
+          <tr><td>web: 同期 API</td><td><code>/api/sync/v1</code>（差分取得・push・blob・書き出し / 取り込み）。書き込みは画面と同じドメイン関数 + <code>withAudit(via='cli')</code></td><td>独自の認証（Access の JWT を使う）</td><td><code>apps/web/app/api/sync</code></td><td>M2</td></tr>
+          <tr><td>cli</td><td><code>iw</code>: clone / sync / check / report / export / import / run / serve / deploy / dev。npx で配布</td><td>サーバー側のロジックの再実装（core と bundle を同梱して使う）</td><td><code>apps/cli/*</code></td><td>M2〜M3</td></tr>
           <tr><td>db</td><td>Drizzle スキーマ、マイグレーション、シード</td><td>ビジネスロジック</td><td><code>packages/db/*</code></td><td>M1</td></tr>
         </tbody>
       </table></div>
@@ -169,12 +174,19 @@ flowchart LR
 flowchart TB
   web["apps/web"] --> core["packages/core"]
   runner["apps/runner"] --> core
+  cli["apps/cli"] --> core
+  web --> bundle["packages/bundle"]
+  runner --> bundle
+  cli --> bundle
+  bundle --> core
   web --> db["packages/db"]
   runner --> db
   core --> db
   web -. "service binding / Queue のみ" .-> runner
+  cli -. "HTTP（/api/sync/v1）のみ" .-> web
       </pre>
       <ul>
+        <li><code>packages/bundle</code> と <code>packages/core</code> は CLI にも同梱するので、Node・Bun・Workers のどれでも動く純粋な TypeScript にする（<code>packages/db</code> の型だけを参照し、D1 には触らない）。</li>
         <li><code>packages/core</code> は Next.js・Workers の API に依存しない。D1（Drizzle）、R2、fetch は引数で受け取り、Node の vitest でテストできるようにする。</li>
         <li><code>apps/web</code> と <code>apps/runner</code> は互いの import をしない。やり取りは service binding（RPC）と Queue のメッセージ（型は <code>packages/core/src/messages.ts</code>）だけ。</li>
       </ul>
@@ -365,7 +377,7 @@ flowchart LR
         </div></details>
         <details class="task"><summary><span class="tid">H-03</span><b>Cloudflare リソースの作成</b><span class="meta"><span class="badge who-h">人</span><span class="badge who-c">Claude 可</span></span></summary><div class="tbody">
           <p>API トークンを渡せば Claude Code が <code>wrangler</code> で作れます。</p>
-          <ul><li>D1: <code>indx_watch</code>（本番）、<code>indx_watch_staging</code></li><li>R2: <code>indx-watch-files</code>、<code>indx-watch-backup</code>（ライフサイクル: <code>evidence/</code> 180 日、<code>imports/</code> 90 日）</li><li>Queues: <code>runs</code>、<code>translate</code>、<code>log-ingest</code></li><li>AI Gateway: <code>indx-watch</code>（BYOK に Anthropic キー、<code>byok_only</code>、spend limit）</li><li>Secrets Store: ストアを 1 つ</li></ul>
+          <ul><li>D1: <code>indx_watch</code>（本番）、<code>indx_watch_staging</code></li><li>R2: <code>indx-watch-files</code>、<code>indx-watch-backup</code>（ライフサイクル: <code>evidence/</code> 180 日、<code>imports/</code> 90 日）</li><li>Queues: <code>runs</code>、<code>translate</code>、<code>log-ingest</code></li><li>AI Gateway: <code>indx-watch</code>（BYOK に Anthropic キー、<code>byok_only</code>、spend limit）</li><li>Secrets Store: ストアを 1 つ</li><li>R2: <code>indx-watch-dl</code>（CLI の配布物・JSON Schema・<code>init.sh</code>）。Access の外のカスタムドメイン <code>dl.&lt;社内ドメイン&gt;</code> を付ける（配布物に秘密は含まない）</li></ul>
         </div></details>
         <details class="task"><summary><span class="tid">H-04</span><b>API トークンとシークレット</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
           <div class="table-wrap"><table><thead><tr><th>名前</th><th>用途</th><th>置き場所</th></tr></thead><tbody>
@@ -375,6 +387,7 @@ flowchart LR
             <tr><td><code>CF_TOKEN_ACCESS_REVOKE</code></td><td>セッション失効</td><td>Secrets Store</td></tr>
             <tr><td><code>R2_ACCESS_KEY_ID</code> / <code>R2_SECRET_ACCESS_KEY</code></td><td>presigned URL</td><td>Secrets Store</td></tr>
             <tr><td>Anthropic API キー</td><td>Claude</td><td>AI Gateway の BYOK（Worker には渡さない）</td></tr>
+            <tr><td><code>NPM_TOKEN</code></td><td>CLI（<code>@indx/watch</code>）の公開。npm の非公開スコープを使う場合（R-09）</td><td>GitHub Actions secrets</td></tr>
           </tbody></table></div>
           <p class="small muted">値はチャットやリポジトリに貼らない。Claude Code には参照名だけを伝える。</p>
         </div></details>
@@ -385,7 +398,7 @@ flowchart LR
           <p>M1 の受け入れ（T-118）は、サンプルの SHOP と、INDX Watch 自身の <code>WATCH</code> プロジェクトで行えます。実際の対象リポジトリは M1 の後半までに 1 つ決め、<a href="target-onboarding.html">GUIDE-02</a> の手順で登録します。</p>
         </div></details>
         <details class="task"><summary><span class="tid">H-07</span><b>Access を Worker に付ける</b><span class="meta"><span class="badge who-h">人</span></span></summary><div class="tbody">
-          <ul><li>T-104 の初回デプロイ後、web Worker に Access を付ける（社員: Google Workspace のドメイン、顧客: 個別メール + Independent MFA、セッション 12 時間 / 8 時間）。</li><li>AUD タグを <code>POLICY_AUD</code> として Worker の vars に設定。</li><li>Logpush ジョブ（<code>access_requests</code> → R2 <code>cf-logs/</code>）を作成し、R2 イベント通知を Queue <code>log-ingest</code> に向ける。</li></ul>
+          <ul><li>T-104 の初回デプロイ後、web Worker に Access を付ける（社員: Google Workspace のドメイン、顧客: 個別メール + Independent MFA、セッション 12 時間 / 8 時間）。</li><li>AUD タグを <code>POLICY_AUD</code> として Worker の vars に設定。</li><li>Logpush ジョブ（<code>access_requests</code> → R2 <code>cf-logs/</code>）を作成し、R2 イベント通知を Queue <code>log-ingest</code> に向ける。</li><li>CLI 用に、Access アプリで <b>Managed OAuth</b> を有効にする（self-hosted アプリでは opt-in。loopback のリダイレクト <code>127.0.0.1</code> を許可）。</li><li>サービストークン（CI・MCP 用）は strict 設定にし、タグを付ける。</li></ul>
         </div></details>
       </div>
     </section>
@@ -526,7 +539,7 @@ flowchart LR
       <div class="table-wrap"><table>
         <thead><tr><th>ゲート</th><th>いつ</th><th>内容</th></tr></thead>
         <tbody>
-          <tr><td>CI（必須）</td><td>すべての PR</td><td><code>typecheck</code>、<code>biome check</code>、<code>vitest</code>（core は Node、Worker は vitest-pool-workers）、<code>vinext check</code>、<code>i18n:check</code>、docs のリンク検査、マイグレーションと <code>schema.ts</code> の整合</td></tr>
+          <tr><td>CI（必須）</td><td>すべての PR</td><td><code>typecheck</code>、<code>biome check</code>、<code>vitest</code>（core は Node、Worker は vitest-pool-workers）、<code>vinext check</code>、<code>i18n:check</code>、docs のリンク検査、マイグレーションと <code>schema.ts</code> の整合、Bundle の往復テスト（シード → Bundle → 読み込み → Bundle でハッシュ一致）、生成した JSON Schema の差分なし</td></tr>
           <tr><td>レビュー</td><td>すべての PR</td><td>タスクの完了条件、画面の完了条件、<a href="implementation.html">実装ガイド</a> のレビュー観点</td></tr>
           <tr><td>ドッグフーディング</td><td>画面・機能の PR</td><td>WATCH プロジェクトの対応 TC を staging で実行し、RUN のリンクを PR に貼る</td></tr>
           <tr><td>マイルストーン受け入れ</td><td>T-118 / T-210 / T-307 / T-406</td><td>人が実アカウントで通す</td></tr>
@@ -548,6 +561,8 @@ flowchart LR
           <tr><td><span class="id">WATCH-TC-6</span></td><td>英語表示で実行すると <code>runs.display_locale = en</code> と表示した翻訳の状態が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
           <tr><td><span class="id">WATCH-TC-7</span></td><td>S12 でセッションを失効すると 1〜2 分で再ログインが求められ、<code>end_reason = revoked</code> と失効した人が残る</td><td><span class="prio p1">P1</span></td><td>manual</td></tr>
           <tr><td><span class="id">WATCH-TC-8</span></td><td>MCP（サービストークン）からの操作は <code>auth_kind = service_token</code>・<code>via = mcp</code> で、トークンの持ち主に結びつく</td><td><span class="prio p1">P1</span></td><td>script</td></tr>
+          <tr><td><span class="id">WATCH-TC-9</span></td><td><code>iw login</code> 後に CLI から push した変更が、ブラウザと同じ本人で <code>activity_log</code>（<code>via = cli</code>）と <code>sync_changes</code> に残り、<code>login_sessions.auth_kind = cli_oauth</code></td><td><span class="prio p0">P0</span></td><td>manual</td></tr>
+          <tr><td><span class="id">WATCH-TC-10</span></td><td>フル書き出し → 別インスタンスに取り込み後も、すべての判定・実行の <code>created_by</code> / <code>executor_id</code> が同じ人のメールアドレスに対応する</td><td><span class="prio p0">P0</span></td><td>script</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -597,6 +612,7 @@ flowchart LR
         <tbody>
           <tr><td>2026-11-19</td><td>初版: PRD・ドメイン・UX・データモデル・アーキテクチャ・AI・画面 S01〜S11・実装ガイド・対象登録ガイド</td></tr>
           <tr><td>2026-11-19</td><td>Cloudflare 最新仕様の反映（vinext、Browser Run、Worker 単位 Access、Workflow schedules、Email Routing）。ER・通信フロー（SPEC-07）、多言語（SPEC-08）、認証・行動ログ（SPEC-09）、S12 を追加</td></tr>
+          <tr><td>2026-11-19</td><td>開発プランをポータビリティに合わせて更新（コンポーネント・依存の向きに bundle と cli、人の準備に配布用 R2・Managed OAuth・NPM_TOKEN、CI に Bundle の往復テスト、ID と記録の QA に WATCH-TC-9・10）。<code>main</code> を最新化</td></tr>
           <tr><td>2026-11-19</td><td>ポータビリティ（SPEC-10、S13）を追加。単一の情報源を「Watch Bundle 形式」と定義し、CLI <code>iw</code>（npx）・同期・フル書き出し・<code>iw deploy</code> のタスク T-119 / T-120 / T-211 / T-308 / T-309 を追加</td></tr>
           <tr><td>2026-11-19</td><td>一括実装プロンプト <code>docs/prompts/implement-all.md</code> を追加（worktree × Workflow で全タスクを 1 PR に）</td></tr>
           <tr><td>2026-11-19</td><td>開発プラン（GUIDE-03）を追加。IdP を Google Workspace に確定。ログは ID の対応づけが目的で人事評価に使わないことを確定。作業セッション集計を M4 に移動。ファイル構成とロードマップの正をこのページに一本化</td></tr>
