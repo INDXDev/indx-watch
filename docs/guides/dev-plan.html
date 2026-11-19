@@ -516,7 +516,8 @@ flowchart LR
 
     <section id="howto">
       <h2>Claude Code への依頼の仕方</h2>
-      <p>新しいセッションを始め、次のテンプレートの <code>T-xxx</code> を差し替えて貼ります。1 セッション 1 タスクを基本にします。</p>
+      <div class="callout ai"><strong>一括実装モード（全タスクを 1 本の PR に）</strong><p>M1〜M4 をまとめて実装する場合は、リポジトリの <code>docs/prompts/implement-all.md</code> の「ここから貼る」以降を新しいセッションに貼ります。git worktree とマルチエージェントの Workflow で、下の依存関係どおりにウェーブ単位で並列実装し、統合ブランチから PR を 1 本作ります。タスクの中身と完了条件はこのページのものをそのまま使います。</p></div>
+      <p>1 タスクずつ進める場合は、新しいセッションを始め、次のテンプレートの <code>T-xxx</code> を差し替えて貼ります。1 セッション 1 タスクを基本にします。</p>
 <pre><code>T-105 を実装してください。
 
 - まず AGENTS.md を読み、docs/guides/dev-plan.html の「T-105」節と、そこにある参照ドキュメントを読む
@@ -556,6 +557,7 @@ flowchart LR
         <tbody>
           <tr><td>2026-11-19</td><td>初版: PRD・ドメイン・UX・データモデル・アーキテクチャ・AI・画面 S01〜S11・実装ガイド・対象登録ガイド</td></tr>
           <tr><td>2026-11-19</td><td>Cloudflare 最新仕様の反映（vinext、Browser Run、Worker 単位 Access、Workflow schedules、Email Routing）。ER・通信フロー（SPEC-07）、多言語（SPEC-08）、認証・行動ログ（SPEC-09）、S12 を追加</td></tr>
+          <tr><td>2026-11-19</td><td>一括実装プロンプト <code>docs/prompts/implement-all.md</code> を追加（worktree × Workflow で全タスクを 1 PR に）</td></tr>
           <tr><td>2026-11-19</td><td>開発プラン（GUIDE-03）を追加。IdP を Google Workspace に確定。ログは ID の対応づけが目的で人事評価に使わないことを確定。作業セッション集計を M4 に移動。ファイル構成とロードマップの正をこのページに一本化</td></tr>
         </tbody>
       </table></div>

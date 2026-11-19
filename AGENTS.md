@@ -118,6 +118,7 @@ ID 規約:
 │   │   ├── i18n.html           # 多言語（日本語・英語）設計
 │   │   └── identity-audit.html # 認証・ログイン・行動ログ（Cloudflare Access の ID と各種ログ）
 │   ├── screens/            # 第 2 層: 画面ごとの UX アーティファクト（モック + 画面仕様）
+│   ├── prompts/            # Claude Code に貼るプロンプト（implement-all.md: 一括実装）
 │   └── guides/             # 第 2 層: どう作るか / どう使うか
 │       ├── implementation.html     # 実装ガイド・規約・コード例
 │       ├── target-onboarding.html  # テスト対象アプリ・環境の登録ガイド
@@ -165,7 +166,7 @@ ID 規約:
 ## 7. 現在のフェーズ
 
 - **M0（完了）**: ドキュメント整備。コードはまだない。`apps/` と `packages/` は README のみ。
-- **次にやること**: `docs/guides/dev-plan.html` の M0.5（人の準備 H-01〜H-07）と T-101 から。タスクは 1 タスク = 1 PR、依頼テンプレートは同ページの「Claude Code への依頼の仕方」。
+- **次にやること**: `docs/guides/dev-plan.html` の M0.5（人の準備 H-01〜H-07）と T-101 から。タスクは 1 タスク = 1 PR、依頼テンプレートは同ページの「Claude Code への依頼の仕方」。全タスクを 1 本の PR にまとめる場合は `docs/prompts/implement-all.md`（worktree × Workflow）。
 - M1: 認証とログイン記録・プロジェクト / 環境 / リリース・仕様ツリー・手動ランナー・マイタスク・フィクスチャ・リリース準備状況・日英 UI と翻訳。
 - M2: AI 仕様取り込み・ブラウザエージェント実行・LLM ジャッジ・レビューキュー。
 - M3: GitHub App 連携・定期実行・ビジュアル差分・MCP サーバー。
