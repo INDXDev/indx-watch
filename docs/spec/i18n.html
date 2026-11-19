@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch 多言語設計</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>多言語（日本語・英語）</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#why">なぜ必要か</a></li>
+    <li><a href="#scope">対象の 3 分類</a></li>
+    <li><a href="#rules">基本ルール</a></li>
+    <li><a href="#model">データの持ち方</a></li>
+    <li><a href="#fields">翻訳対象フィールド</a></li>
+    <li><a href="#lifecycle">翻訳のライフサイクル</a></li>
+    <li><a href="#runs">実行時のスナップショット</a></li>
+    <li><a href="#literals">画面文言の引用ルール</a></li>
+    <li><a href="#ui">UI と表示</a></li>
+    <li><a href="#mock">英語表示の例</a></li>
+    <li><a href="#ai">AI 翻訳</a></li>
+    <li><a href="#outputs">外部への出力</a></li>
+    <li><a href="#done">完了条件</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-08 · 多言語</div>
+      <h1>多言語設計（日本語・英語）</h1>
+      <p class="lead">テスターには日本語を読まない人もいます。画面の文言だけでなく、ユースケース・完了条件・テスト手順・コメントなどの中身も日本語と英語の両方で持てるようにします。原文を 1 つに決め、もう一方は翻訳として版と状態を管理します。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="data-model.html#i18n">データモデル</a> · <a href="ai.html">AI ネイティブ設計</a></span></div>
+    </header>
+
+    <section id="why">
+      <h2>なぜ必要か</h2>
+      <ul>
+        <li>QA を外部や海外のメンバーに頼むことがある。英語しか読めないテスターが、日本語の手順を推測で実行すると誤判定が起きる。</li>
+        <li>テスト対象のアプリ自体が日本語版・英語版を持つことがある。<b>テスターが読む言語</b>と<b>テスト対象の画面の言語</b>は別物として扱う必要がある。</li>
+        <li>翻訳を人が毎回書くのは続かない。AI が翻訳し、重要なもの（P0 の手順など）だけ人が確認する。</li>
+      </ul>
+    </section>
+
+    <section id="scope">
+      <h2>対象の 3 分類</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>分類</th><th>例</th><th>持ち方</th><th>誰が書く</th></tr></thead>
+        <tbody>
+          <tr><td>UI 文言</td><td>ボタン「合格」/ Pass、メニュー、エラーメッセージ、状態ラベル</td><td>リポジトリ内のメッセージファイル <code>apps/web/messages/{ja,en}.json</code></td><td>開発者（コードと一緒に PR で変更）</td></tr>
+          <tr><td>コンテンツ</td><td>ユースケース名、完了条件、テスト手順・期待結果、前提条件、入り方ガイド、フィクスチャの説明、計画名</td><td>D1。原文は各テーブルの列、翻訳は <code>translations</code></td><td>利用者（原文）と AI（翻訳）、確認は利用者</td></tr>
+          <tr><td>自由記述・AI 出力</td><td>コメント、不合格時の「実際の結果」、ジャッジの判定理由、AI 要約</td><td>原文と書いた言語を保存。翻訳は表示時に作って <code>translations</code> にキャッシュ</td><td>利用者・AI</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">翻訳しないもの: 表示キー（<code>TC-128</code>）、フィクスチャの値そのもの（クーポンコード、テスト用の名前・住所）、URL、コード、スクリプト。</p>
+    </section>
+
+    <section id="rules">
+      <h2>基本ルール</h2>
+      <ol class="steps">
+        <li><span><b>原文は 1 つ</b>。翻訳対象のエンティティは <code>source_locale</code>（<code>ja</code> / <code>en</code>）を持ち、原文は通常の列に入れる。日本語で書いた UC は原文が日本語、英語のテスターが書いたコメントは原文が英語。</span></li>
+        <li><span><b>翻訳は別行</b>。もう一方の言語は <code>translations</code> に 1 フィールド 1 行で入れ、作り手（AI / 人）と状態（AI 翻訳 / 確認済み / 古い）を持つ。</span></li>
+        <li><span><b>原文が変われば翻訳は「古い」</b>。翻訳時の原文ハッシュを保存し、一致しなくなったら古い扱いにして再翻訳する。</span></li>
+        <li><span><b>実行は見たものを記録</b>。テスターが英語の AI 翻訳を見て実行したなら、そのことを実行記録に残す。</span></li>
+        <li><span><b>画面の文言は原語のまま引用</b>。テスト対象の画面に出る文字列は翻訳せず、訳を括弧で添える（<a href="#literals">引用ルール</a>）。</span></li>
+        <li><span><b>P0 は確認済み翻訳</b>。担当者の言語が原文と違う P0 の計画アイテムは、翻訳が「確認済み」になるまで警告を出す（アサインは可能）。</span></li>
+      </ol>
+    </section>
+
+    <section id="model">
+      <h2>データの持ち方</h2>
+      <p>列を <code>title_ja</code> / <code>title_en</code> のように増やす方法と、JSON に両言語を入れる方法も検討しました。翻訳ごとに「誰が・どのモデルで・いつ・確認したか」を記録したいので、別テーブル方式にします。言語を追加するときもスキーマを変えずに済みます。</p>
+      <pre class="mermaid">
+erDiagram
+  use_cases ||--o{ translations : "entity_type='use_case'"
+  test_case_versions ||--o{ translations : "entity_type='test_case_version'"
+  acceptance_criteria ||--o{ translations : "entity_type='acceptance_criterion'"
+  comments ||--o{ translations : "entity_type='comment'"
+  projects ||--o{ glossary_terms : has
+  users ||--o{ translations : "translated_by / reviewed_by"
+  translations {
+    TEXT id PK
+    TEXT project_id FK
+    TEXT entity_type
+    TEXT entity_id
+    TEXT field "title / steps.3.instruction"
+    TEXT locale "ja | en"
+    TEXT text
+    TEXT source_hash "翻訳時の原文 sha256"
+    TEXT origin "ai | human"
+    TEXT status "machine | reviewed | stale"
+    TEXT model
+    TEXT reviewed_by FK
+  }
+  glossary_terms {
+    TEXT id PK
+    TEXT project_id FK
+    TEXT ja
+    TEXT en
+    INTEGER keep_original "訳さない語"
+    TEXT note
+  }
+      </pre>
+      <p>DDL は <a href="data-model.html#i18n">データモデル</a> にあります。読み出しは <code>packages/core</code> の <code>localize(entity, field, locale)</code> 1 つに集約し、各画面で個別に分岐を書かないようにします。</p>
+<pre><code>// 表示用に解決した結果。UI はこれだけを受け取る
+type LocalizedField = {
+  text: string;               // 表示する文字列
+  locale: "ja" | "en";        // text の言語
+  isSource: boolean;          // 原文か
+  status?: "machine" | "reviewed" | "stale";  // 翻訳の場合の状態
+  source?: { text: string; locale: "ja" | "en" }; // 「原文を表示」用
+};</code></pre>
+      <h3>解決の順序</h3>
+      <ol class="steps">
+        <li><span>表示言語 = ユーザー設定 <code>users.locale</code>（未設定ならブラウザの <code>Accept-Language</code>、それもなければ <code>ja</code>）。</span></li>
+        <li><span>原文の言語が表示言語と同じなら原文を返す。</span></li>
+        <li><span>違えば <code>translations</code> から <code>status != 'stale'</code> の行を返す。</span></li>
+        <li><span>なければ原文を返し、画面に「翻訳中」を出して翻訳ジョブを投入する（Queue）。完了すると画面が更新される。</span></li>
+      </ol>
+    </section>
+
+    <section id="fields">
+      <h2>翻訳対象フィールド</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>entity_type</th><th>field</th><th>翻訳のタイミング</th><th>モデル（既定）</th></tr></thead>
+        <tbody>
+          <tr><td><code>feature</code></td><td><code>title</code> <code>description</code></td><td>保存時</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>use_case</code></td><td><code>title</code> <code>actor</code> <code>goal</code> <code>description_md</code></td><td>保存時</td><td><code>claude-sonnet-5-5</code></td></tr>
+          <tr><td><code>acceptance_criterion</code></td><td><code>text</code></td><td>保存時</td><td><code>claude-sonnet-5-5</code></td></tr>
+          <tr><td><code>test_case</code></td><td><code>title</code></td><td>保存時</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>test_case_version</code></td><td><code>preconditions_md</code>、<code>steps.{seq}.instruction</code>、<code>steps.{seq}.expected</code>、<code>steps.{seq}.guest_text</code>、<code>judges.{i}.rubric.{j}</code></td><td>版の作成時</td><td><code>claude-sonnet-5-5</code></td></tr>
+          <tr><td><code>fixture</code></td><td><code>name</code> <code>description</code>、dataset の列見出し</td><td>保存時</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>environment</code></td><td><code>entry_guide_md</code></td><td>保存時</td><td><code>claude-sonnet-5-5</code></td></tr>
+          <tr><td><code>test_plan</code></td><td><code>title</code></td><td>保存時</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>comment</code></td><td><code>body_md</code></td><td>表示時（別言語のユーザーが開いたとき）</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>run_step</code></td><td><code>note</code></td><td>表示時</td><td><code>claude-haiku-5-5</code></td></tr>
+          <tr><td><code>judgement</code></td><td><code>reason</code></td><td>LLM ジャッジは日英両方を構造化出力で同時に返す。人の判定理由は表示時</td><td>ジャッジと同じ</td></tr>
+          <tr><td><code>run</code></td><td><code>summary</code></td><td>生成時に日英両方</td><td>要約と同じ</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">field のパスは版の中で安定するキーを使います（ステップは <code>seq</code>、ルーブリックは配列の位置）。</p>
+    </section>
+
+    <section id="lifecycle">
+      <h2>翻訳のライフサイクル</h2>
+      <pre class="mermaid">
+stateDiagram-v2
+  [*] --> machine: AI が翻訳（保存時・表示時）
+  [*] --> reviewed: 人が直接書く
+  machine --> reviewed: 人が確認・修正
+  machine --> stale: 原文が変わった
+  reviewed --> stale: 原文が変わった
+  stale --> machine: 再翻訳
+  stale --> reviewed: 人が更新
+      </pre>
+      <ul>
+        <li><b>変更検知</b>: 可変フィールド（UC の名前など）は保存時に原文ハッシュを計算し、同じフィールドの翻訳のハッシュと違えば <code>stale</code> にする。</li>
+        <li><b>版の引き継ぎ</b>: TC の新しい版を作るとき、ステップごとに原文ハッシュを比べ、同じなら前の版の翻訳をそのままコピーする（再翻訳しない。確認済みも引き継ぐ）。</li>
+        <li><b>確認</b>: 翻訳の確認は S04 の「翻訳」タブで原文と並べて行う。確認者は <code>reviewed_by</code> に残る。確認できるのはその言語を設定しているユーザー、または manager 以上。</li>
+        <li><b>用語集</b>: プロジェクトごとの <code>glossary_terms</code>（例: 完了条件 = Acceptance criteria、合格 = Pass、商品名は訳さない）を翻訳プロンプトに必ず入れる。</li>
+      </ul>
+    </section>
+
+    <section id="runs">
+      <h2>実行時のスナップショット</h2>
+      <p>実行の記録は後から変わってはいけません（<a href="domain.html#versioning">バージョンとスナップショット</a>）。翻訳も同じ扱いです。</p>
+      <ul>
+        <li><code>runs.display_locale</code>: 実行者が手順を読んだ言語。</li>
+        <li><code>run_steps.instruction</code> / <code>expected</code>: 原文をコピー。</li>
+        <li><code>run_steps.i18n_json</code>: 実行時に表示した翻訳をコピー。例 <code>{"en": {"instruction": "...", "expected": "...", "status": "machine"}}</code>。</li>
+        <li>不合格の調査で「AI 翻訳を読んで誤解した」ことが分かるように、S06・S05 の結果表示に「英語の AI 翻訳で実行」と表示する。</li>
+        <li>ブラウザエージェントには原文と翻訳の両方を渡す。画面の言語は <code>runs.app_locale</code>（テスト対象アプリの表示言語。環境やデータ駆動の行で指定）で決まる。</li>
+      </ul>
+    </section>
+
+    <section id="literals">
+      <h2>画面文言の引用ルール</h2>
+      <p>期待結果には、テスト対象の画面に表示される文字列がそのまま入ります。これを翻訳すると、英語のテスターが画面上で探せなくなります。</p>
+      <div class="grid two">
+        <div class="card"><h3>原文（日本語）</h3><p class="small">「このクーポンは有効期限が切れています」と表示され、割引が適用されない</p></div>
+        <div class="card"><h3>英語の翻訳</h3><p class="small">The message 「このクーポンは有効期限が切れています」 (“This coupon has expired”) is shown and no discount is applied.</p></div>
+      </div>
+      <ul>
+        <li>原文で画面の文字列を書くときは「」で囲む（英語原文では <code>"..."</code> ではなく「」も可。エディタに「画面の文言として挿入」ボタンを置く）。</li>
+        <li>翻訳プロンプトは「」内を変えずに残し、括弧で訳を添える。翻訳後に「」の中身が原文と一致するか機械的に検証し、違えば翻訳をやり直す。</li>
+        <li>テスト対象アプリが英語表示のとき（<code>app_locale = en</code>）は、TC 側で英語の期待文言を別に持つ必要がある。これは翻訳ではなく<b>データ</b>なので、dataset フィクスチャ（言語ごとの行）か TC のパラメータで持つ。</li>
+      </ul>
+    </section>
+
+    <section id="ui">
+      <h2>UI と表示</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>決定</th></tr></thead>
+        <tbody>
+          <tr><td>ライブラリ</td><td><code>next-intl</code>（App Router の Server Components で使える）。メッセージは JSON、キーは画面 ID で名前空間を切る（<code>S05.pass</code>）。</td></tr>
+          <tr><td>言語の切り替え</td><td>右上のユーザーメニューで「日本語 / English」。<code>users.locale</code> に保存。URL には入れない（共有リンクが言語に依存しないように）。</td></tr>
+          <tr><td>原文の併記</td><td>翻訳を表示しているフィールドには「AI 翻訳」/「確認済み」のラベルと「原文を表示」を付ける。設定で常に併記もできる（<code>users.show_source</code>）。</td></tr>
+          <tr><td>欠けたキー</td><td>CI で <code>ja.json</code> と <code>en.json</code> のキー集合を比較し、ずれていたら失敗にする。</td></tr>
+          <tr><td>日時</td><td>保存は UTC。表示は <code>users.timezone</code>（既定 <code>Asia/Tokyo</code>）で、タイムゾーン名を添える（例: 11/19 14:05 JST）。海外のテスターには自分の時刻で見せる。</td></tr>
+          <tr><td>数値・通貨</td><td><code>Intl.NumberFormat</code>。金額は通貨記号付き（¥3,582）。</td></tr>
+          <tr><td>フォント</td><td>IBM Plex Sans JP は英字も含むので 1 書体で両言語を表示する。</td></tr>
+          <tr><td>文字数</td><td>英語は日本語より長くなる。ボタンは最大 2 語を目安にし、表の列は折り返しを前提にする。</td></tr>
+          <tr><td>検索</td><td>原文と翻訳の両方を検索対象にする（D1 の FTS5 仮想テーブル <code>search_index</code>。対応状況は <a href="architecture.html">アーキテクチャ</a> を参照）。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="mock">
+      <h2>英語表示の例（S05 の一部）</h2>
+      <div class="mock-scroll"><div class="mock" style="min-width: 760px">
+        <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/p/SHOP/runs/1029/execute</span></div>
+        <div class="app-main">
+          <div class="app-top"><span class="id">RUN-1029</span><h2>Expired coupon shows an error</h2><span class="ai-tag">AI translation</span><span class="spacer"></span><span class="btn ghost">Show original</span><span class="btn">EN ▾</span></div>
+          <div class="panel"><header>Step 2 / 5</header><div class="body">
+            <div><b>Do this</b><p>In the coupon field at the bottom of the cart page, enter <code>EXPIRED2025</code> and press 「適用」 (“Apply”).</p></div>
+            <div><b>Expected</b><p>The message 「このクーポンは有効期限が切れています」 (“This coupon has expired”) appears under the field, and no discount line is added.</p></div>
+            <div class="small muted">Original (Japanese): クーポン欄に期限切れコードを入力して「適用」を押す</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap"><span class="btn pass">Pass</span><span class="btn fail">Fail</span><span class="btn">Blocked</span></div>
+          </div></div>
+        </div>
+      </div></div>
+    </section>
+
+    <section id="ai">
+      <h2>AI 翻訳</h2>
+      <ul>
+        <li>翻訳は Queue（<code>translate</code>）経由で非同期に実行する。1 ジョブ = 1 エンティティの全フィールドをまとめて 1 回の呼び出し（文脈がそろうので訳が安定する）。</li>
+        <li>入力: 原文フィールドの JSON、プロジェクト用語集、対象の画面 ID（どこに表示されるか）。出力: 同じキーの JSON（構造化出力）。</li>
+        <li>検証: 「」内の文字列、<code>{{FX-3.code}}</code> のような変数、表示キー、URL が原文と一致すること。不一致は 1 回だけ再試行し、だめなら原文表示のまま「翻訳失敗」。</li>
+        <li>費用: 保存時翻訳はプロジェクトの AI 予算（<code>ai_budget_usd</code>）に含める。表示時翻訳はキャッシュするので 1 フィールド 1 回。</li>
+        <li>モデルとプロンプト版を <code>translations.model</code> / <code>prompt_version</code> に保存する。</li>
+      </ul>
+    </section>
+
+    <section id="outputs">
+      <h2>外部への出力</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>出力</th><th>言語</th></tr></thead>
+        <tbody>
+          <tr><td>メール・Slack 通知</td><td>受け取る人の <code>users.locale</code>。チャンネル宛てはプロジェクト設定 <code>settings_json.locale</code>（既定 ja）。</td></tr>
+          <tr><td>GitHub（Check Run・PR コメント・Issue）</td><td>プロジェクト設定 <code>settings_json.github_locale</code>（<code>ja</code> / <code>en</code> / <code>both</code>）。<code>both</code> は日本語の下に英語を折りたたみで付ける。</td></tr>
+          <tr><td>MCP</td><td>呼び出し側が <code>locale</code> 引数で指定。省略時は原文と、あれば翻訳の両方を返す。</td></tr>
+          <tr><td>エクスポート（CSV・YAML）</td><td>原文と翻訳の列を両方出す（<code>title</code>, <code>title_en</code>）。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="done">
+      <h2>完了条件</h2>
+      <ul>
+        <li>UI の全画面が日本語・英語で表示でき、メッセージファイルのキーの差分が CI で 0。</li>
+        <li>上の表の翻訳対象フィールドすべてで、<code>localize()</code> を通して表示言語のテキストが出る。翻訳がない場合は原文と「翻訳中」が出る。</li>
+        <li>UC・TC を編集すると、関連する翻訳が <code>stale</code> になり、再翻訳される。変わっていないステップの翻訳は新しい版に引き継がれる。</li>
+        <li>英語で実行した実行記録に、表示した翻訳と状態が残る。</li>
+        <li>「」内の文字列が翻訳で変わらないことをユニットテストで確認している。</li>
+      </ul>
+    </section>
+
+    <nav class="pager"><a href="interactions.html"><small>前へ</small>SPEC-07 ER・通信フロー</a><a href="identity-audit.html"><small>次へ</small>SPEC-09 認証・行動ログ</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

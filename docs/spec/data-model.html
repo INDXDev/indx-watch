@@ -115,6 +115,9 @@ erDiagram
           <tr><td rowspan="2">外部連携</td><td><code>issues</code></td><td>GitHub Issue との対応。</td><td>M3</td></tr>
           <tr><td><code>github_installations</code></td><td>GitHub App のインストール。</td><td>M3</td></tr>
           <tr><td>AI</td><td><code>ai_suggestions</code></td><td>AI の提案と採否。</td><td>M2</td></tr>
+          <tr><td rowspan="3">多言語</td><td><code>translations</code></td><td>コンテンツの翻訳（1 フィールド 1 言語 1 行）。</td><td>M1</td></tr>
+          <tr><td><code>glossary_terms</code></td><td>プロジェクトの用語集（翻訳の一貫性）。</td><td>M1</td></tr>
+          <tr><td><code>search_index</code></td><td>原文・翻訳の全文検索（FTS5）。</td><td>M2</td></tr>
           <tr><td rowspan="2">記録</td><td><code>comments</code></td><td>任意の対象へのコメント。</td><td>M1</td></tr>
           <tr><td><code>activity_log</code></td><td>監査ログ（すべての変更）。</td><td>M1</td></tr>
         </tbody>
@@ -133,6 +136,9 @@ erDiagram
   role          TEXT NOT NULL DEFAULT 'tester' CHECK (role IN ('admin','manager','tester','guest')),
   organization  TEXT,                             -- guest の所属（例: 株式会社サンプル）
   notify_json   TEXT NOT NULL DEFAULT '{}',       -- 通知設定
+  locale        TEXT NOT NULL DEFAULT 'ja' CHECK (locale IN ('ja','en')),  -- 表示言語
+  timezone      TEXT NOT NULL DEFAULT 'Asia/Tokyo',                       -- 表示タイムゾーン（IANA）
+  show_source   INTEGER NOT NULL DEFAULT 0,       -- 翻訳表示時に原文を常に併記
   last_seen_at  INTEGER,
   created_at    INTEGER NOT NULL,
   archived_at   INTEGER
@@ -177,6 +183,8 @@ CREATE TABLE environments (
   access_kind        TEXT NOT NULL DEFAULT 'none' CHECK (access_kind IN ('none','basic','cf_access','ip_allowlist')),
   access_secret_ref  TEXT,                        -- Secrets Store の名前のみ
   entry_guide_md     TEXT NOT NULL DEFAULT '',    -- 入り方ガイド（人向け）
+  source_locale      TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
+  app_locales_json   TEXT NOT NULL DEFAULT '["ja"]',  -- テスト対象アプリが表示できる言語
   reset_hook_json    TEXT,                        -- リセット / シード API の設定
   allowed_hosts_json TEXT NOT NULL DEFAULT '[]',  -- エージェントが遷移してよいホスト
   is_default         INTEGER NOT NULL DEFAULT 0,
@@ -228,6 +236,7 @@ CREATE INDEX deployments_release ON deployments(release_id);</code></pre>
   number       INTEGER NOT NULL,                  -- FEAT-3
   title        TEXT NOT NULL,
   description  TEXT,
+  source_locale TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
   sort         INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
@@ -244,6 +253,7 @@ CREATE TABLE use_cases (
   actor           TEXT NOT NULL,                  -- ゲスト
   goal            TEXT NOT NULL,                  -- 割引価格で購入を完了したい
   description_md  TEXT NOT NULL DEFAULT '',
+  source_locale   TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),  -- UC と配下の AC の原文の言語
   priority        TEXT NOT NULL DEFAULT 'P2' CHECK (priority IN ('P0','P1','P2','P3')),
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready','deprecated')),
   origin          TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
@@ -272,6 +282,7 @@ CREATE TABLE test_cases (
   use_case_id         TEXT NOT NULL REFERENCES use_cases(id),
   number              INTEGER NOT NULL,           -- TC-128
   title               TEXT NOT NULL,
+  source_locale       TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
   priority            TEXT NOT NULL CHECK (priority IN ('P0','P1','P2','P3')),
   mode                TEXT NOT NULL DEFAULT 'manual' CHECK (mode IN ('manual','agent','script','hybrid')),
   status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','ready','deprecated')),
@@ -300,6 +311,7 @@ CREATE TABLE test_case_versions (
   evidence_policy       TEXT NOT NULL DEFAULT 'every_step' CHECK (evidence_policy IN ('every_step','on_fail','final_only')),
   script                TEXT,                     -- mode=script のとき Playwright コード
   change_note           TEXT NOT NULL DEFAULT '',
+  source_locale         TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
   origin                TEXT NOT NULL DEFAULT 'human' CHECK (origin IN ('human','ai')),
   created_by            TEXT NOT NULL REFERENCES users(id),
   created_at            INTEGER NOT NULL,
@@ -321,6 +333,7 @@ CREATE INDEX test_case_criteria_ac ON test_case_criteria(criterion_id);</code></
   name                TEXT NOT NULL,
   kind                TEXT NOT NULL CHECK (kind IN ('dataset','seed','file','account')),
   description         TEXT NOT NULL DEFAULT '',
+  source_locale       TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
   environment_id      TEXT REFERENCES environments(id),  -- null は全環境共通
   current_version_id  TEXT,
   created_at          INTEGER NOT NULL,
@@ -355,6 +368,7 @@ CREATE TABLE fixture_versions (
   release_id  TEXT REFERENCES releases(id),
   number      INTEGER NOT NULL,                   -- PLAN-4
   title       TEXT NOT NULL,
+  source_locale TEXT NOT NULL DEFAULT 'ja' CHECK (source_locale IN ('ja','en')),
   status      TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','closed')),
   due_date    TEXT,
   created_by  TEXT NOT NULL REFERENCES users(id),
@@ -414,6 +428,8 @@ CREATE TABLE schedules (
   decision_policy_json   TEXT,                    -- 実行時に使った判定ポリシー（既定と TC 上書きをマージ済み）。再計算でも結果が変わらないように保存
   fixture_versions_json  TEXT NOT NULL DEFAULT '{}',  -- {"FX-3":4,"FX-11":2}
   params_json            TEXT NOT NULL DEFAULT '{}',  -- データ駆動の行の値
+  display_locale         TEXT NOT NULL DEFAULT 'ja' CHECK (display_locale IN ('ja','en')),  -- 実行者が手順を読んだ言語
+  app_locale             TEXT,                    -- テスト対象アプリの表示言語（ja / en）
   workflow_instance_id   TEXT,                    -- Cloudflare Workflows のインスタンス
   summary                TEXT,                    -- AI 要約（失敗理由など）
   cost_json              TEXT,                    -- {"input_tokens":..., "output_tokens":..., "browser_ms":...}
@@ -434,7 +450,9 @@ CREATE TABLE run_steps (
   instruction  TEXT NOT NULL,                     -- 実行時点の手順をコピー
   expected     TEXT NOT NULL DEFAULT '',
   verdict      TEXT CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
+  i18n_json    TEXT,                              -- 実行時に表示した翻訳のスナップショット {"en":{"instruction":..,"expected":..,"status":"machine"}}
   note         TEXT,                              -- 人のメモ / 実際の結果
+  note_locale  TEXT CHECK (note_locale IN ('ja','en')),
   actions_json TEXT,                              -- エージェントが行った操作の列
   started_at   INTEGER,
   finished_at  INTEGER,
@@ -465,6 +483,7 @@ CREATE TABLE judgements (
   verdict         TEXT NOT NULL CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
   confidence      REAL,                           -- llm / visual のみ 0..1
   reason          TEXT NOT NULL DEFAULT '',       -- human は必須（アプリで検証）
+  reason_locale   TEXT NOT NULL DEFAULT 'ja' CHECK (reason_locale IN ('ja','en')),  -- llm は日英を同時生成し、もう一方は translations へ
   evidence_ids_json TEXT NOT NULL DEFAULT '[]',   -- 根拠にした証拠
   model           TEXT,                           -- claude-sonnet-5-5 など
   prompt_version  TEXT,                           -- judge.llm@3
@@ -484,6 +503,47 @@ CREATE TABLE baselines (
   approved_by     TEXT NOT NULL REFERENCES users(id),
   approved_at     INTEGER NOT NULL,
   superseded_at   INTEGER
+);</code></pre>
+
+<h3 id="i18n">多言語（翻訳・用語集・検索）</h3>
+<p class="small muted">設計の理由とルールは <a href="i18n.html">多言語設計</a>。</p>
+<pre><code>CREATE TABLE translations (
+  id              TEXT PRIMARY KEY,               -- trn_...
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  entity_type     TEXT NOT NULL,                  -- use_case / acceptance_criterion / test_case_version / comment ...
+  entity_id       TEXT NOT NULL,
+  field           TEXT NOT NULL,                  -- title / steps.3.instruction / judges.0.rubric.2
+  locale          TEXT NOT NULL CHECK (locale IN ('ja','en')),
+  text            TEXT NOT NULL,
+  source_hash     TEXT NOT NULL,                  -- 翻訳時の原文 sha256。原文と違えば stale
+  origin          TEXT NOT NULL CHECK (origin IN ('ai','human')),
+  status          TEXT NOT NULL DEFAULT 'machine' CHECK (status IN ('machine','reviewed','stale')),
+  model           TEXT,
+  prompt_version  TEXT,
+  translated_by   TEXT NOT NULL REFERENCES users(id),   -- AI のときは agent ユーザー
+  reviewed_by     TEXT REFERENCES users(id),
+  reviewed_at     INTEGER,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  UNIQUE (entity_type, entity_id, field, locale)
+);
+CREATE INDEX translations_review ON translations(project_id, locale, status);
+
+CREATE TABLE glossary_terms (
+  id             TEXT PRIMARY KEY,                -- gls_...
+  project_id     TEXT NOT NULL REFERENCES projects(id),
+  ja             TEXT NOT NULL,                   -- 完了条件
+  en             TEXT NOT NULL,                   -- Acceptance criteria
+  keep_original  INTEGER NOT NULL DEFAULT 0,      -- 1 = 訳さない（商品名・機能名）
+  note           TEXT,
+  created_at     INTEGER NOT NULL,
+  UNIQUE (project_id, ja)
+);
+
+-- 原文と翻訳の両方を検索する（FTS5）。アプリが保存・翻訳時に更新する
+CREATE VIRTUAL TABLE search_index USING fts5(
+  project_id UNINDEXED, entity_type UNINDEXED, entity_id UNINDEXED, locale UNINDEXED,
+  text, tokenize = 'trigram'                      -- 日本語は分かち書きせず trigram で部分一致
 );</code></pre>
 
 <h3>外部連携・AI・記録</h3>
@@ -531,6 +591,7 @@ CREATE TABLE comments (
   target_id    TEXT NOT NULL,
   author_id    TEXT NOT NULL REFERENCES users(id),
   body_md      TEXT NOT NULL,
+  locale       TEXT NOT NULL DEFAULT 'ja' CHECK (locale IN ('ja','en')),
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
 );
