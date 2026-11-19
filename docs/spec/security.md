@@ -2,8 +2,7 @@
 
 INDX Watch never runs its own authentication. It records *who did what* using the identity of the environment it runs in, keeps secrets out of files, and relies on the access control of the storage or host it is deployed to. Platform details (header names, token commands) are verified in [platform notes](../research/platform-notes.md#cloudflare).
 
-## Identity {#identity}
-
+## Identity
 Every record (run, judgement, waiver, deployment, snapshot) carries an `actor` and a `source`:
 
 ```json
@@ -24,12 +23,17 @@ Every record (run, judgement, waiver, deployment, snapshot) carries an `actor` a
 Resolution order, implemented once in the `IdentityProvider` port:
 
 1. **Explicit** — `IW_ACTOR` (+ `IW_ACTOR_NAME`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`); `via = "env"`.
+   **Agent detection** — independently of the source, `kind` becomes `agent` when `IW_ACTOR_KIND=agent`, when running under `iw mcp`, or when a known coding-agent environment marker is set (the list lives in [platform notes](../research/platform-notes.md#agent-skills), e.g. `CLAUDECODE=1`).
 2. **Hosted server** — the verified Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`), checked with `jose` against the team's JWKS and the application's `aud`; `via = "cloudflare-access"`. Requests without a valid JWT are rejected (401) unless the server runs in local mode.
 3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`. With `id-token: write`, the action can attach OIDC claims (`repository`, `ref`, `sha`, `run_id`) and sets `via = "github-oidc"`.
 4. **Local** — `git config user.email` / `user.name`; `via = "git"`.
 5. **Fallback** — OS user name with `via = "env"` and a warning.
 
-Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)).
+Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors.
+
+## Shared servers
+
+`iw serve` binds to `127.0.0.1` by default and attributes writes to the local identity. On a shared host (`--host 0.0.0.0`, Docker), the server must not attribute other people's work to the operator: write requests from non-loopback addresses are **rejected** unless the server runs behind a proxy that authenticates users and `--identity-header <name>` names the header carrying the user's email (e.g. `X-Forwarded-Email` from an SSO proxy, or Cloudflare Access with JWT verification). Reads are allowed.
 
 **Trust levels.** `git` and `env` identities are self-asserted, like git commit authors. Reports show `via` so readers can tell an Access-verified approval from a self-asserted one. The gate can require verified identities for human judgements on P0 (`gate.require_verified_human`, *v0.2*).
 
@@ -49,8 +53,7 @@ The CLI reaches a hosted server behind Access with `cloudflared access token -ap
 
 Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted app, derived from Access identity groups; see the [roadmap](../roadmap.md).
 
-## Secrets {#secrets}
-
+## Secrets
 - Bundle files contain **secret references only** (`env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`).
 - `iw check` runs a secret scan over every bundle file and data file: known token formats (AWS keys, GitHub tokens, Slack tokens, private key blocks, JWTs, Anthropic/OpenAI keys) and high-entropy strings in fields named like `password`, `token`, `secret`, `key`. Findings are errors. `iw sync` and `iw export` refuse to run while there are secret errors.
 - Account fixtures are resolved at execution time from the referenced source (`env:` from the process environment in v0.1). Resolved values are never written to records, logs, reports or the index, and the UI shows them masked with a copy button (the copy action is recorded on the hosted app).
@@ -63,16 +66,15 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.
 - The server sets a strict CSP for the SPA (`default-src 'self'`; images also from `data:` and `blob:`).
 
-## Share links {#share-links}
-
-*(v0.2)* A share link serves a frozen report snapshot. Token: 128 random bits, stored hashed. Expiry required. Audience fixed at creation (`customer` by default). Creation, revocation and each open are recorded.
+## Share links
+*(v0.2)* A share link serves a frozen report snapshot. Token: 128 random bits, stored hashed. Expiry required. Audience fixed at creation (`customer` by default). Creation, revocation and each open will be recorded as store records (new record kinds), never only in the index.
 
 ## Threat model
 
 | Threat | Mitigation |
 |---|---|
 | Secret committed in a fixture | Secret scan in `iw check`, sync and export refuse; references only |
-| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access and GitHub OIDC; bucket write access limited to trusted principals |
+| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access and GitHub OIDC; bucket write access limited to trusted principals. Known limitation (v0.1): anyone who can write to the bucket can write records claiming any `via`; signed records are planned for v0.2. |
 | Tampering with past results | Records are immutable and content-addressed blobs are hash-verified on read; corrections are new judgements. A bucket with object versioning or WORM retention gives stronger guarantees. |
 | Malicious evidence (HTML/SVG with script) | Non-image media served as attachments; strict CSP |
 | Public exposure of the hosted app | Access in front of every route; `iw deploy` refuses public deploys without `--public` |

@@ -48,7 +48,7 @@ Rules:
 ```toml
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
-id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y3Z"
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y33"
 key = "TC-3"
 ```
 
@@ -74,11 +74,15 @@ key = "TC-3"
 | `title` | string | Required. Plain language. |
 | `status` | `draft` \| `ready` \| `deprecated` | Default `draft`. Use cases, test cases, fixtures. |
 | `origin` | `human` \| `ai` \| `import` | Default `human` (omitted). |
-| `approved_by` | string | Identity of the human who approved an `ai` item for `ready`. |
+| `approved_by` | string | Identity of the human who approved the item (written by `iw approve`). |
+| `approved_version` | string | Version hash at approval (`tcv:…`, `fxv:…`, or the use case's content hash). |
 | `tags` | string[] | Lowercase, `[a-z0-9-]+`. |
-| `notes` | string | Free text that survives formatting. |
-| `[ai]` | table | `model`, `skill`, `created_at` — required when `origin = "ai"`. |
+| `notes` | string | Free text that survives formatting. Always the last plain value of a file. |
 | `[i18n.<locale>]` | table | Translations; see [i18n.md](i18n.md#content-translations). |
+| `[ai]` | table | `model`, `skill`, `created_at` — required when `origin = "ai"`. |
+| `[x]` | table | Free-form extension data. |
+
+Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](../../packages/bundle/src/schema/definitions.ts).
 
 **Secret references.** Anywhere a secret is needed, the file stores a reference string matching `^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$`, for example `env:SHOP_STAGING_PASSWORD`. See [security.md](security.md#secrets).
 
@@ -137,9 +141,10 @@ definition = "A code that reduces the order total."
 | `source_locale`, `locales` | yes | `en` and/or `ja` in v1. |
 | `default_environment` | no | Environment name used when none is given. |
 | `current_release` | no | Release used by `iw status` and runs when none is given. |
+| `default_branch` | no | Branch whose builds fall back to `current_release` (default `main`). |
 | `[gate]` | no | Readiness gate thresholds; defaults in [concepts](concepts.md#readiness-gate). |
 | `[decision_policy]` | no | Project defaults; a test case may override. |
-| `[store]` | no | Omit for local-only use. `url` schemes: `file://`, `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default) or `workspace`. `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
+| `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default; `workspace` is reserved for v0.2). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). |
 
 ## `environments/<name>.toml`
@@ -184,7 +189,9 @@ refs = ["v1.2.0", "release/1.2"]
 ```
 
 - `state`: `planning`, `testing`, `ready`, `released`.
-- `refs`: git tags or branches whose builds belong to this release. A run's release is resolved in this order: explicit `--release` / `IW_RELEASE` → a release whose `refs` contains the build's tag or branch → `project.current_release`.
+- `refs`: git tags or branches whose builds belong to this release.
+- `plan`: optional plan key. When set, the readiness gate counts only the test cases in that plan, so a release does not need fresh results for features it did not touch.
+- A run's release is resolved in this order: explicit `--release` / `IW_RELEASE` → a release whose `refs` contains the build's tag or branch → `project.current_release`, but only when the build's branch is `default_branch` or the run is not in CI. Otherwise the run has no release and a warning is printed: results from unmerged branches do not count towards a release.
 
 ## `specs/<FEAT>/feature.toml`
 
@@ -231,17 +238,24 @@ text = "An expired coupon shows \"This coupon has expired\" and the total does n
 text = "期限切れのクーポンは「This coupon has expired」と表示され、合計は変わらない。"
 status = "reviewed"
 source_hash = "c41d9e07aa12"
+
+[i18n.ja]
+title = "ゲストが購入時にクーポンを使う"
+actor = "ゲストの購入者"
+goal = "カートの商品を割引価格で購入したい。"
+status = "machine"
+source_hash = "000000000000"
 ```
 
 - `priority`: `P0`–`P3`.
-- `criteria`: at least one. `key` is `AC-{uc}.{n}`. Removing an AC retires its key; numbers are not reused.
+- `criteria`: at least one. `key` is `AC-{uc}.{n}`. A criterion has an optional `status`: `ready` (default), `draft` (e.g. proposed by an AI; does not count) or `retired` (kept so its key is never reused). Do not delete criteria.
 
 ## `specs/<FEAT>/<UC>/TC-<n>-<slug>.toml`
 
 ```toml
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
-id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y31"
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y33"
 key = "TC-3"
 title = "Valid coupon reduces the total"
 status = "ready"
@@ -277,20 +291,20 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 | Field | Required | Notes |
 |---|---|---|
 | `covers` | yes | AC keys (`AC-2.1`) — resolved to AC IDs by `iw check`. |
-| `priority` | no | Defaults to the highest priority among covered use cases. |
+| `priority` | no | Defaults to the highest priority among covered use cases, and may not be lower than it. |
 | `mode` | yes | `manual`, `playwright`, `agent`, `hybrid`. |
 | `preconditions` | no | Plain language. |
 | `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds). |
-| `[[steps]]` | yes | `instruction`, `expected`, optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]`. Steps are numbered by position, starting at 1. |
+| `[[steps]]` | yes | `instruction`, `expected`, optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual`. Default: `human` for `manual`, `assert` for `playwright`. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
 | `[automation]` | no | `files`: paths of automated tests that implement this test case. The link itself is the tag `@TC-3` (see [integrations](integrations.md#playwright-reporter)). |
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](i18n.md#literal-strings)).
 
-**Version.** The test case version is computed from `covers`, `mode`, `preconditions`, `fixtures`, `steps`, `judges` and `decision_policy` — see [concepts](concepts.md#versions-and-staleness). It is not stored in the file.
+**Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](concepts.md#versions-and-staleness). It is not stored in the file.
 
-## Fixtures {#fixtures}
+## Fixtures
 
 `fixtures/<FX>-<slug>/fixture.toml` plus data files in the same directory.
 
@@ -343,7 +357,8 @@ size = 8295
 media_type = "image/png"
 ```
 
-- `iw fixture add <path> --to FX-4` copies a file in, and turns it into a pointer if it is larger than `[fixtures].inline_max_bytes`. The blob goes to the local replica and is uploaded by `iw sync`.
+- `iw fixture add <path> --to FX-4` runs the secret scan on the file, copies it in, and turns it into a pointer if it is larger than `[fixtures].inline_max_bytes` (or with `--blob`). The blob goes to the local replica and is uploaded by `iw sync`. Without a `[store]`, creating a pointer is refused unless `--local-only` is given, because teammates could not resolve it.
+- `iw check` warns when a pointer's blob is in neither the local replica nor `cache/blobs/`; run `iw fixture fetch` or `iw sync` first.
 - `iw fixture fetch FX-4` downloads the blob into `cache/blobs/` and verifies the hash. Tools resolve fixture files through the bundle API, never by path guessing.
 
 ## `plans/<PLAN>-<slug>.toml`
@@ -364,7 +379,27 @@ assignee = "alex@shop.test"
 due = 2026-11-26
 
 [[items]]
+test_case = "TC-8"
+assignee = "sam@shop.test"
+
+[[items]]
+test_case = "TC-9"
+assignee = "agent:claude"
+
+[[items]]
 test_case = "TC-3"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-4"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-5"
+assignee = "ci"
+
+[[items]]
+test_case = "TC-7"
 assignee = "ci"
 ```
 
@@ -373,7 +408,7 @@ assignee = "ci"
 
 ## Templates
 
-`templates/<kind>.<name>.toml` holds a **partial** file of kind `test-case`, `use-case` or `fixture`, without `id` and `key`. `iw new tc --template web` merges it under the generated fields. Templates are validated as partials.
+`templates/<kind>.<name>.toml` holds a **partial** file of kind `test-case`, `use-case` or `fixture`, without `id`, `key` and without a `#:schema` line (editors would flag the missing required fields). It is formatted in the field order of its kind. `iw new tc --template web` merges it under the generated fields. Templates are validated as partials.
 
 ## `.gitignore`
 
@@ -386,7 +421,7 @@ runs/
 
 Teams that prefer results in git can delete the `runs/` line: run records are immutable, uniquely named files, so they never conflict.
 
-## Versioning {#versioning}
+## Versioning
 
 - `schema_version` (in `project.toml`) is an integer and applies to the whole bundle.
 - **Additive** changes (new optional field, new enum value read as unknown by old tools) do not bump it.
@@ -395,7 +430,7 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 
 ## Acceptance criteria
 
-- [ ] Every example on this page is byte-identical to the corresponding file in `examples/shop/.indx-watch/` and passes `iw check`.
+- [ ] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
 - [ ] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
 - [ ] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [ ] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.

@@ -2,8 +2,7 @@
 
 Automated results land in the same result store, with the same record shape, as manual results. This page specifies the Playwright reporter, the GitHub Action and how CI context is captured. Platform facts are in [platform notes](../research/platform-notes.md#playwright).
 
-## Playwright reporter {#playwright-reporter}
-
+## Playwright reporter
 ```ts
 // playwright.config.ts
 import { defineConfig } from '@playwright/test';
@@ -23,13 +22,13 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 1. **The link is a tag.** `@TC-<n>` (or `@<PROJECT>:TC-<n>`, or the machine ID `@tc_01J…`) in the test's `tag` details or title. Tags are static, visible in every Playwright report and usable with `--grep @TC-3`. Annotations carry metadata, never identity.
 2. **Many-to-many.** A test may carry several TC tags; a TC may be implemented by several tests.
-3. **One run per (test case, Playwright project)** per `playwright test` invocation. Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message, `test` = title path). The run's verdict comes from the [decision policy](concepts.md#decision-policy).
+3. **One run per (test case, Playwright project)** per `playwright test` invocation. Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message with known secret values redacted, `test` = title path). The run's verdict comes from the [decision policy](concepts.md#decision-policy); how runs of several projects, rows and shards combine into one result is defined once in [computed done](concepts.md#computed-done).
 4. **Outcome mapping** from `test.outcome()` after all retries: `expected` → `pass`; `unexpected` → `fail` (`interrupted` → run reported as `blocked`); `flaky` → `pass` with `flaky: true` on the judgement; `skipped` → run reported as `skipped`.
 5. **Steps.** If a test uses `test.step('1. …')` / `test.step('2. …')`, step results map by the leading number to TC steps. Otherwise step results are omitted.
 6. **Fixtures.** The run records the current version of every fixture the TC references (computed from the bundle at the commit under test). A test may add `test.info().annotations.push({ type: '_iw.fixture', description: 'FX-1:SUMMER10' })` to record selected rows.
-7. **Evidence.** Attachments (screenshots, traces, videos) are hashed and copied into the local replica during `onTestEnd` (Playwright may delete its output directory later). Option `evidence`: `all` (default), `failures`, `none`.
+7. **Evidence.** Attachments (screenshots, traces, videos) are hashed and copied into the local replica during `onTestEnd` (Playwright may delete its output directory later). Option `evidence`: `all` (default), `failures`, `none`. For test cases that use an `account` fixture, traces and videos are **skipped by default** because they record typed values (opt in with `traces: 'always'`).
 8. **Unlinked tests** are counted and listed in the summary with a stable source key (`project › file › titlePath`). With `strict: true`, an unlinked test or an unknown TC key fails the Playwright run via `onEnd`.
-9. **Safety.** Step parameters and stdout/stderr are not copied (they can contain typed passwords).
+9. **Safety.** Step parameters and stdout/stderr are not copied (they can contain typed passwords). Values resolved from secret references are redacted from every text the reporter writes.
 10. **Uploads** happen in `onEnd` (awaited): records are always written to the local replica first; if a store is configured and `sync` is not `false`, they are pushed. A failed push is logged and retried by a later `iw sync`.
 
 ### Options
@@ -46,10 +45,9 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 ### Sharding
 
-Each shard records its own runs (one per TC × project × shard) with a shared `automation.group` = `github:<run_id>:<attempt>` (or `IW_RUN_GROUP`). Core treats runs with the same group, TC and project as one: verdict `fail` if any is `fail`. Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
+Every run gets `automation.group` = `IW_RUN_GROUP`, else `github:<run_id>:<attempt>` in GitHub Actions, else a fresh ID per invocation, so runs of one sharded execution are combined ([computed done](concepts.md#computed-done)). Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
 
-## CI identity and context {#ci-identity}
-
+## CI identity and context
 The `ContextProvider` port detects the build and CI context and fills these record fields:
 
 | Field | GitHub Actions source | Local source |
@@ -64,8 +62,7 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 
 Other CI providers are detected by their standard variables in v0.2 (GitLab, CircleCI, Buildkite); until then set `IW_ACTOR` and `IW_COMMIT`.
 
-## GitHub Action {#github-action}
-
+## GitHub Action
 A **composite action** at the repository root (`action.yml`) wraps the CLI; there is no separate action code to maintain.
 
 ```yaml
@@ -85,7 +82,7 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 | `dir` | `.indx-watch` discovery | |
 | `release`, `environment` | project defaults | Scope |
 | `store` | `[store].url` | Override store URL |
-| `sync` | `true` if a store is configured | Push local records (e.g. from the reporter) and pull others before computing status |
+| `sync` | `true` if a store is configured | Push local records (e.g. from the reporter) and pull others before computing status; publishes a bundle snapshot on the default branch |
 | `summary` | `true` | Append the Markdown report to `$GITHUB_STEP_SUMMARY` |
 | `gate` | `false` | Fail the step if the readiness gate fails |
 | `deployment` | — | Environment name: record a `deployment` record for this commit (use in deploy workflows) |
@@ -93,7 +90,7 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 
 Outputs: `gate` (`pass`/`fail`), `report` (path of the Markdown report), `pass`, `fail`, `untested` counts.
 
-Steps it runs: `npx indx-watch@<version> sync --json` (if enabled) → `status --json` → `report --format md --out …` → append to job summary → optional `deployment` record → optional `actions/upload-artifact` of the local replica → exit according to `gate`.
+Steps it runs: `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional `iw deployment add --env <deployment>` → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
 
 PR comments and check runs are *v0.2* (they need `pull-requests: write` / `checks: write`); the job summary needs no permissions.
 

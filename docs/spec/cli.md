@@ -10,7 +10,9 @@
 | Output | Human-readable by default. `--json` prints exactly one JSON document to stdout (the **envelope** below) and nothing else; logs go to stderr. |
 | Color | Off when stdout is not a TTY or `NO_COLOR` is set. |
 | Identity | See [security.md](security.md#identity). Override with `IW_ACTOR`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`. |
-| Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). |
+| Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of ≥ 8 characters after `run_`. |
+| Agents | When the actor is an agent (see [security.md](security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
+| Running tests | v0.1 has no test executor: automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; anything else is recorded with `iw record`. An `iw run` executor arrives with the agent mode in v0.2. |
 | Non-interactive | Commands never prompt when stdin is not a TTY or `--yes` is given; missing input is an error (exit 2). |
 
 ### JSON envelope
@@ -29,17 +31,17 @@
 { "severity": "error", "code": "unknown-key", "file": "specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml", "path": "steps[0].expectd", "message": "Unknown key \"expectd\". Did you mean \"expected\"?" }
 ```
 
-The shapes are defined as Zod schemas in `packages/cli/src/json.ts` and are part of the public contract: additive changes only within a major version.
+The shapes are defined as Zod schemas in [`packages/cli/src/json.ts`](../../packages/cli/src/json.ts) (`CommandData`, `ErrorEnvelope`), which is the field-level reference; the `data` lines below summarize them. They are part of the public contract: additive changes only within a major version. When the answer is "no" (`check` with errors, `status --gate` failing), the error envelope also carries the command's `data`.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | The command ran and the answer is "no": `check` found errors, `status --gate` failed, `import --dry-run` found conflicts |
+| 1 | The command ran and the answer is "no": `check` found errors, `status --gate` failed, `import --dry-run` found conflicts, `sync`/`export` refused by the secret scan |
 | 2 | Usage error (unknown flag, missing argument, ambiguous ref) |
 | 3 | Bundle or config error (no `.indx-watch/`, unsupported `schema_version`, invalid `project.toml`) |
-| 4 | Store, network or external tool error (S3, hosted server, `wrangler`, `cloudflared`) |
+| 4 | Store, network or external tool error (S3, hosted server, `wrangler`, `cloudflared`), or an internal error |
 
 ## Commands
 
@@ -47,7 +49,7 @@ v0.1 commands are listed below. Commands marked *(v0.2)* are designed but not bu
 
 ### `iw init [dir]`
 
-Create `.indx-watch/` in `dir` (default: current directory) with `project.toml`, `.gitignore`, and one environment.
+Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` (with `current_release = "v0.1.0"`), `.gitignore`, an environment `local` (`base_url = "http://localhost:3000"`, change it), a release `v0.1.0` and a feature `FEAT-1` "General" — so `iw new uc` works immediately.
 
 | Flag | Default | |
 |---|---|---|
@@ -67,7 +69,9 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--fix` | Canonicalize files, regenerate slugs, renumber duplicate keys (prints mapping) |
 | `--strict` | Treat warnings as errors |
 
-`data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "renumbered": { "from": string, "to": string, "id": string }[] }`
+Reference checks: see [concepts invariants](concepts.md#invariants).
+
+`data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "changed": string[], "renumbered": { "from": string, "to": string, "id": string }[] }`
 
 ### `iw fmt [paths...]`
 
@@ -80,7 +84,10 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 | Flag | Applies to | |
 |---|---|---|
 | `--title <text>` | all | Required in non-interactive use |
-| `--feature <FEAT>` | `uc` | Parent feature |
+| `--feature <FEAT>` | `uc` | Parent feature (default: the only feature, or `FEAT-1`) |
+| `--actor <text>`, `--goal <text>` | `uc` | Default: "User" and the title |
+| `--ac <text>` | `uc` | Repeatable; at least one acceptance criterion is required |
+| `--step "<instruction> => <expected>"` | `tc` | Repeatable; without it (and without `--template`/`--from`) one placeholder step is written and the file stays `draft` |
 | `--uc <UC>` | `ac`, `tc` | Parent use case (`ac` appends a criterion) |
 | `--text <text>` | `ac` | Criterion text |
 | `--covers <AC,...>` | `tc` | Default: all ACs of `--uc` |
@@ -89,9 +96,14 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 | `--kind <kind>` | `fixture` | `dataset`, `seed`, `file`, `account` |
 | `--template <name>` | `tc`, `uc`, `fixture` | From `templates/` |
 | `--from <file.toml\|->` | all | Merge field values from a TOML/JSON file or stdin (agents use this) |
-| `--origin ai --model <id> [--skill <name>]` | all | Marks the file as AI-written; forces `status = "draft"` |
+| `--ready` | `uc`, `tc`, `fixture` | Create as `ready` (humans only; rejected with `--origin ai`). Default `draft`. |
+| `--origin ai --model <id> [--skill <name>]` | `uc`, `ac`, `tc`, `fixture` | Marks the item as AI-written (`origin = "ai"`, `[ai]` table, `draft`; for `ac`, a criterion with `status = "draft"`) |
 
 `data`: `{ "kind": string, "id": string, "key": string, "file": string }`
+
+### `iw approve <ref>`
+
+Approve a draft use case, test case or fixture (or a draft acceptance criterion): sets `status = "ready"`, `approved_by` from your identity and `approved_version`. Refused for agents. `data`: `{ "ref", "file", "version", "approved_by" }`
 
 ### `iw status`
 
@@ -137,6 +149,7 @@ Record a run that was executed outside the browser runner — by a person in a t
 | `--note <text>` | |
 | `--confidence <0-1>` | Agents only |
 | `--release`, `--env`, `--commit` | Override detection |
+| `--rows <key,...>` | Dataset rows used |
 | `--from <run.json\|->` | Full run input as JSON (see [sync.md](sync.md#run-record)) |
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
@@ -147,11 +160,19 @@ Append a `human` judgement to a run. `--verdict <pass|fail|blocked|skipped>` and
 
 ### `iw waive <tc-ref>`
 
-Accept a known failure for a release. `--release`, `--reason` required. Rejected for P0. `data`: `{ "waiver": WaiverRecord }`
+Accept a known failure for a release. `--release`, `--reason` required. Applies to the current test case version and records the latest failing run. Rejected for P0 (effective priority) and for agents. `--revoke <waiver-id>` cancels one. `data`: `{ "waiver": WaiverRecord }`
+
+### `iw retract <record-id>`
+
+Hide a run or other record recorded by mistake (`--reason` required). `data`: `{ "retraction": RetractionRecord }`
+
+### `iw deployment add`
+
+Record that a build was deployed: `--env <name>` (required), `--release`, `--url`, `--commit` (default: detected). The GitHub Action uses this. `data`: `{ "deployment": DeploymentRecord }`
 
 ### `iw fixture add <path> --to <FX>` / `iw fixture fetch <FX>`
 
-Add a data file to a fixture (pointer if large, or with `--blob`) / download pointer blobs into `cache/blobs/` and verify hashes. `data`: `{ "files": { "name": string, "sha256": string, "pointer": boolean }[] }`
+Add a data file to a fixture (pointer if large, or with `--blob`) / download pointer blobs into `cache/blobs/` and verify hashes. `add` runs the secret scan first and refuses to create a pointer without a `[store]` unless `--local-only`. `data`: `{ "files": { "name": string, "sha256": string, "pointer": boolean }[] }`
 
 ### `iw sync`
 
@@ -163,8 +184,10 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--pull-only`, `--push-only` | |
 | `--evidence <on-demand\|all\|none>` | Override `[store].evidence` |
 | `--store <url>` | Override `[store].url` |
+| `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
+| `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string }`
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null }`
 
 ### `iw serve`
 
@@ -176,6 +199,7 @@ Start the server and web UI on Node: readiness dashboard, spec tree, test case v
 | `--host <addr>` | `127.0.0.1` | Use `0.0.0.0` to share on a LAN (no auth: see [security.md](security.md)) |
 | `--open` | | Open the browser |
 | `--sync` | on if `[store]` is set | Run sync in the background |
+| `--identity-header <name>` | | Trust this proxy header for the user's email (e.g. `X-Forwarded-Email`). Without it, writes from non-loopback clients are rejected ([security.md](security.md#shared-servers)). |
 
 Prints the URL. With `--json`, prints `{ "url": string }` once listening and keeps running.
 
@@ -191,13 +215,15 @@ Render a report offline from the bundle plus the local replica. See [reports.md]
 | `--format <md\|html\|pdf\|json>` | `md` | `pdf` needs a local Chromium (Playwright) |
 | `--out <path>` | stdout for `md`/`json`, `report-<release>.<ext>` otherwise | |
 | `--evidence <none\|links\|embed>` | `embed` for `html`, `links` otherwise | |
-| `--audience <internal\|customer>` | `internal` | `customer` omits internal notes, actor emails and environment guides |
+| `--audience <internal\|customer>` | `internal` | `customer` applies the [redaction rules](reports.md#sharing-with-customers) |
+| `--locale <en\|ja>` | project `source_locale` | Labels and content translations |
+| `--evidence-base <url>` | | Prefix for evidence links in `md` |
 
 `data`: `{ "file": string | null, "gate": GateResult }`
 
-### `iw export --full` / `iw import <archive>`
+### `iw export --full` and `iw import <archive>`
 
-Write / read a portable archive (`.tar.zst`, or `.tar.gz` where zstd is unavailable) with a manifest of SHA-256 hashes, the bundle, all records as NDJSON and all blobs. `import` writes into the current directory (must not contain a bundle unless `--merge`) and verifies every hash; `--dry-run` reports what would change. `data`: `{ "archive": string, "manifest": { "sha256": string, "files": number, "records": number, "blobs": number } }`
+Write / read a portable archive (`.tar.zst`, or `.tar.gz` where zstd is unavailable) with a manifest of SHA-256 hashes, the bundle, all records as NDJSON and all blobs. `import` writes into the current directory (must not contain a bundle unless `--merge`) and verifies every hash; `--dry-run` reports what would change. Archive layout: `manifest.json`, `bundle/**` (definition and data files only; no `cache/`, `runs/`), `records.ndjson` (canonical record JSON, sorted by ID), `blobs/sha256/<aa>/<hash>`. Tar entries have fixed mtime, uid and mode; the manifest hash covers contents, not compression. `data` (export): `{ "archive", "manifest": { "sha256", "files", "records", "blobs" } }`; `import` adds `dryRun` and `changes`.
 
 ### `iw deploy`
 
@@ -207,6 +233,7 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 |---|---|
 | `--dry-run` | Print the resources and the exact `wrangler` commands, change nothing |
 | `--name <worker>` | Overrides `[hosting].name` |
+| `--public` | Allow deploying without Cloudflare Access (not recommended) |
 
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
 
@@ -216,7 +243,7 @@ Drop and rebuild the local index from the bundle and the local replica. `data`: 
 
 ### `iw migrate`
 
-Upgrade the bundle to the current `schema_version`. `--dry-run` lists changes. `data`: `{ "from": number, "to": number, "changed": string[] }`
+Upgrade the bundle to the current `schema_version`. In v0.1 there is only version 1, so it verifies the version and changes nothing. `data`: `{ "from": number, "to": number, "changed": string[] }`
 
 ### `iw mcp`
 
@@ -228,7 +255,7 @@ Copy the shipped agent skills into the repository: `--claude` → `.claude/skill
 
 ### `iw login <url>` *(thin wrapper)*
 
-Runs `cloudflared access login <url>` so later commands can obtain a token with `cloudflared access token -app=<url>`. INDX Watch stores nothing itself.
+Runs `cloudflared access login <url>` so later commands can obtain a token with `cloudflared access token -app=<url>`. INDX Watch stores nothing itself. `data`: `{ "url": string }`
 
 ## Environment variables
 
@@ -241,12 +268,18 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_RELEASE`, `IW_ENV` | writes, status, report | Scope defaults |
 | `IW_STORE` | sync | Store URL override |
 | `AWS_*` | S3 store | Standard AWS SDK credential chain |
-| `IW_ACCESS_TOKEN` | http store | Pre-obtained Cloudflare Access token (CI) |
+| `IW_ACCESS_TOKEN` | http store | Pre-obtained Cloudflare Access token |
+| `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | http store | Access service token (CI) |
+| `IW_COMMIT` | writes | Build commit when git is unavailable |
+| `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
+| `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 
 ## Acceptance criteria
 
 - [ ] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [ ] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [ ] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
+- [ ] In an empty directory, `iw init` → `iw new uc --title "Sign up" --ac "A confirmation email is sent" --ready` → `iw new tc --uc UC-1 --title "x" --step "Sign up => Email arrives" --ready` → `iw check` exits 0.
+- [ ] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [ ] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [ ] No command prompts when stdin is not a TTY.

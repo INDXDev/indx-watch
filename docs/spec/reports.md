@@ -35,17 +35,17 @@ The HTML report is a single file with inline CSS, no JavaScript required, readab
 
 ## Sharing with customers
 
-- `--audience customer` removes: `notes` fields, environment guides and access methods, actor emails (replaced by display names or "QA team"), CI URLs of private repositories, and anything under `[x]`.
+- `--audience customer` removes: bundle `notes`, run and step notes, judgement reasons (unless `--include-notes`), environment guides, base URLs and access methods, actor emails (replaced by display names or "QA team"), CI URLs (unless `--include-ci-links`), and anything under `[x]`. Fixture placeholders stay unresolved (`{{FX-3.username}}`). Evidence defaults to `none` (opt in with `--evidence embed`).
 - Account fixtures never appear in reports, in any audience; only their key and title.
 - On the hosted app, a report can be shared via a **share link**: an unguessable token (128 bits), an expiry (default 7 days, max 90), and a fixed audience. Share links serve a frozen snapshot rendered at creation time, not live data. Creating and opening share links are recorded as records with the actor. Share-link routes are the only routes that bypass Cloudflare Access; see [security.md](security.md#share-links). *(v0.2)*
 
 ## Example
 
-For `examples/shop` with the sample results in `examples/shop/store/`, `iw report --release v1.2.0 --format md` produces the file committed at [`examples/shop/reports/v1.2.0.md`](../../examples/shop/reports/v1.2.0.md). CI regenerates it and fails on any difference.
+For `examples/shop` with the sample results in `examples/shop/store/`, `IW_NOW=2026-11-19T00:00:00Z IW_ACTOR=qa@shop.test iw report --release v1.2.0 --format md` produces the file committed at [`examples/shop/reports/v1.2.0.md`](../../examples/shop/reports/v1.2.0.md). The bundle commit line is omitted when `IW_NOW` is set. CI regenerates it and fails on any difference.
 
 ## Acceptance criteria
 
 - [ ] `iw report --format html` works offline and produces one file with no external requests (checked by loading it in Playwright with network disabled).
 - [ ] `--audience customer` output contains no email addresses and no `notes` text from the bundle (tested on `examples/shop`).
-- [ ] The Markdown report for `examples/shop` matches the committed example byte-for-byte except the "generated at" line.
+- [ ] The Markdown report for `examples/shop`, generated with the fixed `IW_NOW` and `IW_ACTOR`, matches the committed example byte-for-byte.
 - [ ] The gate section of the report equals the `gate` object of `iw status --json` for the same scope.

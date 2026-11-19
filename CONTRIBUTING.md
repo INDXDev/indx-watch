@@ -4,7 +4,7 @@ Thanks for helping! This project is small on purpose. Read [AGENTS.md](AGENTS.md
 
 ## Development setup
 
-Requirements: Node 22+ (20.19 minimum), pnpm 10.
+Requirements: Node 22.13+, pnpm 10.
 
 ```bash
 git clone https://github.com/INDXDev/indx-watch && cd indx-watch
@@ -41,8 +41,7 @@ Skills live in `skills/<name>/SKILL.md` (Agent Skills format, portable frontmatt
 
 Add the key to both `packages/web/src/messages/en.json` and `ja.json`.
 
-## Dogfooding {#dogfooding}
-
+## Dogfooding
 This repository manages its own QA in [`.indx-watch/`](.indx-watch). When you add a feature, add or update its use case, acceptance criteria and test cases there, and tag the automated test with `@TC-n`. CI records results with the Playwright reporter and posts a report to the job summary.
 
 ## Commits and pull requests

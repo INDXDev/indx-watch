@@ -3,6 +3,7 @@ export * from './check.js';
 export * from './hash.js';
 export * from './ids.js';
 export * from './load.js';
+export * from './record-io.js';
 export * from './schema/common.js';
 export * from './schema/definitions.js';
 export * from './schema/records.js';

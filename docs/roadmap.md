@@ -9,10 +9,10 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | ID | Task | Area | Acceptance criteria |
 |---|---|---|---|
 | T-101 | Bundle schemas, canonical TOML, IDs, hashes, JSON Schema generation | `bundle` | [bundle-format.md](spec/bundle-format.md#acceptance-criteria) |
-| T-102 | `check` (schemas, refs, keys, AI rule, secret scan, unknown files) | `bundle` | [concepts.md](spec/concepts.md#acceptance-criteria), [security.md](spec/security.md#acceptance-criteria) |
+| T-102 | `check` (schemas, refs, keys, AI approval rule, priority rule, secret scan, unknown files) and `approve` | `bundle` | [concepts.md](spec/concepts.md#acceptance-criteria), [security.md](spec/security.md#acceptance-criteria) |
 | T-103 | Model, decision policy, status, coverage, gate, i18n resolve | `core` | [concepts.md](spec/concepts.md#acceptance-criteria), [i18n.md](spec/i18n.md#acceptance-criteria) |
 | T-104 | ObjectStore adapters (memory, fs, s3, r2, http) + contract tests; local replica; identity and context providers | `store` | [sync.md](spec/sync.md#acceptance-criteria) (adapter suite), [security.md](spec/security.md#acceptance-criteria) (identity) |
-| T-105 | Sync: push, pull with lookback, watch, bundle snapshots, workspace merge | `sync` | [sync.md](spec/sync.md#acceptance-criteria) |
+| T-105 | Sync: push, pull with lookback, watch, bundle snapshots | `sync` | [sync.md](spec/sync.md#acceptance-criteria) |
 | T-106 | CLI v0.1 commands with `--json` | `cli` | [cli.md](spec/cli.md#acceptance-criteria) |
 | T-107 | Server (Hono) for Node and Workers; report rendering md/html | `server` | [reports.md](spec/reports.md#acceptance-criteria), [architecture.md](architecture.md#acceptance-criteria) |
 | T-108 | Web UI: dashboard, spec tree, TC view, manual runner, run viewer + review, fixtures, report preview (en/ja) | `web` | [design](design/index.html) screens; [i18n.md](spec/i18n.md#acceptance-criteria) |
@@ -21,7 +21,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-111 | `examples/shop` app, Playwright tests, sample results, committed report | `examples` | [reports.md](spec/reports.md#example) |
 | T-112 | Skills (Claude Code + Codex) and `iw mcp` | `skills`, `cli` | [agents.md](spec/agents.md#acceptance-criteria) |
 | T-113 | `iw deploy` for Cloudflare (dry-run exact) + hosting guides | `cli`, `docs` | [guides/self-host-cloudflare.md](guides/self-host-cloudflare.md) |
-| T-114 | `iw export --full` / `iw import` | `bundle`, `cli` | [cli.md](spec/cli.md#iw-export---full--iw-import-archive) |
+| T-114 | `iw export --full` / `iw import` | `bundle`, `cli` | [cli.md](spec/cli.md#iw-export---full-and-iw-import-archive) |
 | T-115 | Dogfooding: this repo's `.indx-watch/`, CI posting runs, release report | repo | [CONTRIBUTING.md](../CONTRIBUTING.md#dogfooding) |
 | T-116 | CI: lint, typecheck, test, schemas, round trip, docs links, LOC budget, e2e | repo | [.github/workflows/ci.yml](../.github/workflows/ci.yml) green |
 
@@ -47,7 +47,10 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-206 | Log compaction snapshots | New clone pulls 100k records in < 10 s from a snapshot |
 | T-207 | Visual judge with approved baselines | `visual` judgements; baseline approval is a human record |
 | T-208 | Other CI providers' context (GitLab, CircleCI, Buildkite) | Context detected from standard variables |
-| T-209 | Editing definitions in the hosted UI (workspace mode) | Edits become `file` records; conflicts surface in the UI |
+| T-209 | Workspace mode: definitions synced through the store, edited in the hosted UI | [sync.md](spec/sync.md#workspace-mode-v02) design notes hold |
+| T-210 | `node:sqlite` index for large local projects | Same Drizzle schema as D1 |
+| T-211 | Signed records (server and OIDC) so direct bucket writes cannot claim verified identities | Forged `via` is shown as unverified |
+| T-212 | Interoperate with Playwright Test Agents' `specs/*.md` plans (import as draft test cases) | A planner spec imports into drafts that pass `iw check` |
 
 ## v0.3 — teams and customers
 

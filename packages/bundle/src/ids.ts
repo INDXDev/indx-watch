@@ -1,4 +1,4 @@
-import { monotonicFactory } from 'ulidx';
+import { monotonicFactory } from 'ulid';
 import { type IdPrefix, KEY_PATTERNS } from './schema/common.js';
 
 const ulid = monotonicFactory();

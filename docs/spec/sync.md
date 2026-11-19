@@ -50,29 +50,35 @@ Any `ObjectStore` (fs, S3, R2 binding, HTTP) exposes the same keys under the sto
 | Log object | Key = a ULID generated **at upload time**. Body = `{"v":1,"writer":"<writer-id>","records":[…]}`, at most 1,000 records or 5 MB. Never overwritten. |
 | Blob | Key = SHA-256 of the content. Written only if absent. Verified on read. |
 
-Writes use `If-None-Match: *` where the backend supports it, so nothing is ever overwritten; ULID keys and content hashes make collisions practically impossible anyway. Store URLs:
+Writes use `If-None-Match: *` (on GCS: `x-goog-if-generation-match: 0`), so nothing is ever overwritten; ULID keys and content hashes make collisions practically impossible anyway. Store URLs:
 
 | URL | Adapter | Credentials |
 |---|---|---|
 | `file:///abs/path` or `file://../rel` (relative to the bundle) | `fs` | file system permissions |
-| `s3://bucket/prefix` + `[store].endpoint`/`region` | `s3` (S3, R2, MinIO, GCS interop) | AWS SDK credential chain (`AWS_ACCESS_KEY_ID`, profiles, …) |
-| `https://watch.example.com` | `http` → the hosted server's `/api/store/*` | `cloudflared access token` or `IW_ACCESS_TOKEN` (`cf-access-token` header), or Access service token headers |
+| `s3://bucket/prefix` + `[store].endpoint`/`region` | `s3` (S3, R2, MinIO, GCS interop) | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN`; with `AWS_PROFILE` (incl. SSO), credentials come from `aws configure export-credentials --format process` |
+| `https://watch.example.com` | `http` → the hosted server's [store endpoints](#store-http-endpoints) | `IW_ACCESS_TOKEN`, or `cloudflared access token -app=<url>`, sent as `cf-access-token`; in CI an Access service token (`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`) |
 | (Workers only) | `r2` binding | Worker binding |
 
-## Records {#records}
+### Store HTTP endpoints
 
-Every record is a JSON object with this envelope; the Zod schemas live in `packages/bundle/src/schema/records.ts` and are published as `schemas/v1/record.json`.
+A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; 412 with `If-None-Match: *` when it exists), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
+
+## Records
+
+Every record is a JSON object that starts with `kind` and `id`, followed by the envelope. The Zod schemas in [`packages/bundle/src/schema/records.ts`](../../packages/bundle/src/schema/records.ts) are the field-level reference and are published as `schemas/v1/record.json`.
 
 | Field | |
 |---|---|
-| `v` | `1` |
-| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `file` |
+| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction` (`file` is reserved for workspace mode) |
 | `id` | `{prefix}_{ULID}`, generated at creation (offline) |
+| `v` | `1` |
 | `project` | project machine ID |
 | `at` | creation time (RFC 3339) |
 | `actor`, `source` | [security.md](security.md#identity) |
 
-### Run record {#run-record}
+**Canonical record JSON.** Writers validate a record with its strict schema and store `JSON.stringify` of the parsed result (keys in schema order, defaults materialized, no whitespace). Those exact bytes go into the replica, log objects and archives. Readers accept unknown extra fields (from newer tools) and keep the bytes they received; two records with the same ID are compared by these bytes.
+
+### Run record
 
 ```json
 {
@@ -102,11 +108,12 @@ Every record is a JSON object with this envelope; the Zod schemas live in `packa
 
 | Kind | Fields (besides the envelope) | Meaning |
 |---|---|---|
-| `judgement` | `run` (run ID), `judgement` (as in the run) | A later judgement, e.g. a human review. |
-| `waiver` | `release`, `test_case` (ID + key), `reason`, `revokes` (optional waiver ID) | Accept a known failure; a later waiver with `revokes` cancels one. |
-| `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment. |
-| `bundle` | `commit`, `ref`, `sha256` (blob of a `.tar` of the bundle's definition files), `files` | A snapshot of definitions for hosted viewers in git mode. |
-| `file` | `path` (inside the bundle), `sha256` or `deleted: true`, `bases` (parent version hashes) | Workspace mode: one version of one definition file. |
+| `judgement` | `run` (run ID), `judgement` (as in the run: `id`, `kind`, `verdict`, `confidence`, `diff_ratio`, `reason`, `test`, `flaky`, `by`, `at`) | A later judgement, e.g. a human review. |
+| `waiver` | `release`, `test_case` (ID + key), `reason`, `version` (test case version it applies to), `run`, `revokes` (waiver ID) | Accept a known failure of that version; a later waiver with `revokes` cancels one. |
+| `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment (`iw deployment add`). |
+| `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over sorted `path sha256` lines, to skip unchanged snapshots), `files` (count) | A snapshot of definitions for hosted viewers in git mode. |
+| `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
+| `file` | reserved | Workspace mode (v0.2). |
 
 ## Merge rules
 
@@ -115,9 +122,9 @@ Every record is a JSON object with this envelope; the Zod schemas live in `packa
 | Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one whose log key sorts first and report a warning. |
 | Verdict changes | Never edit; append a `judgement` record. Verdict = decision policy over all judgements of the run. |
 | Waivers | Latest non-revoked waiver per (release, test case) by `at`, ties broken by `id`. |
-| Bundle snapshots | Latest by `at` per `ref`. |
+| Bundle snapshots | Latest by `commit_time`, then `at`, per `ref`, so an outdated checkout cannot roll the hosted view back. |
+| Retractions | A retracted record is ignored by the model; push never uploads a retracted record again. |
 | Blobs | Content-addressed; identical by definition. |
-| Workspace files | See [workspace mode](#workspace-mode). |
 
 Because every operation is a union of immutable items, sync is idempotent, order-independent and safe to interrupt at any point.
 
@@ -130,14 +137,14 @@ Because every operation is a union of immutable items, sync is idempotent, order
 3. Upload every blob they reference that the store does not have (`HEAD`, then conditional `PUT`).
 4. Upload records in log objects of ≤ 1,000 records, keyed by a fresh ULID, *after* their blobs.
 5. Add their IDs to the pushed set.
-6. Git mode: if the bundle's definitions hash differs from the last pushed snapshot, upload a `bundle` record (only from a clean working tree, unless `--snapshot-dirty`).
+6. With `--snapshot` (the GitHub Action passes it on the default branch): if the definitions hash differs from the last pushed snapshot and the working tree is clean, upload the bundle tarball and a `bundle` record. Plain local `iw sync` never publishes snapshots.
 
 **Pull**
 
 1. List `v1/log/` with `StartAfter` = the ULID of (cursor time − 15 minutes) — the **lookback window** that absorbs clock skew and slow uploads between writers.
 2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent, mark them as pushed.
-3. Advance the cursor to the greatest key seen.
-4. Every 24 hours (or with `--full`), list the whole log once to catch writers whose clocks were wrong by more than the window.
+3. Advance the cursor to min(greatest key seen, ULID of the reader's current time), so one writer with a clock running ahead cannot push every reader's cursor into the future.
+4. Every 24 hours (or with `--full`, or when `cache/` was deleted), list the whole log once to catch writers whose clocks were wrong by more than the window and to rebuild the pushed set.
 5. Blobs are fetched per `[store].evidence`: `on-demand` (when a page, report or command needs them — read-through from `iw serve`), `all`, or `none`.
 
 **Watch** (`iw sync --watch`): push within ~300 ms of a local write (file watcher on `runs/records/`), poll the store every 3 s (`--interval`). With the `http` adapter, the server can answer list requests by long-polling (v0.2).
@@ -158,15 +165,9 @@ sequenceDiagram
   end
 ```
 
-## Workspace mode {#workspace-mode}
+## Workspace mode (v0.2)
 
-For teams without git (`[store] mode = "workspace"`), definition files also sync through the store, Drive-style.
-
-- Each local change to a bundle file (create, edit, delete) is pushed as a `file` record whose `bases` is the version the editor started from, plus the content blob.
-- For each path, versions form a graph. **Heads** are versions no other version lists as a base.
-- One head: that is the file. Pull writes it unless the local file has unpushed changes.
-- Several heads: pull attempts a **field-level three-way merge** against their common base (top-level fields, arrays of tables matched by `id` or `key`). If both sides changed the same field differently, the latest head (by `at`) is written to the path and the others to `<name>.conflict-<sha8>.toml`; `iw check` fails until a person resolves the conflict, which produces a new version whose `bases` are all heads.
-- Renames are delete + create; identity stays the `id` inside the file.
+For teams without git, definitions will also sync through the store, Drive-style ([roadmap T-209](../roadmap.md#v02--agents-and-sharing)). Design notes for that work: versions are keyed by `file` record IDs (not content hashes, so reverts do not create cycles); entities are tracked by the `id` inside each file, not by path; concurrent edits get a field-level three-way merge against the common base, and unresolvable fields produce `<name>.conflict-<sha8>.toml` files that make `iw check` fail until resolved. v0.1 tools reject `[store] mode = "workspace"`.
 
 ## The hosted server and the index
 
@@ -174,7 +175,9 @@ The server keeps an index (SQLite on Node, D1 on Cloudflare) of records and the 
 
 - its own writes, immediately;
 - uploads through `/api/store/*`, on receipt;
-- writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger.
+- writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger. Each ingest handles at most 50 log objects, saves its cursor in the index, and holds a lease row so only one runs at a time; a fresh deploy on a large bucket catches up over several invocations.
+
+Records written by the hosted server itself carry an Access-verified actor. Records written directly to the bucket are trusted as written; see the [threat model](security.md#threat-model).
 
 `iw reindex` (or deleting the index) rebuilds it from the store; nothing is lost.
 
@@ -185,5 +188,6 @@ The server keeps an index (SQLite on Node, D1 on Cloudflare) of records and the 
 - [ ] A record uploaded with a key 10 minutes older than the reader's cursor is still pulled (lookback test with a fake clock).
 - [ ] Interrupting a push after blobs but before the log object, then re-running, leaves no record without its blobs.
 - [ ] A store whose `indx-watch-store.json` names another project is refused with exit code 4.
-- [ ] Workspace mode: two offline edits to different fields of the same test case merge without conflict; edits to the same field produce a `.conflict-` file and a failing `iw check`.
-- [ ] The adapter contract test suite passes for `memory`, `fs`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).
+- [ ] A reader whose store contains a log key 1 day in the future still pulls records written afterwards by correctly clocked writers.
+- [ ] `iw sync` without `--snapshot` never writes a `bundle` record.
+- [ ] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).

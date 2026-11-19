@@ -25,6 +25,8 @@ const lifecycle = {
   status: DefStatus.optional(),
   origin: Origin.optional(),
   approved_by: z.string().optional(),
+  /** version (tcv:/fxv:) or use-case content hash at approval; written by `iw approve` */
+  approved_version: z.string().optional(),
   tags: z.array(Tag).optional(),
 };
 const tail = {
@@ -98,6 +100,8 @@ export const Project = z.strictObject({
   locales: z.array(Locale).min(1),
   default_environment: z.string().optional(),
   current_release: z.string().optional(),
+  /** branch whose builds fall back to current_release (default 'main') */
+  default_branch: z.string().optional(),
   gate: Gate.optional(),
   decision_policy: DecisionPolicy.optional(),
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
@@ -142,6 +146,8 @@ export const Release = z.strictObject({
   state: z.enum(['planning', 'testing', 'ready', 'released']),
   target_date: LocalDate.optional(),
   refs: z.array(z.string()).optional(),
+  /** when set, the readiness gate only counts test cases in this plan */
+  plan: keyOf('plan').optional(),
   ...tail,
 });
 export type Release = z.infer<typeof Release>;
@@ -164,6 +170,9 @@ export const Criterion = z.strictObject({
   id: idOf('ac'),
   key: keyOf('criterion'),
   text: z.string().min(1),
+  /** default ready; draft (e.g. AI-proposed) and retired criteria do not count; retired keeps the key reserved */
+  status: z.enum(['draft', 'ready', 'retired']).optional(),
+  origin: Origin.optional(),
   notes: z.string().optional(),
   i18n: z.partialRecord(Locale, translation({ text: z.string() })).optional(),
 });
@@ -202,7 +211,7 @@ export const Step = z.strictObject({
   expected: z.string().min(1),
   evidence: z.array(EvidenceKind).optional(),
   i18n: z
-    .partialRecord(Locale, z.strictObject({ instruction: z.string().optional(), expected: z.string().optional() }))
+    .partialRecord(Locale, translation({ instruction: z.string().optional(), expected: z.string().optional() }))
     .optional(),
 });
 export type Step = z.infer<typeof Step>;
@@ -242,7 +251,10 @@ export const TestCase = z.strictObject({
 });
 export type TestCase = z.infer<typeof TestCase>;
 
-/** Fields whose canonical form defines the test case version (docs/spec/concepts.md#versions-and-staleness). */
+/**
+ * Fields whose canonical form defines the test case version (docs/spec/concepts.md#versions-and-staleness).
+ * steps[].i18n is excluded; the text of each covered criterion is included.
+ */
 export const TEST_CASE_VERSION_FIELDS = [
   'covers',
   'mode',

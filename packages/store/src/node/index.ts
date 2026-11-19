@@ -29,7 +29,7 @@ export function processContext(opts?: { env?: Record<string, string | undefined>
   throw new Error('not implemented (T-104)');
 }
 
-/** Index on Node: node:sqlite file at <bundleDir>/cache/index.sqlite when available, otherwise in memory. */
+/** Index on Node: in memory in v0.1 (node:sqlite is roadmap T-210). */
 export function openNodeIndex(bundleDir: string, opts?: { memory?: boolean }): Promise<Index> {
   void bundleDir;
   void opts;

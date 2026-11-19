@@ -26,8 +26,8 @@ export interface SyncOptions {
   state: StateStore;
   projectId: string;
   writer: string;
-  /** git mode: publish a bundle snapshot when definitions changed */
-  bundle?: { fs: BundleFs; commit?: string; ref?: string; clean: boolean; actor: import('@indx-watch/bundle').Actor };
+  /** publish a bundle snapshot when definitions changed (only with `iw sync --snapshot`; the GitHub Action sets it on the default branch) */
+  bundle?: { fs: BundleFs; commit?: string; ref?: string; clean: boolean; commitTime?: string; actor: import('@indx-watch/bundle').Actor };
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
   full?: boolean;
@@ -59,17 +59,5 @@ export function watch(
 /** ULID string for a time with zero randomness (used for StartAfter with lookback). */
 export function ulidFloor(ms: number): string {
   void ms;
-  throw new Error('not implemented (T-105)');
-}
-
-/** Workspace mode: three-way merge of parsed TOML objects (top-level fields; arrays of tables by id/key). */
-export function mergeDefinitions(
-  base: Record<string, unknown> | null,
-  ours: Record<string, unknown>,
-  theirs: Record<string, unknown>,
-): { merged: Record<string, unknown>; conflicts: string[] } {
-  void base;
-  void ours;
-  void theirs;
   throw new Error('not implemented (T-105)');
 }

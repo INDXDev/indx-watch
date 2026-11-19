@@ -25,6 +25,8 @@ evidence = ["screenshot"]
 [steps.i18n.ja]
 instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
 expected = "「This coupon has expired」と表示され、合計は「40.00」のまま。"
+status = "reviewed"
+source_hash = "000000000000"
 
 [[judges]]
 kind = "assert"

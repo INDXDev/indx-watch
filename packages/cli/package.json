@@ -23,7 +23,7 @@
     "cli"
   ],
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "bin": {
     "iw": "./dist/bin.js",
@@ -50,12 +50,11 @@
     "@modelcontextprotocol/server": "^2.4.0",
     "aws4fetch": "^1.0.20",
     "citty": "^0.2.2",
-    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.19",
     "jose": "^6.2.18",
-    "nanotar": "^0.3.0",
+    "modern-tar": "^0.8.6",
     "smol-toml": "^1.9.1",
-    "ulidx": "^2.4.1",
+    "ulid": "^3.0.2",
     "zod": "^4.6.7"
   },
   "peerDependencies": {

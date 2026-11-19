@@ -1,6 +1,6 @@
 /**
  * Portable full archive (docs/spec/cli.md#iw-export---full--iw-import-archive).
- * Uncompressed tar here; compression (zstd/gzip) is done by the caller.
+ * Uncompressed tar (modern-tar: sorted entries, mtime 0, uid/gid 0, fixed modes); compression (zstd when available, else gzip) is done by the caller.
  * CONTRACT: signatures frozen; implementation T-114.
  */
 export interface ArchiveEntry {

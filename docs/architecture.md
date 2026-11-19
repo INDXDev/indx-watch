@@ -46,43 +46,26 @@ flowchart TB
 
 Outside `packages/`: [`action.yml`](../action.yml) (composite action), [`skills/`](../skills) (agent skills), [`schemas/`](../schemas) (generated), [`examples/shop`](../examples/shop) (the one sample), [`.indx-watch/`](../.indx-watch) (this repo's own QA).
 
-## Ports and adapters {#ports-and-adapters}
-
-Interfaces live in `packages/store/src/ports.ts`. Only adapter folders may import vendor SDKs (enforced by Biome `noRestrictedImports`).
+## Ports and adapters
+Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.ts) (the reference; the table abridges it). Only adapter folders may import vendor SDKs (enforced by Biome `noRestrictedImports`).
 
 | Port | Methods (abridged) | Adapters in v0.1 |
 |---|---|---|
 | `ObjectStore` | `get(key)`, `head(key)`, `put(key, body, { ifNoneMatch })`, `list({ prefix, startAfter, limit })`, `delete(key)` (tests only) | `fs`, `s3` (aws4fetch: S3, R2, MinIO, GCS), `r2` (binding), `http` (hosted server), `memory` |
-| `Index` | `ingest(records)`, `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory`, `sqlite` (`node:sqlite` via Drizzle), `d1` (Drizzle) |
+| `Index` | `ingest(records)`, `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
 | `BundleFs` | `read`, `write`, `list`, `remove`, `stat` | Node fs, in-memory (tests, Workers snapshot), tar snapshot |
-| `IdentityProvider` | `current(request?) → Actor` | `env`, `git`, `github`, `cloudflare-access` |
+| `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
 | `BrowserProvider` | `open`, `act`, `observe`, `close` | interface + fake (v0.2: Playwright, Cloudflare Browser Run) |
 | `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }`, `complete` | interface + fake (v0.2: Anthropic, optional gateway) |
 
 `ResultStore` (in `store`) implements the [sync protocol](spec/sync.md) once on top of any `ObjectStore`.
 
-## Core model {#core-model}
+## Core model
 
-`buildModel(bundle, records)` returns plain objects with resolved references:
+`buildModel(bundle, records)` returns a `Model` with resolved references; the types are in [`packages/core/src/types.ts`](../packages/core/src/types.ts). Everything the CLI, server, reporter, MCP server and reports show is a function of `Model` and a `Scope`. There is no second implementation of any rule.
 
-```ts
-interface Model {
-  project: Project;
-  features: FeatureNode[];          // → useCases → criteria (with covering testCases)
-  testCases: Map<string, TestCaseNode>;   // by ID; includes version, priority, fixture refs
-  fixtures: Map<string, FixtureNode>;     // includes version, files
-  runs: Map<string, RunView>;             // records + later judgements; verdict + deciding rule
-  waivers: WaiverRecord[];
-  deployments: DeploymentRecord[];
-  keys: KeyIndex;                          // key ↔ ID lookups
-}
-```
-
-Everything the CLI, server, reporter, MCP server and reports show is a function of `Model` and a `Scope`. There is no second implementation of any rule.
-
-## HTTP API {#http-api}
-
+## HTTP API
 The server's routes, request and response types are defined in [`packages/server/src/contract.ts`](../packages/server/src/contract.ts) (`ROUTES` and the exported interfaces). The web UI and the `http` store adapter use only these. `/api/store/*` exposes the [store protocol](spec/sync.md#store-layout) so a hosted server can act as a result store for `iw sync`.
 
 ## Data flow
@@ -109,14 +92,13 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 
 | Target | Command | Store | Index | Identity | Static UI |
 |---|---|---|---|---|---|
-| Local | `npx indx-watch serve` | local replica (+ any remote via sync) | memory or `node:sqlite` | git | served by `@hono/node-server` from the package |
-| Docker / VM | `node …/iw serve --host 0.0.0.0` | `s3://` or `file://` | `node:sqlite` file | env, or Cloudflare Access in front | same |
+| Local | `npx indx-watch serve` | local replica (+ any remote via sync) | memory | git | served by `@hono/node-server` from the package |
+| Docker / VM | `iw serve --host 0.0.0.0 --identity-header …` | `s3://` or `file://` | memory | trusted proxy header (SSO proxy or Cloudflare Access) | same |
 | Cloudflare | `iw deploy` | R2 binding | D1 | Cloudflare Access JWT | Workers static assets |
 
-Node ≥ 20.19 is supported; Node 22+ is recommended (built-in `node:sqlite`, `zstd`).
+Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
-## Line budget {#line-budget}
-
+## Line budget
 Counted as non-blank, non-comment lines of `src/` (tests excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description.
 
 | Package | Budget |
@@ -131,22 +113,20 @@ Counted as non-blank, non-comment lines of `src/` (tests excluded) by `scripts/l
 | playwright | 400 |
 | **Total** | **11,400** |
 
-## Dependencies {#dependencies}
-
+## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.
 
 | Dependency | Why |
 |---|---|
 | `zod` | One schema source for validation, TypeScript types and JSON Schema |
 | `smol-toml` | Small, spec-compliant TOML parser (we serialize ourselves, [ADR 0004](adr/0004-canonical-toml.md)) |
-| `ulidx` | ULIDs that work on Node and Workers |
+| `ulid` | ULIDs (monotonic factory) on Node and Workers |
 | `hono`, `@hono/node-server` | One HTTP app for Node and Workers |
 | `jose` | Verify Cloudflare Access JWTs |
 | `aws4fetch` | SigV4 signing over `fetch`: S3/R2/MinIO on Node and Workers without the AWS SDK |
-| `drizzle-orm` | One SQLite schema for `node:sqlite` and D1 |
 | `@modelcontextprotocol/server` | Official MCP server (SDK v2, runtime-neutral; stdio for `iw mcp`) |
 | `citty` | Tiny CLI argument parsing with subcommands |
-| `nanotar` | Tar read/write for archives and bundle snapshots |
+| `modern-tar` | Deterministic tar read/write (long paths, no dependencies, Workers-compatible) for archives and bundle snapshots |
 
 Build-time only: TypeScript, tsup (esbuild), Vite, React, Biome, Vitest, Playwright (peer of the reporter, optional).
 

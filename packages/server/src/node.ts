@@ -10,6 +10,11 @@ export interface NodeServerOptions {
   sync?: boolean;
   /** directory with the built SPA (index.html); defaults to the packaged web build */
   webRoot?: string;
+  /**
+   * Trusted proxy header carrying the user's email (e.g. X-Forwarded-Email from an SSO proxy).
+   * Without it, write requests from non-loopback addresses are rejected (docs/spec/security.md#shared-servers).
+   */
+  identityHeader?: string;
 }
 
 export async function startNodeServer(opts: NodeServerOptions): Promise<{ url: string; close(): Promise<void> }> {

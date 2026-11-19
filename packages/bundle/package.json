@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./node": "./src/node/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/index.ts"
+  },
   "dependencies": {
     "smol-toml": "^1.9.1",
-    "ulidx": "^2.4.1",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "ulid": "^3.0.2"
   }
 }

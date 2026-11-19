@@ -14,8 +14,8 @@ Cloudflare-specific services (D1, R2 bindings, Access, Browser Run, Workflows) l
 | Port | v0.1 adapters |
 |---|---|
 | `ObjectStore` | `fs`, `s3` (AWS S3, R2, MinIO, GCS interop), `r2` (Workers binding), `http` (hosted server), `memory` |
-| `Index` | `memory`, `sqlite` (Node), `d1` (Workers) |
-| `IdentityProvider` | `git`, `github`, `cloudflare-access`, `static` |
+| `Index` | `memory` (Node), `d1` (Workers); `sqlite` later |
+| `IdentityProvider` | process (`env`, `github`, `git`), `cloudflare-access`, trusted header |
 | `BrowserProvider` | interface + fake (v0.2: local Playwright, Cloudflare Browser Run) |
 | `LlmClient` | interface + fake (v0.2: Anthropic, optionally via a gateway) |
 

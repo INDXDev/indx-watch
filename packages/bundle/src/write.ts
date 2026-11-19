@@ -21,6 +21,10 @@ export interface CreateInput {
   template?: string;
   origin?: 'human' | 'ai' | 'import';
   ai?: { model: string; skill?: string };
+  /** create as status 'ready' (humans only; rejected with origin 'ai'); default 'draft' */
+  ready?: boolean;
+  /** keys seen in results or elsewhere, so retired keys are not reused */
+  knownKeys?: Iterable<string>;
   now?: Date;
 }
 
@@ -37,6 +41,18 @@ export async function createDefinition(fs: BundleFs, bundle: Bundle, input: Crea
   void fs;
   void bundle;
   void input;
+  throw new Error('not implemented (T-101)');
+}
+
+/**
+ * `iw approve`: set status 'ready', approved_by = actor id (from the IdentityProvider, never a flag) and
+ * approved_version = current version (tcv/fxv, or the use case's content hash). Returns the file written.
+ */
+export async function approveDefinition(fs: BundleFs, bundle: Bundle, ref: string, approver: string): Promise<{ file: string; version: string }> {
+  void fs;
+  void bundle;
+  void ref;
+  void approver;
   throw new Error('not implemented (T-101)');
 }
 

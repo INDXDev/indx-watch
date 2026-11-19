@@ -11,8 +11,8 @@ Definitions (use cases, test cases, fixtures, plans) benefit from review, histor
 
 - **Definitions** live in git. INDX Watch never commits or pushes for the user.
 - **Results** are records and blobs in a **result store**: a local folder or any S3-compatible bucket, optionally fronted by a hosted INDX Watch server. `iw sync` copies records both ways.
-- **Workspace mode** (`[store] mode = "workspace"`) is for teams without git: definition files are also synced through the store as versioned file records, Drive-style. Conflicting edits keep both versions (`*.conflict-<actor>.toml`) and `iw check` fails until a person resolves them.
-- For the hosted UI to show definitions in git mode, `iw sync` (usually in CI on the default branch) publishes a **bundle snapshot** record: a tarball of the bundle, keyed by commit.
+- **Workspace mode** (`[store] mode = "workspace"`, v0.2) is for teams without git: definition files are also synced through the store as versioned file records, Drive-style. Conflicting edits keep both versions (`<name>.conflict-<sha8>.toml`) and `iw check` fails until a person resolves them. See [sync.md](../spec/sync.md#workspace-mode-v02).
+- For the hosted UI to show definitions in git mode, `iw sync --snapshot` (run by the GitHub Action on the default branch) publishes a **bundle snapshot** record: a tarball of the bundle, keyed by commit.
 
 ## Consequences
 

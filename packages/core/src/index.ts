@@ -60,10 +60,11 @@ export function evaluateGate(model: Model, scope: Scope): GateResult {
   return todo();
 }
 
-export function planItemStatus(model: Model, planKey: string, testCaseKey: string): PlanItemStatus {
+/** Status of plan item #itemIndex; scope = (plan.release, item.environment ?? plan.environment). */
+export function planItemStatus(model: Model, planKey: string, itemIndex: number): PlanItemStatus {
   void model;
   void planKey;
-  void testCaseKey;
+  void itemIndex;
   return todo();
 }
 
@@ -86,10 +87,17 @@ export interface ReportData {
   project: { key: string; name: string };
   scope: Scope;
   plan?: string | undefined;
+  audience: 'internal' | 'customer';
   generatedAt: string;
   generatedBy: string;
+  bundleCommit?: string | undefined;
+  cursor?: string | undefined;
+  policy: Required<DecisionPolicy>;
+  gateThresholds: Record<string, number | boolean>;
+  countsByPriority: Record<Priority, Record<string, number>>;
+  planItems?: { testCase: string; assignee?: string | undefined; due?: string | undefined; environment?: string | undefined; status: PlanItemStatus }[];
   status: StatusResult;
-  failures: { testCase: string; title: string; status: string; run?: string | undefined; note?: string | undefined; evidence?: string | undefined }[];
+  failures: { testCase: string; title: string; priority: Priority; status: string; run?: string | undefined; step?: number | undefined; note?: string | undefined; evidence?: string | undefined }[];
   waivers: { testCase: string; reason: string; by: string; at: string }[];
   runs: {
     id: string;
@@ -110,7 +118,7 @@ export interface ReportData {
 export function reportData(
   model: Model,
   scope: Scope,
-  opts: { plan?: string; audience: 'internal' | 'customer'; generatedBy: string; now: Date },
+  opts: { plan?: string; audience: 'internal' | 'customer'; generatedBy: string; now: Date; commit?: string; cursor?: string },
 ): ReportData {
   void model;
   void scope;

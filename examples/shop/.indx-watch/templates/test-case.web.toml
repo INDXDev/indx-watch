@@ -1,7 +1,5 @@
-#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
-
-mode = "manual"
 tags = ["web"]
+mode = "manual"
 
 [[steps]]
 instruction = "Open {{env.base_url}}."

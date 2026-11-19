@@ -10,7 +10,7 @@ export function r2ObjectStore(bucket: unknown, prefix?: string): ObjectStore {
   throw new Error('not implemented (T-104)');
 }
 
-/** Index over a D1 binding (Drizzle sqlite schema shared with node:sqlite). */
+/** Index over a D1 binding (plain SQL schema in src/index-schema.sql, shared with a future node:sqlite index). */
 export function d1Index(db: unknown): Index {
   void db;
   throw new Error('not implemented (T-104)');

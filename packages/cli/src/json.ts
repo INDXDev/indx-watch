@@ -98,6 +98,10 @@ export const CommandData = {
   record: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),
   review: z.object({ judgement: z.record(z.string(), z.unknown()), verdict: z.string() }),
   waive: z.object({ waiver: z.record(z.string(), z.unknown()) }),
+  approve: z.object({ ref: z.string(), file: z.string(), version: z.string(), approved_by: z.string() }),
+  retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
+  'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
+  login: z.object({ url: z.string() }),
   'fixture add': z.object({ files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })) }),
   'fixture fetch': z.object({ files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })) }),
   sync: z.object({

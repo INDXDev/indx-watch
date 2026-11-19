@@ -30,6 +30,12 @@ export const ROUTES = {
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
 } as const;
 
+/** GET /api/store/list response. PUT returns 201 (created) or 412 (exists with If-None-Match: *). GET/HEAD 404 when absent. */
+export interface StoreListResponse {
+  keys: { key: string; size: number; etag?: string }[];
+  truncated: boolean;
+}
+
 export interface ProjectInfo {
   project: { key: string; name: string; source_locale: Locale; locales: Locale[]; default_environment?: string; current_release?: string };
   releases: { version: string; title?: string; state: string }[];

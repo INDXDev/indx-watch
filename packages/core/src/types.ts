@@ -33,11 +33,11 @@ export const STATUS_ORDER: readonly Status[] = [
   'fail',
   'needs_review',
   'stale',
-  'untested',
   'blocked',
+  'untested',
   'waived',
-  'skipped',
   'pass',
+  'skipped',
 ];
 
 export interface Scope {
@@ -59,6 +59,11 @@ export interface RunView {
   decision: Decision;
   /** test case version or a fixture version differs from the current bundle */
   stale: boolean;
+  /** (automation.project ?? '') + '|' + sorted fixture rows: results are tracked per variant */
+  variant: string;
+  /** automation.group ?? run id: runs of one execution (e.g. shards) */
+  group: string;
+  retracted: boolean;
 }
 
 export interface CriterionNode {
@@ -121,6 +126,10 @@ export interface Model {
 export interface TestCaseStatus {
   key: string;
   status: Status;
+  /** worst verdict of the latest result per variant (kept even when status is 'stale') */
+  verdict?: Verdict | undefined;
+  /** latest run per variant */
+  variants?: { variant: string; run: string; verdict: Verdict; stale: boolean }[];
   latestRun?: string | undefined;
   stale: boolean;
   waived: boolean;
