@@ -8,7 +8,7 @@ export function httpObjectStore(opts: {
   headers?: () => Promise<Record<string, string>>;
 }): ObjectStore {
   const base = opts.baseUrl.replace(/\/+$/, '');
-  // Access は未ログインだとログイン画面へリダイレクトするので、追わずに unauthorized にする
+  // Access redirects to its login page when not signed in: do not follow, report unauthorized
   const send = async (what: string, path: string, init: RequestInit = {}) => {
     const headers = { ...(await opts.headers?.()), ...(init.headers as Record<string, string>) };
     return guardedFetch(what, () => fetch(`${base}${path}`, { ...init, headers, redirect: 'manual' }));

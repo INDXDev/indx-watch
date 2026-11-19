@@ -1,6 +1,6 @@
-/** ObjectStore アダプターの共通契約テスト（docs/spec/sync.md#acceptance-criteria）。 */
+/** Contract tests shared by port adapters (ObjectStore: docs/spec/sync.md#acceptance-criteria). */
 import { describe, expect, it } from 'vitest';
-import type { ObjectStore } from '../src/ports.js';
+import type { BrowserProvider, LlmClient, ObjectStore } from '../src/ports.js';
 import { createResultStore } from '../src/result-store.js';
 
 const text = (b: Uint8Array | null) => (b ? new TextDecoder().decode(b) : null);
@@ -79,7 +79,7 @@ export function objectStoreContract(
         expect(all.keys[0]!.size).toBe('v1/log/01.json'.length);
         const after = await s.list({ prefix: 'v1/log/', startAfter: 'v1/log/01.json' });
         expect(after.keys.map((k) => k.key)).toEqual(['v1/log/02.json', 'v1/log/03.json']);
-        // StartAfter は存在しないキーでもよい
+        // StartAfter may be a key that does not exist
         const ghost = await s.list({ prefix: 'v1/log/', startAfter: 'v1/log/015' });
         expect(ghost.keys.map((k) => k.key)).toEqual(['v1/log/02.json', 'v1/log/03.json']);
         const page = await s.list({ prefix: 'v1/log/', limit: 2 });
@@ -133,5 +133,49 @@ export function objectStoreContract(
         expect(await s.head(`v1/blobs/sha256/${sha.slice(0, 2)}/${sha}`)).not.toBeNull();
       }),
     );
+  });
+}
+
+/** Contract of the BrowserProvider port; `make` serves a two-page shop (`/` and `/cart`) at `baseUrl`. */
+export function browserProviderContract(
+  name: string,
+  make: () => Promise<{ provider: BrowserProvider; baseUrl: string }>,
+) {
+  describe(`BrowserProvider contract: ${name}`, () => {
+    it('opens at the base URL, navigates, acts on refs and refuses use after close', async () => {
+      const { provider, baseUrl } = await make();
+      const s = await provider.open({ baseUrl, viewport: { width: 1280, height: 720 } });
+      const home = await s.observe();
+      expect(home.url).toBe(new URL(baseUrl).href);
+      expect(home.title).not.toBe('');
+      expect(await s.act({ type: 'navigate', url: '/cart' })).toEqual({ ok: true });
+      expect((await s.observe()).url).toBe(new URL('/cart', baseUrl).href);
+      expect((await s.act({ type: 'click', ref: 'e1' })).ok).toBe(true);
+      expect(await s.act({ type: 'navigate', url: '/missing' })).toMatchObject({
+        ok: false,
+        error: expect.any(String),
+      });
+      await s.close();
+      await expect(s.observe()).rejects.toThrow();
+    });
+  });
+}
+
+/** Contract of the LlmClient port: a structured judgement with a confidence in [0, 1]. */
+export function llmClientContract(name: string, make: () => Promise<LlmClient>) {
+  describe(`LlmClient contract: ${name}`, () => {
+    it('returns a verdict, a confidence in [0, 1], a reason and the model', async () => {
+      const llm = await make();
+      const tree = 'heading "Cart" [e1]\ntext "Total: $90"';
+      const observation = { url: 'https://shop.test/cart', title: 'Cart', tree };
+      for (const expected of ['Total: $90', 'Total: $100']) {
+        const j = await llm.judge({ rubric: ['The cart shows the discounted total'], expected, observation });
+        expect(['pass', 'fail', 'unknown']).toContain(j.verdict);
+        expect(j.confidence).toBeGreaterThanOrEqual(0);
+        expect(j.confidence).toBeLessThanOrEqual(1);
+        expect(j.reason).not.toBe('');
+        expect(j.model).not.toBe('');
+      }
+    });
   });
 }

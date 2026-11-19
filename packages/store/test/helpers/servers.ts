@@ -1,4 +1,4 @@
-/** テスト用の小さなサーバー: S3 互換の偽物と /api/store/* の実装（どちらもメモリ上）。 */
+/** Small test servers: a fake S3-compatible server and an /api/store/* implementation (both in memory). */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { memoryObjectStore } from '../../src/adapters/memory.js';
@@ -25,8 +25,8 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse) => Pr
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
- * S3 互換の偽サーバー（パス形式: /<bucket>/<key>）。PUT/GET/HEAD/DELETE/ListObjectsV2 と
- * If-None-Match: * / x-goog-if-generation-match: 0 を実装。署名は Authorization ヘッダーの有無だけを見る。
+ * Fake S3-compatible server (path style: /<bucket>/<key>). Implements PUT/GET/HEAD/DELETE/ListObjectsV2 and
+ * If-None-Match: * / x-goog-if-generation-match: 0. Signing is checked only by the presence of an Authorization header.
  */
 export async function startFakeS3(bucket = 'test-bucket') {
   const objects = new Map<string, Uint8Array>();
@@ -90,7 +90,7 @@ export async function startFakeS3(bucket = 'test-bucket') {
   return { ...srv, bucket, objects, requests };
 }
 
-/** ROUTES.store* を ObjectStore の上に実装した最小のハンドラー（packages/server の代わり）。 */
+/** Minimal handler of ROUTES.store* on top of an ObjectStore (stands in for packages/server). */
 export async function startStoreServer(opts: { token?: string; store?: ObjectStore } = {}) {
   const store = opts.store ?? memoryObjectStore();
   const srv = await listen(async (req, res) => {

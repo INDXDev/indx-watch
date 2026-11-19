@@ -4,9 +4,9 @@ import { StoreError } from './ports.js';
 import { blobPath, checkRecord, idTime, parseJson } from './util.js';
 
 /**
- * ローカルレプリカ（docs/spec/sync.md#local-replica-layout）を任意の ObjectStore の上に作る。
- * records/<YYYY-MM>/<id>.json の月は ID の ULID 時刻から決める（パスが ID だけで決まり、ID で一意になる）。
- * external: 他のプロセスによる書き込みを知らせるフック（Node ではファイル監視）。
+ * Local replica (docs/spec/sync.md#local-replica-layout) on top of any ObjectStore.
+ * The month in records/<YYYY-MM>/<id>.json comes from the ULID time of the ID, so the path depends only on the ID.
+ * external: a hook that reports writes by other processes (a file watcher on Node).
  */
 export function createReplica(
   objects: ObjectStore,

@@ -1,4 +1,4 @@
-/** examples/shop の ID で作るテスト用の記録（AnyRecord で検証してから返す）。 */
+/** Test records with examples/shop IDs (validated with AnyRecord before they are returned). */
 import { type AnyRecord, newId, type RunRecord, AnyRecord as Schema } from '@indx-watch/bundle';
 
 export const PROJECT = 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y00';

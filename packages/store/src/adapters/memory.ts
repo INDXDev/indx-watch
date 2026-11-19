@@ -35,7 +35,7 @@ export function memoryObjectStore(url = 'memory://'): ObjectStore {
   };
 }
 
-/** 記録のフィルタ（memory index 用。d1 index は同じ意味を SQL で実装する）。 */
+/** Record filter of the memory index (the d1 index implements the same meaning in SQL). */
 export function recordTestCase(r: AnyRecord): string | undefined {
   return r.kind === 'run' || r.kind === 'waiver' ? r.test_case.id : undefined;
 }
@@ -43,7 +43,7 @@ export function recordRelease(r: AnyRecord): string | undefined {
   return 'release' in r ? r.release : undefined;
 }
 
-/** 並びは (at, id) の昇順。limit は新しい方から N 件を残す（並びは昇順のまま）。 */
+/** Sorted by (at, id) ascending. limit keeps the newest N (still in ascending order). */
 export function filterRecords(all: Iterable<AnyRecord>, f: IndexFilter = {}): AnyRecord[] {
   const out = [...all]
     .filter(

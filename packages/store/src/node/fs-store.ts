@@ -1,4 +1,4 @@
-/** ファイルシステム上の ObjectStore（file:// ストアとローカルレプリカ）。 */
+/** ObjectStore on the file system (file:// stores and the local replica). */
 import { randomBytes } from 'node:crypto';
 import { link, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -14,8 +14,8 @@ function fsError(e: unknown, what: string): StoreError {
 }
 
 /**
- * 同じディレクトリのドットファイルに書いてから link する。link は既存ならば EEXIST で失敗するので、
- * 中身がそろったファイルだけが現れ、上書きもしない。ifNoneMatch でなければ rename で置き換える。
+ * Write to a dot file in the same directory, then link it. link fails with EEXIST when the target exists,
+ * so only complete files appear and nothing is overwritten. Without ifNoneMatch, rename replaces the file.
  */
 async function writeAtomic(path: string, data: Uint8Array, createOnly: boolean): Promise<boolean> {
   await mkdir(dirname(path), { recursive: true });
@@ -36,7 +36,7 @@ async function writeAtomic(path: string, data: Uint8Array, createOnly: boolean):
   }
 }
 
-/** dir 以下のファイルを再帰的に集める（ドットで始まる名前は無視）。 */
+/** Collect the files under dir recursively (names starting with a dot are ignored). */
 async function walk(root: string, rel: string, out: ObjectInfo[]): Promise<void> {
   let entries: import('node:fs').Dirent[];
   try {
@@ -82,7 +82,7 @@ export function fsObjectStore(root: string, url = `file://${root}`): ObjectStore
       }
     },
     async list(opts) {
-      // prefix の最後の '/' までのディレクトリだけを歩く
+      // walk only the directory up to the last '/' of the prefix
       const dir = opts.prefix.includes('/') ? opts.prefix.slice(0, opts.prefix.lastIndexOf('/')) : '';
       if (dir) checkKey(dir);
       const all: ObjectInfo[] = [];

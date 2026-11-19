@@ -10,7 +10,7 @@ import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
 import { buildModel, type Model, type TestCaseNode } from '@indx-watch/core';
 import { createResultStore, type LocalReplica } from '@indx-watch/store';
 import { openObjectStore, openReplica, processContext, processIdentity } from '@indx-watch/store/node';
-import { syncOnce } from '@indx-watch/sync';
+import { pointerBlobs, syncOnce } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import type { FullConfig, FullResult, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 import * as M from './map.js';
@@ -28,7 +28,7 @@ export interface IndxWatchReporterOptions {
   /** push after the run (default: when a store is configured) */
   sync?: boolean;
   dryRun?: boolean;
-  /** 'always' keeps traces and videos of test cases that use an account fixture */
+  /** 'always' keeps traces and videos of test cases that use an account fixture or run in an environment with secrets */
   traces?: 'auto' | 'always';
 }
 
@@ -70,6 +70,8 @@ export default class IndxWatchReporter implements Reporter {
   private root = '';
   private replica: LocalReplica | null = null;
   private redact = M.redactor([]);
+  /** the run's environment has secret values set in this process (traces and videos could hold them) */
+  private envSecrets = false;
   private readonly seen = new Map<string, Seen>();
   private readonly unlinked = new Set<string>();
   private readonly unknown = new Set<string>();
@@ -100,6 +102,8 @@ export default class IndxWatchReporter implements Reporter {
     this.bundle = loaded.bundle;
     this.model = buildModel(loaded.bundle, []).model;
     this.redact = M.redactor(M.secretValues(loaded.bundle, this.env));
+    const env = loaded.bundle.environments.find((e) => e.data.name === this.environment(loaded.bundle!));
+    this.envSecrets = !!env && M.resolveRefs(M.environmentRefs(env), this.env).length > 0;
     this.root = gitRoot(base) ?? base;
     if (!this.opts.dryRun) this.replica = openReplica(dir);
   }
@@ -115,15 +119,17 @@ export default class IndxWatchReporter implements Reporter {
   private collect(test: TestCase, result: TestResult, files: (Uint8Array | undefined)[]): void {
     const seen = this.model && (this.seen.get(test.id) ?? this.mapTest(test));
     if (!seen) return;
-    const accounts = seen.tcs.some((tc) =>
-      tc.data.fixtures?.some((f) => this.model?.fixtures.get(f.ref)?.data.kind === 'account'),
-    );
+    const secret =
+      this.envSecrets ||
+      seen.tcs.some((tc) =>
+        tc.data.fixtures?.some((f) => this.model?.fixtures.get(f.ref)?.data.kind === 'account'),
+      );
     for (const [n, step] of M.numberedSteps(result.steps))
       for (const a of step.attachments ?? []) seen.stepOf.set(`${a.name}\0${a.path}`, n);
     result.attachments.forEach((a, i) => {
       const kind = M.evidenceKind(a.name, a.contentType);
       let data = files[i];
-      if (!data || (accounts && (kind === 'trace' || kind === 'video') && this.opts.traces !== 'always'))
+      if (!data || (secret && (kind === 'trace' || kind === 'video') && this.opts.traces !== 'always'))
         return;
       if (M.isText(a.contentType))
         data = new TextEncoder().encode(this.redact(new TextDecoder().decode(data), 1e9));
@@ -174,7 +180,7 @@ export default class IndxWatchReporter implements Reporter {
     const explicit = this.opts.release ?? this.env.IW_RELEASE;
     const rel = M.resolveRelease(bundle, build, { explicit, inCi: !!ci || !!this.env.CI });
     if (rel.warning) warn(rel.warning);
-    const environment = this.opts.environment ?? this.env.IW_ENV ?? bundle.project.data.default_environment;
+    const environment = this.environment(bundle);
     const ctx: Ctx = { actor, build, ci, release: rel.release, environment, group: M.runGroup(this.env) };
 
     const groups = new Map<string, Group>();
@@ -304,13 +310,19 @@ export default class IndxWatchReporter implements Reporter {
         projectId: p.id,
         writer: await writerId(this.dir),
         direction: 'push',
+        extraBlobs: pointerBlobs(bundle),
       });
       log(
         `pushed ${res.pushed.records} record(s), ${res.pushed.blobs} blob(s) to ${store.objects.url} as ${actor.id}`,
       );
+      for (const w of res.warnings ?? []) warn(w);
     } catch (e) {
       this.fail(`push failed (run \`iw sync\` later): ${(e as Error).message}`);
     }
+  }
+
+  private environment(bundle: Bundle): string | undefined {
+    return this.opts.environment ?? this.env.IW_ENV ?? bundle.project.data.default_environment;
   }
 
   private fail(msg: string) {

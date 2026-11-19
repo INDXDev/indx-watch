@@ -38,7 +38,7 @@ describe('createResultStore', () => {
     const listed = await rs.listLog({});
     expect(listed.keys).toEqual([...keys].sort());
     expect((await rs.listLog({ startAfter: keys[0]! })).keys).toEqual(keys.slice(1));
-    // ULID だけを渡すと v1/log/ が前に付く（そのキー自身も含む）
+    // a bare ULID gets the v1/log/ prefix; the key with that ULID is included
     expect((await rs.listLog({ startAfter: keys[1]!.slice(7, -5), limit: 1 })).keys).toEqual([keys[1]]);
     const entry = await rs.readLog(keys[2]!);
     expect(entry).toMatchObject({ key: keys[2], writer: 'w1', invalid: 0 });
@@ -52,7 +52,7 @@ describe('createResultStore', () => {
     const newer = { ...runRecord(), future_field: 1, test_case: { ...good.test_case, extra: true } };
     await objects.put(
       'v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json',
-      JSON.stringify({ v: 1, writer: 'w', records: [good, newer, { kind: 'run' }] }),
+      JSON.stringify({ v: 1, writer: 'w', records: [good, newer, { kind: 'run' }], future: { a: 1 } }),
     );
     const entry = await rs.readLog('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json');
     expect(entry.invalid).toBe(1);
@@ -64,6 +64,11 @@ describe('createResultStore', () => {
     });
     await expect(rs.readLog('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8N.json')).rejects.toMatchObject({
       code: 'not-found',
+    });
+    await objects.put('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8P.json', '{"v":2,"writer":"w","records":[]}');
+    await expect(rs.readLog('v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8P.json')).rejects.toMatchObject({
+      code: 'invalid',
+      message: expect.stringMatching(/newer INDX Watch.*upgrade/),
     });
   });
 

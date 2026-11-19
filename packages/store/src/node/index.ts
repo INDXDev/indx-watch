@@ -25,8 +25,8 @@ const creds = (accessKeyId: string, secretAccessKey: string, sessionToken?: stri
   compact({ accessKeyId, secretAccessKey, sessionToken });
 
 /**
- * AWS の資格情報: 環境変数、なければ AWS_PROFILE（SSO を含む）で `aws configure export-credentials --format process`。
- * ストアを開くときに一度だけ同期で実行する。
+ * AWS credentials: environment variables, else `aws configure export-credentials --format process` for AWS_PROFILE
+ * (SSO included). Runs synchronously, once, when the store is opened.
  */
 export function awsCredentials(env: Env, run: ExecSync = execSync): Credentials {
   if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY) {
@@ -46,12 +46,21 @@ export function awsCredentials(env: Env, run: ExecSync = execSync): Credentials 
   throw new StoreError('unauthorized', `no credentials from aws CLI for AWS_PROFILE=${env.AWS_PROFILE}`);
 }
 
-/** ホスト型サーバー（Cloudflare Access の後ろ）へのヘッダー: IW_ACCESS_TOKEN → サービストークン → cloudflared。 */
+/**
+ * Headers for a hosted server behind Cloudflare Access: IW_ACCESS_TOKEN → service token → cloudflared.
+ * Credentials go only over https:// (or plain http to this machine, for tests); any other http URL is refused.
+ */
 export async function accessHeaders(
   url: string,
   env: Env,
   run = defaultExec,
 ): Promise<Record<string, string>> {
+  const secure = /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$))/.test(url);
+  if (!secure && (env.IW_ACCESS_TOKEN || (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET)))
+    throw new StoreError(
+      'invalid',
+      `insecure store URL ${url}: Access credentials are sent only over https://`,
+    );
   if (env.IW_ACCESS_TOKEN) return { 'cf-access-token': env.IW_ACCESS_TOKEN };
   if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
     return {
@@ -100,8 +109,9 @@ export function openObjectStore(
 /** Local replica at <bundleDir>/runs/ (docs/spec/sync.md#local-replica-layout). */
 export function openReplica(bundleDir: string): LocalReplica {
   const root = join(bundleDir, 'runs');
-  // 他プロセス（Playwright レポーターなど）の書き込みも runs/records/ と各月のディレクトリの監視で知らせる。
-  // recursive は Linux では非同期に準備されて直後の書き込みを取りこぼすので、ディレクトリごとに同期で張る。
+  // Writes by other processes (the Playwright reporter, for example) are noticed by watching runs/records/ and each
+  // month directory. A recursive watch is set up asynchronously on Linux and misses writes right after it starts,
+  // so each directory gets its own watcher, synchronously.
   return createReplica(fsObjectStore(root), (notify) => {
     const records = join(root, 'records');
     const watchers = new Map<string, FSWatcher>();

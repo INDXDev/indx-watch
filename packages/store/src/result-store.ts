@@ -8,7 +8,7 @@ export const LOG_PREFIX = 'v1/log/';
 const MAX_RECORDS = 1000;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-/** 1 つのログオブジェクトに入る分（≤1000 件・≤5 MB）ずつに分ける。 */
+/** Split into parts that fit one log object (≤ 1000 records, ≤ 5 MB). */
 function chunk(lines: string[]): string[][] {
   const enc = new TextEncoder();
   const out: string[][] = [];
@@ -40,7 +40,7 @@ export function createResultStore(objects: ObjectStore): ResultStore {
         !raw &&
         !(await objects.put(MANIFEST, want, { ifNoneMatch: true, contentType: 'application/json' }))
       ) {
-        raw = await objects.get(MANIFEST); // 同時に作られた
+        raw = await objects.get(MANIFEST); // created concurrently by another writer
       }
       if (!raw) return;
       const m = StoreManifest.safeParse(parseJson(raw));
@@ -81,7 +81,14 @@ export function createResultStore(objects: ObjectStore): ResultStore {
     async readLog(key) {
       const raw = await objects.get(key);
       if (!raw) throw new StoreError('not-found', `${key} not found`);
-      const body = LogObject.safeParse(parseJson(raw));
+      const json = parseJson(raw) as { v?: unknown; writer?: unknown; records?: unknown } | undefined;
+      if (typeof json?.v === 'number' && json.v > 1)
+        throw new StoreError(
+          'invalid',
+          `${key} was written by a newer INDX Watch (log v${json.v}); upgrade to read it`,
+        );
+      // Like records, log objects may carry unknown top-level fields from newer tools.
+      const body = LogObject.safeParse(json && { v: json.v, writer: json.writer, records: json.records });
       if (!body.success) throw new StoreError('invalid', `${key} is not a valid log object`);
       const checked = body.data.records.map(checkRecord);
       const records = checked.flatMap((c) => ('record' in c ? [c.record] : []));

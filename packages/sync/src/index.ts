@@ -1,9 +1,17 @@
 /**
  * Sync (docs/spec/sync.md). CONTRACT: signatures frozen.
  */
-import type { BundleFs } from '@indx-watch/bundle';
+import type { Bundle, BundleFs } from '@indx-watch/bundle';
 import { type AnyRecord, AnyRecord as AnyRecordSchema, newId } from '@indx-watch/bundle';
-import { blobRefs, LOG_PREFIX, type LocalReplica, type ResultStore, ulidTime } from '@indx-watch/store';
+import {
+  blobRefs,
+  LOG_PREFIX,
+  type LocalReplica,
+  type LogEntry,
+  type ResultStore,
+  type StoreError,
+  ulidTime,
+} from '@indx-watch/store';
 import { snapshotBundle } from './snapshot.js';
 
 export interface SyncState {
@@ -11,7 +19,7 @@ export interface SyncState {
   cursor: string | null;
   /** log keys seen inside the lookback window */
   seen: string[];
-  /** record IDs known to exist in the store */
+  /** record IDs (and pointer blob hashes) known to exist in the store */
   pushed: string[];
   lastFullAt: string | null;
   lastSnapshotHash: string | null;
@@ -40,6 +48,8 @@ export interface SyncOptions {
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
   full?: boolean;
+  /** blobs to upload besides those records reference: fixture pointers (`pointerBlobs(bundle)`); skipped when not in the replica */
+  extraBlobs?: string[];
   /** lookback window in ms (default 15 min) */
   lookbackMs?: number;
   now?: () => number;
@@ -50,6 +60,8 @@ export interface SyncResult {
   pulled: { records: number; blobs: number };
   snapshot: string | null;
   cursor: string | null;
+  /** problems that did not stop the sync: unreadable log objects, foreign or conflicting records */
+  warnings?: string[];
 }
 
 export { definitionsHash, snapshotBundle } from './snapshot.js';
@@ -79,6 +91,9 @@ export function memoryStateStore(initial: SyncState = emptyState()): StateStore 
 
 const keyTime = (key: string) => ulidTime(key.slice(LOG_PREFIX.length));
 const maxKey = (a: string | null, b: string | null) => (a === null ? b : b === null || a >= b ? a : b);
+/** SHA-256 of every fixture data file stored as a blob pointer (`iw sync` uploads them with `extraBlobs`). */
+export const pointerBlobs = (b: Bundle): string[] =>
+  b.fixtures.flatMap((f) => f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])));
 export const isoSeconds = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
@@ -94,11 +109,16 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     pulled: { records: 0, blobs: 0 },
     snapshot: null,
     cursor: state.cursor,
+    warnings: [],
   };
+  const warn = (msg: string) => (result.warnings ?? []).push(msg) > 0;
+  const foreign = (r: AnyRecord, where: string) =>
+    r.project !== opts.projectId && warn(`skipped ${r.id} ${where}: it belongs to project ${r.project}`);
   const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen] });
 
-  // 先に pull: 全件リスト時に push 済み集合が作り直され、cache/ を消した後でも二重に push しない
-  if (direction !== 'push') {
+  // Pull first: a full listing rebuilds the pushed set, so deleting cache/ never causes a double push.
+  // For the same reason a push-only sync on a fresh state (no full listing yet) lists the log once too.
+  if (direction !== 'push' || !state.lastFullAt) {
     const full =
       !!opts.full ||
       state.cursor === null ||
@@ -114,9 +134,22 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
       for (const key of page.keys) {
         greatest = maxKey(greatest, key);
         if (seen.has(key)) continue;
-        const entry = await opts.store.readLog(key);
+        let entry: LogEntry;
+        try {
+          entry = await opts.store.readLog(key);
+        } catch (e) {
+          // One unreadable object (corrupt, or from a newer tool) must not block every later sync.
+          if ((e as StoreError).code !== 'invalid') throw e;
+          warn(`${(e as Error).message} (skipped)`);
+          seen.add(key);
+          continue;
+        }
+        if (entry.invalid) warn(`skipped ${entry.invalid} invalid record(s) in ${key}`);
         for (const r of entry.records) {
+          if (foreign(r, `in ${key}`)) continue;
           if (await opts.replica.putRecord(r)) result.pulled.records++;
+          else if (await differs(opts.replica, r))
+            warn(`record ${r.id} in ${key} differs from the local copy; kept the local copy`);
           pushed.add(r.id);
           if (opts.evidence === 'all') result.pulled.blobs += await fetchBlobs(opts, r);
         }
@@ -125,10 +158,11 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
       if (!page.truncated || !page.keys.length) break;
       after = page.keys.at(-1)!;
     }
-    // 時計が進んだ書き手のキーでカーソルが未来に飛ばないよう、読み手の現在時刻で抑える
+    // Cap the cursor at the reader's clock so a writer whose clock runs ahead cannot push it into the future.
+    // With no key seen it stays null: listing an empty log is cheap, and a reader whose clock runs ahead
+    // would otherwise skip the records of correctly clocked writers.
     const cap = `${LOG_PREFIX}${ulidFloor(now())}.json`;
-    // 全件リストの後は、何もなくても読み手の現在時刻までは見たことになる
-    const cursor = maxKey(state.cursor, greatest) ?? (full ? cap : null);
+    const cursor = maxKey(state.cursor, greatest);
     state.cursor = cursor !== null && cursor > cap ? cap : cursor;
     if (full) state.lastFullAt = isoSeconds(now());
     const floor = state.cursor ? keyTime(state.cursor) - lookback : 0;
@@ -141,8 +175,8 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     const retracted = new Set(local.flatMap((r) => (r.kind === 'retraction' ? [r.target] : [])));
     const todo: AnyRecord[] = [];
     for (const r of local) {
-      if (pushed.has(r.id) || retracted.has(r.id)) continue;
-      // blob を先に上げる。手元に blob がない記録は（blob なしの記録を作らないため）今回は送らない
+      if (pushed.has(r.id) || retracted.has(r.id) || foreign(r, 'in the local replica')) continue;
+      // Blobs go first. A record whose blob is missing locally waits, so the store never has a record without its blobs.
       const n = await pushBlobs(opts, r);
       if (n === null) continue;
       result.pushed.blobs += n;
@@ -155,6 +189,17 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
       result.pushed.records += part.length;
       await save();
     }
+    for (const sha of opts.extraBlobs ?? []) {
+      if (pushed.has(sha)) continue;
+      if (!(await opts.store.hasBlob(sha))) {
+        const data = await opts.replica.getBlob(sha);
+        if (!data) continue; // added in another clone, or only fetched into cache/blobs/
+        await opts.store.putBlob(sha, data);
+        result.pushed.blobs++;
+      }
+      pushed.add(sha);
+    }
+    await save();
     if (opts.bundle) {
       const snap = await snapshotBundle(opts.bundle.fs);
       const exists = local.some(
@@ -196,7 +241,13 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   return result;
 }
 
-/** 記録が参照する blob をストアへ。手元にないものがあれば null。 */
+/** Two bodies with the same ID (docs/spec/sync.md#merge-rules). */
+async function differs(replica: LocalReplica, r: AnyRecord): Promise<boolean> {
+  const local = await replica.getRecord(r.id);
+  return !!local && JSON.stringify(local) !== JSON.stringify(r);
+}
+
+/** Upload the blobs a record references. null when one of them is missing locally. */
 async function pushBlobs(opts: SyncOptions, r: AnyRecord): Promise<number | null> {
   let n = 0;
   for (const sha of blobRefs(r)) {
@@ -222,15 +273,21 @@ async function fetchBlobs(opts: SyncOptions, r: AnyRecord): Promise<number> {
   return n;
 }
 
-/** Push on local change (debounced), pull every interval. Returns a stop function. */
+/**
+ * Push on local change (debounced), pull every interval. Returns a stop function.
+ * A store bound to another project, or one that refuses or is not a store on the first sync, stops the watch:
+ * the error goes to onFatal (or onError when onFatal is not given).
+ */
 export function watch(
   opts: SyncOptions & {
     intervalMs?: number;
     onResult?: (r: SyncResult) => void;
     onError?: (e: unknown) => void;
+    onFatal?: (e: unknown) => void;
   },
 ): () => Promise<void> {
   let stopped = false;
+  let ok = false;
   let chain: Promise<void> = Promise.resolve();
   const queued = new Set<string>();
   const run = (direction: 'both' | 'push' | 'pull') => {
@@ -240,11 +297,16 @@ export function watch(
       queued.delete(direction);
       if (stopped) return;
       try {
-        // `onResult?.(await …)` だと onResult がないとき同期自体が評価されないので分ける
+        // Not `onResult?.(await …)`: without onResult the sync itself would never run.
         const r = await syncOnce({ ...opts, direction });
+        ok = true;
         opts.onResult?.(r);
       } catch (e) {
-        opts.onError?.(e);
+        const code = (e as StoreError).code;
+        if (code !== 'wrong-project' && (ok || (code !== 'invalid' && code !== 'unauthorized')))
+          return opts.onError?.(e);
+        halt();
+        (opts.onFatal ?? opts.onError)?.(e);
       }
     });
   };
@@ -254,12 +316,15 @@ export function watch(
     timer = setTimeout(() => run('push'), 300);
   });
   const interval = setInterval(() => run('pull'), opts.intervalMs ?? 3000);
-  run('both');
-  return async () => {
+  const halt = () => {
     stopped = true;
     unsubscribe();
     clearTimeout(timer);
     clearInterval(interval);
+  };
+  run('both');
+  return async () => {
+    halt();
     await chain;
   };
 }

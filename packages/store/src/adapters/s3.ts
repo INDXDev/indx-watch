@@ -26,7 +26,7 @@ const tag = (xml: string, name: string) => {
   return m ? xmlText(m[1]!) : undefined;
 };
 
-/** ListObjectsV2 の応答 XML を読む（依存なしの小さな正規表現パーサー）。 */
+/** Read a ListObjectsV2 XML response (a small regex parser, no dependency). */
 export function parseListXml(xml: string): { keys: ObjectInfo[]; truncated: boolean } {
   const keys: ObjectInfo[] = [];
   for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
@@ -97,7 +97,7 @@ export function s3ObjectStore(opts: S3Options): ObjectStore {
       });
       if (res.ok) return true;
       if (res.status !== 412 || !o?.ifNoneMatch) throw httpError(res.status, `PUT ${key}`);
-      // 再送で成功が 412 に化けることがある: 内容アドレスの blob は中身のハッシュで確かめる
+      // A retried request can turn a success into 412: check content-addressed blobs by the hash of their content
       const hash = BLOB_KEY.exec(key)?.[1];
       if (!hash) return false;
       const existing = await get(key);

@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { type AnyRecord, loadBundle, type RunRecord } from '@indx-watch/bundle';
@@ -293,6 +293,18 @@ describe('evidence and safety', () => {
     expect(always.records[0]!.evidence.map((e) => e.kind)).toEqual(['trace', 'video', 'screenshot']);
   });
 
+  it('also skips them when the environment has a secret set in this process (seed token)', async () => {
+    const fake: Fake = {
+      title: 'list',
+      tags: ['@TC-1'],
+      results: [{ status: 'passed', attachments: [trace()] }],
+    };
+    expect((await report([fake])).records[0]!.evidence.map((e) => e.kind)).toEqual(['trace']);
+    rmSync(join(bundleDir, 'runs'), { recursive: true });
+    vi.stubEnv('SHOP_SEED_TOKEN', 'seed-token-not-real');
+    expect((await report([fake])).records[0]!.evidence).toEqual([]);
+  });
+
   it('redacts resolved secret values from reasons, notes, titles and text attachments', async () => {
     const log = {
       name: 'error-context',
@@ -333,6 +345,16 @@ describe('sync', () => {
     expect(end).toBeUndefined();
     expect(readdirSync(join(store, 'v1', 'log'))).toHaveLength(1);
     expect(readdirSync(join(store, 'v1', 'blobs', 'sha256'))).toHaveLength(1);
+  });
+
+  it('also uploads fixture pointer blobs that are in the local replica', async () => {
+    const sha = '8760bc67a01b22044c4098fddeb3a749cd395c4757fab3740aa626cd0da51e1b'; // FX-4 review-photo.png
+    const photo = readFileSync(join(SHOP, 'store', 'v1', 'blobs', 'sha256', '87', sha));
+    await openReplica(bundleDir).putBlob(new Uint8Array(photo), 'image/png');
+    const store = join(tmp, 'store');
+    vi.stubEnv('IW_STORE', `file://${store}`);
+    await report([{ title: 'x', tags: ['@TC-1'], results: [{ status: 'passed' }] }]);
+    expect(readdirSync(join(store, 'v1', 'blobs', 'sha256', '87'))).toEqual([sha]);
   });
 
   it('logs a failed push and fails only in strict mode', async () => {

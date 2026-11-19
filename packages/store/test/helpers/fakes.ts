@@ -1,4 +1,4 @@
-/** テスト用の偽物: R2 バインディング（メモリ）と D1 バインディング（node:sqlite）。 */
+/** Test fakes: an R2 binding (in memory) and a D1 binding (node:sqlite). */
 import { DatabaseSync } from 'node:sqlite';
 
 export function fakeR2(opts: { honorStartAfter?: boolean } = {}) {
@@ -27,7 +27,7 @@ export function fakeR2(opts: { honorStartAfter?: boolean } = {}) {
       let from = o.cursor ? Number(o.cursor) : 0;
       if (!o.cursor && o.startAfter && opts.honorStartAfter)
         from = all.filter((k) => k <= o.startAfter!).length;
-      const limit = Math.min(o.limit ?? 1000, 2); // 小さなページでカーソル処理を確かめる
+      const limit = Math.min(o.limit ?? 1000, 2); // small pages exercise the cursor handling
       const page = all.slice(from, from + limit);
       const truncated = from + limit < all.length;
       return { objects: page.map(meta), truncated, ...(truncated ? { cursor: String(from + limit) } : {}) };
@@ -38,7 +38,7 @@ export function fakeR2(opts: { honorStartAfter?: boolean } = {}) {
   };
 }
 
-/** D1 の使う部分（prepare/bind/all/first/run/batch）を node:sqlite で真似る。 */
+/** The parts of D1 we use (prepare/bind/all/first/run/batch), imitated with node:sqlite. */
 export function fakeD1() {
   const db = new DatabaseSync(':memory:');
   interface Stmt {

@@ -1,4 +1,4 @@
-/** src/index-schema.sql と同じ文（Workers ではファイルを読めないため。テストで一致を確かめる）。 */
+/** The statements of src/index-schema.sql (Workers cannot read files; a test checks they match). */
 export const INDEX_SCHEMA: string[] = [
   'CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, at TEXT NOT NULL, test_case_id TEXT, release TEXT, json TEXT NOT NULL)',
   'CREATE INDEX IF NOT EXISTS records_at ON records (at, id)',

@@ -1,15 +1,17 @@
-/** Node 用: 同期の状態を <bundleDir>/cache/sync/<store-hash>.json に置く（消しても安全）。 */
+/** Node: sync state in <bundleDir>/cache/sync/<store-hash>.json (safe to delete). */
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sha256Hex } from '@indx-watch/bundle';
 import { emptyState, type StateStore, type SyncState } from './index.js';
 
+/** Keyed by the store URL without trailing slashes, as adapters report it (`ResultStore.objects.url`). */
 export async function fileStateStore(
   bundleDir: string,
   storeUrl: string,
 ): Promise<StateStore & { path: string }> {
-  const path = join(bundleDir, 'cache', 'sync', `${(await sha256Hex(storeUrl)).slice(0, 16)}.json`);
+  const hash = await sha256Hex(storeUrl.replace(/\/+$/, ''));
+  const path = join(bundleDir, 'cache', 'sync', `${hash.slice(0, 16)}.json`);
   return {
     path,
     async load() {
@@ -28,7 +30,7 @@ export async function fileStateStore(
   };
 }
 
-/** この複製の書き手 ID（<bundleDir>/cache/writer-id。なければ作る）。ログオブジェクトの "writer" に入る。 */
+/** Writer ID of this clone (<bundleDir>/cache/writer-id, created when missing); goes into each log object's "writer". */
 export async function writerId(bundleDir: string): Promise<string> {
   const path = join(bundleDir, 'cache', 'writer-id');
   const existing = (await readFile(path, 'utf8').catch(() => '')).trim();
