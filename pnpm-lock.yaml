@@ -11,6 +11,12 @@ importers:
       '@biomejs/biome':
         specifier: 2.6.8
         version: 2.6.8
+      '@indx-watch/playwright':
+        specifier: workspace:*
+        version: link:packages/playwright
+      '@playwright/test':
+        specifier: ^1.65.1
+        version: 1.65.1
       '@types/node':
         specifier: ^22.15.0
         version: 22.20.5
