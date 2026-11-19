@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>ログイン・作業履歴画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+<style>
+  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .stat { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; display: grid; gap: 2px; }
+  .stat .n { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11.5px; color: var(--fg-muted); }
+  .stat.alert { border-color: var(--fail); background: var(--fail-soft); }
+  .stat.alert .n { color: var(--fail); }
+  .stat.caution { border-color: var(--blocked); background: var(--blocked-soft); }
+  .stat.caution .n { color: var(--blocked); }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .mask { font-family: var(--font-mono); letter-spacing: 0.08em; color: var(--fg-muted); }
+  .ip { font-family: var(--font-mono); font-size: 11.5px; }
+  .ok { color: var(--pass); } .ng { color: var(--fail); } .warn { color: var(--blocked); }
+  .flag { font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 99px; background: var(--blocked-soft); color: var(--blocked); white-space: nowrap; }
+  .tl-hours { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-muted); }
+  .tl-track { position: relative; height: 22px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  .tl-track span { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: var(--accent); }
+  .tl-track span.run { background: var(--fail); }
+  .events { display: grid; }
+  .ev { display: grid; grid-template-columns: 62px 18px minmax(0, 1fr) 150px 130px; gap: 8px; align-items: start; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .ev:last-child { border-bottom: 0; }
+  .ev .t { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-muted); }
+  .ev .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; background: var(--line-strong); }
+  .ev .dot.w { background: var(--accent); }
+  .ev .dot.f { background: var(--fail); }
+  .ev .ray { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); }
+  .two-col { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .mini-mock { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); padding: 12px; display: grid; gap: 8px; font-size: 13px; }
+  .privacy { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); padding: 10px 12px; display: grid; gap: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#screens">画面</a><span class="sep">/</span><span>S12 ログイン・作業履歴</span></nav>
+  <span class="layer-tag">Layer 2 · 画面</span>
+</div></header>
+<main class="doc wide"><div class="content">
+  <header class="page-head">
+    <div class="eyebrow">S12 · 画面</div>
+    <h1>ログイン・作業履歴</h1>
+    <p class="lead">誰が・いつ・どこから・どうやってログインし、何の作業をしたかを 1 か所で確認する管理画面です。Cloudflare Access のログイン記録（失敗・拒否を含む）と、アプリ内の閲覧・操作の記録をつないで、ユーザーごとのタイムラインとして表示します。</p>
+    <div class="meta-row">
+      <span>ルート <code>/admin/activity</code>、<code>/admin/activity/users/[id]</code></span>
+      <span>主な利用者 <b>admin（全項目）／manager（自プロジェクトの作業サマリのみ）</b></span>
+      <span>関連 <a href="../spec/identity-audit.html">認証・行動ログ</a> ・ <a href="../spec/data-model.html#identity">データモデル（ログイン・作業記録）</a> ・ <a href="../spec/architecture.html">アーキテクチャ</a></span>
+    </div>
+  </header>
+
+  <section><div class="screen-layout">
+    <div class="mock-scroll"><div class="mock">
+      <div class="mock-chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">watch.indx.example/admin/activity/users/usr_01JA8TANAKA</span></div>
+      <div class="app">
+        <nav class="app-nav">
+          <div class="proj">INDX Shop<small>indxdev/indx-shop</small></div>
+          <div class="group">自分</div>
+          <a href="s01-my-tasks.html">マイタスク<span class="count">7</span></a>
+          <a href="s06-agent-run-review.html">レビュー待ち<span class="count">3</span></a>
+          <div class="group">プロジェクト</div>
+          <a href="s02-release-readiness.html">リリース</a>
+          <a href="s03-spec-tree.html">仕様</a>
+          <a href="s08-plan-assign.html">テスト計画</a>
+          <a href="s06-agent-run-review.html">実行履歴</a>
+          <a href="s07-fixtures.html">フィクスチャ</a>
+          <a href="s09-environments.html">環境</a>
+          <a href="s11-github-deployments.html">デプロイメント</a>
+          <div class="group">AI</div>
+          <a href="s10-ai-import.html">仕様取り込み</a>
+          <div class="group">管理</div>
+          <a class="on" href="s12-activity-audit.html">ログイン・作業履歴</a>
+        </nav>
+        <div class="app-main">
+          <div class="app-top">
+            <h2>ログイン・作業履歴</h2>
+            <span class="muted small">2026-11-19（木）JST · Access ログ最終取り込み 14:52（8 分前）</span>
+            <span class="spacer"></span>
+            <button class="btn" type="button">CSV 書き出し</button>
+          </div>
+
+          <!-- サマリ -->
+          <div class="stats">
+            <div class="stat"><span class="n">14 <span class="pin">1</span></span><span class="l">今日ログインした人数</span></div>
+            <div class="stat alert"><span class="n">3</span><span class="l">失敗・拒否ログイン（24 時間）</span></div>
+            <div class="stat"><span class="n">11</span><span class="l">有効なセッション</span></div>
+            <div class="stat caution"><span class="n">2</span><span class="l">日本以外からのログイン</span></div>
+            <div class="stat caution"><span class="n">1</span><span class="l">新しい端末・場所からのログイン</span></div>
+          </div>
+
+          <!-- AI 要約 -->
+          <div class="ai-box"><span class="pin">2</span>
+            <div class="ai-head"><span class="ai-tag">AI 要約</span>確認をおすすめする項目（claude-haiku-5-5 · 信頼度は付けず根拠のみ表示）</div>
+            <ul class="small" style="margin:0">
+              <li>Alex Kim（tester）が 11/19 09:12 に <b>シンガポール</b>から初めてログインしました。過去 30 日のログインはすべて韓国（ソウル）からです。端末（Chrome / Windows）は前回と同じです。根拠: <a href="#">lgs_01JDQ…</a>、IdP は Google で成功。出張などの可能性があります。</li>
+              <li><code>unknown.user@gmail.com</code> が 11/19 11:40〜11:46 に one-time PIN で 3 回ログインを試み、すべて拒否されました（ポリシーに含まれないメール）。根拠: <a href="#">access_events 3 件</a>。</li>
+            </ul>
+          </div>
+
+          <!-- フィルタ -->
+          <div class="filters"><span class="pin">3</span>
+            <input class="input" id="f-user" value="田中 健" aria-label="ユーザー" style="width:120px">
+            <select class="input" id="f-range" aria-label="期間"><option>今日</option></select>
+            <select class="input" id="f-country" aria-label="国"><option>すべての国</option></select>
+            <select class="input" id="f-idp" aria-label="IdP"><option>すべての IdP</option></select>
+            <select class="input" id="f-kind" aria-label="操作種別"><option>すべての操作</option></select>
+            <select class="input" id="f-project" aria-label="プロジェクト"><option>SHOP</option></select>
+            <span class="tabs" style="margin-left:auto; border:0"><span class="on">ログイン</span><span>拒否・失敗</span><span>タイムライン</span></span>
+          </div>
+
+          <!-- ログイン一覧 -->
+          <div class="panel">
+            <header><span class="pin">4</span>ログイン一覧<span class="muted small" style="font-weight:400">login_sessions · 新しい順</span></header>
+            <div class="rows">
+              <div class="row head" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span>ユーザー</span><span>ログイン</span><span>IdP</span><span>場所</span><span>IP</span><span>端末</span><span>WARP</span><span>状態</span><span></span>
+              </div>
+              <div class="row sel" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span><span class="avatar">田</span> 田中 健<br><span class="muted small">tester</span></span>
+                <span class="nums">11/19 09:58 JST</span>
+                <span>Google</span>
+                <span>日本・東京<br><span class="muted small">AS2516 KDDI · NRT</span></span>
+                <span class="ip">203.0.113.24</span>
+                <span>Chrome / macOS</span>
+                <span class="ok">あり</span>
+                <span class="badge st-pass">有効</span>
+                <button class="btn" type="button">失効させる</button>
+              </div>
+              <div class="row" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span><span class="avatar">AK</span> Alex Kim<br><span class="muted small">tester · 英語表示</span></span>
+                <span class="nums">11/19 09:12 JST<br><span class="muted small">10:12 SGT（本人の TZ）</span></span>
+                <span>Google</span>
+                <span>シンガポール <span class="flag">初めての国</span><br><span class="muted small">AS4773 Singtel · SIN</span></span>
+                <span class="ip">198.51.100.71</span>
+                <span>Chrome / Windows</span>
+                <span class="muted">なし</span>
+                <span class="badge st-pass">有効</span>
+                <button class="btn" type="button">失効させる</button>
+              </div>
+              <div class="row" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span><span class="avatar">山</span> 山本 様<br><span class="muted small">guest · 株式会社サンプル</span></span>
+                <span class="nums">11/19 10:30 JST</span>
+                <span>one-time PIN</span>
+                <span>日本・大阪<br><span class="muted small">AS17676 SoftBank · KIX</span></span>
+                <span class="ip">192.0.2.140</span>
+                <span>Safari / iPadOS</span>
+                <span class="muted">なし</span>
+                <span class="badge st-pass">有効</span>
+                <button class="btn" type="button">失効させる</button>
+              </div>
+              <div class="row" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span><span class="avatar">高</span> 高橋 由佳<br><span class="muted small">tester</span></span>
+                <span class="nums">11/18 18:04 JST</span>
+                <span>Google</span>
+                <span>日本・東京<br><span class="muted small">AS4713 NTT · NRT</span></span>
+                <span class="ip">203.0.113.9</span>
+                <span>Edge / Windows</span>
+                <span class="ok">あり</span>
+                <span class="badge st-untested">期限切れ</span>
+                <span></span>
+              </div>
+              <div class="row" style="grid-template-columns: 1.2fr 1.1fr 0.8fr 1.5fr 1fr 1fr 0.5fr 0.7fr 92px;">
+                <span><span class="avatar">鈴</span> 鈴木 翔<br><span class="muted small">tester</span></span>
+                <span class="nums">11/18 08:47 JST</span>
+                <span>Google</span>
+                <span>日本・福岡<br><span class="muted small">AS2516 KDDI · FUK</span></span>
+                <span class="ip">203.0.113.88</span>
+                <span>Firefox / Ubuntu</span>
+                <span class="ok">あり</span>
+                <span class="badge st-fail">失効</span>
+                <span class="muted small">佐藤が失効</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <!-- 拒否・失敗ログイン -->
+            <div class="panel">
+              <header><span class="pin">5</span>拒否・失敗ログイン<span class="muted small" style="font-weight:400">access_events · allowed = 0</span></header>
+              <div class="rows">
+                <div class="row head" style="grid-template-columns: 82px 1.5fr 0.9fr 1fr;"><span>時刻</span><span>メール / 理由</span><span>IdP</span><span>場所・IP</span></div>
+                <div class="row" style="grid-template-columns: 82px 1.5fr 0.9fr 1fr;">
+                  <span class="nums small">11:46</span>
+                  <span><span class="mono small">unknown.user@gmail.com</span><br><span class="ng small">許可リストにないメール</span></span>
+                  <span>one-time PIN</span>
+                  <span class="small">ベトナム<br><span class="ip">192.0.2.77</span></span>
+                </div>
+                <div class="row" style="grid-template-columns: 82px 1.5fr 0.9fr 1fr;">
+                  <span class="nums small">11:43</span>
+                  <span><span class="mono small">unknown.user@gmail.com</span><br><span class="ng small">許可リストにないメール</span></span>
+                  <span>one-time PIN</span>
+                  <span class="small">ベトナム<br><span class="ip">192.0.2.77</span></span>
+                </div>
+                <div class="row" style="grid-template-columns: 82px 1.5fr 0.9fr 1fr;">
+                  <span class="nums small">07:05</span>
+                  <span><span class="mono small">k.suzuki@indx.example</span><br><span class="ng small">許可されていない国からのアクセス</span></span>
+                  <span>Google</span>
+                  <span class="small">米国<br><span class="ip">198.51.100.3</span></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 実行ごとの操作時間 -->
+            <div class="panel">
+              <header><span class="pin">6</span>実行ごとの操作時間（田中 健・今日）</header>
+              <div class="rows">
+                <div class="row head" style="grid-template-columns: 82px minmax(0,1fr) 80px 70px;"><span>実行</span><span>テストケース</span><span>判定</span><span>操作時間</span></div>
+                <div class="row" style="grid-template-columns: 82px minmax(0,1fr) 80px 70px;"><span class="id">RUN-1029</span><span class="small">TC-129 期限切れクーポンでエラーが出る</span><span class="badge st-fail">不合格</span><span class="nums">12 分</span></div>
+                <div class="row" style="grid-template-columns: 82px minmax(0,1fr) 80px 70px;"><span class="id">RUN-1031</span><span class="small">TC-131 クーポン併用の上限</span><span class="badge st-pass">合格</span><span class="nums">7 分</span></div>
+                <div class="row" style="grid-template-columns: 82px minmax(0,1fr) 80px 70px;"><span class="id">RUN-1036</span><span class="small">TC-134 送料無料クーポン</span><span class="badge st-running">実行中</span><span class="nums">3 分</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- タイムライン -->
+          <div class="panel">
+            <header><span class="pin">7</span>田中 健のタイムライン（11/19 · JST）<span class="spacer"></span><span class="muted small" style="font-weight:400">work_sessions 2 件 · 合計 2 時間 05 分</span></header>
+            <div class="body">
+              <div class="tl-hours"><span>08</span><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span></div>
+              <div class="tl-track" aria-label="作業セッションの時間帯">
+                <span style="left: 15%; width: 10%" title="09:58–11:10"></span>
+                <span class="run" style="left: 19%; width: 1.6%" title="RUN-1029"></span>
+                <span style="left: 42%; width: 6.5%" title="13:25–14:12"></span>
+              </div>
+              <div class="small muted">作業セッション 1: 09:58–11:10（操作 58 分）· 東京 · Chrome / macOS · lgs_01JDR4… ／ 作業セッション 2: 13:25–14:12（操作 41 分）</div>
+              <div class="events">
+                <div class="ev"><span class="t">09:58:02</span><span class="dot"></span><span>Access でログイン（Google）· 新しいセッション <span class="mono small">identity_nonce 7f3c…</span></span><span class="small">東京 · NRT</span><span class="ray">8e1f2a7c9b-NRT</span></div>
+                <div class="ev"><span class="t">09:58:05</span><span class="dot"></span><span>S01 マイタスクを表示（表示 1 分 12 秒）</span><span class="small">東京 · NRT</span><span class="ray">8e1f2a8d01-NRT</span></div>
+                <div class="ev"><span class="t">10:01:30</span><span class="dot w"></span><span><span class="id">RUN-1029</span> を開始（TC-129 v2 · staging@a1b2c3d）</span><span class="small">東京 · NRT</span><span class="ray">8e1f2d0a44-NRT</span></div>
+                <div class="ev"><span class="t">10:02:11</span><span class="dot w"></span><span>FX-11 のパスワードをコピー（値は記録しない）</span><span class="small">東京 · NRT</span><span class="ray">8e1f2d9e10-NRT</span></div>
+                <div class="ev"><span class="t">10:04:47</span><span class="dot w"></span><span>ステップ 1 を「合格」</span><span class="small">東京 · NRT</span><span class="ray">8e1f2f6b3a-NRT</span></div>
+                <div class="ev"><span class="t">10:09:20</span><span class="dot w"></span><span>ステップ 3 にスクリーンショットを貼り付け（3-upload.png, 412 KB）</span><span class="small">東京 · NRT</span><span class="ray">8e1f3302c8-NRT</span></div>
+                <div class="ev"><span class="t">10:13:52</span><span class="dot f"></span><span>ステップ 3 を「不合格」→ 実行を不合格で確定、GitHub Issue #491 を作成</span><span class="small">東京 · NRT</span><span class="ray">8e1f36a0f2-NRT</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="privacy"><span class="pin">8</span>
+            <b>記録している情報</b>
+            <span>ログイン（IdP・国・都市・IP・端末）、画面の閲覧と表示時間、作成・変更・判定などの操作。各ユーザーは初回ログイン時に告知へ同意しています（11 人 / 11 人）。この画面の閲覧も記録されます。保持: 操作ログ・Access ログ 3 年、ログイン・作業セッション 2 年、画面閲覧 1 年。IP は 1 年経過後に末尾を削除。</span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <aside class="spec-side">
+      <div class="card"><h3>目的</h3><p>テスターが社内・社外・海外にいても、「誰が・いつ・どこから・どうやって入り、何をしたか」を後から正確に追えるようにする。不審なログインの早期発見と、実行結果の証跡（誰がどの環境でどう判定したか）を兼ねる。</p></div>
+      <div class="card"><h3>注記</h3><ol class="notes">
+        <li><span class="pin">1</span><span>サマリは今日（JST）の値。失敗・拒否は直近 24 時間の <code>access_events.allowed = 0</code>。「新しい端末・場所」は、そのユーザーの過去 90 日の login_sessions にない国、または ua_json の組み合わせ。</span></li>
+        <li><span class="pin">2</span><span>AI 要約は異常の候補と根拠（対象レコードへのリンク）だけを示す。不正と断定しない。入力は集計済みデータのみで、IP は渡さない。</span></li>
+        <li><span class="pin">3</span><span>フィルタはユーザー・期間・国・IdP・操作種別・プロジェクト。URL のクエリに保持し、共有できる。CSV 書き出しはフィルタ結果と同じ範囲で、書き出し自体を activity_log に記録。</span></li>
+        <li><span class="pin">4</span><span>ログイン時刻は JST と本人のタイムゾーン（users.timezone）を併記。IP は admin のみ表示。「失効させる」は Cloudflare Access の revoke_user API を呼び、login_sessions.end_reason = revoked、revoked_by を記録。</span></li>
+        <li><span class="pin">5</span><span>Access で拒否されたログインは Worker に届かないため、Logpush（access_requests → R2）と REST API の取り込みで表示する。未登録メールは user_id = null のまま表示。</span></li>
+        <li><span class="pin">6</span><span>操作時間は runs.active_ms（画面が前面にあり操作している時間の合計）。待ち時間や放置は含まない。</span></li>
+        <li><span class="pin">7</span><span>タイムラインは work_sessions を帯で、その中の page_views と activity_log を時刻順に表示。各行に Ray ID と場所（request.cf の city / colo）を付け、Cloudflare 側のログと突き合わせられる。秘密値のコピーは「操作した事実」だけを記録し、値は記録しない。</span></li>
+        <li><span class="pin">8</span><span>記録内容の告知と同意状況（users.privacy_ack_at）、保持期間を常に画面下部に表示する。</span></li>
+      </ol></div>
+      <div class="card"><h3>表示データ</h3><ul class="small">
+        <li>サマリ・ログイン一覧: <code>login_sessions</code>（idp_type, geo_json, ip_last, ua_json, is_warp, access_iat, ended_at, end_reason）＋ <code>users</code>（name, role, timezone, locale）</li>
+        <li>拒否・失敗: <code>access_events</code>（occurred_at, email, allowed, connection, country, ip）</li>
+        <li>タイムライン: <code>work_sessions</code>、<code>page_views</code>（screen_id, visible_ms, ray_id）、<code>activity_log</code>（action, target, ray_id, city, colo）</li>
+        <li>操作時間: <code>runs.active_ms</code>、<code>run_steps.active_ms</code></li>
+        <li>取り込み状況: <code>ingest_cursors</code>（access_rest / access_graphql / access_users）</li>
+      </ul></div>
+      <div class="card"><h3>操作</h3><ul class="small">
+        <li>セッションを失効させる（admin のみ。理由の入力必須）</li>
+        <li>ユーザーを選んでタイムラインを開く</li>
+        <li>フィルタ・CSV 書き出し</li>
+        <li>Access ログを今すぐ取り込む（取り込みが遅れているとき）</li>
+      </ul></div>
+      <div class="card"><h3>AI の役割</h3><p class="small">初めての国・端末、深夜帯の大量操作、拒否の連続などの「確認したほうがよい点」を短く要約し、根拠のレコードにリンクする。判定や自動失効はしない（失効は人が行う）。</p></div>
+      <div class="card"><h3>この画面の完了条件</h3><ul class="small">
+        <li>admin 以外が <code>/admin/activity</code> を開くと 403 になる（manager は下記の作業サマリ画面へリダイレクト）。</li>
+        <li>Access でログインすると、1 分以内に login_sessions の行がこの一覧に出る（IdP・国・都市・ASN・colo・端末・WARP が埋まる）。</li>
+        <li>Access で拒否されたログインが、取り込み間隔（既定 15 分）以内に「拒否・失敗」に出る。</li>
+        <li>「失効させる」を押すと Access のセッションが失効し、そのユーザーの次のリクエストが再ログインになる。行の状態が「失効」になり、誰が失効させたかが残る。</li>
+        <li>タイムラインの各イベントに Ray ID・時刻・場所があり、RUN の行から S06 / S05 の実行記録へ移動できる。</li>
+        <li>時刻が JST とユーザーのタイムゾーンで正しく表示される（UTC 保存）。</li>
+        <li>この画面の閲覧と CSV 書き出しが activity_log に記録される。</li>
+        <li>最終取り込みから 60 分以上経つと警告が出る。</li>
+      </ul></div>
+    </aside>
+  </div></section>
+
+  <section>
+    <h2>状態のバリエーション</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>状態</th><th>表示</th></tr></thead>
+      <tbody>
+        <tr><td>manager</td><td><code>/p/[key]/activity</code> で自プロジェクトの作業サマリのみ。人ごとの作業時間・実行数・判定数を表示し、IP・都市・ASN・端末・拒否ログインは表示しない。</td></tr>
+        <tr><td>tester / guest</td><td>画面にアクセス不可（ナビにも出さない）。本人は自分のプロフィールから自分のログイン履歴（直近 30 日）だけ見られる。</td></tr>
+        <tr><td>取り込み遅延</td><td>上部に警告バナー。最終取り込み時刻と原因候補を表示。</td></tr>
+        <tr><td>データなし</td><td>「この期間のログインはありません」とフィルタ解除ボタン。</td></tr>
+        <tr><td>英語表示（Alex Kim が見る場合）</td><td>本人の履歴画面は英語 UI、時刻は本人のタイムゾーン（SGT など）を先に表示。</td></tr>
+        <tr><td>モバイル</td><td>サマリは 2 列、ログイン一覧はカード表示（ユーザー・時刻・場所・状態）。失効操作は確認画面を挟む。</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two-col">
+      <div class="mini-mock">
+        <b>manager 視点（SHOP の作業サマリ · 今週）</b>
+        <div class="rows">
+          <div class="row head" style="grid-template-columns: 1.2fr 0.8fr 0.6fr 0.6fr;"><span>担当者</span><span>作業時間</span><span>実行</span><span>判定</span></div>
+          <div class="row" style="grid-template-columns: 1.2fr 0.8fr 0.6fr 0.6fr;"><span>田中 健</span><span class="nums">9 時間 40 分</span><span class="nums">23</span><span class="nums">21</span></div>
+          <div class="row" style="grid-template-columns: 1.2fr 0.8fr 0.6fr 0.6fr;"><span>Alex Kim</span><span class="nums">6 時間 05 分</span><span class="nums">14</span><span class="nums">14</span></div>
+          <div class="row" style="grid-template-columns: 1.2fr 0.8fr 0.6fr 0.6fr;"><span>山本 様</span><span class="nums">1 時間 20 分</span><span class="nums">4</span><span class="nums">4</span></div>
+        </div>
+        <span class="muted small">IP・都市・端末・拒否ログインは表示しない</span>
+      </div>
+      <div class="mini-mock">
+        <b>Access ログの取り込みが止まっているとき</b>
+        <div class="callout warn"><strong>Access ログの取り込みが 3 時間止まっています</strong><p class="small">最終取り込み 11:52（access_rest）。Logpush の出力が届いていない可能性があります。拒否・失敗ログインの表示が遅れています。</p><p><button class="btn" type="button">今すぐ取り込む</button></p></div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="pager"><a href="s11-github-deployments.html"><small>前へ</small>S11 GitHub・デプロイメント</a><a href="../index.html"><small>次へ</small>ドキュメントの入口</a></nav>
+</div></main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

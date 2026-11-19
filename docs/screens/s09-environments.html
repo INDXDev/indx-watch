@@ -181,7 +181,7 @@
                     <span><span class="ok">✓</span> member01 でログイン → /mypage</span>
                     <span><span class="warn">!</span> admin はロック中（FX-11 の更新が必要）</span>
                   </div>
-                  <span class="muted small">Browser Rendering から実行 · 11/19 10:42 · 佐藤 美咲</span>
+                  <span class="muted small">Browser Run から実行 · 11/19 10:42 · 佐藤 美咲</span>
                 </div>
               </div>
 
@@ -219,11 +219,11 @@
       </div>
       <div class="card"><h3>注記</h3>
         <ol class="notes">
-          <li><span class="pin">1</span><span>環境一覧。ヘルスチェックは runner の Cron が 5 分ごとに <code>GET base_url</code> を実行した最新結果。現在のデプロイは <code>deployments</code> の最新 1 件。</span></li>
+          <li><span class="pin">1</span><span>環境一覧。ヘルスチェックは runner の定期 Workflow（<code>schedules</code>、5 分ごと）が <code>GET base_url</code> を実行した最新結果。現在のデプロイは <code>deployments</code> の最新 1 件。</span></li>
           <li><span class="pin">2</span><span><code>entry_guide_md</code> を Markdown でレンダリング。マイタスク（S01）と手動ランナー（S05）の「環境に入る」からも同じ内容を表示する。</span></li>
           <li><span class="pin">3</span><span>kind=<code>account</code> のフィクスチャのうち、この環境に紐づくもの。パスワードは表示せず、コピー時だけサーバーから取得（監査ログに記録）。</span></li>
           <li><span class="pin">4</span><span>秘密情報は参照名のみ。値の登録は <code>wrangler secret put</code> またはダッシュボードで行う。</span></li>
-          <li><span class="pin">5</span><span>接続テストは Browser Rendering で実際にページを開き、テストアカウントでのログインまで確認する。</span></li>
+          <li><span class="pin">5</span><span>接続テストは Browser Run（旧 Browser Rendering）で実際にページを開き、テストアカウントでのログインまで確認する。</span></li>
           <li><span class="pin">6</span><span><code>reset_hook_json</code> の設定。テスト対象アプリ側に用意してもらうエンドポイント。実行前処理で自動的にも呼ばれる。</span></li>
           <li><span class="pin">7</span><span>preview はテンプレート環境。PR ごとのデプロイメントとして扱い、環境自体は 1 行。</span></li>
         </ol>

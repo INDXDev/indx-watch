@@ -19,18 +19,22 @@ All of this lives in a single Cloudflare D1 database, which is the single source
 - **AI proposes, humans approve.** AI drafts use cases, test cases and fixtures from PRDs or pull requests. It runs browser tests and judges results with a confidence score. Anything below the threshold, or any P0 test case, goes to a human review queue.
 - **Fixtures and test cases are versioned.** You can upload, edit, diff and roll back test data in the browser. Each run pins the versions it used.
 - **No one gets lost.** Each environment has an entry guide (URL, how to get in, test accounts, reset hooks), so a tester can start from "My tasks" without asking anyone.
+- **Japanese and English.** The UI and the content people write (use cases, steps, comments) work in both languages. Each text has one source language, AI translations are reviewed by people, and every run records which language the tester read.
+- **Full activity trail.** Using Cloudflare Access identity and logs, INDX Watch records who logged in (including failed attempts), when, from where, on which device, and what they did.
 - **Small codebase.** One Next.js app plus one runner Worker. The project leans on Cloudflare managed services instead of custom infrastructure.
 
 ## Architecture at a glance
 
 | Concern | Cloudflare service |
 |---|---|
-| UI + API | Next.js (App Router) on Workers via `@opennextjs/cloudflare` |
+| UI + API | Next.js (App Router) on Workers via vinext (fallback: `@opennextjs/cloudflare`) |
 | Database | D1 (SQLite), Drizzle ORM |
 | Files | R2 (evidence, fixtures, baselines) |
-| Test execution | Workflows + Queues + Browser Rendering (`@cloudflare/playwright`) |
-| Scheduled runs | Cron Triggers |
-| Access control | Cloudflare Access (Zero Trust): company domain plus invited customers via one-time PIN |
+| Test execution | Workflows + Queues + Browser Run, formerly Browser Rendering (`@cloudflare/playwright`, recording, Live View) |
+| Scheduled runs | Workflow schedules |
+| Test emails | Email Routing + Email Workers |
+| Access control | Cloudflare Access (Zero Trust) on the Worker: company domain plus invited customers via one-time PIN |
+| Login and activity audit | Access JWT + get-identity, Access logs via Logpush to R2, request metadata (`request.cf`) |
 | LLM | Anthropic Claude through Cloudflare AI Gateway |
 | Integrations | GitHub App (deployments, PR impact analysis, Check Runs, issues) and an MCP server for coding agents |
 
@@ -41,8 +45,9 @@ AGENTS.md        Guide for coding agents (Japanese). Read this first.
 CLAUDE.md        Claude Code entry point (imports AGENTS.md)
 docs/            Single source of truth, as HTML (Japanese)
   index.html       Entry point
-  spec/            Layer 1: what and why (PRD, domain, UX, data model, architecture, AI)
-  screens/         Layer 2: one page per screen (mockup + screen spec), S01–S11
+  spec/            Layer 1: what and why (PRD, domain, UX, data model, architecture, AI,
+                   ER and communication flows, i18n, identity and audit logs)
+  screens/         Layer 2: one page per screen (mockup + screen spec), S01–S12
   guides/          Layer 2: implementation guide, target app onboarding
 apps/web/        Next.js app (planned)
 apps/runner/     Execution Worker (planned)
@@ -61,7 +66,7 @@ All documentation except this README is written in Japanese.
 | Milestone | Scope |
 |---|---|
 | M0 | Design documentation (this) |
-| M1 | Auth, projects/environments/releases, spec tree, manual runner, my tasks, fixtures, release readiness |
+| M1 | Auth and login audit, projects/environments/releases, spec tree, manual runner, my tasks, fixtures, release readiness, Japanese/English UI and translation |
 | M2 | AI spec import, browser agent runs, LLM judge, review queue |
 | M3 | GitHub App, scheduled runs, visual diff, MCP server |
 | M4 | Customer UAT (guest role), analytics, flaky test detection |

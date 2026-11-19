@@ -33,7 +33,7 @@
       <div class="eyebrow">GUIDE-02 · テスト対象の登録</div>
       <h1>テスト対象（自社アプリ）の登録ガイド</h1>
       <p class="lead">自社のアプリを INDX Watch でテストできる状態にする手順です。「どのリポジトリを・どの環境で・どうやって入って・どのデータで」テストするかを登録しておけば、テスターはマイタスクを開くだけで迷わずテストを始められます。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>対象 <b>QA リード・エンジニア</b></span><span>関連 <a href="../screens/s09-environments.html">S09 環境・アクセス</a> · <a href="../screens/s07-fixtures.html">S07 フィクスチャ管理</a></span></div>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>対象 <b>QA リード・エンジニア</b></span><span>関連 <a href="../screens/s09-environments.html">S09 環境・アクセス</a> · <a href="../screens/s07-fixtures.html">S07 フィクスチャ管理</a></span></div>
     </header>
 
     <section id="purpose">
@@ -88,7 +88,7 @@
 <pre><code>{
   "reset": { "method": "POST", "path": "/__test/reset", "timeoutSec": 60 },
   "seed":  { "method": "POST", "path": "/__test/seed",  "timeoutSec": 60 },
-  "auth":  { "kind": "cf_access_service_token", "secretRef": "SHOP_STAGING_ACCESS" },
+  "auth":  { "kind": "cf_access_service_token", "secretRef": "SHOP_STAGING_CF_CLIENT_ID" },
   "runBefore": "each_run"
 }</code></pre>
         </div></li>
@@ -122,12 +122,12 @@
           <tr><td>環境名と種類</td><td><code>name</code> / <code>kind</code></td><td><code>staging</code> / staging</td><td>必須</td><td>エンジニア</td></tr>
           <tr><td>ベース URL</td><td><code>base_url</code></td><td>https://staging.shop.example.com</td><td>必須</td><td>エンジニア</td></tr>
           <tr><td>アクセス方法</td><td><code>access_kind</code></td><td><code>cf_access</code>（Access サービストークン）</td><td>必須</td><td>エンジニア（インフラ担当）</td></tr>
-          <tr><td>アクセス用資格情報の参照名</td><td><code>access_secret_ref</code></td><td><code>SHOP_STAGING_ACCESS</code></td><td><code>none</code> 以外は必須</td><td>インフラ担当が Secrets Store に登録</td></tr>
+          <tr><td>アクセス用資格情報の参照名</td><td><code>access_secret_ref</code></td><td><code>SHOP_STAGING_CF_CLIENT_ID</code></td><td><code>none</code> 以外は必須</td><td>インフラ担当が Secrets Store に登録</td></tr>
           <tr><td>入り方ガイド</td><td><code>entry_guide_md</code></td><td><a href="#entry-guide">テンプレート</a>を参照</td><td>必須</td><td>QA リード（エンジニアが確認）</td></tr>
           <tr><td>テストアカウント</td><td>フィクスチャ <code>account</code></td><td><span class="id">FX-11</span> staging 会員アカウント</td><td>ログインがあるアプリは必須</td><td>エンジニア</td></tr>
           <tr><td>リセット / シード手順</td><td><code>reset_hook_json</code></td><td><code>POST /__test/reset</code>、<code>POST /__test/seed</code></td><td>agent / script で実行するなら必須。manual のみなら任意（手順を入り方ガイドに書く）</td><td>エンジニア</td></tr>
           <tr><td>既定の環境か</td><td><code>is_default</code></td><td>はい</td><td>プロジェクトに 1 つ必須</td><td>QA リード</td></tr>
-          <tr><td>メール受信の確認方法</td><td>入り方ガイド内</td><td>テスト用メールボックス API（<a href="#app-side">後述</a>）</td><td>メール送信がある場合は必須</td><td>エンジニア</td></tr>
+          <tr><td>メール受信の確認方法</td><td>入り方ガイド内</td><td>テスト用ドメイン <code>watch-mail.example</code> 宛てに送る設定（<a href="#app-side">後述</a>）</td><td>メール送信がある場合は必須</td><td>エンジニア</td></tr>
           <tr><td>外部サービスのサンドボックス</td><td>入り方ガイド内 / フィクスチャ</td><td>決済サンドボックス、<span class="id">FX-9</span> テスト用カード</td><td>決済・外部連携がある場合は必須</td><td>エンジニア</td></tr>
           <tr><td>問い合わせ先</td><td>入り方ガイド内</td><td>Slack #shop-dev、担当 鈴木 翔</td><td>必須</td><td>QA リード</td></tr>
           <tr><td>データの扱い</td><td>入り方ガイド内</td><td>本番データなし。個人情報を入力しない</td><td>任意（uat では必須）</td><td>QA リード</td></tr>
@@ -167,7 +167,8 @@
 
 ### 注意
 - staging は毎日 5:00（JST）にデータが初期化されます。前日に作った注文は残りません。
-- 注文確認メールは実際には送られません。テスト手順の「メールを確認」から受信内容を見られます。
+- 注文確認メールは、テスト用アドレス（@watch-mail.example）宛てにだけ届きます。
+  受信内容は実行画面の「受信メール」に自動で表示されます。
 - 個人情報（本名・本物の住所）は入力しないでください。
 
 ### 困ったとき
@@ -208,15 +209,16 @@ Slack #shop-dev（担当: 鈴木 翔）</code></pre>
       </ul>
 
       <h3>3. メール受信の確認方法</h3>
-      <p>「注文確認メールが届く」（<span class="id">AC-12.3</span>）のような完了条件を確かめるため、staging のメールを外部に送らず、テスト用メールボックスで受け取れるようにします。</p>
+      <p>「注文確認メールが届く」（<span class="id">AC-12.3</span>）のような完了条件を、人がメールボックスを見に行かずに自動で確かめます。INDX Watch はテスト専用のメールドメイン <code>watch-mail.example</code> を持ち、Cloudflare Email Routing で受け取ったメールを実行に結び付けます（<a href="../spec/architecture.html#email">アーキテクチャ: テスト用メールの受信</a>）。対象アプリ側にお願いするのは次の 3 点だけです。</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>API</th><th>内容</th></tr></thead>
+        <thead><tr><th>お願いすること</th><th>理由</th></tr></thead>
         <tbody>
-          <tr><td><code>GET /__test/mailbox?to=guest+{runId}@test.shop.example.com</code></td><td>宛先ごとの受信メール一覧（件名・本文テキスト・受信時刻）。新しい順</td></tr>
-          <tr><td><code>DELETE /__test/mailbox?to=...</code></td><td>受信メールの削除（reset でまとめて消えるなら不要）</td></tr>
+          <tr><td>staging / uat からのメール送信先を、テストでは入力されたアドレスにそのまま送る（<code>@watch-mail.example</code> を送信許可ドメインに追加）</td><td>実行ごとのアドレス <code>run-{id}@watch-mail.example</code> で、同時に動く別の実行のメールと混ざらない</td></tr>
+          <tr><td>実在のアドレス（社員・顧客）にはメールを送らない設定（送信先ドメインの許可リスト）</td><td>テストデータで本物の人にメールが届く事故を防ぐ</td></tr>
+          <tr><td>テストアカウント（account フィクスチャ）のメールアドレスも <code>@watch-mail.example</code> にする</td><td>パスワード再設定・通知メールも検証できる</td></tr>
         </tbody>
       </table></div>
-      <p class="muted small">宛先に <code>runId</code> を含めると、同時に動く別の実行のメールと混ざりません。メールボックス API を用意できない場合は、Mailpit などのテスト用 SMTP サーバーの API を同じ形で公開してもらいます。</p>
+      <p class="muted small">テスト手順では <code>{{run.email}}</code> を入力値に使います。エージェントは <code>wait_for_email</code> ツールで受信を待ち、件名・本文・リンクを判定に使います。Email Routing の catch-all はルートドメインでしか使えないため、テスト用メールには専用のドメインを 1 つ用意します（INDX Watch の管理者が設定済み）。</p>
 
       <h3>4. 外部決済のサンドボックス</h3>
       <ul>
@@ -239,7 +241,7 @@ environments:
     kind: staging
     default: true
     base_url: https://staging.shop.example.com
-    access: { kind: cf_access, secret_ref: SHOP_STAGING_ACCESS }
+    access: { kind: cf_access, secret_ref: SHOP_STAGING_CF_CLIENT_ID }
     reset_hook:
       reset: { method: POST, path: /__test/reset }
       seed:  { method: POST, path: /__test/seed }
@@ -253,7 +255,7 @@ environments:
   - name: preview
     kind: preview
     base_url: https://pr-{pr_number}.shop.example.com
-    access: { kind: cf_access, secret_ref: SHOP_STAGING_ACCESS }
+    access: { kind: cf_access, secret_ref: SHOP_STAGING_CF_CLIENT_ID }
 
 automation:
   smoke:
@@ -308,12 +310,14 @@ notifications:
       <div class="table-wrap"><table>
         <thead><tr><th>症状</th><th>よくある原因</th><th>対処</th></tr></thead>
         <tbody>
+          <tr><td>エージェントがログイン画面や CAPTCHA・2 段階認証で止まる</td><td>対象アプリ自体のログインに人の操作が必要</td><td>エージェントは <code>request_human</code> で人に引き継ぐ（Browser Run の Human in the Loop）。担当者が S06 の Live View で操作すると続きを実行する。頻発するならテスト環境で CAPTCHA・2 段階認証をテストアカウントだけ無効にする</td></tr>
           <tr><td>エージェントが Cloudflare のログイン画面で止まる</td><td>サービストークンが対象環境の Access ポリシーに入っていない、または参照名の誤り</td><td>Access アプリに「Service Auth」ポリシーを追加し、S09 の <code>access_secret_ref</code> と Secrets Store の名前を一致させる</td></tr>
-          <tr><td>人は入れるがエージェントだけ 403</td><td>対象アプリが IP 制限をしている</td><td><code>access_kind</code> を <code>cf_access</code> に寄せる。IP 制限が必須なら Browser Rendering の送信元を許可する方法をインフラ担当と決める</td></tr>
+          <tr><td>人は入れるがエージェントだけ 403</td><td>対象アプリが IP 制限をしている</td><td><code>access_kind</code> を <code>cf_access</code> に寄せる。Browser Run の送信元 IP は固定でないため IP 許可では入れない。閉域が必須なら Workers VPC（beta）+ Cloudflare Tunnel 経由にする方法をインフラ担当と決める</td></tr>
+          <tr><td>エージェントだけ「bot と判定されました」画面や 403 で止まる</td><td>対象環境のゾーンで Bot Fight Mode が有効。Browser Run の通信は常に bot として扱われる</td><td>テスト環境では Bot Fight Mode を切る、または Access サービストークンで入る構成にする。WAF のスキップルールで通すには Enterprise プランが必要</td></tr>
           <tr><td>同じテストが通ったり落ちたりする</td><td>前の実行のデータが残っている、または並列実行でデータが衝突している</td><td><code>run_before: each_run</code> でリセットする。メール宛先や注文メモに <code>runId</code> を含めて実行ごとに分ける</td></tr>
           <tr><td>リセットがタイムアウトする</td><td>reset API が全テーブルを削除していて遅い</td><td><code>scope</code> で範囲を絞る。60 秒を超える場合は非同期にして <code>/__test/health</code> で完了を確認する</td></tr>
           <tr><td>preview 環境の URL が見つからない</td><td>デプロイの仕組みが GitHub の deployment_status に URL を載せていない</td><td>デプロイワークフローで <code>environment_url</code> を設定する。できない場合は URL テンプレートを登録する</td></tr>
-          <tr><td>確認メールのテストができない</td><td>staging が実際にメールを送っている、またはメールボックス API がない</td><td>テスト用メールボックス API（またはテスト用 SMTP サーバー）を用意し、AC-12.3 のテストケースの手順をそれに合わせる</td></tr>
+          <tr><td>確認メールのテストができない</td><td>staging がテスト用ドメインに送れない（送信許可リストにない）</td><td>送信先を <code>{{run.email}}</code>（<code>@watch-mail.example</code>）にして、AC-12.3 のテストケースの手順をそれに合わせる。届いたメールは S11 の受信ログで確認できる</td></tr>
           <tr><td>決済画面で外部ドメインに飛んで止まる</td><td>3D セキュアなどの外部ドメインがエージェントの移動許可リストにない</td><td>入り方ガイドとプロジェクト設定に外部ドメインを追加する。可能ならサンドボックスで 3D セキュアなしのカードを使う</td></tr>
           <tr><td>顧客がログインできない</td><td>INDX Watch 側の Access に招待したが、uat 環境側の Access に招待していない（またはその逆）</td><td>両方の Access アプリに同じメールアドレスを追加する</td></tr>
           <tr><td>AI 取り込みで仕様が細かすぎる / 粗すぎる</td><td>元の文書の粒度がばらばら</td><td>取り込み時に機能を 1 つ指定して分けて取り込む。下書きは承認前に統合・削除できる</td></tr>

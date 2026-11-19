@@ -3,7 +3,10 @@
 このファイルは Claude Code などのコーディングエージェントが **最初に読む** 前提で書かれています。
 プロジェクトの背景・決定事項・用語・フォルダ構成・作業ルールをここに集約し、詳細は `docs/` の HTML ドキュメントを参照します。
 
-> 言語ルール: `README.md` のみ英語。それ以外（このファイル、`docs/`、コードコメント、コミットメッセージ本文、UI 文言）は日本語を基本とします。識別子（変数名・テーブル名・API パス）は英語。
+> 言語ルール: `README.md` のみ英語。それ以外（このファイル、`docs/`、コードコメント、コミットメッセージ本文）は日本語を基本とします。識別子（変数名・テーブル名・API パス）は英語。
+> **プロダクト自体は日本語・英語の両方に対応します**（UI 文言はメッセージファイル、利用者が書く中身は原文 + 翻訳。`docs/spec/i18n.html`）。
+
+> Cloudflare は変化が速い。Cloudflare の機能・上限・料金を前提にするときは、記憶ではなく developers.cloudflare.com と changelog を Web で確認し、`docs/spec/architecture.html` の「最新仕様の確認メモ」を更新すること。
 
 ---
 
@@ -29,7 +32,9 @@ INDX Watch はこれを **1 つのデータベース（D1）を単一の情報�
 4. **証拠ベース** — すべての判定にスクリーンショットなどの証拠と判定理由が付く。
 5. **AI は提案、人が承認** — AI が作った仕様は `draft` で入り、人が承認して `ready` になる。AI の判定は信頼度付きで、閾値未満は人のレビューキューへ。
 6. **すべて履歴が残る** — テストケースとフィクスチャはバージョン管理。実行は「どのバージョンの仕様・データで、どのデプロイに対して」行ったかを必ず記録。
-7. **コードは少なく** — Next.js 1 アプリ + ランナー Worker 1 つ。Cloudflare のマネージド機能（D1 / R2 / Browser Rendering / Workflows / Queues / Access）に任せ、自前実装を増やさない。
+7. **コードは少なく** — Next.js 1 アプリ + ランナー Worker 1 つ。Cloudflare のマネージド機能（D1 / R2 / Browser Run / Workflows / Queues / Access）に任せ、自前実装を増やさない。
+8. **日本語と英語の両方で使える** — 外国籍のテスターもいる。仕様・手順は原文 + 翻訳（AI 翻訳 → 人が確認）で持ち、実行時にどの言語で読んだかを記録する。
+9. **誰が・いつ・どこで・どう作業したかを残す** — Cloudflare Access の ID とリクエスト情報で、ログイン（失敗含む）・場所・端末・操作・作業時間を記録する。目的と閲覧権限を決めて告知する。
 
 ## 3. 用語とドメインモデル（要約）
 
@@ -71,6 +76,10 @@ ID 規約:
 テストケースの状態: `draft` → `ready` → `deprecated`。
 計画アイテムの状態: `todo` / `in_progress` / `done` / `blocked`。
 
+翻訳: 翻訳対象のエンティティは `source_locale`（`ja` / `en`）と原文を持ち、もう一方の言語は `translations`（状態 `machine` / `reviewed` / `stale`）。表示は `localize()` に集約。テスト対象画面の文言（「」で囲む）は翻訳しない。
+
+ログ・作業記録: `login_sessions`（Access のセッション）、`access_events`（Access の認証ログ。拒否も含む）、`activity_log`（変更と重要な閲覧。Ray ID・IP・国・都市・セッション付き）、`page_views`（閲覧と表示時間）、`work_sessions`（15 分の空白で区切った作業のまとまり）。
+
 ロール: `admin` / `manager`（QA リード・PM）/ `tester`（QA・エンジニア・ビジネス職）/ `guest`（顧客。自分にアサインされた項目のみ見える）。AI エージェントは `kind = 'agent'` のシステムユーザー。
 
 ## 4. 技術スタックと構成
@@ -78,13 +87,13 @@ ID 規約:
 詳細は `docs/spec/architecture.html`。
 
 - **言語**: TypeScript（strict）。パッケージ管理は pnpm workspaces。
-- **apps/web**: Next.js（App Router）を `@opennextjs/cloudflare` で Cloudflare Workers にデプロイ。UI は Tailwind CSS + shadcn/ui。データ取得は Server Components、更新は Server Actions。外部向けは Route Handlers（`/api/github/webhook`、`/api/runner/*`、`/mcp`）。
-- **apps/runner**: 素の Worker。Cloudflare Workflows（実行の各ステップを耐久的に処理）、Queues（実行ジョブの投入）、Browser Rendering（`@cloudflare/playwright`）、Cron Triggers（定期実行）。
+- **apps/web**: Next.js（App Router）を **vinext**（Cloudflare 推奨・Vite ベース）で Cloudflare Workers にデプロイ。互換性問題が出たら `@opennextjs/cloudflare` にフォールバック。UI は Tailwind CSS + shadcn/ui、多言語は `next-intl`。データ取得は Server Components、更新は Server Actions。外部向けは Route Handlers（`/api/github/webhook`、`/api/runner/*`、`/mcp`）。
+- **apps/runner**: 素の Worker。Cloudflare Workflows（実行の各ステップを耐久的に処理。人のレビュー待ちは `step.waitForEvent`、定期実行は Workflow の `schedules`）、Queues（実行・翻訳・ログ取り込みのジョブ）、Browser Run（旧 Browser Rendering。`@cloudflare/playwright`、録画、Live View、Human in the Loop）、Email Worker（テストメールの受信）、Access ログの取り込み。
 - **packages/db**: Drizzle ORM のスキーマとマイグレーション（D1）。
 - **packages/core**: ドメイン型（zod）、判定ポリシー、ジャッジ、LLM クライアント、ID 生成。web と runner の両方から使う。
 - **データ**: D1（メタデータ全部）、R2（証拠ファイル・フィクスチャ本体・ベースライン画像）。
-- **認証**: Cloudflare Access（Zero Trust）をアプリの前段に置く。Worker は `Cf-Access-Jwt-Assertion` を検証し、メールアドレスで `users` と突き合わせる。顧客（guest）は Access のワンタイム PIN で個別招待。`/api/github/webhook` だけ Access をバイパスし HMAC 署名で検証。
-- **LLM**: Anthropic Claude を Cloudflare AI Gateway 経由で呼ぶ（ログ・レート制御・コスト可視化）。既定モデル: ブラウザエージェント・仕様生成 = `claude-opus-5-5`、LLM ジャッジ・分類 = `claude-sonnet-5-5`、大量の軽い処理 = `claude-haiku-5-5`。プロジェクト設定で変更可能。判定は構造化出力（`output_config.format`）で JSON を受け取る。
+- **認証**: Cloudflare Access（Zero Trust）を Worker 単位で付ける。Worker は `jose` で `Cf-Access-Jwt-Assertion` を検証し（`ctx.access` は Static Assets のある Worker では使えない）、`sub` / `identity_nonce` でユーザーとセッションを特定、新しいセッションでは `get-identity` を 1 回呼ぶ。顧客（guest）は One-time PIN + Independent MFA で個別招待。`/api/github/webhook` だけ Access をバイパスし HMAC 署名で検証。失敗・拒否ログインは Logpush（`access_requests` → R2）と REST で取り込む（`docs/spec/identity-audit.html`）。
+- **LLM**: Anthropic Claude を Cloudflare AI Gateway 経由で呼ぶ（BYOK、spend limits、`cf-aig-metadata` に project_key / run_id、秘密を含む本文はログに残さない）。翻訳も Claude。既定モデル: ブラウザエージェント・仕様生成 = `claude-opus-5-5`、LLM ジャッジ・分類 = `claude-sonnet-5-5`、大量の軽い処理 = `claude-haiku-5-5`。プロジェクト設定で変更可能。判定は構造化出力（`output_config.format`）で JSON を受け取る。
 - **GitHub 連携**: GitHub App。`pull_request`（影響テストの提案）、`deployment_status`（デプロイメント作成とスモーク自動実行）、`release`（リリース作成）を受信。結果は Check Run と PR コメント、失敗時は Issue 作成。
 - **MCP**: `/mcp` に MCP サーバーを公開し、Claude Code から仕様の参照・ドラフト作成・実行開始ができる。
 
@@ -103,8 +112,11 @@ ID 規約:
 │   │   ├── domain.html         # ドメインモデル・用語・状態遷移
 │   │   ├── ux.html             # UX 原則・情報設計・ユーザーフロー
 │   │   ├── data-model.html     # D1 / R2 設計
-│   │   ├── architecture.html   # Cloudflare 構成・認証・GitHub 連携
-│   │   └── ai.html             # AI ネイティブ設計（実行モード・ジャッジ・判定ポリシー・MCP）
+│   │   ├── architecture.html   # Cloudflare 構成・認証・GitHub 連携・最新仕様の確認メモ
+│   │   ├── ai.html             # AI ネイティブ設計（実行モード・ジャッジ・判定ポリシー・MCP）
+│   │   ├── interactions.html   # ER 図（全テーブル）・コンポーネント間通信・アクター別シーケンス・CRUD
+│   │   ├── i18n.html           # 多言語（日本語・英語）設計
+│   │   └── identity-audit.html # 認証・ログイン・行動ログ（Cloudflare Access の ID と各種ログ）
 │   ├── screens/            # 第 2 層: 画面ごとの UX アーティファクト（モック + 画面仕様）
 │   └── guides/             # 第 2 層: どう作るか / どう使うか
 │       ├── implementation.html     # 実装ガイド・規約・ロードマップ
@@ -132,6 +144,7 @@ ID 規約:
 | S09 | 環境・アクセス | `/p/[key]/environments` |
 | S10 | AI 仕様取り込み | `/p/[key]/specs/import` |
 | S11 | GitHub・デプロイメント | `/p/[key]/deployments` |
+| S12 | ログイン・作業履歴（admin） | `/admin/activity` |
 
 ## 6. 作業ルール（エージェント向け）
 
@@ -139,15 +152,17 @@ ID 規約:
 2. スキーマを変えるときは `packages/db` のスキーマとマイグレーション、`docs/spec/data-model.html` を **同じコミットで** 更新する。
 3. 新しい画面・大きな UI 変更は、先に `docs/screens/` に HTML モックを追加・更新する。
 4. コード量を増やさない。Cloudflare のマネージド機能や既存ライブラリで済むなら自前で書かない。新しい依存を足すときは理由をコミットメッセージに書く。
-5. 秘密情報（テストアカウントのパスワード、API キー）を D1 やリポジトリに平文で置かない。D1 には参照名だけを保存し、値は Workers Secrets / Secrets Store に置く。
-6. AI が生成・変更したデータは `origin = 'ai'` と生成元（モデル・プロンプトバージョン）を記録し、人の承認なしに `ready` にしない。
-7. UI 文言は平易な日本語。ビジネス職が読んで分かる言葉にする（例: 「Webhook 設定」ではなく「GitHub 通知」）。
-8. ドキュメント HTML は `docs/assets/docs.css` の共有スタイルを使う。色はトークン（CSS 変数）経由のみ。
+5. **ユーザーが書く文字列を表示するときは必ず `localize()` を通す**。UI 文言は `messages/{ja,en}.json` に足し、両方のキーをそろえる。
+6. **書き込みは `withAudit()` を通す**。`activity_log` にログインセッション・Ray ID・IP・場所を付けて記録する。重要な閲覧（秘密情報のコピー、S12 の閲覧、書き出し）も記録する。
+7. 秘密情報（テストアカウントのパスワード、API キー）を D1 やリポジトリに平文で置かない。D1 には参照名だけを保存し、値は Workers Secrets / Secrets Store に置く。
+8. AI が生成・変更したデータは `origin = 'ai'` と生成元（モデル・プロンプトバージョン）を記録し、人の承認なしに `ready` にしない。
+9. UI 文言は平易な日本語（英語も平易に）。ビジネス職が読んで分かる言葉にする（例: 「Webhook 設定」ではなく「GitHub 通知」）。
+10. ドキュメント HTML は `docs/assets/docs.css` の共有スタイルを使う。色はトークン（CSS 変数）経由のみ。
 
 ## 7. 現在のフェーズ
 
 - **M0（現在）**: ドキュメント整備。コードはまだない。`apps/` と `packages/` は README のみ。
-- M1: 認証・プロジェクト / 環境 / リリース・仕様ツリー・手動ランナー・マイタスク・フィクスチャ・リリース準備状況。
+- M1: 認証とログイン記録・プロジェクト / 環境 / リリース・仕様ツリー・手動ランナー・マイタスク・フィクスチャ・リリース準備状況・日英 UI と翻訳。
 - M2: AI 仕様取り込み・ブラウザエージェント実行・LLM ジャッジ・レビューキュー。
 - M3: GitHub App 連携・定期実行・ビジュアル差分・MCP サーバー。
 - M4: 顧客 UAT（guest）・分析・不安定テスト検出。

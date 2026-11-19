@@ -142,7 +142,7 @@
         <div class="card"><h3>4. 証拠ベース</h3><p>合否には必ずスクリーンショットなどの証拠と判定理由が付きます。証拠のない pass は記録できません（スキップを除く）。</p></div>
         <div class="card"><h3>5. AI は提案、人が承認</h3><p>AI が作った仕様は <code>origin = ai</code>・<code>draft</code> で入り、人の承認で <code>ready</code> になります。AI の判定は信頼度付きで、閾値（既定 0.8）未満は人のレビューキューに回ります。</p></div>
         <div class="card"><h3>6. すべて履歴が残る</h3><p>テストケースとフィクスチャはバージョン管理され、実行は「どの仕様の版・どのデータの版で・どのデプロイに対して」行ったかを必ず記録します。変更は <code>activity_log</code> に残ります。</p></div>
-        <div class="card"><h3>7. コードは少なく</h3><p>Next.js 1 アプリとランナー Worker 1 つで作ります。D1 / R2 / Browser Rendering / Workflows / Queues / Access など Cloudflare のマネージド機能に任せ、自前実装を増やしません。</p></div>
+        <div class="card"><h3>7. コードは少なく</h3><p>Next.js 1 アプリとランナー Worker 1 つで作ります。D1 / R2 / Browser Run（旧 Browser Rendering）/ Workflows / Queues / Access など Cloudflare のマネージド機能に任せ、自前実装を増やしません。</p></div>
       </div>
     </section>
 
@@ -166,7 +166,7 @@
           <tr><td><span class="id">FR-12</span></td><td>手動実行と証拠</td><td>手順を 1 ステップずつ表示し、ステップごとに合格 / 不合格 / 実行不可とメモを記録する。スクリーンショットはクリップボードからの貼り付け・ドラッグ＆ドロップで添付する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
           <tr><td><span class="id">FR-13</span></td><td>リリース準備状況</td><td>リリース単位で、機能 × ユースケースの網羅率と判定の内訳、P0 の残件、要確認件数、Go/No-Go 条件の充足を 1 画面で表示する</td><td>M1</td><td><span class="prio p0">P0</span></td></tr>
           <tr><td><span class="id">FR-14</span></td><td>AI 仕様取り込み</td><td>PRD・Issue・PR 差分・画面キャプチャを入力として、ユースケース・完了条件・テストケース・必要なフィクスチャの下書きを生成する。項目ごとに採用 / 修正 / 却下できる</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
-          <tr><td><span class="id">FR-15</span></td><td>ブラウザエージェント実行</td><td>mode が agent / hybrid の TC を、Browser Rendering 上で AI エージェントが実行する。ステップごとにスクリーンショット、a11y スナップショット、操作ログを保存する</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
+          <tr><td><span class="id">FR-15</span></td><td>ブラウザエージェント実行</td><td>mode が agent / hybrid の TC を、Browser Run 上で AI エージェントが実行する。ステップごとにスクリーンショット、a11y スナップショット、操作ログを保存し、セッション録画と Playwright trace も残す。ログイン・CAPTCHA などで進めないときは人に操作を引き継ぐ（Human in the Loop / Live View）</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
           <tr><td><span class="id">FR-16</span></td><td>ジャッジと判定ポリシー</td><td>assert / visual / llm / human の判定を記録し、判定ポリシーで最終判定に集約する。LLM 判定は信頼度と理由を必ず持つ</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
           <tr><td><span class="id">FR-17</span></td><td>レビューキュー</td><td><code>needs_review</code> の実行を一覧し、証拠と AI の理由を並べて人が確定できる。確定には理由の入力が必須</td><td>M2</td><td><span class="prio p1">P1</span></td></tr>
           <tr><td><span class="id">FR-18</span></td><td>スクリプト実行</td><td>mode が script の TC は、TC の版に保存した Playwright スクリプトをランナーで実行する</td><td>M2</td><td><span class="prio p2">P2</span></td></tr>
@@ -195,7 +195,7 @@
           <tr><td><span class="id">NFR-05</span></td><td>AI の追跡性</td><td>AI の生成物と判定には、モデル名・プロンプトのバージョン・入力の参照を保存する。人の承認なしに <code>ready</code> や最終確定にしない</td></tr>
           <tr><td><span class="id">NFR-06</span></td><td>コスト</td><td>LLM 呼び出しは AI Gateway 経由にし、プロジェクトごとの月間上限（既定 USD 300、未決）を設ける。上限の 80% で manager に通知し、100% で agent 実行を停止して手動に切り替える。実行ごとのコストを <code>runs.cost_json</code> に残す</td></tr>
           <tr><td><span class="id">NFR-07</span></td><td>性能</td><td>一覧画面の表示は p95 で 1 秒以内（D1 クエリ 1 画面 5 本以内）。手動ランナーの判定保存は 300ms 以内。エージェント実行は 1 TC あたり中央値 3 分以内を目標とし、15 分の上限を超えたら <code>blocked</code>（<a href="ai.html">AI ネイティブ設計</a>の実行上限）</td></tr>
-          <tr><td><span class="id">NFR-08</span></td><td>同時実行</td><td>エージェント実行は Queues で流量を制御し、Browser Rendering の同時セッション数の上限内で動かす（既定 同時 4）。超過分は <code>queued</code> で待つ</td></tr>
+          <tr><td><span class="id">NFR-08</span></td><td>同時実行</td><td>エージェント実行は Queues で流量を制御し、Browser Run の同時ブラウザ数の上限内で動かす（既定 同時 4。料金の無料枠「同時数の月平均 10」以内に収める）。超過分は <code>queued</code> で待つ</td></tr>
           <tr><td><span class="id">NFR-09</span></td><td>データ保持</td><td>実行メタデータと判定は無期限。スクリーンショットなどの証拠は 180 日、ただしリリースの Go 判定に使われた実行の証拠は無期限（R2 のライフサイクルとタグで制御）。フィクスチャの版は削除しない</td></tr>
           <tr><td><span class="id">NFR-10</span></td><td>可用性</td><td>Cloudflare のマネージドサービスの SLA に従う。ランナーは Workflows で各ステップを再試行可能にし、途中で落ちても再開できる</td></tr>
           <tr><td><span class="id">NFR-11</span></td><td>アクセシビリティ</td><td>キーボードのみで実行画面を操作できる。判定は色だけでなくラベルで示す。WCAG 2.2 AA を目標</td></tr>

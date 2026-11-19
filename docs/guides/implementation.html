@@ -34,7 +34,7 @@
       <div class="eyebrow">GUIDE-01 · 実装ガイド</div>
       <h1>実装ガイド</h1>
       <p class="lead">INDX Watch をどう作るかのガイドです。コードを増やさないためのルール、フォルダ構成、主要コードの書き方、ローカル開発とデプロイの手順、M1〜M4 のロードマップをまとめます。仕様そのものは第 1 層（<a href="../spec/prd.html">PRD</a> 〜 <a href="../spec/ai.html">AI ネイティブ設計</a>）が正で、このページは「その仕様をどう実装するか」を決めます。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="../spec/architecture.html">アーキテクチャ</a> · <a href="../spec/data-model.html">データモデル</a> · <a href="target-onboarding.html">テスト対象の登録</a></span></div>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="../spec/architecture.html">アーキテクチャ</a> · <a href="../spec/data-model.html">データモデル</a> · <a href="target-onboarding.html">テスト対象の登録</a></span></div>
     </header>
 
     <section id="principles">
@@ -51,7 +51,7 @@
           <tr><td>UI は shadcn/ui の最小セット</td><td>Button / Input / Textarea / Select / Dialog / DropdownMenu / Tabs / Badge / Tooltip / Sonner（トースト）の 10 種から始める</td><td>使う予定のないコンポーネントの一括追加。独自デザインシステムの構築</td></tr>
           <tr><td>テーブルは自前の薄い部品</td><td><code>components/data-table.tsx</code>（列定義の配列 + 行の配列 → <code>&lt;table&gt;</code>）。ソート・絞り込みは searchParams でサーバー側</td><td>TanStack Table などの重いテーブルライブラリ</td></tr>
           <tr><td>長い処理はランナーへ</td><td>ブラウザ実行・LLM 判定・AI 取り込みは Queue に投げて <code>apps/runner</code> の Workflow で処理する</td><td>web の Worker 内で数十秒かかる処理を同期実行すること</td></tr>
-          <tr><td>マネージド機能を先に探す</td><td>認証は Cloudflare Access、ファイルは R2、再試行は Workflows、定期実行は Cron Triggers</td><td>ログイン画面・セッション管理・ジョブキューの自作</td></tr>
+          <tr><td>マネージド機能を先に探す</td><td>認証は Cloudflare Access、ファイルは R2、再試行・待ち合わせは Workflows、定期実行は Workflow の <code>schedules</code>、メール受信は Email Routing</td><td>ログイン画面・セッション管理・ジョブキューの自作</td></tr>
           <tr><td>リアルタイムは後回し</td><td>実行中の進捗は 3 秒間隔のポーリング（<code>router.refresh()</code>）で十分</td><td>M1〜M3 での WebSocket / Durable Objects 導入</td></tr>
         </tbody>
       </table></div>
@@ -67,7 +67,7 @@
           <tr><td><code>apps/web/components</code></td><td>共通部品（data-table、status-badge、evidence-viewer、app-shell など）</td><td class="nums">1,200</td></tr>
           <tr><td><code>apps/web/lib</code></td><td>認証、DB 取得、R2 署名 URL、GitHub クライアント</td><td class="nums">600</td></tr>
           <tr><td><code>apps/web/app/api</code></td><td>GitHub webhook、ランナーコールバック、MCP</td><td class="nums">700</td></tr>
-          <tr><td><code>apps/runner</code></td><td>Workflow、ブラウザツール、Queue / Cron ハンドラ</td><td class="nums">1,500</td></tr>
+          <tr><td><code>apps/runner</code></td><td>Workflow、ブラウザツール、Queue / Email ハンドラ</td><td class="nums">1,500</td></tr>
           <tr><td><code>packages/core</code></td><td>ドメイン型、判定ポリシー、ジャッジ、LLM クライアント、ID</td><td class="nums">1,500</td></tr>
           <tr><td><code>packages/db</code></td><td>Drizzle スキーマ、シード</td><td class="nums">700</td></tr>
           <tr><td colspan="2"><b>合計</b></td><td class="nums"><b>10,700</b></td></tr>
@@ -86,9 +86,9 @@
 │   ├── ci.yml                    # 型チェック・lint・vitest
 │   └── deploy.yml                # main への push で D1 マイグレーション → デプロイ
 ├── apps/
-│   ├── web/                      # Worker: indx-watch-web（Next.js + OpenNext）
+│   ├── web/                      # Worker: indx-watch-web（Next.js + vinext）
 │   │   ├── wrangler.jsonc        # D1 / R2 / Queue producer / runner service binding
-│   │   ├── open-next.config.ts
+│   │   ├── vite.config.ts        # vinext（OpenNext にフォールバックした場合は open-next.config.ts）
 │   │   ├── middleware.ts         # Cloudflare Access の JWT 検証
 │   │   ├── app/
 │   │   │   ├── (app)/                        # 認証済みの画面（共通レイアウト = app-shell）
@@ -119,10 +119,12 @@
 │   │       ├── github.ts        # GitHub App のインストールトークン取得・Check Run 更新
 │   │       └── queue.ts         # enqueueRun() など
 │   └── runner/                   # Worker: indx-watch-runner
-│       ├── wrangler.jsonc        # Workflows / Queue consumer / Browser Rendering / Cron
+│       ├── wrangler.jsonc        # Workflows（schedules 付き）/ Queue consumer / Browser Run / 夜間バックアップ Cron
 │       └── src/
-│           ├── index.ts          # queue() / scheduled() / fetch() のエントリ
-│           ├── workflows/run.ts  # RunWorkflow: 準備 → 実行 → 証拠 → 判定 → 確定 → 通知
+│           ├── index.ts          # queue() / email() / scheduled() / fetch() のエントリ
+│           ├── workflows/run.ts  # RunWorkflow: 準備 → 実行 → 証拠 → 判定 → 人の確認待ち → 確定 → 通知
+│           ├── workflows/dispatch.ts # ScheduleDispatchWorkflow: 5 分ごとに schedules を見て Queue に投入
+│           ├── email.ts          # テスト用メールの受信・解析・sendEvent
 │           ├── workflows/import.ts   # AI 仕様取り込み（S10）
 │           ├── browser/tools.ts  # エージェント用ツール（navigate / click / fill / ... / finish）
 │           ├── browser/script.ts # script モードの Playwright 実行
@@ -149,13 +151,15 @@
         <thead><tr><th>パッケージ</th><th>使う場所</th><th>用途</th><th>選んだ理由</th></tr></thead>
         <tbody>
           <tr><td><code>next</code></td><td>web</td><td>App Router、Server Components、Server Actions</td><td>画面と更新処理を API なしで書ける。コード量が最も少ない</td></tr>
-          <tr><td><code>@opennextjs/cloudflare</code></td><td>web</td><td>Next.js を Workers 上で動かすアダプタ</td><td>Cloudflare 公式の推奨経路。Pages ではなく Workers に載る</td></tr>
+          <tr><td><code>vinext</code></td><td>web</td><td>Next.js を Vite でビルドし Workers 上で動かす</td><td>Cloudflare が推奨する既定の経路（1.0）。CI で <code>npx vinext check</code> を実行。互換性で問題が出たら <code>@opennextjs/cloudflare</code> 1.20.x にフォールバック</td></tr>
           <tr><td><code>wrangler</code></td><td>全体</td><td>ローカル開発（D1 / R2 エミュレーション）、デプロイ、D1 マイグレーション</td><td>Cloudflare の標準 CLI</td></tr>
           <tr><td><code>drizzle-orm</code></td><td>db / web / runner</td><td>D1 への型付きクエリ</td><td>薄く、SQL に近い。D1 ドライバが公式にある</td></tr>
           <tr><td><code>drizzle-kit</code></td><td>db（dev）</td><td>スキーマからマイグレーション SQL を生成</td><td>生成した SQL を <code>wrangler d1 migrations apply</code> でそのまま適用できる</td></tr>
           <tr><td><code>zod</code></td><td>core</td><td>入力検証、JSON カラム（steps_json など）の型、LLM 出力の検証</td><td>フォーム・Server Action・MCP で同じスキーマを共有できる</td></tr>
-          <tr><td><code>jose</code></td><td>web</td><td>Cloudflare Access の JWT 検証</td><td>Workers で動く。JWKS のキャッシュ込みで数行で書ける</td></tr>
-          <tr><td><code>@cloudflare/playwright</code></td><td>runner</td><td>Browser Rendering 上の Playwright 操作</td><td>Playwright の API がそのまま使え、script モードと agent モードで共通化できる</td></tr>
+          <tr><td><code>jose</code></td><td>web</td><td>Cloudflare Access の JWT 検証</td><td>Workers で動く。JWKS のキャッシュ込みで数行で書ける。公式ヘルパー <code>ctx.access</code> は Static Assets を持つ Worker では使えないため、こちらを正とする</td></tr>
+          <tr><td><code>@cloudflare/playwright</code></td><td>runner</td><td>Browser Run（旧 Browser Rendering）上の Playwright 操作</td><td>Playwright の API がそのまま使え、script モードと agent モードで共通化できる。Playwright Test ランナーと動画は非対応（trace は可）</td></tr>
+          <tr><td><code>aws4fetch</code></td><td>web / runner</td><td>R2 の署名付き URL の発行</td><td>R2 バインディングでは署名付き URL を作れないため。S3 API の認証情報で署名する</td></tr>
+          <tr><td><code>postal-mime</code></td><td>runner</td><td>受信したテスト用メールの解析</td><td>Email Workers の公式例で使われている</td></tr>
           <tr><td><code>@anthropic-ai/sdk</code></td><td>core</td><td>Claude 呼び出し（エージェント・ジャッジ・仕様生成）</td><td>公式 SDK。<code>baseURL</code> を AI Gateway に向けるだけでログとレート制御が付く</td></tr>
           <tr><td><code>tailwindcss</code></td><td>web</td><td>スタイル</td><td>CSS ファイルを増やさない。shadcn/ui の前提</td></tr>
           <tr><td>shadcn/ui</td><td>web</td><td>基本 UI 部品（コピーして使う）</td><td>依存ではなくソースとして持つので、必要な分だけ取り込める</td></tr>
@@ -169,13 +173,14 @@
       <p>実装の骨組みです。細部は実装時に詰めますが、境界（どこで認証し、どこで DB に触り、どこで判定するか）はここに合わせます。</p>
 
       <h3>Cloudflare Access の JWT 検証（middleware）</h3>
-      <p>Access を通ったリクエストには <code>Cf-Access-Jwt-Assertion</code> ヘッダーが付きます。Worker 側でも必ず検証します（Access の設定ミスや直接アクセスへの備え）。</p>
+      <p>Access を通ったリクエストには <code>Cf-Access-Jwt-Assertion</code> ヘッダーが付きます。Worker 側でも必ず検証します（Access の設定ミスや直接アクセスへの備え）。公式ヘルパー <code>ctx.access</code> は Static Assets を持つ Worker（vinext・OpenNext とも該当しうる）には渡されないため使わず、jose で検証します。<code>CF_Authorization</code> クッキーは届く保証がなく、<code>Cf-Access-Authenticated-User-Email</code> ヘッダーは検証なしで信用しません。ログイン記録（<code>login_sessions</code>）や行動ログの書き込みは <a href="../spec/identity-audit.html">SPEC-09 認証・行動ログ</a> に従います。</p>
 <pre><code>// apps/web/middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-const TEAM = process.env.CF_ACCESS_TEAM_DOMAIN!; // 例: indx.cloudflareaccess.com
-const JWKS = createRemoteJWKSet(new URL(`https://${TEAM}/cdn-cgi/access/certs`));
+const TEAM = process.env.TEAM_DOMAIN!; // 例: https://indx.cloudflareaccess.com
+// 鍵は約 6 週ごとにローテーション（旧鍵は 7 日有効）。jose が kid で鍵を選び、JWKS をキャッシュする
+const JWKS = createRemoteJWKSet(new URL(`${TEAM}/cdn-cgi/access/certs`));
 
 export async function middleware(req: NextRequest) {
   // GitHub Webhook は Access をバイパスし、ルート側で HMAC を検証する
@@ -185,8 +190,8 @@ export async function middleware(req: NextRequest) {
   if (!token) return new NextResponse("Cloudflare Access を経由してアクセスしてください", { status: 401 });
   try {
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: `https://${TEAM}`,
-      audience: process.env.CF_ACCESS_AUD,
+      issuer: TEAM,
+      audience: process.env.POLICY_AUD,
     });
     const headers = new Headers(req.headers);
     headers.set("x-watch-email", String(payload.email ?? payload.common_name)); // サービストークンは common_name
@@ -210,12 +215,12 @@ export async function requireRole(projectKey: string, roles: Role[]) { /* projec
 
       <h3>D1 へのアクセス <code>getDb()</code></h3>
 <pre><code>// apps/web/lib/db.ts
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+// アダプター（vinext / OpenNext）に依存しないよう、Workers 標準の env インポートを使う
+import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@indx-watch/db/schema";
 
 export function getDb() {
-  const { env } = getCloudflareContext();
   return drizzle(env.DB, { schema }); // binding 名は wrangler.jsonc の "DB"
 }</code></pre>
 
@@ -265,11 +270,22 @@ export class RunWorkflow extends WorkflowEntrypoint&lt;Env, Params&gt; {
     await step.do("mark-running", () => setRunState(this.env, runId, "running"));
 
     const steps = await step.do("execute", { timeout: "15 minutes" },
-      () => executeInBrowser(this.env, ctx));                                    // agent / script。証拠は R2 へ
+      () => executeInBrowser(this.env, ctx));                                    // agent / script。証拠・録画・trace.zip は R2 へ
     await step.do("mark-judging", () => setRunState(this.env, runId, "judging"));
 
     const judgements = await step.do("judge", () => runJudges(this.env, ctx, steps)); // assert / visual / llm
-    const verdict = decide(judgements, ctx.testCaseVersion.decisionPolicy, { priority: ctx.testCase.priority });
+    let verdict = decide(judgements, ctx.testCaseVersion.decisionPolicy, { priority: ctx.testCase.priority });
+
+    // 人の確認が必要なら Workflow を止めて待つ（ブラウザはここでは持たない）。S06 の判定で web が sendEvent する
+    if (verdict === "needs_review") {
+      await step.do("mark-review", () => markNeedsReview(this.env, runId));    // レビューキューに出す
+      try {
+        const human = await step.waitForEvent&lt;HumanVerdict&gt;("human-verdict", { type: "human-verdict", timeout: "72 hours" });
+        verdict = decide([...judgements, human.payload], ctx.testCaseVersion.decisionPolicy, { priority: ctx.testCase.priority });
+      } catch {
+        // タイムアウト: needs_review のまま確定。後から S06 で判定すれば再計算される
+      }
+    }
 
     await step.do("finalize", () => finalizeRun(this.env, runId, verdict));      // runs.verdict と plan_items を更新
     await step.do("notify", () => notify(this.env, ctx, verdict));               // GitHub Check Run / 失敗時の Issue 案
@@ -362,15 +378,15 @@ describe("decide", () => {
         <li><div><b>依存のインストール</b><p class="muted small">Node.js 22 以上と pnpm 9 以上。<code>pnpm install</code></p></div></li>
         <li><div><b>ローカル用の環境変数</b><p class="muted small"><code>apps/web/.dev.vars</code> と <code>apps/runner/.dev.vars</code> を <code>.dev.vars.example</code> からコピー。ローカルでは <code>DEV_USER_EMAIL=sato@indx.example</code> を設定すると middleware が Access の代わりにこのユーザーとして扱う（本番ビルドでは無効）</p></div></li>
         <li><div><b>ローカル D1 の作成とシード</b><p class="muted small"><code>pnpm db:migrate:local</code> → <code>pnpm db:seed</code>。シードは SHOP プロジェクトのサンプル一式（環境 3 つ、v2.4.0、FEAT-1〜4、UC-12 と AC-12.1〜12.3、TC-128〜130、FX-3/7/9/11/14、PLAN-4 の 86 件、RUN-1029/1032/1033、ユーザー 6 名）を投入する。ドキュメントのモックと同じ画面がローカルで再現できる</p></div></li>
-        <li><div><b>起動</b><p class="muted small"><code>pnpm dev</code> で web（<code>next dev</code> + OpenNext のバインディング）と runner（<code>wrangler dev</code>）を同時に起動。D1 と R2 は wrangler のローカルエミュレーション（<code>.wrangler/state</code>）</p></div></li>
-        <li><div><b>ブラウザ実行の確認</b><p class="muted small">Browser Rendering はローカルではエミュレーションされないため、<code>wrangler dev --remote</code> で runner だけリモート実行するか、<code>BROWSER_MODE=local</code> でローカルの Playwright（Chromium）に切り替える</p></div></li>
+        <li><div><b>起動</b><p class="muted small"><code>pnpm dev</code> で web（<code>vinext dev</code>。Vite の Cloudflare プラグインがバインディングをローカルで提供）と runner（<code>wrangler dev</code>）を同時に起動。Secrets Store の本番の値はローカルから読めないので、<code>.dev.vars</code> にローカル用の値を置く。D1 と R2 は wrangler のローカルエミュレーション（<code>.wrangler/state</code>）</p></div></li>
+        <li><div><b>ブラウザ実行の確認</b><p class="muted small">Browser Run（旧 Browser Rendering）はローカルではエミュレーションされないため、<code>wrangler dev --remote</code> で runner だけリモート実行するか、<code>BROWSER_MODE=local</code> でローカルの Playwright（Chromium）に切り替える</p></div></li>
       </ol>
 <pre><code>// packages/db/seed.ts（抜粋）
 await db.insert(projects).values({ id: newId("prj"), key: "SHOP", name: "INDX Shop（サンプル）", repoFullName: "indxdev/indx-shop", defaultBranch: "main" });
 await db.insert(environments).values([
-  { name: "staging", kind: "staging", baseUrl: "https://staging.shop.example.com", accessKind: "cf_access", accessSecretRef: "SHOP_STAGING_ACCESS", isDefault: true },
-  { name: "uat",     kind: "uat",     baseUrl: "https://uat.shop.example.com",     accessKind: "cf_access", accessSecretRef: "SHOP_UAT_ACCESS" },
-  { name: "preview", kind: "preview", baseUrl: "https://pr-482.shop.example.com",  accessKind: "cf_access", accessSecretRef: "SHOP_STAGING_ACCESS" },
+  { name: "staging", kind: "staging", baseUrl: "https://staging.shop.example.com", accessKind: "cf_access", accessSecretRef: "SHOP_STAGING_CF_CLIENT_ID", isDefault: true },
+  { name: "uat",     kind: "uat",     baseUrl: "https://uat.shop.example.com",     accessKind: "basic", accessSecretRef: "SHOP_UAT_BASIC" },
+  { name: "preview", kind: "preview", baseUrl: "https://pr-482.shop.example.com",  accessKind: "cf_access", accessSecretRef: "SHOP_STAGING_CF_CLIENT_ID" },
 ].map(withProject));</code></pre>
     </section>
 
@@ -378,10 +394,10 @@ await db.insert(environments).values([
       <h2>デプロイ</h2>
       <p>GitHub Actions から Cloudflare にデプロイします。<code>main</code> への push で本番、PR では型チェックとテストだけ実行します。</p>
       <ol class="steps">
-        <li><div><b>CI（PR ごと）</b><p class="muted small"><code>pnpm typecheck</code> → <code>pnpm lint</code> → <code>pnpm test</code> → <code>pnpm db:generate --check</code>（スキーマとマイグレーションのずれ検出）</p></div></li>
+        <li><div><b>CI（PR ごと）</b><p class="muted small"><code>pnpm typecheck</code> → <code>pnpm lint</code> → <code>pnpm test</code> → <code>pnpm db:generate --check</code>（スキーマとマイグレーションのずれ検出）→ <code>npx vinext check</code>（Next.js 互換性）→ メッセージファイル <code>ja.json</code> / <code>en.json</code> のキー差分チェック</p></div></li>
         <li><div><b>D1 マイグレーション（main）</b><p class="muted small"><code>wrangler d1 migrations apply indx_watch --remote</code>。マイグレーションは追加のみ（列の削除・型変更は 2 段階: 新列追加 → 次のリリースで旧列削除）</p></div></li>
         <li><div><b>runner をデプロイ</b><p class="muted small"><code>wrangler deploy -c apps/runner/wrangler.jsonc</code>。web がサービスバインディングで参照するため先に出す</p></div></li>
-        <li><div><b>web をデプロイ</b><p class="muted small"><code>opennextjs-cloudflare build &amp;&amp; opennextjs-cloudflare deploy</code></p></div></li>
+        <li><div><b>web をデプロイ</b><p class="muted small"><code>vinext build &amp;&amp; wrangler deploy -c apps/web/wrangler.jsonc</code>（OpenNext にフォールバックした場合は <code>opennextjs-cloudflare build &amp;&amp; opennextjs-cloudflare deploy</code>）</p></div></li>
         <li><div><b>スモーク</b><p class="muted small">INDX Watch 自身の <code>WATCH</code> プロジェクトのスモーク計画を API から起動し、P0 が pass でなければ Slack に通知</p></div></li>
       </ol>
 
@@ -390,19 +406,22 @@ await db.insert(environments).values([
         <thead><tr><th>名前</th><th>種類</th><th>使う Worker</th><th>内容</th></tr></thead>
         <tbody>
           <tr><td><code>DB</code></td><td>D1 binding</td><td>web / runner</td><td>D1 データベース <code>indx_watch</code></td></tr>
-          <tr><td><code>BUCKET</code></td><td>R2 binding</td><td>web / runner</td><td>R2 バケット <code>indx-watch-evidence</code></td></tr>
+          <tr><td><code>BUCKET</code></td><td>R2 binding</td><td>web / runner</td><td>R2 バケット <code>indx-watch-files</code></td></tr>
           <tr><td><code>RUN_QUEUE</code></td><td>Queue binding</td><td>web（producer）/ runner（consumer）</td><td>実行ジョブ <code>indx-watch-runs</code></td></tr>
           <tr><td><code>RUN_WORKFLOW</code></td><td>Workflow binding</td><td>runner</td><td><code>RunWorkflow</code></td></tr>
-          <tr><td><code>BROWSER</code></td><td>Browser Rendering binding</td><td>runner</td><td>ヘッドレス Chromium</td></tr>
+          <tr><td><code>DISPATCH_WORKFLOW</code></td><td>Workflow binding（<code>schedules</code> 付き）</td><td>runner</td><td><code>ScheduleDispatchWorkflow</code>（5 分ごと）</td></tr>
+          <tr><td><code>BACKUP</code></td><td>R2 binding</td><td>runner</td><td>D1 の夜間エクスポート <code>indx-watch-backup</code></td></tr>
+          <tr><td><code>BROWSER</code></td><td>Browser Run binding</td><td>runner</td><td>ヘッドレス Chromium（録画・Live View・Human in the Loop）</td></tr>
           <tr><td><code>RUNNER</code></td><td>Service binding</td><td>web</td><td>runner への内部呼び出し</td></tr>
-          <tr><td><code>CF_ACCESS_TEAM_DOMAIN</code></td><td>変数</td><td>web</td><td>例 <code>indx.cloudflareaccess.com</code></td></tr>
-          <tr><td><code>CF_ACCESS_AUD</code></td><td>変数</td><td>web</td><td>Access アプリケーションの AUD タグ</td></tr>
+          <tr><td><code>TEAM_DOMAIN</code></td><td>変数</td><td>web</td><td>例 <code>https://indx.cloudflareaccess.com</code></td></tr>
+          <tr><td><code>POLICY_AUD</code></td><td>変数</td><td>web</td><td>Access アプリケーションの AUD タグ</td></tr>
           <tr><td><code>AI_GATEWAY_URL</code></td><td>変数</td><td>web / runner</td><td>Anthropic 向け AI Gateway のエンドポイント（SDK の <code>baseURL</code>）</td></tr>
-          <tr><td><code>ANTHROPIC_API_KEY</code></td><td>シークレット</td><td>web / runner</td><td>Claude API キー</td></tr>
+          <tr><td><code>AI_GATEWAY_TOKEN</code></td><td>シークレット</td><td>web / runner</td><td>AI Gateway の認証（<code>cf-aig-authorization</code>）。Anthropic のキー自体は Gateway の BYOK（Secrets Store）にあり、Worker は持たない</td></tr>
+          <tr><td><code>R2_ACCESS_KEY_ID</code> / <code>R2_SECRET_ACCESS_KEY</code></td><td>シークレット</td><td>web / runner</td><td>R2 の S3 API 認証情報（署名付き URL 用）</td></tr>
           <tr><td><code>GITHUB_APP_ID</code></td><td>変数</td><td>web / runner</td><td>GitHub App ID</td></tr>
           <tr><td><code>GITHUB_APP_PRIVATE_KEY</code></td><td>シークレット</td><td>web / runner</td><td>GitHub App の秘密鍵（PKCS#8）</td></tr>
           <tr><td><code>GITHUB_WEBHOOK_SECRET</code></td><td>シークレット</td><td>web</td><td>Webhook の HMAC 検証用</td></tr>
-          <tr><td>対象環境の資格情報</td><td>Secrets Store</td><td>runner</td><td><code>SHOP_STAGING_ACCESS</code>（Access サービストークン）、テストアカウントのパスワードなど。D1 は参照名だけを持つ</td></tr>
+          <tr><td>対象環境の資格情報</td><td>Secrets Store</td><td>runner</td><td><code>SHOP_STAGING_CF_CLIENT_ID</code> / <code>SHOP_STAGING_CF_CLIENT_SECRET</code>（Access サービストークン）、テストアカウントのパスワードなど。D1 は参照名だけを持つ。Secrets Store は beta のため読み出しは <code>core/secrets.ts</code> に集約し、Worker Secrets に切り替えられるようにする</td></tr>
           <tr><td><code>CLOUDFLARE_API_TOKEN</code> / <code>CLOUDFLARE_ACCOUNT_ID</code></td><td>GitHub Actions secret</td><td>CI</td><td>デプロイとマイグレーション用</td></tr>
         </tbody>
       </table></div>
@@ -423,8 +442,8 @@ await db.insert(environments).values([
         <tbody>
           <tr><td><b>M0</b></td><td>ドキュメント整備（このドキュメント一式）</td><td>全画面の HTML モック</td><td>PRD・データモデル・画面モックにチームが合意している</td><td class="nums">1 週</td></tr>
           <tr><td><b>M1</b></td><td>モノレポ雛形、Access 認証、プロジェクト / 環境 / リリース、仕様ツリー CRUD、テストケースのバージョン管理、フィクスチャ（アップロード・履歴）、テスト計画とアサイン、手動ランナー（スクショ貼り付け）、リリース準備状況</td><td>S01 S02 S03 S04 S05 S07 S08 S09</td><td>SHOP のサンプルで、佐藤さんが PLAN-4 を作って田中さんにアサインし、田中さんが S05 で TC-129 を実行して fail と証拠を残し、S02 に反映される。社外メールでは Access を通れない</td><td class="nums">4〜5 週</td></tr>
-          <tr><td><b>M2</b></td><td>AI 仕様取り込み、テストケース生成、ブラウザエージェント実行（Browser Rendering + Workflows）、assert / llm ジャッジ、判定ポリシー、レビューキュー</td><td>S06 S10（S04 に AI 補助）</td><td>PRD を貼ると UC / AC / TC の draft が出て承認できる。TC-128 を Watch Agent が実行し、証拠と判定理由付きで pass、TC-130 は needs_review になりレビューで確定できる</td><td class="nums">4 週</td></tr>
-          <tr><td><b>M3</b></td><td>GitHub App（デプロイメント自動作成、PR の影響テスト提案、Check Run、Issue 作成）、Cron による定期実行、visual ジャッジとベースライン、MCP サーバー</td><td>S11（S02 にゲート表示）</td><td>PR #482 のデプロイで staging スモークが自動実行され、PR に Check Run が付く。Claude Code から MCP で TC の draft を作れる</td><td class="nums">3〜4 週</td></tr>
+          <tr><td><b>M2</b></td><td>AI 仕様取り込み、テストケース生成、ブラウザエージェント実行（Browser Run + Workflows）、人の確認待ち（<code>waitForEvent</code>）とログイン引き継ぎ（Human in the Loop）、テスト用メール受信、assert / llm ジャッジ、判定ポリシー、レビューキュー</td><td>S06 S10（S04 に AI 補助）</td><td>PRD を貼ると UC / AC / TC の draft が出て承認できる。TC-128 を Watch Agent が実行し、証拠と判定理由付きで pass、TC-130 は needs_review になりレビューで確定できる</td><td class="nums">4 週</td></tr>
+          <tr><td><b>M3</b></td><td>GitHub App（デプロイメント自動作成、PR の影響テスト提案、Check Run、Issue 作成）、Workflow の <code>schedules</code> による定期実行、visual ジャッジとベースライン、MCP サーバー</td><td>S11（S02 にゲート表示）</td><td>PR #482 のデプロイで staging スモークが自動実行され、PR に Check Run が付く。Claude Code から MCP で TC の draft を作れる</td><td class="nums">3〜4 週</td></tr>
           <tr><td><b>M4</b></td><td>顧客 UAT（guest 招待・限定表示）、分析（合格率推移・所要時間）、不安定テスト（flaky）検出、通知の調整</td><td>S01（guest 表示）、S02 に分析タブ</td><td>山本様が Access のワンタイム PIN で入り、自分の UAT 項目だけを実行できる。同じ TC で pass / fail が揺れるものに印が付く</td><td class="nums">3 週</td></tr>
         </tbody>
       </table></div>

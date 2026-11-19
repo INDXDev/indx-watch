@@ -98,6 +98,10 @@ flowchart LR
           <tr><td>ベースライン</td><td><code>baselines</code></td><td>—</td><td>ビジュアル差分の基準画像。人が承認したものだけが基準になる。</td><td>TC-128 step 4 / staging</td></tr>
           <tr><td>AI 提案</td><td><code>ai_suggestions</code></td><td>—</td><td>AI が作った仕様・TC・フィクスチャ・影響分析・トリアージの案。人が採用 / 却下するまで本データにならない。</td><td>PRD から UC 3 件の案</td></tr>
           <tr><td>スケジュール</td><td><code>schedules</code></td><td>—</td><td>条件（タグ・優先度）に合う TC を定期的に自動実行する設定。</td><td>毎朝 7:00 に staging で P0 スモーク</td></tr>
+          <tr><td>翻訳</td><td><code>translations</code></td><td>—</td><td>原文と別の言語（日本語 / 英語）のテキスト。AI 翻訳 / 確認済み / 古い の状態を持つ。<a href="i18n.html">多言語設計</a>。</td><td>AC-12.2 の英語訳（確認済み）</td></tr>
+          <tr><td>ログインセッション</td><td><code>login_sessions</code></td><td>—</td><td>Cloudflare Access でのログイン 1 回分。IdP・場所・端末・WARP を持つ。<a href="identity-audit.html">認証・行動ログ</a>。</td><td>田中が Google でログイン（東京・Chrome / macOS）</td></tr>
+          <tr><td>認証イベント</td><td><code>access_events</code></td><td>—</td><td>Access の認証ログ 1 件。拒否されたログインも含む。</td><td>未登録メールからの OTP 試行（拒否）</td></tr>
+          <tr><td>作業セッション</td><td><code>work_sessions</code></td><td>—</td><td>操作が 15 分以上途切れるまでの作業のまとまり。</td><td>11/19 13:02〜14:10、RUN-1029 を実行</td></tr>
         </tbody>
       </table></div>
     </section>

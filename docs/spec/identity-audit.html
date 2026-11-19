@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>INDX Watch 認証・行動ログ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="site-header"><div class="inner">
+  <a class="brand" href="../index.html"><span class="brand-mark">W</span>INDX Watch Docs</a>
+  <nav class="crumbs" aria-label="パンくず"><span class="sep">/</span><a href="../index.html#spec">仕様</a><span class="sep">/</span><span>認証・行動ログ</span></nav>
+  <span class="layer-tag l1">Layer 1 · 仕様</span>
+</div></header>
+<main class="doc">
+  <nav class="toc" aria-label="目次"><h4>目次</h4><ol>
+    <li><a href="#goal">目的</a></li>
+    <li><a href="#sources">情報源と取れるもの</a></li>
+    <li><a href="#gaps">取れないもの</a></li>
+    <li><a href="#fields">記録する項目（5W1H）</a></li>
+    <li><a href="#login">ログインの記録</a></li>
+    <li><a href="#denied">失敗・拒否ログイン</a></li>
+    <li><a href="#actions">アプリ内の行動</a></li>
+    <li><a href="#work">作業時間と作業セッション</a></li>
+    <li><a href="#sessions">セッション管理と失効</a></li>
+    <li><a href="#correlate">ログの突き合わせ</a></li>
+    <li><a href="#anomaly">異常の検知</a></li>
+    <li><a href="#setup">Cloudflare 側の設定</a></li>
+    <li><a href="#privacy">プライバシーと保持</a></li>
+    <li><a href="#verify">M1 で確かめること</a></li>
+    <li><a href="#refs">出典</a></li>
+  </ol></nav>
+  <div class="content">
+    <header class="page-head">
+      <div class="eyebrow">SPEC-09 · 認証・行動ログ</div>
+      <h1>認証・行動ログ（誰が・いつ・どこで・どう作業したか）</h1>
+      <p class="lead">Cloudflare Access の ID 情報と Cloudflare の各種ログを組み合わせ、テスターごとに「どの方法でログインし、どこから、どの端末で、いつ何をしたか」を記録します。Worker まで届かない失敗ログインも Access のログから取り込みます。</p>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>仕様の確認日 <b>2026-11-19</b></span><span>関連 <a href="data-model.html#identity">データモデル</a> · <a href="architecture.html">アーキテクチャ</a> · <a href="../screens/s12-activity-audit.html">S12 ログイン・作業履歴</a></span></div>
+    </header>
+
+    <section id="goal">
+      <h2>目的</h2>
+      <ul>
+        <li><b>証跡</b>: テスト結果の信頼性を示すため、「誰が・いつ・どの環境で・どの端末から」判定したかを後から説明できるようにする。顧客の受け入れテスト（UAT）の合否も同じ扱い。</li>
+        <li><b>セキュリティ</b>: 社外の人（顧客・委託テスター）が使うので、想定外の場所・端末からのログイン、拒否されたログイン試行、権限外の閲覧に気づけるようにする。</li>
+        <li><b>作業の見える化</b>: テストにかかった時間、どこで止まったかを把握して計画に生かす（個人の評価には使わない。<a href="#privacy">プライバシー</a>参照）。</li>
+      </ul>
+    </section>
+
+    <section id="sources">
+      <h2>情報源と取れるもの</h2>
+      <p>2026-11-19 時点で Cloudflare のドキュメントと changelog を確認した内容です。Cloudflare は変化が速いので、実装前に <a href="#refs">出典</a> を再確認します。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>情報源</th><th>取れるもの</th><th>失敗ログイン</th><th>保持・条件</th><th>使い方</th></tr></thead>
+        <tbody>
+          <tr><td><b>Access アプリ JWT</b><br><code>Cf-Access-Jwt-Assertion</code></td><td><code>sub</code>（メールごとに一意の ID）、<code>email</code>、<code>iat</code>（ログイン時刻）、<code>exp</code>、<code>identity_nonce</code>（セッション識別）、<code>country</code>（認証時の国）、<code>type</code>、<code>aud</code>、<code>iss</code>。サービストークンは <code>common_name</code></td><td>含まない（届かない）</td><td>リクエストごと</td><td>全リクエストで検証し、本人とセッションを特定</td></tr>
+          <tr><td><b>get-identity</b><br><code>/cdn-cgi/access/get-identity</code></td><td><code>idp</code>（id, type）、<code>groups</code>、<code>geo.country</code>、<code>ip</code>、<code>user_uuid</code>、<code>is_warp</code>、<code>is_gateway</code>、<code>device_id</code>、<code>devicePosture</code>（チェックごとの成否）、<code>device_sessions</code></td><td>含まない</td><td>呼び出し時点</td><td>セッションの最初に 1 回だけ呼び、<code>login_sessions</code> に保存</td></tr>
+          <tr><td><b>リクエスト情報</b><br><code>request.cf</code>・ヘッダ</td><td>国・地域・都市・郵便番号・タイムゾーン・ASN と組織名・経由データセンター（colo）・TLS バージョン・HTTP プロトコル・RTT。<code>CF-Connecting-IP</code>（IP）、<code>CF-Ray</code>（リクエスト ID）、User-Agent</td><td>含まない</td><td>リクエストごと（全プラン）</td><td>全リクエストの文脈として <code>activity_log</code> などに保存</td></tr>
+          <tr><td><b>Access 認証ログ</b>（Logpush <code>access_requests</code>）</td><td><code>Action</code>（login / logout）、<code>Allowed</code>、<code>AppDomain</code>、<code>AppUUID</code>、<code>Connection</code>（使った IdP）、<code>Country</code>、<code>CreatedAt</code>、<code>Email</code>、<code>IPAddress</code>、<code>PurposeJustification*</code>、<code>RayID</code>、<code>TemporaryAccess*</code>、<code>UserUID</code></td><td><b>含む</b></td><td>Logpush は 2026-09-30 から全プランで従量課金（R2 宛ては月 25GB まで無料）</td><td>R2 に出力して取り込み、<code>access_events</code> に保存（正の経路）</td></tr>
+          <tr><td><b>Access 認証ログ</b>（REST <code>/access/logs/access_requests</code>）</td><td>action、allowed、app_domain、app_uid、connection、created_at、ip_address、ray_id、user_email。期間・メール・許可/拒否・国・IdP で絞り込み</td><td><b>含む</b></td><td>ログ保持: Free 24 時間、Standard 30 日、Enterprise 180 日</td><td>Logpush の取りこぼし補完。1 時間ごとに取得</td></tr>
+          <tr><td><b>Access 認証ログ</b>（GraphQL <code>accessLoginRequestsAdaptiveGroups</code>）</td><td>上記に加えて <code>approvingPolicyId</code>、<code>hasWarpEnabled</code>、<code>hasGatewayEnabled</code>、<code>hasExistingJWT</code>、<code>deviceId</code>、<code>identityProvider</code>、<code>serviceTokenId</code>、mTLS 情報</td><td><b>含む</b></td><td>保持は未確認</td><td>1 日 1 回、<code>access_events</code> の不足列を補完</td></tr>
+          <tr><td><b>Access ユーザー API</b></td><td>ユーザー一覧（<code>last_successful_login</code>、<code>active_device_count</code>）、ユーザーごとの <code>active_sessions</code>、<code>last_seen_identity</code>、<code>failed_logins</code></td><td>ユーザー単位で含む</td><td>—</td><td>1 日 1 回 <code>users.access_profile_json</code> に同期。S12 から有効なセッションを表示</td></tr>
+          <tr><td><b>端末の状態</b>（Logpush <code>device_posture_results</code>）</td><td>端末 ID・名前・種類・OS バージョン・メーカー・モデル・シリアル・WARP バージョン・チェック名と結果</td><td>—</td><td>WARP を入れた端末のみ。保持 30 日</td><td>社員が WARP を使う場合だけ R2 に保管（任意）</td></tr>
+          <tr><td><b>Workers Logs / Observability</b></td><td>Worker の構造化ログ、例外、CPU 時間。OpenTelemetry で外部へ出力可</td><td>—</td><td>Paid で 7 日（2026-12-01 から新料金体系）</td><td>調査用の補助。正本にはしない</td></tr>
+          <tr><td><b>Audit Logs v2</b></td><td>Cloudflare アカウントの設定変更（誰が・何を・どこから）</td><td>—</td><td>18 か月（画面は直近 90 日）</td><td>Logpush で R2 に保管（Access ポリシー変更の証跡）</td></tr>
+          <tr><td><b>AI Gateway ログ</b></td><td>LLM 呼び出しごとのトークン・コスト。Access の ID が <code>cf.user_id</code> として残る（2026-08）。<code>cf-aig-metadata</code> で <code>project_key</code> / <code>run_id</code> を付ける</td><td>—</td><td>ゲートウェイごとに最大 1,000 万件</td><td>AI の利用を人と実行に結びつける</td></tr>
+          <tr><td><b>Browser Run の録画</b></td><td>エージェント実行中のブラウザ操作の録画</td><td>—</td><td>R2 に保存（証拠と同じ 180 日）</td><td>「AI がいつ何をしたか」の証拠</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="gaps">
+      <h2>取れないもの</h2>
+      <p>設計の前提として、Cloudflare からは取れない情報を明確にしておきます。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>取れないもの</th><th>理由</th><th>対応</th></tr></thead>
+        <tbody>
+          <tr><td>使った MFA の方式（パスキー、TOTP など）</td><td>JWT・get-identity・ログのどのスキーマにも MFA 方式の項目がない</td><td>社員は IdP 側で MFA を必須にし、IdP の監査ログと突き合わせる。顧客は Access の Independent MFA かパスキーを必須にする（方式は記録できないが、通過したことは保証される）</td></tr>
+          <tr><td>OTP のコードを入力しなかった試行</td><td>Access の OTP ログはコード入力後にしか記録されない</td><td>記録できない前提で扱う</td></tr>
+          <tr><td>WARP を入れていない端末の詳細（OS のバージョン、シリアル）</td><td>端末情報は WARP 経由でのみ取れる</td><td>User-Agent の解析結果（ブラウザ・OS・端末種別）で代用。顧客には WARP を求めない</td></tr>
+          <tr><td>都市より細かい位置</td><td><code>request.cf</code> の緯度経度は IP からの推定で精度が低い</td><td>保存するのは国・地域・都市・ASN まで。緯度経度は保存しない</td></tr>
+          <tr><td>アプリ内での操作（Access 側）</td><td>Access のログはログイン・ログアウトだけ</td><td>アプリ内の操作は Worker が <code>activity_log</code> / <code>page_views</code> に記録する</td></tr>
+          <tr><td>Webhook（Bypass パス）へのアクセス</td><td>Access の Bypass は記録されない</td><td>Worker で HMAC 検証し、配信 ID を <code>activity_log</code>（<code>via = 'github'</code>）に残す</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="fields">
+      <h2>記録する項目（5W1H）</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>問い</th><th>項目</th><th>情報源</th><th>保存先</th></tr></thead>
+        <tbody>
+          <tr><td>誰が</td><td>ユーザー（メール・<code>sub</code>）、ロール、所属（顧客の会社名）、人 / AI エージェント / サービストークン</td><td>JWT、<code>users</code></td><td><code>login_sessions.user_id</code>、<code>activity_log.actor_id</code></td></tr>
+          <tr><td>いつ</td><td>Access でログインした時刻、最初と最後のリクエスト、各操作の時刻、表示していた時間、作業セッションの開始・終了</td><td>JWT <code>iat</code>、Worker の時刻、ブラウザのビーコン</td><td><code>login_sessions.access_iat</code>、<code>activity_log.created_at</code>、<code>page_views.visible_ms</code>、<code>work_sessions</code></td></tr>
+          <tr><td>どこで（場所）</td><td>IP、国・地域・都市、ASN と組織名（例: KDDI、自宅回線、クラウド事業者）、経由した Cloudflare データセンター</td><td><code>CF-Connecting-IP</code>、<code>request.cf</code>、JWT <code>country</code></td><td><code>login_sessions.geo_json</code>、<code>activity_log.ip / country / city / colo</code></td></tr>
+          <tr><td>どこで（対象）</td><td>プロジェクト、環境、デプロイメント、画面</td><td>アプリ</td><td><code>activity_log</code>、<code>page_views.screen_id</code>、<code>runs</code></td></tr>
+          <tr><td>どうやって</td><td>IdP（Google、OTP、Cloudflare IdP）、端末（ブラウザ・OS・端末種別）、WARP の有無と端末 ID、端末チェックの結果、表示言語</td><td>get-identity、User-Agent、<code>users.locale</code></td><td><code>login_sessions</code>、<code>runs.display_locale</code></td></tr>
+          <tr><td>何を</td><td>変更（作成・更新・判定・アサイン・承認）、閲覧（画面・秘密情報のコピー）、実行（開始・ステップ判定・証拠添付・完了）</td><td>アプリ</td><td><code>activity_log</code>（変更と重要な閲覧）、<code>page_views</code>（閲覧）、<code>run_steps</code></td></tr>
+          <tr><td>結果</td><td>ログインの許可 / 拒否、拒否された理由（ポリシー）</td><td>Access ログ</td><td><code>access_events</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="login">
+      <h2>ログインの記録</h2>
+      <p>Access を通過したリクエストは、web Worker の最初の処理（ミドルウェア）で必ず以下を行います。Worker の公式ヘルパー <code>ctx.access</code> は Static Assets を持つ Worker では渡されないため使わず、<code>jose</code> で JWT を検証します。</p>
+      <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor T as テスター
+  participant A as Cloudflare Access
+  participant I as IdP（Google / OTP）
+  participant W as web Worker
+  participant D as D1
+  T->>A: watch.indx.example を開く
+  A->>I: 認証（MFA は IdP / Independent MFA）
+  I-->>A: 本人確認 OK
+  A-->>T: CF_Authorization（Cookie）を発行
+  T->>A: 画面のリクエスト
+  A->>W: Cf-Access-Jwt-Assertion を付けて転送
+  W->>W: JWT 検証（certs を kid で選択・aud・iss・exp）
+  W->>D: identity_nonce で login_sessions を検索
+  alt 新しいセッション
+    W->>A: get-identity（ユーザーの Cookie を転送）
+    A-->>W: idp, groups, ip, geo, is_warp, device_id, devicePosture
+    W->>D: users を upsert（sub・email）、login_sessions を作成（request.cf・UA を含む）
+    W->>D: activity_log に auth.login を記録
+  else 既存のセッション
+    W->>D: last_seen_at・request_count・ip_last を更新（1 分に 1 回まで）
+  end
+  W->>D: 本来の処理と activity_log（Ray ID・IP・場所付き）
+  W-->>T: 画面
+      </pre>
+<pre><code>// apps/web/lib/auth.ts（要点のみ）
+const JWKS = createRemoteJWKSet(new URL(`https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`));
+
+export async function authenticate(req: Request, env: Env): Promise&lt;AuthContext&gt; {
+  const token = req.headers.get("Cf-Access-Jwt-Assertion");
+  if (!token) throw new Unauthorized("Access を経由していません");
+  const { payload } = await jwtVerify(token, JWKS, {
+    issuer: `https://${env.TEAM_DOMAIN}`,
+    audience: env.POLICY_AUD,
+  });
+  const ctx = requestContext(req);            // ip, rayId, cf.country/city/region/asn/asOrganization/colo/timezone, ua
+  const session = await upsertLoginSession(env, payload, ctx, req); // 新規なら get-identity を 1 回呼ぶ
+  return { user: session.user, loginSessionId: session.id, ...ctx };
+}</code></pre>
+      <ul>
+        <li><b>セッションの区切り</b>: <code>identity_nonce</code> が変わったら新しい <code>login_sessions</code> 行。同じ nonce で <code>iat</code> が変わった場合（再認証）も新しい行にし、前の行は <code>end_reason = 'replaced'</code>。</li>
+        <li><b>IP の変化</b>: セッション中に IP が変わったら <code>ip_changes</code> を増やし、<code>activity_log</code> に <code>auth.ip_changed</code> を記録（モバイル回線の切り替えなどで起きるので、それだけでは警告にしない）。</li>
+        <li><b>書き込み頻度</b>: <code>last_seen_at</code> の更新は 1 分に 1 回までにして D1 の書き込みを抑える。</li>
+        <li><b>サービストークン</b>（MCP など）: <code>auth_kind = 'service_token'</code>。トークンの持ち主（発行した人）を <code>users</code> の agent 行に紐づける。</li>
+        <li><b>初回ログイン</b>: 記録内容の告知を表示し、同意すると <code>users.privacy_ack_at</code> を保存。同意するまで他の画面は使えない。</li>
+      </ul>
+    </section>
+
+    <section id="denied">
+      <h2>失敗・拒否ログイン</h2>
+      <p>Access に拒否されたリクエストは Worker に届きません。Access の認証ログを 3 つの経路で取り込み、<code>access_events</code> に集めます。<code>ray_id</code> と <code>action</code> の組で重複を除きます。</p>
+      <pre class="mermaid">
+flowchart LR
+  ACC["Cloudflare Access 認証ログ"] -- "Logpush（数分ごと）" --> R2["R2 cf-logs/access_requests/"]
+  R2 -- "イベント通知" --> Q["Queue: log-ingest"]
+  Q --> IW["runner Worker: 取り込み"]
+  ACC -. "REST（1 時間ごと・補完）" .-> IW
+  ACC -. "GraphQL（1 日 1 回・列の補完）" .-> IW
+  IW --> D1[("D1 access_events")]
+  IW --> CUR[("ingest_cursors")]
+  D1 --> S12["S12 ログイン・作業履歴"]
+  D1 --> AL["異常検知 → Slack 通知"]
+      </pre>
+      <ol class="steps">
+        <li><span><b>Logpush（正の経路）</b>: <code>access_requests</code> を R2 の <code>cf-logs/access_requests/</code> に出力。R2 のイベント通知で Queue に流し、NDJSON（gzip）を解析して挿入。元ファイルの場所は <code>raw_r2_key</code> に残す。</span></li>
+        <li><span><b>REST（補完）</b>: Workflow の定期実行で 1 時間ごとに <code>GET /accounts/{id}/access/logs/access_requests?since=…</code> を呼ぶ。続きの位置は <code>ingest_cursors</code>。Logpush が使えないプランや停止時にも欠けないようにする。プランによってはログ保持が 24 時間なので、間隔は 24 時間を超えないこと。</span></li>
+        <li><span><b>GraphQL（列の補完）</b>: 1 日 1 回 <code>accessLoginRequestsAdaptiveGroups</code> を取得し、<code>approving_policy_id</code>・<code>has_warp</code>・<code>device_id</code> を埋める。</span></li>
+        <li><span><b>ユーザーとの突き合わせ</b>: <code>access_user_uid</code> → <code>users.access_sub</code>、なければメールで照合。未登録のメール（招待していない人の OTP 試行など）は <code>user_id = null</code> のまま残し、S12 で目立たせる。</span></li>
+      </ol>
+      <div class="callout warn"><strong>取り込みの監視</strong><p><code>ingest_cursors</code> の更新が 3 時間止まったら manager と admin に通知します。S12 には「最終取り込み時刻」を常に表示します。</p></div>
+    </section>
+
+    <section id="actions">
+      <h2>アプリ内の行動</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>種類</th><th>記録先</th><th>例（<code>action</code>）</th></tr></thead>
+        <tbody>
+          <tr><td>認証</td><td><code>activity_log</code></td><td><code>auth.login</code> <code>auth.logout</code> <code>auth.ip_changed</code> <code>auth.session_revoked</code> <code>auth.privacy_ack</code></td></tr>
+          <tr><td>仕様の変更</td><td><code>activity_log</code>（差分付き）</td><td><code>use_case.updated</code> <code>test_case.version_created</code> <code>test_case.approved</code> <code>translation.reviewed</code></td></tr>
+          <tr><td>計画・アサイン</td><td><code>activity_log</code></td><td><code>plan_item.assigned</code> <code>plan_item.due_changed</code></td></tr>
+          <tr><td>実行</td><td><code>activity_log</code> + <code>runs</code> / <code>run_steps</code></td><td><code>run.started</code> <code>run_step.judged</code> <code>evidence.uploaded</code> <code>run.completed</code> <code>judgement.human_override</code></td></tr>
+          <tr><td>重要な閲覧</td><td><code>activity_log</code></td><td><code>secret.revealed</code>（テストアカウントのパスワードをコピー）、<code>live_view.opened</code>、<code>audit.viewed</code>（S12 を見た）、<code>export.downloaded</code></td></tr>
+          <tr><td>通常の閲覧</td><td><code>page_views</code></td><td>画面 ID、対象、表示言語、表示時間</td></tr>
+          <tr><td>AI の行動</td><td><code>activity_log</code>（actor = Watch Agent）+ <code>run_steps.actions_json</code> + 録画</td><td><code>agent.navigate</code> <code>agent.click</code>（要約は実行単位）</td></tr>
+        </tbody>
+      </table></div>
+      <p>すべての行に <code>login_session_id</code>、<code>ray_id</code>、<code>ip</code>、<code>country</code>、<code>city</code>、<code>colo</code>、<code>screen_id</code> を付けます。書き込みは Server Action の共通ラッパー <code>withAudit()</code> で行い、各処理で個別に書かないようにします。</p>
+    </section>
+
+    <section id="work">
+      <h2>作業時間と作業セッション</h2>
+      <ul>
+        <li><b>表示時間</b>: ブラウザが画面の表示中（タブが前面、かつ直近 2 分以内にマウス・キー操作あり）の時間を数え、画面を離れるときと 60 秒ごとに <code>navigator.sendBeacon</code> で送る。<code>page_views.visible_ms</code> を更新する。</li>
+        <li><b>実行の操作時間</b>: S05 では同じ仕組みをステップ単位で数え、<code>run_steps.active_ms</code> と <code>runs.active_ms</code> に保存する。「どのステップで時間がかかったか」が分かる。</li>
+        <li><b>作業セッション</b>: ユーザーごとに <code>page_views</code> と <code>activity_log</code> を時刻順に並べ、15 分以上の空白で区切る。区切りごとに開始・終了・操作時間・触ったプロジェクト・実行した RUN・場所・端末を <code>work_sessions</code> に保存する。1 時間ごとに直近分を再計算する。</li>
+        <li><b>細かい生データ</b>（ビーコン 1 回ごと）は D1 に入れず、集計値だけを保存する。傾向分析が必要になったら Analytics Engine（保持 3 か月）に送る。</li>
+      </ul>
+    </section>
+
+    <section id="sessions">
+      <h2>セッション管理と失効</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>対象</th><th>Access のセッション時間（推奨）</th><th>MFA</th><th>IdP</th></tr></thead>
+        <tbody>
+          <tr><td>社員</td><td>12 時間</td><td>IdP 側で必須</td><td>Google Workspace（想定。未決）</td></tr>
+          <tr><td>顧客・委託テスター（guest）</td><td>8 時間</td><td>Independent MFA またはパスキーを必須</td><td>One-time PIN（新規アカウントでは手動で追加が必要）</td></tr>
+          <tr><td>サービストークン（MCP）</td><td>トークンの有効期限で管理（90 日で更新）</td><td>—</td><td>Service Auth</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><b>失効</b>: S12 の「セッションを失効」は <code>POST /accounts/{id}/access/organizations/revoke_user</code> を呼ぶ。反映までおよそ 1 分。使う API トークンは「Access: Organizations Revoke」だけを持つ専用のもの。<code>login_sessions</code> に <code>ended_at</code>・<code>end_reason = 'revoked'</code>・<code>revoked_by</code> を記録する。</li>
+        <li><b>ログアウト</b>: アプリのログアウトは <code>/cdn-cgi/access/logout</code> に遷移し、<code>auth.logout</code> を記録。</li>
+        <li><b>期限切れ</b>: <code>access_exp</code> を過ぎても次のリクエストが来ないセッションは、1 時間ごとの集計で <code>end_reason = 'expired'</code> にする。</li>
+        <li><b>棚卸し</b>: 1 日 1 回 <code>/access/users</code> を同期し、90 日ログインのない guest を S12 で一覧化。契約終了の顧客は Access ポリシーから外し、<code>users.archived_at</code> を設定する。</li>
+      </ul>
+    </section>
+
+    <section id="correlate">
+      <h2>ログの突き合わせ</h2>
+      <p>調査のときに各ログを同じ出来事として結びつけるためのキーです。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>キー</th><th>どこにあるか</th><th>結びつくもの</th></tr></thead>
+        <tbody>
+          <tr><td>Ray ID（<code>CF-Ray</code>）</td><td><code>activity_log.ray_id</code>、<code>page_views.ray_id</code>、Access ログ <code>RayID</code>、Workers Logs</td><td>1 回のリクエストに関するすべてのログ</td></tr>
+          <tr><td><code>identity_nonce</code></td><td><code>login_sessions.identity_nonce</code>、Access の <code>active_sessions/{nonce}</code></td><td>Access のセッションとアプリ内の全操作</td></tr>
+          <tr><td><code>sub</code> / <code>UserUID</code></td><td><code>users.access_sub</code>、<code>access_events.access_user_uid</code>、AI Gateway の <code>cf.user_id</code></td><td>人とログイン履歴・AI 利用</td></tr>
+          <tr><td><code>run_id</code></td><td><code>runs.id</code>、AI Gateway の <code>cf-aig-metadata</code>、Workflow インスタンス、R2 のキー、テストメールの宛先</td><td>1 回の実行に関するすべて</td></tr>
+          <tr><td>GitHub の配信 ID</td><td><code>activity_log.target_id</code>（<code>via = 'github'</code>）</td><td>Webhook と、その結果の実行・Check Run</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="anomaly">
+      <h2>異常の検知</h2>
+      <p>1 時間ごとの集計で以下を検出し、S12 に表示して admin に Slack で通知します。AI は要約と根拠の提示だけを行い、自動で失効はしません。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ルール</th><th>条件（既定）</th><th>重さ</th></tr></thead>
+        <tbody>
+          <tr><td>初めての国</td><td>そのユーザーの過去 90 日にない国からのログイン</td><td>注意</td></tr>
+          <tr><td>移動が不自然</td><td>2 回のログインの国が違い、間隔が移動に必要な時間より短い</td><td>警告</td></tr>
+          <tr><td>拒否の連続</td><td>同じメールまたは IP で 1 時間に 5 回以上 <code>allowed = 0</code></td><td>警告</td></tr>
+          <tr><td>未登録者の試行</td><td>招待していないメールでの OTP ログイン試行</td><td>注意</td></tr>
+          <tr><td>新しい端末</td><td>そのユーザーで初めての ブラウザ / OS の組み合わせ、または新しい <code>device_id</code></td><td>情報</td></tr>
+          <tr><td>秘密情報の大量閲覧</td><td><code>secret.revealed</code> が 1 時間に 10 回以上</td><td>警告</td></tr>
+          <tr><td>guest の権限外アクセス</td><td>guest が担当外の対象を開こうとして 403</td><td>警告</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="setup">
+      <h2>Cloudflare 側の設定</h2>
+      <ol class="steps">
+        <li><span><b>Zero Trust 組織</b>: チームドメインを決める（例: <code>indx.cloudflareaccess.com</code>）。グローバルのセッション時間は 24 時間（既定）のまま、アプリ・ポリシー単位で上表の時間にする。</span></li>
+        <li><span><b>IdP</b>: 社員用に Google Workspace（想定）を追加。顧客用に One-time PIN を手動で追加（2026-06 以降の新規アカウントは既定が Cloudflare IdP のため）。</span></li>
+        <li><span><b>Worker を保護</b>: web Worker に Access を付ける（Worker 単位の保護。カスタムドメイン・workers.dev・Preview URL がまとめて保護される）。ポリシー: 社員ドメインを許可 / 顧客は個別メールで許可＋Independent MFA。</span></li>
+        <li><span><b>Webhook パス</b>: <code>/api/github/webhook</code> だけ専用の Access アプリで Bypass。Worker 単位の保護との優先関係は M1 で検証する。</span></li>
+        <li><span><b>Logpush</b>: アカウントの Logpush ジョブを作成し、<code>access_requests</code>（必須）、<code>audit_logs_v2</code>（推奨）、<code>device_posture_results</code>（WARP を使う場合）を R2 バケットの <code>cf-logs/</code> に出力。</span></li>
+        <li><span><b>R2 イベント通知</b>: <code>cf-logs/access_requests/</code> の <code>object-create</code> を Queue <code>log-ingest</code> に送る。</span></li>
+        <li><span><b>API トークン</b>: 用途ごとに分けて Secrets Store に保存（下表）。</span></li>
+        <li><span><b>AI Gateway</b>: Access の ID が <code>cf.user_id</code> として記録されることを確認し、<code>cf-aig-metadata</code> に <code>project_key</code>・<code>run_id</code>・<code>feature</code> を付ける。</span></li>
+      </ol>
+      <div class="table-wrap"><table>
+        <thead><tr><th>トークン</th><th>権限</th><th>使う処理</th></tr></thead>
+        <tbody>
+          <tr><td><code>CF_TOKEN_ACCESS_LOGS</code></td><td>Access: Audit Logs Read、Account Analytics Read（GraphQL）</td><td>REST / GraphQL の取り込み</td></tr>
+          <tr><td><code>CF_TOKEN_ACCESS_USERS</code></td><td>Access ユーザー情報の読み取り（権限名は M1 で確認）</td><td>ユーザー同期・有効セッション表示</td></tr>
+          <tr><td><code>CF_TOKEN_ACCESS_REVOKE</code></td><td>Access: Organizations Revoke</td><td>S12 のセッション失効</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="privacy">
+      <h2>プライバシーと保持</h2>
+      <p>IP アドレス・場所・作業時間は個人に関する情報です。個人情報保護法に沿って、目的・閲覧できる人・保持期間を決め、利用者に告知します。顧客（guest）には契約時にも説明します。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>決定</th></tr></thead>
+        <tbody>
+          <tr><td>利用目的</td><td>テスト結果の証跡、不正アクセスの検知、テスト計画の工数見積もり。人事評価には使わない。</td></tr>
+          <tr><td>告知</td><td>初回ログイン時に記録する項目と目的を表示し、同意を <code>users.privacy_ack_at</code> に保存。内容を変えたら再同意。</td></tr>
+          <tr><td>閲覧できる人</td><td>admin: すべて。manager: 自分のプロジェクトのメンバーの作業サマリ（作業時間・実行数）のみで、IP と都市は見えない。tester / guest: 自分のログイン履歴のみ。</td></tr>
+          <tr><td>閲覧の記録</td><td>S12 を開く・書き出すたびに <code>audit.viewed</code> / <code>export.downloaded</code> を記録。</td></tr>
+          <tr><td>保持</td><td><code>activity_log</code> と <code>access_events</code> は 3 年、<code>login_sessions</code> と <code>work_sessions</code> は 2 年、<code>page_views</code> は 1 年。Logpush の元データは R2 に 3 年。</td></tr>
+          <tr><td>最小化</td><td>緯度経度は保存しない。IP は 1 年を過ぎたら末尾を削る（IPv4 /24、IPv6 /48）。AI Gateway には秘密を含む本文を保存しない（<code>cf-aig-collect-log-payload: false</code>）。</td></tr>
+          <tr><td>本人からの請求</td><td>本人は S12 で自分の記録を見られ、CSV で書き出せる。削除の請求は admin が対応し、証跡として必要な行は匿名化で対応する。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="verify">
+      <h2>M1 で確かめること</h2>
+      <ul>
+        <li>Zero Trust のプラン（Free / Standard）で <code>access_requests</code> の Logpush が使えるか。使えなければ REST の取り込み間隔を短くする。</li>
+        <li>GraphQL の <code>accessLoginRequestsAdaptiveGroups</code> の保持期間とプラン要件。</li>
+        <li><code>get-identity</code> のレート制限（ログインごとに 1 回なら問題ない想定）。</li>
+        <li>Worker 単位の Access 保護と、パス単位の Bypass アプリの優先関係。</li>
+        <li>vinext のビルドで Static Assets が付き、<code>ctx.access</code> が使えないこと（使えたとしても jose 検証は残す）。</li>
+        <li>ユーザー API を読むための API トークン権限の正式名。</li>
+        <li>Audit Logs v2 に Access ポリシーの変更が含まれるか。</li>
+      </ul>
+    </section>
+
+    <section id="refs">
+      <h2>出典（2026-11-19 確認）</h2>
+      <ul class="small">
+        <li>Access アプリ JWT のクレーム・get-identity: <a href="https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/">application-token</a></li>
+        <li>JWT の検証: <a href="https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/">validating-json</a></li>
+        <li>Workers の Access 連携（<code>ctx.access</code> と Static Assets の制約）: <a href="https://developers.cloudflare.com/workers/configuration/cloudflare-access/">workers/configuration/cloudflare-access</a>、<a href="https://developers.cloudflare.com/changelog/post/2026-08-14-workers-access/">changelog 2026-08-14</a></li>
+        <li>Access 認証ログ: <a href="https://developers.cloudflare.com/cloudflare-one/insights/logs/dashboard-logs/access-authentication-logs/">access-authentication-logs</a>、保持期間: <a href="https://developers.cloudflare.com/cloudflare-one/insights/logs/">insights/logs</a></li>
+        <li>Logpush <code>access_requests</code>: <a href="https://developers.cloudflare.com/logs/logpush/logpush-job/datasets/account/access_requests/">datasets/account/access_requests</a>、全プラン化: <a href="https://developers.cloudflare.com/changelog/post/2026-09-30-logpush-usage-based-pricing/">changelog 2026-09-30</a></li>
+        <li>GraphQL: <a href="https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-access-login-events/">querying-access-login-events</a></li>
+        <li>REST のログ API: <a href="https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/logs/subresources/access_requests/methods/list/">access_requests list</a></li>
+        <li>ユーザー・セッション API: <a href="https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/users/">access users</a>、失効: <a href="https://developers.cloudflare.com/api/resources/zero_trust/subresources/organizations/methods/revoke_users/">revoke_users</a></li>
+        <li>セッション時間: <a href="https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/">session-management</a></li>
+        <li>One-time PIN: <a href="https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/">one-time-pin</a>、既定 IdP の変更: <a href="https://developers.cloudflare.com/changelog/post/2026-06-18-cloudflare-idp-default/">changelog 2026-06-18</a></li>
+        <li>Independent MFA: <a href="https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/independent-mfa/">independent-mfa</a></li>
+        <li>端末の状態: <a href="https://developers.cloudflare.com/logs/logpush/logpush-job/datasets/account/device_posture_results/">device_posture_results</a></li>
+        <li><code>request.cf</code>: <a href="https://developers.cloudflare.com/workers/runtime-apis/request/">runtime-apis/request</a>、ヘッダ: <a href="https://developers.cloudflare.com/fundamentals/reference/http-headers/">http-headers</a></li>
+        <li>Workers Logs: <a href="https://developers.cloudflare.com/workers/observability/logs/workers-logs/">workers-logs</a>、新しい Observability: <a href="https://blog.cloudflare.com/one-observability-platform">blog</a></li>
+        <li>Audit Logs v2: <a href="https://developers.cloudflare.com/fundamentals/account/account-security/audit-logs/">audit-logs</a></li>
+        <li>AI Gateway の更新履歴（<code>cf.user_id</code> など）: <a href="https://developers.cloudflare.com/changelog/product/ai-gateway/">changelog/ai-gateway</a></li>
+      </ul>
+    </section>
+
+    <nav class="pager"><a href="i18n.html"><small>前へ</small>SPEC-08 多言語</a><a href="../guides/implementation.html"><small>次へ</small>GUIDE-01 実装ガイド</a></nav>
+  </div>
+</main>
+<script src="../assets/docs.js"></script>
+</body>
+</html>

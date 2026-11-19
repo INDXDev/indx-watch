@@ -34,7 +34,7 @@
       <div class="eyebrow">SPEC-04 · データモデル</div>
       <h1>データモデル（D1 / R2）</h1>
       <p class="lead">INDX Watch のすべての情報は Cloudflare D1（SQLite）に入り、ファイル本体だけを R2 に置きます。このページの DDL が実装の起点です。実装後は <code>packages/db/schema.ts</code> とこのページを同じコミットで更新します。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="architecture.html">アーキテクチャ</a></span></div>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="domain.html">ドメインモデル</a> · <a href="architecture.html">アーキテクチャ</a></span></div>
     </header>
 
     <section id="policy">
@@ -81,7 +81,15 @@ erDiagram
   runs ||--o{ evidence : stores
   runs ||--o{ judgements : judged
   runs ||--o{ issues : reports
+  users ||--o{ login_sessions : logs_in
+  login_sessions ||--o{ activity_log : context
+  login_sessions ||--o{ page_views : views
+  login_sessions ||--o{ runs : executes_in
+  users ||--o{ work_sessions : works
+  users ||--o{ access_events : "email / UID"
+  translations }o--|| projects : in
       </pre>
+      <p class="small muted">全テーブルの列と関係を領域ごとに描いた詳細な ER 図は <a href="interactions.html#er">ER・通信フロー</a>。</p>
     </section>
 
     <section id="tables">
@@ -119,7 +127,12 @@ erDiagram
           <tr><td><code>glossary_terms</code></td><td>プロジェクトの用語集（翻訳の一貫性）。</td><td>M1</td></tr>
           <tr><td><code>search_index</code></td><td>原文・翻訳の全文検索（FTS5）。</td><td>M2</td></tr>
           <tr><td rowspan="2">記録</td><td><code>comments</code></td><td>任意の対象へのコメント。</td><td>M1</td></tr>
-          <tr><td><code>activity_log</code></td><td>監査ログ（すべての変更）。</td><td>M1</td></tr>
+          <tr><td><code>activity_log</code></td><td>監査ログ（すべての変更）。誰が・いつ・どこから（IP / 国 / 都市 / Ray ID / ログインセッション）。</td><td>M1</td></tr>
+          <tr><td rowspan="5">ログイン・作業記録</td><td><code>login_sessions</code></td><td>Access のログインセッション（IdP、場所、端末、WARP）。</td><td>M1</td></tr>
+          <tr><td><code>access_events</code></td><td>Access の認証ログ（成功・失敗・拒否）。</td><td>M1</td></tr>
+          <tr><td><code>page_views</code></td><td>画面の閲覧と表示時間。</td><td>M1</td></tr>
+          <tr><td><code>work_sessions</code></td><td>作業のまとまり（いつからいつまで、何を）。</td><td>M2</td></tr>
+          <tr><td><code>ingest_cursors</code></td><td>外部ログ取り込みの位置。</td><td>M1</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -135,6 +148,11 @@ erDiagram
   kind          TEXT NOT NULL DEFAULT 'human' CHECK (kind IN ('human','agent')),
   role          TEXT NOT NULL DEFAULT 'tester' CHECK (role IN ('admin','manager','tester','guest')),
   organization  TEXT,                             -- guest の所属（例: 株式会社サンプル）
+  access_sub    TEXT UNIQUE,                      -- Access JWT の sub（アカウント内でメールごとに一意）
+  last_login_at INTEGER,                          -- login_sessions から更新
+  last_login_country TEXT,
+  access_profile_json TEXT,                       -- /access/users の同期結果（last_successful_login, active_device_count など）
+  privacy_ack_at INTEGER,                         -- 記録内容の告知に同意した日時（初回ログイン時）
   notify_json   TEXT NOT NULL DEFAULT '{}',       -- 通知設定
   locale        TEXT NOT NULL DEFAULT 'ja' CHECK (locale IN ('ja','en')),  -- 表示言語
   timezone      TEXT NOT NULL DEFAULT 'Asia/Tokyo',                       -- 表示タイムゾーン（IANA）
@@ -421,6 +439,8 @@ CREATE TABLE schedules (
   environment_id         TEXT NOT NULL REFERENCES environments(id),
   executor_kind          TEXT NOT NULL CHECK (executor_kind IN ('human','agent','script')),
   executor_id            TEXT NOT NULL REFERENCES users(id),
+  login_session_id       TEXT REFERENCES login_sessions(id),  -- 人の実行: どのログインで行ったか
+  active_ms              INTEGER,                 -- 人の実行: 画面を開いて操作していた時間の合計
   trigger                TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual','plan','schedule','github','mcp')),
   state                  TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued','running','judging','completed','error')),
   verdict                TEXT CHECK (verdict IN ('pass','fail','blocked','skipped','needs_review')),
@@ -454,6 +474,7 @@ CREATE TABLE run_steps (
   note         TEXT,                              -- 人のメモ / 実際の結果
   note_locale  TEXT CHECK (note_locale IN ('ja','en')),
   actions_json TEXT,                              -- エージェントが行った操作の列
+  active_ms    INTEGER,                           -- 人の実行: このステップに使った操作時間
   started_at   INTEGER,
   finished_at  INTEGER,
   UNIQUE (run_id, seq)
@@ -463,7 +484,7 @@ CREATE TABLE evidence (
   id            TEXT PRIMARY KEY,                 -- evd_...
   run_id        TEXT NOT NULL REFERENCES runs(id),
   run_step_id   TEXT REFERENCES run_steps(id),
-  kind          TEXT NOT NULL CHECK (kind IN ('screenshot','dom','a11y','console','network','trace','transcript','upload')),
+  kind          TEXT NOT NULL CHECK (kind IN ('screenshot','dom','a11y','console','network','trace','recording','email','transcript','upload')),
   r2_key        TEXT NOT NULL,
   content_type  TEXT NOT NULL,
   size          INTEGER NOT NULL,
@@ -606,10 +627,122 @@ CREATE TABLE activity_log (
   target_id    TEXT NOT NULL,
   diff_json    TEXT,                              -- 変更前後
   via          TEXT NOT NULL DEFAULT 'web' CHECK (via IN ('web','mcp','github','runner','system')),
+  login_session_id TEXT REFERENCES login_sessions(id),  -- 人の操作のとき
+  ray_id       TEXT,                              -- CF-Ray。Access ログ・Workers Logs と突き合わせる
+  ip           TEXT,                              -- CF-Connecting-IP
+  country      TEXT,                              -- request.cf.country
+  city         TEXT,                              -- request.cf.city
+  colo         TEXT,                              -- request.cf.colo（経由した Cloudflare データセンター）
+  screen_id    TEXT,                              -- S05 など、操作した画面
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX activity_target ON activity_log(target_type, target_id, created_at DESC);
-CREATE INDEX activity_project_time ON activity_log(project_id, created_at DESC);</code></pre>
+CREATE INDEX activity_project_time ON activity_log(project_id, created_at DESC);
+CREATE INDEX activity_actor_time ON activity_log(actor_id, created_at DESC);</code></pre>
+
+<h3 id="identity">ログイン・作業記録</h3>
+<p class="small muted">何をどこから取るか、保持と閲覧権限は <a href="identity-audit.html">認証・行動ログ</a>。</p>
+<pre><code>-- Worker が観測した Access セッション。identity_nonce が変わったら新しい行
+CREATE TABLE login_sessions (
+  id                TEXT PRIMARY KEY,             -- lgs_...
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  identity_nonce    TEXT NOT NULL UNIQUE,         -- JWT identity_nonce（Access のセッション識別子）
+  auth_kind         TEXT NOT NULL CHECK (auth_kind IN ('identity','service_token')),
+  access_iat        INTEGER NOT NULL,             -- JWT iat = Access でログインした時刻
+  access_exp        INTEGER NOT NULL,             -- 最後に見た JWT の exp
+  jwt_country       TEXT,                         -- JWT country（認証時の国）
+  idp_type          TEXT,                         -- get-identity idp.type（google, azureAD, onetimepin, cloudflare ...）
+  idp_id            TEXT,
+  groups_json       TEXT,                         -- get-identity groups
+  service_token_id  TEXT,                         -- MCP など
+  ip_first          TEXT NOT NULL,
+  ip_last           TEXT NOT NULL,
+  geo_json          TEXT NOT NULL,                -- 初回リクエストの request.cf: country, region, city, timezone, asn, asOrganization, colo
+  ua                TEXT,                         -- User-Agent（原文）
+  ua_json           TEXT,                         -- 解析結果 {browser, os, device_type}
+  is_warp           INTEGER,                      -- get-identity is_warp
+  device_id         TEXT,                         -- get-identity device_id（WARP 利用時のみ）
+  posture_json      TEXT,                         -- get-identity devicePosture（チェック名と結果のみ）
+  first_seen_at     INTEGER NOT NULL,
+  last_seen_at      INTEGER NOT NULL,
+  request_count     INTEGER NOT NULL DEFAULT 0,
+  ip_changes        INTEGER NOT NULL DEFAULT 0,   -- セッション中に IP が変わった回数
+  ended_at          INTEGER,
+  end_reason        TEXT CHECK (end_reason IN ('expired','logout','revoked','replaced')),
+  revoked_by        TEXT REFERENCES users(id)
+);
+CREATE INDEX login_sessions_user_time ON login_sessions(user_id, first_seen_at DESC);
+
+-- Cloudflare Access の認証ログ（成功・失敗）。Worker に届かない拒否もここに入る
+CREATE TABLE access_events (
+  id                  TEXT PRIMARY KEY,           -- ace_...
+  ray_id              TEXT NOT NULL,
+  source              TEXT NOT NULL CHECK (source IN ('logpush','rest','graphql')),
+  occurred_at         INTEGER NOT NULL,           -- CreatedAt
+  action              TEXT NOT NULL,              -- login / logout
+  allowed             INTEGER NOT NULL,           -- 0 = 拒否
+  email               TEXT,
+  access_user_uid     TEXT,                       -- UserUID
+  user_id             TEXT REFERENCES users(id),  -- メール / UID で突き合わせ（未登録者は null）
+  app_domain          TEXT,
+  app_uid             TEXT,
+  connection          TEXT,                       -- 使った IdP（onetimepin など）
+  country             TEXT,
+  ip                  TEXT,
+  approving_policy_id TEXT,                       -- GraphQL で補完
+  has_warp            INTEGER,                    -- GraphQL で補完
+  device_id           TEXT,                       -- GraphQL で補完
+  service_token_id    TEXT,
+  purpose_justification TEXT,
+  raw_r2_key          TEXT,                       -- 元の NDJSON（Logpush）の場所
+  ingested_at         INTEGER NOT NULL,
+  UNIQUE (ray_id, action)
+);
+CREATE INDEX access_events_time ON access_events(occurred_at DESC);
+CREATE INDEX access_events_denied ON access_events(allowed, occurred_at DESC) WHERE allowed = 0;
+CREATE INDEX access_events_user ON access_events(user_id, occurred_at DESC);
+
+-- 画面の閲覧（どこを見ていたか）。書き込みは activity_log
+CREATE TABLE page_views (
+  id                TEXT PRIMARY KEY,             -- pgv_...
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  login_session_id  TEXT NOT NULL REFERENCES login_sessions(id),
+  project_id        TEXT REFERENCES projects(id),
+  screen_id         TEXT NOT NULL,                -- S01..S12
+  path              TEXT NOT NULL,
+  target_type       TEXT,                         -- run / test_case ...
+  target_id         TEXT,
+  locale            TEXT NOT NULL,
+  ray_id            TEXT NOT NULL,
+  opened_at         INTEGER NOT NULL,
+  visible_ms        INTEGER                       -- ブラウザが送るビーコンで更新（タブが前面にあった時間）
+);
+CREATE INDEX page_views_user_time ON page_views(user_id, opened_at DESC);
+
+-- 作業セッション: 15 分以上操作が途切れたら区切る。page_views と activity_log から集計
+CREATE TABLE work_sessions (
+  id                TEXT PRIMARY KEY,             -- wks_...
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  login_session_id  TEXT REFERENCES login_sessions(id),
+  started_at        INTEGER NOT NULL,
+  ended_at          INTEGER NOT NULL,
+  active_ms         INTEGER NOT NULL,
+  projects_json     TEXT NOT NULL DEFAULT '[]',   -- ["SHOP"]
+  runs_json         TEXT NOT NULL DEFAULT '[]',   -- 実行した RUN の表示キー
+  write_count       INTEGER NOT NULL DEFAULT 0,
+  country           TEXT,
+  city              TEXT,
+  device_label      TEXT,                         -- "Chrome / macOS"
+  computed_at       INTEGER NOT NULL
+);
+CREATE INDEX work_sessions_user_time ON work_sessions(user_id, started_at DESC);
+
+-- 外部ログ取り込みの進み具合
+CREATE TABLE ingest_cursors (
+  source      TEXT PRIMARY KEY,                   -- access_rest / access_graphql / access_users
+  cursor      TEXT NOT NULL,                      -- 最後に取り込んだ時刻やページ
+  updated_at  INTEGER NOT NULL
+);</code></pre>
     </section>
 
     <section id="json">
@@ -683,6 +816,8 @@ CREATE INDEX activity_project_time ON activity_log(project_id, created_at DESC);
           <tr><td>証拠</td><td><code>evidence/{project_key}/{run_id}/{seq}-{kind}.{ext}</code></td><td><code>evidence/SHOP/run_01JD.../3-screenshot.png</code></td><td>180 日（<code>retain = 1</code> のものは <code>retained/</code> にコピーして無期限）</td></tr>
           <tr><td>フィクスチャ</td><td><code>fixtures/{project_key}/{fixture_id}/v{n}/{filename}</code></td><td><code>fixtures/SHOP/fx_01JC.../v4/coupons.csv</code></td><td>無期限</td></tr>
           <tr><td>ベースライン</td><td><code>baselines/{project_key}/{test_case_id}/{env}/{step}.png</code></td><td><code>baselines/SHOP/tc_01JB.../staging/5.png</code></td><td>無期限（置き換え時に旧版を 90 日残す）</td></tr>
+          <tr><td>Cloudflare ログ（Logpush）</td><td><code>cf-logs/{dataset}/{YYYYMMDD}/...</code>（<code>access_requests</code>、<code>audit_logs_v2</code>、<code>device_posture_results</code>）</td><td><code>cf-logs/access_requests/20261119/...ndjson.gz</code></td><td>3 年</td></tr>
+          <tr><td>テストメール</td><td><code>emails/{project_key}/{run_id}/{message_id}.eml</code></td><td><code>emails/SHOP/run_01JD.../a1b2.eml</code></td><td>180 日</td></tr>
           <tr><td>AI 取り込みの入力</td><td><code>imports/{project_key}/{suggestion_id}/{filename}</code></td><td><code>imports/SHOP/sug_01JE.../prd.pdf</code></td><td>90 日</td></tr>
         </tbody>
       </table></div>
@@ -737,6 +872,7 @@ WHERE tc.project_id = ?3 AND tc.status = 'ready';</code></pre>
         <li>証拠ファイルは 180 日で R2 ライフサイクルにより削除。D1 の <code>evidence</code> 行は残し、<code>expires_at</code> を過ぎたものは「期限切れ」と表示する。</li>
         <li>ベースラインに採用された証拠、リリースの最終結果に使われた証拠は <code>retain = 1</code> にして残す（日次の Cron で R2 側を保持用のキー <code>retained/</code> にコピー）。</li>
         <li>D1 は Time Travel（30 日）で復元可能。加えて毎日 D1 をエクスポートし、別バケット <code>indx-watch-backup</code> に保存する（90 日保持）。</li>
+        <li>ログイン・作業記録: <code>activity_log</code> と <code>access_events</code> は 3 年、<code>login_sessions</code> と <code>work_sessions</code> は 2 年、<code>page_views</code> は 1 年保持。IP アドレスは 1 年を過ぎたら末尾を削る（IPv4 は /24、IPv6 は /48）。Access ログの元データ（Logpush の NDJSON）は R2 の <code>cf-logs/</code> に 3 年。</li>
         <li>ユーザーの退職・顧客の契約終了時は <code>users.archived_at</code> を設定し、Access ポリシーから外す。作成物と履歴は残す。</li>
       </ul>
     </section>

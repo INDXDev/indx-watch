@@ -36,7 +36,7 @@
       <div class="eyebrow">SPEC-06 · AI ネイティブ設計</div>
       <h1>AI が提案し、人が決める</h1>
       <p class="lead">INDX Watch では、仕様づくり・実行・判定・振り分けのそれぞれに AI が入ります。ただし AI の出力は必ず「誰が・どのモデルで・どの根拠で」出したかを記録し、確定には人の承認か、決められた判定ポリシーを通します。</p>
-      <div class="meta-row"><span>状態 <b>ドラフト v0.1</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="architecture.html">アーキテクチャ</a> · <a href="../screens/s06-agent-run-review.html">S06 AI 実行ビューア</a> · <a href="../screens/s10-ai-import.html">S10 AI 仕様取り込み</a></span></div>
+      <div class="meta-row"><span>状態 <b>ドラフト v0.2</b></span><span>更新 <b>2026-11-19</b></span><span>関連 <a href="architecture.html">アーキテクチャ</a> · <a href="../screens/s06-agent-run-review.html">S06 AI 実行ビューア</a> · <a href="../screens/s10-ai-import.html">S10 AI 仕様取り込み</a></span></div>
     </header>
 
     <section id="where">
@@ -68,10 +68,10 @@
       <div class="table-wrap"><table>
         <thead><tr><th>モード</th><th>誰が操作するか</th><th>手順の書き方</th><th>判定</th><th>向いているもの</th><th>1 回のコスト</th></tr></thead>
         <tbody>
-          <tr><td><code>manual</code></td><td>人</td><td>平易な日本語</td><td>人（ステップごとに pass / fail）</td><td>見た目・使い心地の確認、顧客 UAT、メール受信の確認</td><td>人の時間</td></tr>
-          <tr><td><code>agent</code></td><td>AI ブラウザエージェント</td><td>平易な日本語（manual と同じ）</td><td>assert + llm（+ visual）を判定ポリシーで集約</td><td>手順が安定しているがセレクタを書きたくない回帰テスト</td><td>約 $0.3</td></tr>
+          <tr><td><code>manual</code></td><td>人</td><td>平易な日本語</td><td>人（ステップごとに pass / fail）</td><td>見た目・使い心地の確認、顧客 UAT</td><td>人の時間</td></tr>
+          <tr><td><code>agent</code></td><td>AI ブラウザエージェント</td><td>平易な日本語（manual と同じ）</td><td>assert + llm（+ visual）を判定ポリシーで集約</td><td>手順が安定しているがセレクタを書きたくない回帰テスト。メールの到着確認も含められる（<a href="architecture.html#email">テスト用メール</a>）</td><td>約 $0.2（Claude 約 $0.16 + ブラウザ 3 分 約 $0.005）</td></tr>
           <tr><td><code>script</code></td><td>Playwright スクリプト</td><td>TypeScript（<code>test_case_versions.script</code>）</td><td>assert（+ visual）</td><td>毎デプロイで回すスモーク、決済などの重要経路</td><td>ほぼブラウザ時間のみ</td></tr>
-          <tr><td><code>hybrid</code></td><td>AI が実行し、人が確認</td><td>平易な日本語</td><td>AI の判定を人が必ず確認して確定</td><td>P0 だが自動化しきれないもの（例: TC-130 決済完了とメール）</td><td>約 $0.3 + 確認 1〜2 分</td></tr>
+          <tr><td><code>hybrid</code></td><td>AI が実行し、人が確認</td><td>平易な日本語</td><td>AI の判定を人が必ず確認して確定</td><td>P0 だが自動化しきれないもの（例: TC-130 決済完了とメール）</td><td>約 $0.2 + 確認 1〜2 分</td></tr>
         </tbody>
       </table></div>
       <h3>選び方</h3>
@@ -85,7 +85,7 @@
 
     <section id="agent">
       <h2>ブラウザエージェント</h2>
-      <p>エージェントは runner の Workflow 内で動きます。Browser Rendering の Playwright を、下の自前ツールだけで操作します。1 回の実行は 1 つの TC バージョンに対応し、TC のステップを順に達成していきます。</p>
+      <p>エージェントは runner の Workflow 内で動きます。Browser Run（旧 Browser Rendering）の Playwright（<code>@cloudflare/playwright</code>）を、下の自前ツールだけで操作します。セッション録画（<code>recording: true</code>）と Playwright の trace を常に取り、R2 に保存します（<code>evidence.kind = recording / trace</code>）。1 回の実行は 1 つの TC バージョンに対応し、TC のステップを順に達成していきます。</p>
       <pre class="mermaid">flowchart TD
   S["開始: TC-128 v3 / staging@a1b2c3d"] --> O["観測: a11y ツリー ref 付き + スクリーンショット"]
   O --> M["Claude: 現在のステップを達成する次の操作を選ぶ"]
@@ -116,6 +116,8 @@
           <tr><td><code>read_page</code></td><td><code>ref?</code></td><td>a11y ツリーの全体または一部を再取得</td></tr>
           <tr><td><code>assert</code></td><td><code>kind</code>, <code>target</code>, <code>expected</code></td><td>決定的チェック（URL・テキスト・要素の有無・値）。結果は assert ジャッジとして記録</td></tr>
           <tr><td><code>step_done</code></td><td><code>seq</code>, <code>note</code></td><td>現在のステップを完了として次へ</td></tr>
+          <tr><td><code>wait_for_email</code></td><td><code>subject_contains?</code>, <code>timeout_s?</code></td><td>この実行用アドレス（<code>{{run.email}}</code>）宛てのメールを待ち、件名・本文・リンクを観測として返す。Workflow の <code>waitForEvent</code> で待つ</td></tr>
+          <tr><td><code>request_human</code></td><td><code>reason</code></td><td>ログイン・CAPTCHA・2 段階認証などで進めないときに人へ操作を引き継ぐ（Browser Run の Human in the Loop）。人が S06 の Live View で操作し、終わると戻る。待つ上限 30 分、超えたら blocked</td></tr>
           <tr><td><code>finish</code></td><td><code>verdict</code>, <code>reason</code></td><td>実行の終了。<code>verdict</code> は pass / fail / blocked（自己申告。最終判定ではない）</td></tr>
         </tbody>
       </table></div>
@@ -161,6 +163,8 @@
           <li>許可ドメイン: 環境の <code>base_url</code> のオリジンと、<code>environments</code> に登録した外部ドメイン（決済画面など）のみ。それ以外への遷移は runner がブロックし、blocked として記録する。</li>
           <li>秘密値（パスワード・カード番号）はモデルに渡さない。モデルが書くのは <code>{{FX-11.password}}</code> だけで、runner が <code>fill</code> 実行時に Secrets Store から置き換える。a11y ツリーとスクリーンショットでも password 欄の値は伏せる。</li>
           <li>破壊的な操作（本番環境での購入確定など）を防ぐため、<code>kind = prod</code> の環境ではエージェント実行を許可しない。</li>
+          <li>対象環境への認証ヘッダー（Access サービストークン）は対象ホスト宛ての通信にだけ付ける（<code>page.route</code> または <code>outboundByHost</code>）。外部ドメインに漏らさない（<a href="architecture.html#target-access">対象環境へのアクセス</a>）。</li>
+          <li>Live View の URL はモデルにもログにも渡さない。人への引き継ぎ（<code>request_human</code>）で使う URL は S06 の画面にだけ出す。</li>
         </ul>
       </div>
     </section>
@@ -256,7 +260,7 @@
 
     <section id="review">
       <h2>信頼度とレビューキュー</h2>
-      <p>verdict = <span class="badge st-review">needs_review</span> の実行は「レビュー待ち」（S06 <code>/review</code>）に並びます。並び順は P0 → P1 → …、同じ優先度では古い順です。</p>
+      <p>verdict = <span class="badge st-review">needs_review</span> の実行は「レビュー待ち」（S06 <code>/review</code>）に並びます。並び順は P0 → P1 → …、同じ優先度では古い順です。runner の Workflow は <code>step.waitForEvent("human-verdict")</code>（タイムアウト 72 時間を明示、例外は try/catch）で待ち、S06 で人が判定すると web が <code>sendEvent</code> で再開させます。タイムアウトしても実行は needs_review のままキューに残り、後からの判定で確定できます。</p>
       <div class="grid two">
         <div class="card"><h3>レビュー時に見せるもの</h3>
           <ul>
@@ -364,15 +368,17 @@
       <ul>
         <li><b>プロンプトはコードで管理</b>: <code>packages/core/prompts/</code> に機能ごとのファイルを置き、先頭に <code>PROMPT_VERSION = "judge-llm@2026-11-19.1"</code> のような版を持つ。AI の出力にはこの版を必ず保存する。</li>
         <li><b>モデル設定</b>: 既定値は core に定数で持ち、<code>projects.settings_json.models</code>（例: <code>{"judge": "claude-sonnet-5-5"}</code>）で上書きできる。</li>
-        <li><b>AI Gateway</b>: 全呼び出しのログ・トークン数・コストを記録。<code>cf-aig-metadata</code> に <code>project_key</code> と <code>feature</code> を付け、プロジェクト別・機能別に集計する。応答キャッシュは使わない（判定は毎回の証拠に依存するため）。プロンプトキャッシュ（Anthropic 側）は使う。</li>
-        <li><b>コスト上限</b>: プロジェクトの月次上限（<code>ai_budget_usd</code>）と、1 実行あたりのトークン予算。<code>runs.cost_json</code> に実績を保存し S02 に表示。</li>
+        <li><b>AI Gateway</b>: 全呼び出しのトークン数・コストを記録。<code>cf-aig-metadata</code>（最大 5 件）に <code>project_key</code>・<code>run_id</code>・<code>feature</code>・<code>user_id</code> を付け、プロジェクト別・機能別・人別に集計する。応答キャッシュは使わない（判定は毎回の証拠に依存するため）。プロンプトキャッシュ（Anthropic 側）は使う。</li>
+        <li><b>キーと本文の扱い</b>: Anthropic のキーは AI Gateway の BYOK（Secrets Store）に置き、<code>byok_only</code> を有効にする。Worker はキーを持たない。エージェント・ジャッジなど対象画面の内容（テストアカウントや個人情報が映りうる）を送る呼び出しは <code>cf-aig-collect-log-payload: false</code> で本文をログに残さない。仕様取り込み・翻訳は本文を残してよい（プロンプト改善に使う）。</li>
+        <li><b>コスト上限</b>: プロジェクトの月次上限（<code>ai_budget_usd</code>）と、1 実行あたりのトークン予算。<code>runs.cost_json</code> に実績を保存し S02 に表示。AI Gateway の spend limits にも同じ上限を設定し、アプリ側の集計が漏れても止まるようにする。</li>
+        <li><b>翻訳のモデル</b>: 日英翻訳は Claude（<a href="i18n.html">多言語設計</a>のモデル表）。Workers AI の <code>m2m100-1.2b</code> は日本語対応がドキュメントで確認できないため使わない。</li>
         <li><b>評価セット</b>: 人が確定した実行（証拠 + 正解の verdict）から代表 100 件を評価セットとして R2 に保存。プロンプトやモデルを変えるときは、この評価セットで一致率を比べ、下がる変更は入れない（CI で実行）。</li>
       </ul>
     </section>
 
     <section id="claude-api">
       <h2>Claude API の注意点</h2>
-      <p>実装時に間違えやすい点です。SDK は TypeScript 版 <code>@anthropic-ai/sdk</code> を使い、<code>baseURL</code> を AI Gateway に向けます。</p>
+      <p>実装時に間違えやすい点です。SDK は TypeScript 版 <code>@anthropic-ai/sdk</code> を使い、<code>baseURL</code> を AI Gateway の Anthropic エンドポイント（<code>https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/anthropic</code>）に向け、<code>cf-aig-authorization</code> ヘッダーで Gateway の認証をします（キーは BYOK）。</p>
       <div class="table-wrap"><table>
         <thead><tr><th>項目</th><th>決めごと</th></tr></thead>
         <tbody>
@@ -406,7 +412,7 @@
       </div>
     </section>
 
-    <nav class="pager"><a href="architecture.html"><small>前へ</small>SPEC-05 アーキテクチャ</a><a href="../guides/implementation.html"><small>次へ</small>GUIDE-01 実装ガイド</a></nav>
+    <nav class="pager"><a href="architecture.html"><small>前へ</small>SPEC-05 アーキテクチャ</a><a href="interactions.html"><small>次へ</small>SPEC-07 ER・通信フロー</a></nav>
   </div>
 </main>
 <script src="../assets/docs.js"></script>
