@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^rel_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "testing",
+        "ready",
+        "released"
+      ]
+    },
+    "target_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "plan": {
+      "type": "string",
+      "pattern": "^PLAN-[1-9][0-9]*$"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "model",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "state"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/release.json",
+  "title": "release"
+}

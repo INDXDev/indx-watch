@@ -26,7 +26,7 @@ evidence = ["screenshot"]
 instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
 expected = "「This coupon has expired」と表示され、合計は「40.00」のまま。"
 status = "reviewed"
-source_hash = "000000000000"
+source_hash = "d560dd539b6f"
 
 [[judges]]
 kind = "assert"
@@ -37,4 +37,4 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 [i18n.ja]
 title = "期限切れのクーポンは使えない"
 status = "reviewed"
-source_hash = "000000000000"
+source_hash = "1842223e763f"
