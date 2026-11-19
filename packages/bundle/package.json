@@ -8,8 +8,9 @@
     "./node": "./src/node/index.ts"
   },
   "dependencies": {
+    "modern-tar": "^0.8.6",
     "smol-toml": "^1.9.1",
-    "zod": "^4.6.7",
-    "ulid": "^3.0.2"
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
   }
 }

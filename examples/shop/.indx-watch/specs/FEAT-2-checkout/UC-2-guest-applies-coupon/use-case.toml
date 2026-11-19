@@ -22,11 +22,11 @@ text = "An expired coupon shows \"This coupon has expired\" and the total does n
 [criteria.i18n.ja]
 text = "期限切れのクーポンは「This coupon has expired」と表示され、合計は変わらない。"
 status = "reviewed"
-source_hash = "000000000000"
+source_hash = "50c93fc9dcc3"
 
 [i18n.ja]
 title = "ゲストが購入時にクーポンを使う"
 actor = "ゲストの購入者"
 goal = "カートの商品を割引価格で購入したい。"
 status = "machine"
-source_hash = "000000000000"
+source_hash = "9fba5a63e3e8"

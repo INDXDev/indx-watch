@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^prj_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]{1,9}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_locale": {
+      "type": "string",
+      "enum": [
+        "en",
+        "ja"
+      ]
+    },
+    "locales": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ja"
+        ]
+      }
+    },
+    "default_environment": {
+      "type": "string"
+    },
+    "current_release": {
+      "type": "string"
+    },
+    "default_branch": {
+      "type": "string"
+    },
+    "gate": {
+      "type": "object",
+      "properties": {
+        "p0_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "p0_all_pass": {
+          "type": "boolean"
+        },
+        "p1_pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_needs_review": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "max_untested": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "allow_stale": {
+          "type": "boolean"
+        },
+        "require_evidence": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision_policy": {
+      "type": "object",
+      "properties": {
+        "llm_pass_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "llm_fail_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "visual_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "require_human_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "fixtures": {
+      "type": "object",
+      "properties": {
+        "inline_max_bytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "store": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^(file|s3|https?):\\/\\/"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "git",
+            "workspace"
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "enum": [
+            "on-demand",
+            "all",
+            "none"
+          ]
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri"
+        },
+        "region": {
+          "type": "string"
+        },
+        "force_path_style": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "hosting": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "const": "cloudflare"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "r2_bucket": {
+          "type": "string"
+        },
+        "d1_database": {
+          "type": "string"
+        },
+        "access_team": {
+          "type": "string"
+        },
+        "access_aud": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "glossary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "definition"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "x": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "key",
+    "name",
+    "source_locale",
+    "locales"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/project.json",
+  "title": "project"
+}
