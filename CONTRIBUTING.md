@@ -62,3 +62,8 @@ This repository manages its own QA in [`.indx-watch/`](.indx-watch). When you ad
 ## Code of conduct
 
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Releasing (maintainers)
+
+1. Update the version in `packages/cli/package.json` and move the "Unreleased" entries in [CHANGELOG.md](CHANGELOG.md) under the new version.
+2. Push a tag `vX.Y.Z`. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `pnpm verify`, packs the package, publishes it to npm with provenance (secret `NPM_TOKEN`) and creates a GitHub release. Run it manually with `dry-run` to only build and pack.
