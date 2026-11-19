@@ -1,12 +1,20 @@
 /** One integration test per command on a temp copy of examples/shop, plus docs/spec/cli.md acceptance criteria. */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseToml, sha256Hex } from '@indx-watch/bundle';
+import { createArchive, parseToml, sha256Hex } from '@indx-watch/bundle';
 import { renderReport } from '@indx-watch/server';
 import { describe, expect, it } from 'vitest';
-import { cleanEnv, fakeBin, iw, iwJson, shop, TSX } from './helpers.js';
+import { cleanEnv, fakeBin, iw, iwJson, ROOT, shop, TSX } from './helpers.js';
 
 const TC3 = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml';
 const read = (dir: string, f: string) => readFileSync(join(dir, '.indx-watch', f), 'utf8');
@@ -182,6 +190,11 @@ describe('commands', () => {
     const dir = mkdtempSync(join(tmpdir(), 'iw-ex-'));
     iwJson(dir, 'init', ['init', '--example']);
     expect(read(dir, 'project.toml')).toContain('key = "SHOP"');
+    expect(read(dir, '.gitignore')).toBe('cache/\nruns/\n'); // written, not copied: npm drops .gitignore
+    expect(existsSync(join(dir, '.indx-watch/cache'))).toBe(false);
+    // the sample store is seeded, so the fixture blob is there and check is clean
+    expect(iw(dir, ['check', '--strict']).code).toBe(0);
+    expect(iwJson(dir, 'sync', ['sync']).json.data.pulled.records).toBeGreaterThan(0);
     expect(iwJson(dir, 'init', ['init']).json.error.code).toBe('CONFLICT');
   });
 
@@ -244,6 +257,59 @@ describe('commands', () => {
     const agent = { IW_ACTOR_KIND: 'agent' };
     expect(iw(dir, ['new', 'uc', '--title', 'y', '--ac', 'z', '--ready'], { env: agent }).code).toBe(2);
     expect(iw(dir, ['check']).code).toBe(0);
+  });
+
+  it('new by an agent always writes an AI draft with its model', () => {
+    const dir = shop();
+    const agent = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'claude-test' };
+    const tc = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-5', '--title', 'No origin flag'], { env: agent });
+    expect(parseToml(read(dir, tc.json.data.file))).toMatchObject({
+      status: 'draft',
+      origin: 'ai',
+      ai: { model: 'claude-test' },
+    });
+    const ac = iwJson(dir, 'new', ['new', 'ac', '--uc', 'UC-5', '--text', 'Agent criterion'], { env: agent });
+    const uc = parseToml(read(dir, ac.json.data.file)) as { criteria: { key: string; status?: string }[] };
+    expect(uc.criteria.find((c) => c.key === ac.json.data.key)).toMatchObject({
+      status: 'draft',
+      origin: 'ai',
+    });
+    const human = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-5', '--title', 'x', '--origin', 'human'], {
+      env: agent,
+    });
+    expect([human.code, human.json.error.code]).toEqual([2, 'USAGE']);
+    const noModel = iwJson(dir, 'new', ['new', 'fixture', '--title', 'x'], {
+      env: { IW_ACTOR_KIND: 'agent' },
+    });
+    expect([noModel.code, noModel.json.error.message]).toEqual([
+      2,
+      expect.stringContaining('IW_AGENT_MODEL'),
+    ]);
+    expect(iw(dir, ['check']).code).toBe(0);
+  });
+
+  it('new never reuses a fixture key that recorded runs used', () => {
+    const dir = shop();
+    expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // sample runs use FX-1..FX-3
+    for (const d of readdirSync(join(dir, '.indx-watch/fixtures')).filter((d) => /^FX-[34]-/.test(d)))
+      rmSync(join(dir, '.indx-watch/fixtures', d), { recursive: true });
+    const fx = iwJson(dir, 'new', ['new', 'fixture', '--title', 'Another account']).json.data.key;
+    expect(fx).toBe('FX-4'); // FX-4 was never used by a run; FX-3 was
+  });
+
+  it('status and report: an unknown --release or --env is NOT_FOUND, from the environment a warning', () => {
+    const dir = shop();
+    for (const args of [
+      ['status', '--release', 'v9'],
+      ['status', '--env', 'nope'],
+      ['report', '--release', 'v9'],
+    ])
+      expect(iwJson(dir, args[0] as 'status', [...args]).json.error.code).toBe('NOT_FOUND');
+    const env = iwJson(dir, 'status', ['status'], { env: { IW_RELEASE: 'v9' } });
+    expect(env.json.warnings).toEqual([expect.objectContaining({ code: 'unknown-release' })]);
+    expect(
+      iwJson(dir, 'status', ['status', '--release', 'v1.2.0', '--env', 'staging']).json.warnings,
+    ).toEqual([]);
   });
 
   it('approve sets ready, approved_by and approved_version', () => {
@@ -355,6 +421,17 @@ describe('commands', () => {
     ).toBe(id);
     expect(iwJson(dir, 'show', ['show', id]).json.data.retracted).toBe(true);
     expect(iw(dir, ['retract', 'rec_01JF3Q8M5X2V7K9D4R6T1W0Y00', '--reason', 'x']).code).toBe(2);
+    // agents may only retract their own records
+    const human = iwJson(dir, 'record', ['record', 'TC-8', '--verdict', 'fail']).json.data.run.id;
+    const bot = { IW_ACTOR: 'bot@shop.test', IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'm' };
+    const hide = iwJson(dir, 'retract', ['retract', human, '--reason', 'x'], { env: bot });
+    expect([hide.code, hide.json.error.code]).toEqual([2, 'USAGE']);
+    const own = iwJson(dir, 'record', ['record', 'TC-8', '--verdict', 'pass', '--confidence', '0.9'], {
+      env: bot,
+    }).json.data.run.id;
+    const peer = { ...bot, IW_ACTOR: 'other-bot@shop.test' };
+    expect(iw(dir, ['retract', own, '--reason', 'x'], { env: peer }).code).toBe(2);
+    expect(iwJson(dir, 'retract', ['retract', own, '--reason', 'mine'], { env: bot }).code).toBe(0);
   });
 
   it('deployment add records a deployment', () => {
@@ -391,7 +468,11 @@ describe('commands', () => {
     expect([secret.code, secret.json.error.code]).toEqual([1, 'SECRETS_FOUND']);
     const fetch = iwJson(dir, 'fixture fetch', ['fixture', 'fetch', 'FX-4']);
     const photo = fetch.json.data.files.find((f: { name: string }) => f.name === 'review-photo.png');
-    expect(existsSync(join(dir, '.indx-watch/cache/blobs', photo.sha256))).toBe(true);
+    expect(photo.path).toBe(join(dir, '.indx-watch/cache/blobs', photo.sha256));
+    expect(existsSync(photo.path)).toBe(true);
+    const out = iwJson(dir, 'fixture fetch', ['fixture', 'fetch', 'FX-4', '--out', 'files']).json.data.files;
+    expect(out.map((f: { path: string }) => f.path)).toContain(join(dir, 'files', 'review-photo.png'));
+    expect(await sha256Hex(readFileSync(join(dir, 'files', 'review-photo.png')))).toBe(photo.sha256);
     expect(iw(dir, ['check']).code).toBe(0);
   });
 
@@ -411,6 +492,31 @@ describe('commands', () => {
       `${read(dir, 'environments/staging.toml')}notes = "ghp_${'a'.repeat(36)}"\n`,
     );
     expect(iwJson(dir, 'sync', ['sync']).json.error.code).toBe('SECRETS_FOUND');
+    expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // nothing leaves the machine
+  });
+
+  it('sync holds back unpushed records that fail the secret scan; pulled records never block', () => {
+    const dir = shop();
+    const key = `AKIA${'ABCDEFGHIJKLMNOP'}`;
+    const good = iwJson(dir, 'record', ['record', 'TC-2', '--verdict', 'pass']).json.data.run.id;
+    const bad = iwJson(dir, 'record', ['record', 'TC-8', '--verdict', 'fail', '--note', `token ${key}`]);
+    const r = iwJson(dir, 'sync', ['sync']);
+    expect([r.code, r.json.error.code]).toEqual([1, 'SECRETS_FOUND']);
+    expect(r.json.data.pushed.records).toBe(1); // the clean record still went out
+    const log = (d: string) =>
+      readdirSync(join(d, 'store/v1/log')).map((f) => readFileSync(join(d, 'store/v1/log', f), 'utf8'));
+    expect(log(dir).some((t) => t.includes(good))).toBe(true);
+    expect(log(dir).some((t) => t.includes(key))).toBe(false);
+    // retracting it is the way out: the target stays local, the retraction is pushed
+    iwJson(dir, 'retract', ['retract', bad.json.data.run.id, '--reason', 'leaked a key']);
+    expect(iwJson(dir, 'sync', ['sync']).json.data.pushed.records).toBe(1);
+    expect(log(dir).some((t) => t.includes(key))).toBe(false);
+    // a secret that is already in the store (written by an older client) does not block other clones
+    const other = shop();
+    const entry = { v: 1, writer: 'w_old', records: [bad.json.data.run] };
+    writeFileSync(join(other, 'store/v1/log/01M7TJG6737VKP4NE5ZCT1WSH6.json'), JSON.stringify(entry));
+    expect(iwJson(other, 'sync', ['sync', '--pull-only']).code).toBe(0);
+    expect(iwJson(other, 'sync', ['sync']).code).toBe(0);
   });
 
   it('report --format json with IW_NOW/IW_ACTOR; md when the server package renders', () => {
@@ -428,13 +534,16 @@ describe('commands', () => {
     expect(iw(dir, ['report'], { env }).stdout).toBe(md.stdout);
     expect(
       iwJson(dir, 'report', ['report', '--format', 'html', '--audience', 'customer']).json.data.file,
-    ).toBe('report-v1.2.0.html');
+    ).toBe('report-v1.2.0.customer.html');
   });
 
   it('export --full and import (dry run, conflicts, merge)', () => {
     const dir = shop();
     iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']);
-    const ex = iwJson(dir, 'export', ['export', '--full', '--out', 'shop.tar.zst']).json.data;
+    const gz = iwJson(dir, 'export', ['export', '--full'], { env: { IW_NOW: '2026-11-19T00:00:00Z' } });
+    expect(gz.json.data.archive).toBe(join(dir, 'shop-2026-11-19.tar.gz'));
+    expect([...readFileSync(gz.json.data.archive).subarray(0, 2)]).toEqual([0x1f, 0x8b]); // gzip by default
+    const ex = iwJson(dir, 'export', ['export', '--full', '--zstd', '--out', 'shop.tar.zst']).json.data;
     expect(ex.manifest.records).toBe(1);
     expect(readFileSync(join(dir, 'shop.tar.zst')).subarray(0, 4)).toEqual(
       Buffer.from([0x28, 0xb5, 0x2f, 0xfd]),
@@ -452,6 +561,29 @@ describe('commands', () => {
     writeFileSync(join(to, '.indx-watch', TC3), `${read(to, TC3)}notes = "changed"\n`);
     expect(iwJson(to, 'import', ['import', join(dir, 'shop.tar.zst'), '--merge', '--dry-run']).code).toBe(1);
     expect(iw(dir, ['export']).code).toBe(2);
+    expect(
+      iwJson(mkdtempSync(join(tmpdir(), 'iw-gz-')), 'import', ['import', gz.json.data.archive]).code,
+    ).toBe(0);
+  });
+
+  it('import refuses archive paths outside the bundle (zip slip)', async () => {
+    const { tar } = await createArchive({
+      project: 'SHOP',
+      bundleFiles: [
+        { path: 'project.toml', data: readFileSync(join(ROOT, 'examples/shop/.indx-watch/project.toml')) },
+        { path: '../../escaped.txt', data: new TextEncoder().encode('pwned') },
+      ],
+      records: [],
+      blobs: [],
+    });
+    const root = mkdtempSync(join(tmpdir(), 'iw-slip-'));
+    const to = join(root, 'a', 'b');
+    mkdirSync(to, { recursive: true });
+    writeFileSync(join(to, 'evil.tar'), tar);
+    const r = iwJson(to, 'import', ['import', 'evil.tar']);
+    expect([r.code, r.json.error.code]).toEqual([2, 'INVALID_INPUT']);
+    expect(existsSync(join(root, 'a', 'escaped.txt'))).toBe(false);
+    expect(existsSync(join(to, '.indx-watch'))).toBe(false);
   });
 
   it('deploy --dry-run through a fake wrangler', () => {
@@ -481,24 +613,33 @@ describe('commands', () => {
     expect([none.code, none.json.error.code]).toEqual([4, 'EXTERNAL_TOOL']);
   });
 
-  it.skipIf(!serverReady)('serve --json prints the URL', async () => {
+  it.skipIf(!serverReady)('serve --json prints the URL; a non-loopback host warns', async () => {
     const dir = shop();
-    const child = spawn(process.execPath, [...TSX, 'serve', '--port', '0', '--json'], {
-      cwd: dir,
-      env: cleanEnv(),
-    });
-    const line = await new Promise<string>((res) => child.stdout.once('data', (d) => res(String(d))));
-    child.kill();
-    expect(JSON.parse(line)).toMatchObject({
+    const serve = async (...args: string[]) => {
+      const child = spawn(process.execPath, [...TSX, 'serve', '--port', '0', '--json', ...args], {
+        cwd: dir,
+        env: cleanEnv(),
+      });
+      const line = await new Promise<string>((res) => child.stdout.once('data', (d) => res(String(d))));
+      child.kill();
+      return JSON.parse(line);
+    };
+    expect(await serve()).toMatchObject({
       ok: true,
       command: 'serve',
       data: { url: expect.stringMatching(/^http/) },
+      warnings: [],
     });
+    expect((await serve('--host', '0.0.0.0')).warnings).toEqual([
+      expect.objectContaining({ code: 'public-host' }),
+    ]);
   });
 
   it('--help and --version', () => {
     expect(iw(tmpdir(), ['--help']).stdout).toContain('record');
     expect(iw(tmpdir(), ['new', '--help']).stdout).toContain('--step');
+    expect(iw(tmpdir(), ['fixture', 'add', '--help']).stdout).toContain('USAGE iw fixture add ');
+    expect(iw(tmpdir(), ['deployment', 'add', '--help']).stdout).toContain('USAGE iw deployment add ');
     expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.0');
   });
 });

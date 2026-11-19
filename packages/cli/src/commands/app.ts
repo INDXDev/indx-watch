@@ -5,6 +5,7 @@ import { cp, readdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { Problem } from '@indx-watch/bundle';
 import { findBundleDir } from '@indx-watch/bundle/node';
 import { reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
@@ -64,17 +65,21 @@ export const appCommands: Record<string, Spec> = {
       const webRoot = [join(here, 'web'), join(here, '../../web/dist')].find((d) =>
         existsSync(join(d, 'index.html')),
       );
+      const host = str(a.host) ?? '127.0.0.1';
       const { url } = await startNodeServer({
-        ...{ dir: p.dir, port: Number(str(a.port) ?? 4321), host: str(a.host) ?? '127.0.0.1', webRoot },
+        ...{ dir: p.dir, port: Number(str(a.port) ?? 4321), host, webRoot },
         sync: typeof a.sync === 'boolean' ? a.sync : !!p.bundle.project.data.store,
         identityHeader: str(a['identity-header']),
       });
+      const message = `Listening on ${host}: anyone on the network can read this project; writes need --identity-header`;
+      const local = /^(127\.|::1$|localhost$)/.test(host);
+      const warnings = local ? [] : [{ severity: 'warning' as const, code: 'public-host', message }];
       const opener = { darwin: 'open', win32: 'explorer' }[process.platform as string] ?? 'xdg-open';
       if (a.open)
         spawn(opener, [url], { stdio: 'ignore', detached: true })
           .on('error', () => {})
           .unref();
-      return { data: { url }, text: `INDX Watch is running at ${url} (Ctrl+C to stop)` };
+      return { data: { url }, warnings, text: `INDX Watch is running at ${url} (Ctrl+C to stop)` };
     },
   },
 
@@ -103,6 +108,7 @@ export const appCommands: Record<string, Spec> = {
       if (str(a.plan) && !plan) fail('NOT_FOUND', `${a.plan} is not a plan`);
       const release = str(a.release) ?? plan?.release ?? cx.releaseOf(ctx, p, a);
       const scope = { release, environment: str(a.env) ?? plan?.environment ?? ctx.env.IW_ENV };
+      const warnings = cx.checkScope(m, a, scope);
       const [now, store] = [ctx.env.IW_NOW, m.project.store];
       const cursor = store ? (await (await fileStateStore(p.dir, store.url)).load()).cursor : null;
       const commit = now ? undefined : (await cx.contextOf(ctx).build()).commit;
@@ -115,7 +121,8 @@ export const appCommands: Record<string, Spec> = {
         ...JSON.parse(JSON.stringify({ plan: plan?.key, commit, cursor: cursor ?? undefined })),
       });
       Object.assign(data, { texts: await reportTexts(m, locale) });
-      const name = `report-${plan?.key ?? release ?? 'all'}.${format}`;
+      // a customer report never overwrites the internal one (which has notes and emails)
+      const name = `report-${plan?.key ?? release ?? 'all'}${audience === 'customer' ? '.customer' : ''}.${format}`;
       const out = str(a.out) ?? (['md', 'json'].includes(format) ? undefined : name);
       const html = format === 'md' ? 'md' : 'html';
       const getBlob = (sha: string) => p.replica.getBlob(sha);
@@ -127,7 +134,8 @@ export const appCommands: Record<string, Spec> = {
       if (file) await (format === 'pdf' ? printPdf(ctx, text, file) : writeFile(file, text));
       const gate = data.status.gate;
       const result = { file: out ?? null, gate, ...(file || !a.json ? {} : { text }) };
-      return { data: result, text: file ? `Wrote ${out} (gate ${gate.passed ? 'passed' : 'failed'})` : text };
+      const done = `Wrote ${out} (gate ${gate.passed ? 'passed' : 'failed'})`;
+      return { data: result, warnings, text: file ? done : text };
     },
   },
 
@@ -139,9 +147,12 @@ export const appCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const { dir } = await cx.openProject(ctx, a);
-      const opts = { dir, dryRun: !!a['dry-run'], public: !!a.public, log: ctx.log };
+      const warnings: Problem[] = [];
+      const warn = (message: string) =>
+        warnings.push({ severity: 'warning', code: 'unknown-resources', message });
+      const opts = { dir, dryRun: !!a['dry-run'], public: !!a.public, log: ctx.log, warn };
       const data = await deploy(str(a.name) ? { ...opts, name: str(a.name) } : opts);
-      return { data, text: data.url ? `Deployed to ${data.url}` : data.commands.join('\n') };
+      return { data, warnings, text: data.url ? `Deployed to ${data.url}` : data.commands.join('\n') };
     },
   },
 

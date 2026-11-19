@@ -106,7 +106,10 @@ export const CommandData = {
     files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })),
   }),
   'fixture fetch': z.object({
-    files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })),
+    files: z.array(
+      /** path: absolute path of the file (cache/blobs/<sha256> for a pointer, or the copy with --out) */
+      z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean(), path: z.string().optional() }),
+    ),
   }),
   sync: z.object({
     pushed: z.object({ records: z.number(), blobs: z.number() }),

@@ -5,22 +5,41 @@ import { basename, dirname, join, resolve } from 'node:path';
 import * as zlib from 'node:zlib';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { blobRefs, checkRecord, createResultStore } from '@indx-watch/store';
+import { blobRefs, checkRecord, createResultStore, type LocalReplica } from '@indx-watch/store';
 import { openObjectStore, openReplica } from '@indx-watch/store/node';
-import { type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
+import { type StateStore, type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
-import type { Spec } from '../cli.js';
+import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, fail, git, iso, P, S, str } from '../util.js';
 import { mediaType } from './results.js';
 import { cacheBlob } from './specs.js';
 
 const dec = new TextDecoder();
+const secrets = (files: { path: string; text: string }[]) =>
+  files.flatMap((f) => iwb.scanSecrets(f.path, f.text)).filter((x) => x.severity === 'error');
 /** Refuse when the secret scan finds errors in any of the files (exit 1). */
 function scan(files: { path: string; text: string }[], what: string) {
-  const found = files.flatMap((f) => iwb.scanSecrets(f.path, f.text)).filter((x) => x.severity === 'error');
+  const found = secrets(files);
   if (found.length)
     fail('SECRETS_FOUND', `Refusing to ${what}: the secret scan found ${found.length} problem(s)`, found);
+}
+
+/**
+ * The replica as sync sees it: records about to be pushed (not pushed or retracted yet) that fail the
+ * secret scan are held back and their problems added to `found`. Pulled records are never scanned.
+ */
+function scanned(replica: LocalReplica, state: StateStore, found: iwb.Problem[]): LocalReplica {
+  const records = async () => {
+    const [all, { pushed }] = [await replica.records(), await state.load()];
+    const done = new Set([...pushed, ...all.flatMap((r) => (r.kind === 'retraction' ? [r.target] : []))]);
+    return all.filter((r) => {
+      const f = done.has(r.id) ? [] : secrets([{ path: `runs/${r.id}`, text: JSON.stringify(r) }]);
+      found.push(...f);
+      return !f.length;
+    });
+  };
+  return { ...replica, records };
 }
 
 /** The result store of the project (or --store / IW_STORE). */
@@ -91,7 +110,10 @@ export const dataCommands: Record<string, Spec> = {
 
   'fixture fetch': {
     description: 'Download pointer blobs of a fixture into cache/blobs/ and verify them',
-    args: { fixture: P('Fixture (FX-n)'), store: S('Store URL override') },
+    args: {
+      ...{ fixture: P('Fixture (FX-n)'), store: S('Store URL override') },
+      out: S('Also copy the files into this folder under their own names'),
+    },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
       const fx = fixtureOf(p, str(a.fixture)!);
@@ -104,8 +126,21 @@ export const dataCommands: Record<string, Spec> = {
         await mkdir(dirname(path), { recursive: true });
         await writeFile(path, data!);
       }
-      const files = fx.dataFiles.map((f) => ({ name: f.name, sha256: f.sha256, pointer: !!f.pointer }));
-      return { data: { files }, text: files.map((f) => `${f.name} ${f.sha256.slice(0, 12)}`).join('\n') };
+      const out = str(a.out) ? resolve(ctx.cwd, str(a.out)!) : undefined;
+      if (out) await mkdir(out, { recursive: true });
+      const files = [];
+      for (const f of fx.dataFiles) {
+        const at = f.pointer ? cacheBlob(p, f.sha256) : join(p.dir, dirname(fx.file), f.name);
+        if (out) await writeFile(join(out, f.name), await readFile(at));
+        files.push({
+          name: f.name,
+          sha256: f.sha256,
+          pointer: !!f.pointer,
+          path: out ? join(out, f.name) : at,
+        });
+      }
+      const text = files.map((f) => `${f.name} ${f.sha256.slice(0, 12)} ${f.path}`).join('\n');
+      return { data: { files }, text };
     },
   },
 
@@ -118,11 +153,7 @@ export const dataCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
-      const records = (await p.replica.records()).map((r) => ({
-        path: `runs/${r.id}`,
-        text: JSON.stringify(r),
-      }));
-      scan([...(await iwb.loadDetailed(p.fs)).files, ...records], 'sync');
+      if (!a['pull-only']) scan((await iwb.loadDetailed(p.fs)).files, 'sync');
       const evidence = str(a.evidence) ?? p.bundle.project.data.store?.evidence;
       if (evidence && !['on-demand', 'all', 'none'].includes(evidence))
         fail('USAGE', '--evidence: on-demand, all or none');
@@ -135,8 +166,11 @@ export const dataCommands: Record<string, Spec> = {
         commitTime: time ? iso(new Date(time)) : undefined,
         actor: await cx.actorOf(ctx),
       };
+      const [store, found] = [await openStore(ctx, p, a), [] as iwb.Problem[]];
+      const replica = scanned(p.replica, store.state, found);
+      const held = () => `Held back records: the secret scan found ${found.length} problem(s); retract them`;
       const opts: SyncOptions = {
-        ...{ replica: p.replica, ...(await openStore(ctx, p, a)), projectId: p.bundle.project.data.id },
+        ...{ ...store, replica, projectId: p.bundle.project.data.id },
         direction: a['pull-only'] ? 'pull' : a['push-only'] ? 'push' : 'both',
         ...{
           evidence: evidence as SyncOptions['evidence'],
@@ -146,6 +180,7 @@ export const dataCommands: Record<string, Spec> = {
       };
       if (!a.watch) {
         const r = await syncOnce(opts);
+        if (found.length) fail('SECRETS_FOUND', held(), found, r, syncText(r));
         return { data: r, text: syncText(r) };
       }
       let last: SyncResult = {
@@ -159,6 +194,7 @@ export const dataCommands: Record<string, Spec> = {
         onResult: (r) => {
           last = r;
           if (r.pushed.records + r.pulled.records) ctx.log(syncText(r));
+          if (found.length) ctx.log([held(), ...found.splice(0).map(problemLine)].join('\n  '));
         },
         onError: (e) => ctx.log(`sync error: ${(e as Error).message}`),
       });
@@ -171,7 +207,10 @@ export const dataCommands: Record<string, Spec> = {
 
   export: {
     description: 'Write a portable archive of the bundle, records and blobs',
-    args: { full: B('Everything (required in v0.1)'), out: S('Archive path') },
+    args: {
+      ...{ full: B('Everything (required in v0.1)'), out: S('Archive path') },
+      zstd: B('Compress with zstd (needs Node ≥ 22.15 to import) instead of gzip'),
+    },
     async run(ctx, a) {
       if (!a.full) fail('USAGE', 'v0.1 writes full archives only: pass --full');
       const p = await cx.openProject(ctx, a);
@@ -207,12 +246,13 @@ export const dataCommands: Record<string, Spec> = {
         blobs,
         now,
       });
-      const ext = z.zstdCompressSync ? 'zst' : 'gz';
+      if (a.zstd && !z.zstdCompressSync) fail('USAGE', '--zstd needs Node ≥ 22.15');
+      const ext = a.zstd ? 'zst' : 'gz';
       const archive = resolve(
         ctx.cwd,
         str(a.out) ?? `${key.toLowerCase()}-${iso(now).slice(0, 10)}.tar.${ext}`,
       );
-      await writeFile(archive, z.zstdCompressSync ? z.zstdCompressSync(tar) : zlib.gzipSync(tar));
+      await writeFile(archive, a.zstd ? z.zstdCompressSync!(tar) : zlib.gzipSync(tar));
       const manifest = { sha256: m.sha256, files: m.files.length, records: m.records, blobs: m.blobs };
       return {
         data: { archive, manifest },
@@ -244,6 +284,11 @@ export const dataCommands: Record<string, Spec> = {
       const x = await iwb
         .readArchive(new Uint8Array(tar))
         .catch((e: Error) => fail('INVALID_INPUT', e.message));
+      // never write outside the bundle ("zip slip"): plain relative paths only
+      const unsafe = x.bundleFiles.find(
+        (f) => /^[/\\]|[\\:]/.test(f.path) || f.path.split('/').some((s) => ['', '.', '..'].includes(s)),
+      );
+      if (unsafe) fail('INVALID_INPUT', `Unsafe path in the archive: bundle/${unsafe.path}`);
       const dir = str(a.dir) ? resolve(ctx.cwd, str(a.dir)!) : join(ctx.cwd, '.indx-watch');
       if (existsSync(join(dir, 'project.toml')) && !a.merge)
         fail('CONFLICT', `${dir} already has a bundle; pass --merge`);
@@ -269,8 +314,8 @@ export const dataCommands: Record<string, Spec> = {
       if (!a['dry-run']) {
         for (const f of x.bundleFiles) await fs.write(f.path, f.data);
         if (!(await fs.read('.gitignore'))) await fs.write('.gitignore', 'cache/\nruns/\n');
+        for (const b of x.blobs) await replica.putBlob(b.data); // blobs before the records that use them
         for (const r of fresh) await replica.putRecord(r);
-        for (const b of x.blobs) await replica.putBlob(b.data);
       }
       return { data, text: changes.join('\n') };
     },

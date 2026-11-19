@@ -45,7 +45,7 @@ function preparse(raw: string[], args: ArgsDef, repeat: string[]): Record<string
   return out;
 }
 
-function toError(e: unknown): CliError {
+export function toError(e: unknown): CliError {
   const err = e as Error & { code?: string; details?: unknown[] };
   if (e instanceof CliError) return e;
   if (e instanceof StoreError) return new CliError('STORE_ERROR', err.message);
@@ -125,12 +125,10 @@ export async function main(commands: Record<string, Spec>, argv: string[], versi
   if (argv[0] === '--version' || argv[0] === '-v') return void console.log(version);
   const words = argv.filter((t) => !t.startsWith('-'));
   if (!words.length || argv.includes('--help') || argv.includes('-h')) {
-    let [cmd, parent]: [CommandDef, CommandDef | undefined] = [root, undefined];
-    for (const w of words) {
-      const next = (cmd.subCommands as Record<string, CommandDef> | undefined)?.[w];
-      if (next) [parent, cmd] = [cmd, next];
-    }
-    const usage = await renderUsage(cmd, parent);
+    let cmd: CommandDef = root;
+    for (const w of words) cmd = (cmd.subCommands as Record<string, CommandDef> | undefined)?.[w] ?? cmd;
+    // leaf names are full ("fixture add"), so the root is the parent of every command: "iw fixture add"
+    const usage = await renderUsage(cmd, cmd === root ? undefined : root);
     const color = process.stdout.isTTY && !process.env.NO_COLOR;
     process.stdout.write(`${color ? usage : stripVTControlCharacters(usage)}\n`);
     return;

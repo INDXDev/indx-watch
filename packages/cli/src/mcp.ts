@@ -2,13 +2,13 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
-import type { Spec } from './cli.js';
+import { type Spec, toError } from './cli.js';
 import { appCommands } from './commands/app.js';
 import { dataCommands } from './commands/data.js';
 import { resultCommands as R } from './commands/results.js';
 import { specCommands } from './commands/specs.js';
 import { CommandData as D } from './json.js';
-import { type Args, CliError, type Ctx, str } from './util.js';
+import { type Args, type Ctx, type Out, str } from './util.js';
 
 const READ = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -38,16 +38,13 @@ const INPUTS = {
       uc: opt.describe('Parent use case of an ac or tc'),
       feature: opt.describe('Parent feature of a uc'),
     },
-    ...{
-      origin: z.enum(['ai', 'human', 'import']).optional(),
-      model: opt.describe('Your model ID'),
-      skill: opt,
-    },
+    ...{ model: opt.describe('Your model ID'), skill: opt },
   }),
   record_run: z.object({
     ...{ test_case: z.string(), verdict: STATUS, note: opt, confidence: z.number().min(0).max(1).optional() },
     steps: z.array(z.object({ index: z.number().int().positive(), status: STATUS, note: opt })).optional(),
     evidence: z.array(z.string()).optional().describe('File paths, optionally with @step'),
+    model: opt.describe('Your model ID'),
   }),
   report: z.object({ release: opt, format: z.enum(['md', 'json']).default('md') }),
   sync: z.object({}),
@@ -71,18 +68,29 @@ const ABOUT: Record<keyof typeof INPUTS, [string, z.ZodType | undefined, object]
 export function createMcpServer(base: Ctx, dir?: string): McpServer {
   const server = new McpServer({ name: 'indx-watch', version: '0.1.0' });
   const ctx: Ctx = { ...base, env: { ...base.env, IW_ACTOR_KIND: 'agent' } };
-  const ok = (d: unknown) => ({
-    ...text(JSON.stringify(d)),
-    structuredContent: d as Record<string, unknown>,
-  });
-  /** Run a command; its `data` becomes structuredContent ("no" answers such as failed checks keep their data). */
-  const call = async (spec: Spec, a: Args, input?: Record<string, unknown>): Promise<Result> => {
+  /** `data` becomes structuredContent; warnings follow as a second text block. */
+  const ok = ({ data, warnings = [] }: Out) => {
+    const r = text(JSON.stringify(data));
+    if (warnings.length) r.content.push({ type: 'text', text: JSON.stringify({ warnings }) });
+    return { ...r, structuredContent: data as Record<string, unknown> };
+  };
+  /** Run a command as the CLI would ("no" answers such as failed checks keep their data; errors are the --json error). */
+  type Write = { input?: Record<string, unknown>; model?: string };
+  const call = async (spec: Spec, a: Args, write?: Write): Promise<Result> => {
+    // the model of a write: the input, IW_AGENT_MODEL, else the MCP client's name (with a warning)
+    const client = server.server.getClientVersion();
+    const guess = write && !write.model && !ctx.env.IW_AGENT_MODEL && client;
+    const model = write?.model ?? (guess ? `${guess.name}/${guess.version}` : undefined);
+    const env = model ? { ...ctx.env, IW_AGENT_MODEL: model } : ctx.env;
+    const message = `No model ID given; recorded the MCP client ${model} instead`;
+    const warnings = guess ? [{ severity: 'warning' as const, code: 'no-model', message }] : [];
     try {
-      return ok((await spec.run({ ...ctx, ...(input ? { input } : {}) }, { ...a, dir, json: true })).data);
+      const out = await spec.run({ ...ctx, env, input: write?.input }, { ...a, dir, json: true });
+      return ok({ ...out, warnings: [...(out.warnings ?? []), ...warnings] });
     } catch (e) {
-      const err = e instanceof CliError ? e : new CliError('INTERNAL', (e as Error).message);
-      if (err.data && typeof err.data === 'object') return ok(err.data);
-      return { ...text(`${err.code}: ${err.message}`), isError: true };
+      const { code, message, details, data } = toError(e);
+      if (data && typeof data === 'object') return ok({ data });
+      return { ...text(JSON.stringify({ code, message, details })), isError: true };
     }
   };
   const steps = (s: { index: number; status: string; note?: string }[] = []) =>
@@ -92,17 +100,18 @@ export function createMcpServer(base: Ctx, dir?: string): McpServer {
     list: ({ kind, limit, ...f }) => call(R.list!, { what: kind, ...f, limit: limit?.toString() }),
     show: ({ ref }) => call(R.show!, { ref }),
     check: () => call(specCommands.check!, {}),
-    new: ({ kind, fields, origin, ...rest }) =>
-      call(specCommands.new!, { entity: kind, origin: origin ?? 'ai', ...rest }, fields),
-    record_run: (i) =>
-      call(R.record!, {
-        ...{ tc: i.test_case, verdict: i.verdict, note: i.note, evidence: i.evidence ?? [] },
-        ...{ step: steps(i.steps), confidence: i.confidence?.toString() },
-      }),
+    // agents always write AI drafts: `iw new` sets origin "ai" for an agent actor
+    new: ({ kind, fields, model, skill, uc, feature }) =>
+      call(specCommands.new!, { entity: kind, skill, uc, feature }, { input: fields, model }),
+    record_run: (i) => {
+      const run = { tc: i.test_case, verdict: i.verdict, note: i.note, evidence: i.evidence ?? [] };
+      const more = { step: steps(i.steps), confidence: i.confidence?.toString() };
+      return call(R.record!, { ...run, ...more }, { model: i.model });
+    },
     report: async ({ release, format }) => {
       const r = await call(appCommands.report!, { release, format, json: true });
       const body = r.structuredContent?.text as string | undefined;
-      return !body ? r : format === 'md' ? text(body) : ok(JSON.parse(body));
+      return !body ? r : format === 'md' ? text(body) : ok({ data: JSON.parse(body) });
     },
     sync: () => call(dataCommands.sync!, {}),
   };
