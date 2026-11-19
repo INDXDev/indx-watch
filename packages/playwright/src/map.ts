@@ -1,4 +1,4 @@
-/** Playwright の結果を INDX Watch の記録に写すための純粋な関数（docs/spec/integrations.md#mapping）。 */
+/** Pure functions that map Playwright results to INDX Watch records (docs/spec/integrations.md#mapping). */
 import { type Build, type Bundle, type EvidenceKind, newUlid, parseRef } from '@indx-watch/bundle';
 import type { Model, TestCaseNode } from '@indx-watch/core';
 
@@ -68,19 +68,42 @@ export function evidenceKind(name: string, contentType: string): EvidenceKind {
 }
 export const isText = (type: string) => /^text\/|^application\/(json|xml)\b/.test(type);
 
-/** Values of `env:` secret references in the bundle that are set in this process (longest first). */
+/** `env:` secret references of an environment (access credentials and hook tokens). */
+export const environmentRefs = (e: Bundle['environments'][number]) => [
+  ...(e.data.access?.secret_refs ?? []),
+  e.data.hooks?.seed?.secret_ref,
+  e.data.hooks?.reset?.secret_ref,
+];
+
+/** Values (3+ characters) of `env:` secret references that are set in this process. */
+export const resolveRefs = (refs: (string | undefined)[], env: Env): string[] =>
+  refs.flatMap((r) => {
+    const v = r?.startsWith('env:') ? env[r.slice(4)] : undefined;
+    return v && v.length >= 3 ? [v] : [];
+  });
+
+const ENTITY = ['&amp;', '&lt;', '&gt;', '&quot;', '&#39;'];
+/** A value as it appears in logs and requests: raw, URL- and form-encoded, JSON- and HTML-escaped. */
+const forms = (v: string) => [
+  v,
+  encodeURIComponent(v),
+  new URLSearchParams({ v }).toString().slice(2),
+  JSON.stringify(v).slice(1, -1),
+  v.replace(/[&<>"']/g, (c) => ENTITY[`&<>"'`.indexOf(c)]!),
+];
+
+/** Secret values of the bundle set in this process, in all their forms (plus Basic auth of accounts), longest first. */
 export function secretValues(bundle: Bundle, env: Env): string[] {
-  const refs = [
-    ...bundle.environments.flatMap((e) => [
-      ...(e.data.access?.secret_refs ?? []),
-      e.data.hooks?.seed?.secret_ref,
-      e.data.hooks?.reset?.secret_ref,
-    ]),
-    ...bundle.fixtures.map((f) => f.data.account?.secret_ref),
+  const values = [
+    ...resolveRefs(bundle.environments.flatMap(environmentRefs), env).flatMap(forms),
+    ...bundle.fixtures.flatMap((f) =>
+      resolveRefs([f.data.account?.secret_ref], env).flatMap((v) => [
+        ...forms(v),
+        Buffer.from(`${f.data.account?.username}:${v}`).toString('base64'),
+      ]),
+    ),
   ];
-  const values = refs.flatMap((r) => (r?.startsWith('env:') ? [env[r.slice(4)]] : []));
-  const set = new Set(values.filter((v): v is string => !!v && v.length >= 3));
-  return [...set].sort((a, b) => b.length - a.length);
+  return [...new Set(values)].sort((a, b) => b.length - a.length);
 }
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI color codes from Playwright errors

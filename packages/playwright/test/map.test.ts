@@ -2,7 +2,15 @@ import { resolve } from 'node:path';
 import { loadBundle } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { describe, expect, it } from 'vitest';
-import { annotatedRows, evidenceKind, resolveRelease, runGroup, stepNumber } from '../src/map.js';
+import {
+  annotatedRows,
+  evidenceKind,
+  redactor,
+  resolveRelease,
+  runGroup,
+  secretValues,
+  stepNumber,
+} from '../src/map.js';
 
 const { bundle } = await loadBundle(
   nodeFs(resolve(import.meta.dirname, '../../../examples/shop/.indx-watch')),
@@ -65,5 +73,25 @@ describe('helpers', () => {
     expect(evidenceKind('video', 'video/webm')).toBe('video');
     expect(evidenceKind('error-context', 'text/markdown')).toBe('log');
     expect(evidenceKind('har', 'application/octet-stream')).toBe('file');
+  });
+});
+
+describe('redaction', () => {
+  it('redacts secret values in their encoded, escaped and Basic auth forms', () => {
+    const pw = `S3cr3t&p@ss/"x'`;
+    const env = { SHOP_CUSTOMER_PASSWORD: pw, SHOP_SEED_TOKEN: 'seed tok+en' };
+    const redact = redactor(secretValues(bundle!, env));
+    const basic = Buffer.from(`casey@shop.test:${pw}`).toString('base64');
+    for (const text of [
+      `typed ${pw}`,
+      `password=${encodeURIComponent(pw)}`,
+      `password=${new URLSearchParams({ p: pw }).toString().slice(2)}`,
+      JSON.stringify({ password: pw }),
+      'value="S3cr3t&amp;p@ss/&quot;x&#39;"',
+      `Authorization: Basic ${basic}`,
+      'x-token: seed tok+en; body=seed+tok%2Ben',
+    ])
+      expect(redact(text)).not.toMatch(new RegExp(`S3cr3t|seed.tok|${basic.slice(0, 12)}`));
+    expect(secretValues(bundle!, { SHOP_CUSTOMER_PASSWORD: 'ab' })).toEqual([]);
   });
 });
