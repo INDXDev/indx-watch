@@ -193,7 +193,7 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null }`
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[] }`. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
 ### `iw serve`
 

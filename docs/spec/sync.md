@@ -133,7 +133,7 @@ Because every operation is a union of immutable items, sync is idempotent, order
 **Push**
 
 1. Run the secret scan; refuse if it reports errors.
-2. Collect local records not in the pushed set (`cache/sync/<store>.json`). Records that fail the secret scan are held back with a warning.
+2. Collect local records not in the pushed set (`cache/sync/<store>.json`). Records that fail the secret scan are held back with a warning (`held` in the result). This step is part of the sync engine, so the background sync of `iw serve` and the Playwright reporter's push hold them back too.
 3. Upload every blob they reference that the store does not have (`HEAD`, then conditional `PUT`), plus the blobs of fixture pointer files in the bundle.
 4. Upload records in log objects of ≤ 1,000 records, keyed by a fresh ULID, *after* their blobs.
 5. Add their IDs to the pushed set.

@@ -2,7 +2,13 @@
  * Sync (docs/spec/sync.md). CONTRACT: signatures frozen.
  */
 import type { Bundle, BundleFs } from '@indx-watch/bundle';
-import { type AnyRecord, AnyRecord as AnyRecordSchema, newId } from '@indx-watch/bundle';
+import {
+  type AnyRecord,
+  AnyRecord as AnyRecordSchema,
+  newId,
+  type Problem,
+  scanSecrets,
+} from '@indx-watch/bundle';
 import {
   blobRefs,
   LOG_PREFIX,
@@ -60,8 +66,10 @@ export interface SyncResult {
   pulled: { records: number; blobs: number };
   snapshot: string | null;
   cursor: string | null;
-  /** problems that did not stop the sync: unreadable log objects, foreign or conflicting records */
+  /** problems that did not stop the sync: unreadable log objects, foreign or conflicting records, held-back records */
   warnings?: string[];
+  /** secret-scan errors of records held back from the push (docs/spec/security.md#secrets); never contain the value */
+  held?: Problem[];
 }
 
 export { definitionsHash, snapshotBundle } from './snapshot.js';
@@ -176,6 +184,13 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     const todo: AnyRecord[] = [];
     for (const r of local) {
       if (pushed.has(r.id) || retracted.has(r.id) || foreign(r, 'in the local replica')) continue;
+      // Every caller (iw sync, iw serve, the Playwright reporter) gets the same per-record secret scan.
+      const found = scanSecrets(`runs/${r.id}`, JSON.stringify(r)).filter((x) => x.severity === 'error');
+      if (found.length) {
+        result.held = [...(result.held ?? []), ...found];
+        warn(`held back ${r.id}: the secret scan found ${found.length} problem(s); retract it`);
+        continue;
+      }
       // Blobs go first. A record whose blob is missing locally waits, so the store never has a record without its blobs.
       const n = await pushBlobs(opts, r);
       if (n === null) continue;

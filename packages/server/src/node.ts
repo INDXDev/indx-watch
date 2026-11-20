@@ -12,7 +12,7 @@ import { nodeFs } from '@indx-watch/bundle/node';
 import { buildModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
-import { watch as syncWatch } from '@indx-watch/sync';
+import { type SyncResult, watch as syncWatch } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { createApp, type ServerDeps } from './app.js';
 import type { ProjectInfo } from './contract.js';
@@ -137,8 +137,12 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
         f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
       );
       const [writer, evidence] = [await writerId(dir), cfg.evidence ?? 'on-demand'];
-      const onResult = () =>
-        Object.assign(sync, { lastSyncAt: new Date().toISOString(), lastError: undefined });
+      // Records the secret scan held back stay local; the UI shows why (docs/spec/security.md#secrets).
+      const onResult = (r: SyncResult) =>
+        Object.assign(sync, {
+          lastSyncAt: new Date().toISOString(),
+          lastError: r.held?.length ? r.warnings?.find((w) => w.startsWith('held back')) : undefined,
+        });
       const onError = (e: unknown) => Object.assign(sync, { lastError: message(e) });
       const o = {
         replica,
