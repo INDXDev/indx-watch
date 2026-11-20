@@ -7,13 +7,17 @@ import {
   AnyRecord as AnyRecordSchema,
   newId,
   type Problem,
+  type SigningKey,
   scanSecrets,
+  verifyRecord,
 } from '@indx-watch/bundle';
 import {
   blobRefs,
+  conflictMessage,
   LOG_PREFIX,
   type LocalReplica,
   type LogEntry,
+  mergeStep,
   type ResultStore,
   type StoreError,
   ulidTime,
@@ -29,6 +33,10 @@ export interface SyncState {
   pushed: string[];
   lastFullAt: string | null;
   lastSnapshotHash: string | null;
+  /** record ID → the earliest log key holding the body the replica has (docs/spec/sync.md#merge-rules) */
+  keys?: Record<string, string>;
+  /** record ID → warning, for records the store has two bodies of (`iw check` and the UI show them) */
+  conflicts?: Record<string, string>;
 }
 
 export interface StateStore {
@@ -53,10 +61,14 @@ export interface SyncOptions {
     /** `iw push`: publish even when not clean, unless the newest snapshot has the same definitions */
     manual?: boolean;
     message?: string;
+    /** signs the bundle record (IW_SIGNING_KEY, docs/spec/security.md#signed-records) */
+    sign?: <R extends AnyRecord>(record: R) => Promise<R>;
   };
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
   full?: boolean;
+  /** project.toml [[signing_keys]]: a body they verify is never replaced by one they do not (merge rules) */
+  keys?: SigningKey[];
   /** blobs to upload besides those records reference: fixture pointers (`pointerBlobs(bundle)`); skipped when not in the replica */
   extraBlobs?: string[];
   /** lookback window in ms (default 15 min) */
@@ -118,6 +130,8 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const state = await opts.state.load();
   const pushed = new Set(state.pushed);
   const seen = new Set(state.seen);
+  const keys = { ...state.keys };
+  const conflicts = { ...state.conflicts };
   const result: SyncResult = {
     pushed: { records: 0, blobs: 0 },
     pulled: { records: 0, blobs: 0 },
@@ -128,7 +142,8 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const warn = (msg: string) => (result.warnings ?? []).push(msg) > 0;
   const foreign = (r: AnyRecord, where: string) =>
     r.project !== opts.projectId && warn(`skipped ${r.id} ${where}: it belongs to project ${r.project}`);
-  const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen] });
+  const trust = opts.keys?.length ? (r: AnyRecord) => verifyRecord(r, opts.keys!) : undefined;
+  const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen], keys, conflicts });
 
   // Pull first: a full listing rebuilds the pushed set, so deleting cache/ never causes a double push.
   // For the same reason a push-only sync on a fresh state (no full listing yet) lists the log once too.
@@ -161,9 +176,18 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
         if (entry.invalid) warn(`skipped ${entry.invalid} invalid record(s) in ${key}`);
         for (const r of entry.records) {
           if (foreign(r, `in ${key}`)) continue;
-          if (await opts.replica.putRecord(r)) result.pulled.records++;
-          else if (await differs(opts.replica, r))
-            warn(`record ${r.id} in ${key} differs from the local copy; kept the local copy`);
+          // Two bodies with one ID: every replica ends with the one under the log key that sorts first.
+          const local = await opts.replica.getRecord(r.id);
+          const held = local ? { json: JSON.stringify(local), key: keys[r.id] } : undefined;
+          const step = await mergeStep(held, r, key, trust);
+          if (step === 'add' && (await opts.replica.putRecord(r))) result.pulled.records++;
+          if (step === 'replace') await opts.replica.replaceRecord(r);
+          if (step === 'replace' || step === 'keep') {
+            const note = conflictMessage(r.id, key, step, 'local');
+            conflicts[r.id] = note;
+            warn(note);
+          }
+          if (step && step !== 'keep') keys[r.id] = key;
           pushed.add(r.id);
           if (opts.evidence === 'all') result.pulled.blobs += await fetchBlobs(opts, r);
         }
@@ -191,7 +215,9 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     for (const r of local) {
       if (pushed.has(r.id) || retracted.has(r.id) || foreign(r, 'in the local replica')) continue;
       // Every caller (iw sync, iw serve, the Playwright reporter) gets the same per-record secret scan.
-      const found = scanSecrets(`runs/${r.id}`, JSON.stringify(r)).filter((x) => x.severity === 'error');
+      // Not over `sig`: a signature is random base64url, so it can look like an API key, and it is no secret.
+      const text = JSON.stringify({ ...r, sig: undefined });
+      const found = scanSecrets(`runs/${r.id}`, text).filter((x) => x.severity === 'error');
       if (found.length) {
         result.held = [...(result.held ?? []), ...found];
         warn(`held back ${r.id}: the secret scan found ${found.length} problem(s); retract it`);
@@ -205,8 +231,16 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     }
     for (let i = 0; i < todo.length; i += BATCH) {
       const part = todo.slice(i, i + BATCH);
-      for (const key of await opts.store.appendLog(opts.writer, part, now())) seen.add(key);
-      for (const r of part) pushed.add(r.id);
+      const written = await opts.store.appendLog(opts.writer, part, now());
+      for (const key of written) {
+        seen.add(key);
+        // a part over 5 MB spans several log objects: remember the one each record is in
+        if (written.length > 1) for (const r of (await opts.store.readLog(key)).records) keys[r.id] ??= key;
+      }
+      for (const r of part) {
+        pushed.add(r.id);
+        keys[r.id] ??= written[0]!;
+      }
       result.pushed.records += part.length;
       await save();
     }
@@ -237,26 +271,30 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
           result.pushed.blobs++;
         }
         const at = isoSeconds(now());
-        const record = AnyRecordSchema.parse({
-          kind: 'bundle',
-          id: newId('rec', now()),
-          v: 1,
-          project: opts.projectId,
-          at,
-          actor: b.actor,
-          source: b.actor.kind === 'ci' ? 'ci' : 'cli',
-          commit: b.commit,
-          // an upload without a clean commit is ordered by its upload time (docs/spec/sync.md#snapshots-from-people-v02)
-          commit_time: b.clean ? b.commitTime : at,
-          ref: b.ref,
-          sha256: sha,
-          definitions_hash: snap.hash,
-          files: snap.files,
-          ...(b.manual && !b.clean && { dirty: true }),
-          ...(b.message && { message: b.message }),
-        });
+        const record = await (b.sign ?? (async (r) => r))(
+          AnyRecordSchema.parse({
+            kind: 'bundle',
+            id: newId('rec', now()),
+            v: 1,
+            project: opts.projectId,
+            at,
+            actor: b.actor,
+            source: b.actor.kind === 'ci' ? 'ci' : 'cli',
+            commit: b.commit,
+            // an upload without a clean commit is ordered by its upload time (docs/spec/sync.md#snapshots-from-people-v02)
+            commit_time: b.clean ? b.commitTime : at,
+            ref: b.ref,
+            sha256: sha,
+            definitions_hash: snap.hash,
+            files: snap.files,
+            ...(b.manual && !b.clean && { dirty: true }),
+            ...(b.message && { message: b.message }),
+          }),
+        );
         await opts.replica.putRecord(record);
-        for (const key of await opts.store.appendLog(opts.writer, [record], now())) seen.add(key);
+        const [key] = await opts.store.appendLog(opts.writer, [record], now());
+        seen.add(key!);
+        keys[record.id] = key!;
         pushed.add(record.id);
         result.pushed.records++;
         result.snapshot = record.id;
@@ -267,12 +305,6 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   }
   result.cursor = state.cursor;
   return result;
-}
-
-/** Two bodies with the same ID (docs/spec/sync.md#merge-rules). */
-async function differs(replica: LocalReplica, r: AnyRecord): Promise<boolean> {
-  const local = await replica.getRecord(r.id);
-  return !!local && JSON.stringify(local) !== JSON.stringify(r);
 }
 
 /** Upload the blobs a record references. null when one of them is missing locally. */

@@ -4,7 +4,16 @@
  * runs the main shell step against a fake CLI. Full schema validation: `npx --yes @action-validator/cli action.yml`.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -294,4 +303,65 @@ if (args.includes('--paginate') && process.env.FAKE_EXISTING) console.log('42');
         .every((l) => l === '| TC-1 | pass | ok |'),
     ).toBe(true);
   });
+});
+
+describe('action.yml with the real CLI on examples/shop', () => {
+  it('gate: true fails the action when a P0 test case fails (TC-8 in the sample store)', () => {
+    const root = resolve(import.meta.dirname, '../../..');
+    const tmp = mkdtempSync(join(tmpdir(), 'iw-action-gate-'));
+    try {
+      cpSync(join(root, 'examples/shop/.indx-watch'), join(tmp, 'work/.indx-watch'), {
+        recursive: true,
+        filter: (s) => !/[/\\](runs|cache)([/\\]|$)/.test(s),
+      });
+      cpSync(join(root, 'examples/shop/store'), join(tmp, 'work/store'), { recursive: true });
+      // cli: local, pointing at the CLI source through tsx
+      mkdirSync(join(tmp, 'action/packages/cli/dist'), { recursive: true });
+      const tsx = [join(root, 'node_modules/tsx/dist/cli.mjs'), join(root, 'packages/cli/src/bin.ts')];
+      writeFileSync(
+        join(tmp, 'action/packages/cli/dist/bin.js'),
+        `const r = require('node:child_process').spawnSync(process.execPath, [...${JSON.stringify(tsx)}, ...process.argv.slice(2)], { stdio: 'inherit' });
+process.exit(r.status ?? 1);
+`,
+      );
+      mkdirSync(join(tmp, 'runner'));
+      const output = join(tmp, 'output');
+      writeFileSync(output, '');
+      const env = {
+        PATH: process.env.PATH,
+        HOME: tmp,
+        IW_ACTOR: 'ci@shop.test',
+        GITHUB_OUTPUT: output,
+        RUNNER_TEMP: join(tmp, 'runner'),
+        IW_ACTION_PATH: join(tmp, 'action'),
+        IW_IN_CLI: 'local',
+        IW_IN_SUMMARY: 'false',
+        IW_IN_RELEASE: 'v1.2.0',
+      };
+      const bash = (script: string) =>
+        spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', script], {
+          cwd: join(tmp, 'work'),
+          encoding: 'utf8',
+          env,
+        });
+      const main = bash(mainScript());
+      expect(main.status, main.stdout + main.stderr).toBe(0);
+      const out = Object.fromEntries(
+        readFileSync(output, 'utf8')
+          .trim()
+          .split('\n')
+          .map((l) => l.split(/=(.*)/s).slice(0, 2)),
+      );
+      expect(out).toMatchObject({ gate: 'fail', fail: '1' });
+      // the last step runs when inputs.gate is 'true' and the gate did not pass, and exits 1
+      const i = lines.findIndex((l) => l.includes('readiness gate failed'));
+      const step = lines.slice(0, i).findLast((l) => l.startsWith('    - '));
+      expect(step).toMatch(/^ {4}- if: .*inputs\.gate == 'true' && steps\.iw\.outputs\.gate != 'pass' }}$/);
+      const gate = bash(mainScript('readiness gate failed'));
+      expect(gate.status).toBe(1);
+      expect(gate.stdout).toContain('::error::INDX Watch readiness gate failed');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

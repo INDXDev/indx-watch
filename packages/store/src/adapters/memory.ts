@@ -1,4 +1,5 @@
 import type { AnyRecord } from '@indx-watch/bundle';
+import { type Held, mergeIngest } from '../merge.js';
 import type { Index, IndexFilter, ObjectInfo, ObjectStore } from '../ports.js';
 import { checkKey, cmp, pageKeys, toBytes } from '../util.js';
 
@@ -60,17 +61,18 @@ export function filterRecords(all: Iterable<AnyRecord>, f: IndexFilter = {}): An
 /** In-memory Index. */
 export function memoryIndex(): Index {
   const records = new Map<string, AnyRecord>();
+  const held = new Map<string, Held>();
   const meta = new Map<string, string>();
   let defs: { files: Map<string, string>; source: string; at: string } | null = null;
-  return {
-    async ingest(list) {
-      let added = 0;
-      for (const r of list) {
-        if (records.has(r.id)) continue;
-        records.set(r.id, r);
-        added++;
-      }
-      return added;
+  let queue: Promise<unknown> = Promise.resolve();
+  const index: Index = {
+    // one ingest at a time: the merge rule reads what is held before it writes
+    ingest(list, logKey, trust) {
+      const run = queue.then(() =>
+        mergeIngest(index, held, list, logKey, trust, (r) => records.set(r.id, r)),
+      );
+      queue = run.catch(() => 0);
+      return run;
     },
     async records(filter) {
       return filterRecords(records.values(), filter);
@@ -89,8 +91,10 @@ export function memoryIndex(): Index {
     },
     async reset() {
       records.clear();
+      held.clear();
       meta.clear();
       defs = null;
     },
   };
+  return index;
 }

@@ -131,6 +131,13 @@ export interface Model {
   deployments: DeploymentRecord[];
   /** bundle snapshots, newest first (by commit_time, then at, then id) */
   snapshots: BundleRecord[];
+  /**
+   * IDs of records that claim a verified `via` without a valid signature, and `<run id>#<judgement id>` of the
+   * judgements in them (docs/spec/security.md#signed-records)
+   */
+  unverified?: ReadonlySet<string>;
+  /** the same model without unverified records, when gate.ignore_unverified is on; evaluateGate() uses it */
+  verifiedOnly?: Model;
   /** any ID or key → key (for parseRef resolution) */
   keyOf(ref: string): string | undefined;
 }

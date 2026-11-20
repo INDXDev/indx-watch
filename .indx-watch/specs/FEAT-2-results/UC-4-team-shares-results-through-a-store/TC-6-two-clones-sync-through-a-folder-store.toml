@@ -28,6 +28,16 @@ expected = "送信も受信も 0 件になる。"
 status = "machine"
 source_hash = "0a8acaae67ad"
 
+[[steps]]
+instruction = "Run \"iw sync --watch\" in both copies, then record a run of another test case in the first."
+expected = "The second copy's \"iw status\" shows the new result within 5 seconds."
+
+[steps.i18n.ja]
+instruction = "両方のコピーで「iw sync --watch」を実行し、1 つ目で別のテストケースの実行を記録する。"
+expected = "2 つ目のコピーの「iw status」に 5 秒以内に新しい結果が表示される。"
+status = "machine"
+source_hash = "7c021a785995"
+
 [[judges]]
 kind = "assert"
 

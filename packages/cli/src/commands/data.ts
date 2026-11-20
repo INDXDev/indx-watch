@@ -35,6 +35,7 @@ export async function openStore(ctx: Ctx, p: cx.Project, a: Args) {
     store: createResultStore(objects),
     state: await fileStateStore(p.dir, url),
     writer: await writerId(p.dir),
+    keys: p.bundle.project.data.signing_keys,
   };
 }
 
@@ -152,6 +153,7 @@ export const dataCommands: Record<string, Spec> = {
         clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
         commitTime: time ? iso(new Date(time)) : undefined,
         actor: await cx.actorOf(ctx),
+        sign: cx.signerOf(ctx),
       };
       const store = await openStore(ctx, p, a);
       const held = (n: number) => `Held back records: the secret scan found ${n} problem(s); retract them`;

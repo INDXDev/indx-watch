@@ -74,6 +74,8 @@ export interface ResultStore {
 export interface LocalReplica {
   /** Write a record if absent (by id). Returns false when it already existed. */
   putRecord(record: AnyRecord): Promise<boolean>;
+  /** Overwrite the record with this ID. Only sync calls it, to apply the merge rule (docs/spec/sync.md#merge-rules). */
+  replaceRecord(record: AnyRecord): Promise<void>;
   getRecord(id: string): Promise<AnyRecord | null>;
   /** All records (validated); invalid files are reported via onInvalid. */
   records(onInvalid?: (file: string, error: string) => void): Promise<AnyRecord[]>;
@@ -94,7 +96,17 @@ export interface IndexFilter {
 }
 
 export interface Index {
-  ingest(records: AnyRecord[]): Promise<number /* newly added */>;
+  /**
+   * Add records read from the log object `logKey` (none: unknown, sorts last). Another body with a held ID replaces
+   * the held copy when `trust` holds for it and not for the held copy, or (both or neither) its log key sorts first
+   * (docs/spec/sync.md#merge-rules); both cases are noted in the meta key CONFLICTS_META. Safe to run concurrently.
+   * Returns the number of records added or replaced plus conflicts noted.
+   */
+  ingest(
+    records: AnyRecord[],
+    logKey?: string,
+    trust?: (record: AnyRecord) => Promise<boolean>,
+  ): Promise<number>;
   records(filter?: IndexFilter): Promise<AnyRecord[]>;
   /** Current definition files (path → canonical text) when definitions come from snapshots/workspace. */
   setDefinitions(files: Map<string, string>, meta: { source: string; at: string }): Promise<void>;

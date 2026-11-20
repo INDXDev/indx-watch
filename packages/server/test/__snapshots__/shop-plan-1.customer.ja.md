@@ -114,7 +114,7 @@ _テストレポート · 顧客向け_
 
 ### 使ったリリース判定の基準
 
-`p0_coverage 1 · p0_all_pass true · p1_pass_rate 0.95 · max_needs_review 0 · max_untested 0 · allow_stale false · require_evidence true`
+`p0_coverage 1 · p0_all_pass true · p1_pass_rate 0.95 · max_needs_review 0 · max_untested 0 · allow_stale false · require_evidence true · ignore_unverified false`
 
 ### 使った判定ポリシー
 

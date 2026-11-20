@@ -104,6 +104,7 @@ export function reportData(
       at: v.record.ended_at,
       evidence: v.record.evidence?.length ?? 0,
       ciUrl: customer ? undefined : v.record.ci?.url,
+      ...(model.unverified?.has(v.record.id) && { unverified: true as const }),
     }));
 
   const g = gateOf(model);

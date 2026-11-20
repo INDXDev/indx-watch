@@ -108,6 +108,7 @@ export const shareCommands: Record<string, Spec> = {
         clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
         commitTime: time ? iso(new Date(time)) : undefined,
         actor: await cx.actorOf(ctx),
+        sign: cx.signerOf(ctx),
         manual: true,
         ...(str(a.message) && { message: str(a.message) }),
       };
@@ -176,6 +177,7 @@ export const shareCommands: Record<string, Spec> = {
 
   translate: {
     description: 'List or write content translations with the right source_hash',
+    repeat: ['set'],
     args: {
       ...{ ref: P('Entity (TC-3, UC-2, FEAT-1, FX-1, PLAN-1, a release or an environment)', false) },
       ...{ locale: S('Translation locale (ja)', true), set: S('<path>=<text>, repeatable') },

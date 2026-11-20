@@ -1,7 +1,14 @@
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { type AnyRecord, type BundleFs, AnyRecord as Schema, sha256Hex } from '@indx-watch/bundle';
+import {
+  type AnyRecord,
+  type BundleFs,
+  generateSigningKey,
+  recordSigner,
+  AnyRecord as Schema,
+  sha256Hex,
+} from '@indx-watch/bundle';
 import {
   createReplica,
   createResultStore,
@@ -220,6 +227,35 @@ describe('syncOnce', () => {
     expect(JSON.stringify(await storeRecords(objects))).not.toContain(key);
   });
 
+  it('does not scan the signature: random base64url can look like an API key', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'w');
+    // a real signature looks like this about once in 130,000 records (docs/spec/security.md#signed-records)
+    const value = `${'A'.repeat(40)}-sk-${'B'.repeat(42)}`;
+    const signed = Schema.parse({ ...runRecord(), sig: { alg: 'Ed25519', kid: 'ci', value } });
+    await a.replica.putRecord(signed);
+    const r = await a.sync();
+    expect([r.pushed.records, r.held]).toEqual([1, undefined]);
+  });
+
+  it('remembers the log key of each record when one push spans several log objects', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'a');
+    const big = Array.from({ length: 3 }, (_, i) => {
+      const r = runRecord({ at: Date.now() + i });
+      r.steps[0]!.note = 'lorem ipsum '.repeat(170_000); // three of these are over the 5 MB of one log object
+      return r;
+    });
+    for (const r of big) await a.replica.putRecord(r);
+    expect((await a.sync()).pushed.records).toBe(3);
+    const where = new Map<string, string>();
+    for (const key of (await createResultStore(objects).listLog({})).keys)
+      for (const r of (await createResultStore(objects).readLog(key)).records) where.set(r.id, key);
+    expect(new Set(where.values()).size).toBeGreaterThan(1);
+    const { keys } = await a.state.load();
+    expect(big.map((r) => keys?.[r.id])).toEqual(big.map((r) => where.get(r.id)));
+  });
+
   it('refuses a store bound to another project', async () => {
     const objects = memoryObjectStore();
     await createResultStore(objects).init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01');
@@ -310,12 +346,55 @@ describe('syncOnce', () => {
     await a.replica.putRecord(run);
     await a.sync();
     const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
-    const key = await putLog(objects, Date.now(), [forged]);
+    const key = await putLog(objects, Date.now() + 1000, [forged]); // sorts after the key of the push
     const r = await a.sync();
-    expect(r.warnings).toEqual([
-      `record ${run.id} in ${key} differs from the local copy; kept the local copy`,
-    ]);
+    const warning = `record ${run.id} in ${key} differs from the local copy; kept the local copy`;
+    expect(r.warnings).toEqual([warning]);
     expect(await a.replica.getRecord(run.id)).toEqual(run);
+    expect((await a.state.load()).conflicts).toEqual({ [run.id]: warning });
+  });
+
+  it('a body signed by a pinned key is never replaced by an unsigned one under an earlier key', async () => {
+    const objects = memoryObjectStore();
+    const k = await generateSigningKey('ci');
+    const [a, b] = [clone(objects, 'a', { keys: [k.key] }), clone(objects, 'b', { keys: [k.key] })];
+    const run = await recordSigner(k.secret)(runRecord());
+    await a.replica.putRecord(run);
+    await a.sync();
+    const forged = { ...run, sig: undefined, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+    await putLog(objects, Date.now() - 5 * MIN, [forged]); // sorts before the signed body's key
+    expect((await a.sync()).warnings).toEqual([expect.stringContaining('kept the local copy')]);
+    expect(await a.replica.getRecord(run.id)).toEqual(run);
+    // a fresh clone meets the forged body first and replaces it once the signed one arrives
+    expect((await b.sync()).warnings).toEqual([expect.stringContaining('replaced the local copy')]);
+    expect(await b.replica.getRecord(run.id)).toEqual(run);
+  });
+
+  it('two bodies with one record ID converge on the one whose log key sorts first', async () => {
+    const objects = memoryObjectStore();
+    const [a, b] = [clone(objects, 'a'), clone(objects, 'b')];
+    const run = runRecord();
+    await a.replica.putRecord(run);
+    await a.sync();
+    await b.sync();
+    expect(await b.replica.getRecord(run.id)).toEqual(run);
+    const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+    const key = await putLog(objects, Date.now() - 5 * MIN, [forged]); // earlier than the push, inside the lookback
+    const replaced = `record ${run.id} in ${key} differs from the local copy; replaced the local copy (signed, or its log key sorts first)`;
+    for (const c of [a, b]) {
+      expect((await c.sync()).warnings).toEqual([replaced]);
+      expect(await c.replica.getRecord(run.id)).toEqual(forged);
+      expect((await c.sync()).warnings).toEqual([]);
+      await c.state.save(emptyState()); // cache/ deleted: the full listing reads the earlier key first
+      expect((await c.sync()).warnings).toEqual([
+        expect.stringMatching(/differs from the local copy; kept the local copy$/),
+      ]);
+      expect(await c.replica.getRecord(run.id)).toEqual(forged);
+    }
+    // a fresh clone reads the earlier key first and keeps its body as well
+    const fresh = clone(objects, 'c');
+    expect((await fresh.sync()).warnings).toEqual([expect.stringContaining('kept the local copy')]);
+    expect(await fresh.replica.getRecord(run.id)).toEqual(forged);
   });
 
   it('a push-only sync on a fresh state does not push records the store already has', async () => {

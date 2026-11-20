@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HostingConfig } from '@indx-watch/bundle';
+import { HostingConfig, SigningKey } from '@indx-watch/bundle';
 import { parse } from 'smol-toml';
 import type { z } from 'zod';
 import type { CommandData } from '../json.js';
@@ -40,23 +40,30 @@ export interface DeployOptions {
   warn?: (message: string) => void;
   /** Directory holding `worker.js` and `web/` (default: the CLI's own dist) */
   distDir?: string;
+  /** keys the Worker trusts; deploy() reads them from project.toml */
+  signingKeys?: SigningKey[];
 }
 
 /** Read [hosting] from project.toml and deploy. */
 export async function deploy(opts: DeployOptions): Promise<DeployData> {
-  return runDeploy(await readHosting(opts.dir), opts);
+  const keys = SigningKey.array().safeParse((await readToml(opts.dir)).signing_keys ?? []);
+  if (!keys.success) throw new DeployError('INVALID_CONFIG', 'invalid [[signing_keys]] in project.toml');
+  return runDeploy(await readHosting(opts.dir), { ...opts, signingKeys: keys.data });
 }
 
-export async function readHosting(dir: string): Promise<HostingConfig> {
+async function readToml(dir: string): Promise<Record<string, unknown>> {
   const text = await readFile(join(dir, 'project.toml'), 'utf8').catch(() => {
     throw new DeployError('NO_BUNDLE', `no project.toml in ${dir}`);
   });
-  let raw: unknown;
   try {
-    raw = parse(text).hosting;
+    return parse(text);
   } catch (e) {
     throw new DeployError('INVALID_CONFIG', `project.toml: ${(e as Error).message}`);
   }
+}
+
+export async function readHosting(dir: string): Promise<HostingConfig> {
+  const raw = (await readToml(dir)).hosting;
   if (raw === undefined) {
     throw new DeployError(
       'INVALID_CONFIG',
@@ -90,6 +97,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
     assetsDir: posix(relative(outDir, assets)),
     ...(opts.name ? { name: opts.name } : {}),
     ...(opts.public ? { public: true } : {}),
+    signingKeys: opts.signingKeys,
   };
   const names = resourceNames(hosting, opts.name);
   // names become wrangler arguments: no flags, no shell characters

@@ -211,6 +211,8 @@ export function gateTestCases(model: Model, scope: Scope): string[] {
 }
 
 function gateFrom(model: Model, scope: Scope, table: Map<string, TestCaseStatus>): GateResult {
+  // gate.ignore_unverified: the gate sees only verified records (docs/spec/concepts.md#readiness-gate)
+  if (model.verifiedOnly) return evaluateGate(model.verifiedOnly, scope);
   const g = gateOf(model);
   const keys = gateTestCases(model, scope);
   const st = (k: string) => table.get(k) ?? testCaseStatus(model, k, scope);

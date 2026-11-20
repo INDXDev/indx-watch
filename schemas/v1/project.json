@@ -77,6 +77,9 @@
         },
         "require_evidence": {
           "type": "boolean"
+        },
+        "ignore_unverified": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -197,6 +200,44 @@
         "name"
       ],
       "additionalProperties": false
+    },
+    "signing_keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "public_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "via": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "git",
+                "github",
+                "github-oidc",
+                "cloudflare-access",
+                "env",
+                "browser"
+              ]
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kid",
+          "public_key"
+        ],
+        "additionalProperties": false
+      }
     },
     "glossary": {
       "type": "array",

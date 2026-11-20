@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { createArchive, parseToml, sha256Hex } from '@indx-watch/bundle';
 import { renderReport } from '@indx-watch/server';
 import { describe, expect, it } from 'vitest';
+import { CommandData, okEnvelope } from '../src/json.js';
 import { cleanEnv, fakeBin, iw, iwJson, ROOT, shop, TSX } from './helpers.js';
 
 const TC3 = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml';
@@ -330,6 +331,38 @@ describe('commands', () => {
     expect(iw(dir, ['check']).code).toBe(0);
   });
 
+  it('new feature|env|release|plan by an agent carries origin "ai"; check warns until a human approves', () => {
+    const dir = shop();
+    const agent = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'claude-test' };
+    const made = [
+      ['feature', '--title', 'Agent feature'],
+      ['env', '--title', 'Preview'],
+      ['release', '--title', 'v9.0.0'],
+      ['plan', '--title', 'Agent plan'],
+    ].map((args) => {
+      const r = iwJson(dir, 'new', ['new', ...args], { env: agent });
+      expect(r.code).toBe(0);
+      expect(parseToml(read(dir, r.json.data.file))).toMatchObject({
+        origin: 'ai',
+        ai: { model: 'claude-test' },
+      });
+      return r.json.data;
+    });
+    const check = iwJson(dir, 'check', ['check']);
+    expect(check.code).toBe(0);
+    const warned = check.json.data.problems.filter((p: { code: string }) => p.code === 'ai-not-approved');
+    expect(warned.map((p: { severity: string; file: string }) => [p.severity, p.file])).toEqual(
+      made.map((m) => ['warning', m.file]),
+    );
+    for (const m of made) {
+      const r = iwJson(dir, 'approve', ['approve', m.key]);
+      expect([r.code, r.json.data.file]).toEqual([0, m.file]);
+      expect(read(dir, m.file)).toContain('approved_by = "qa@shop.test"');
+    }
+    const after = iwJson(dir, 'check', ['check']).json.data.problems;
+    expect(after.filter((p: { code: string }) => p.code === 'ai-not-approved')).toEqual([]);
+  });
+
   it('new never reuses a fixture key that recorded runs used', () => {
     const dir = shop();
     expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // sample runs use FX-1..FX-3
@@ -575,6 +608,20 @@ describe('commands', () => {
       pointer: true,
       sha256: await sha256Hex('This is not a photo.\n'),
     });
+    // over [fixtures].inline_max_bytes without --blob: a *.blob.toml pointer whose hash matches the content
+    const project = join(dir, '.indx-watch/project.toml');
+    writeFileSync(
+      project,
+      read(dir, 'project.toml').replace('inline_max_bytes = 1048576', 'inline_max_bytes = 8'),
+    );
+    writeFileSync(join(dir, 'big.txt'), 'More than eight bytes.\n');
+    const big = iwJson(dir, 'fixture add', ['fixture', 'add', 'big.txt', '--to', 'FX-4']);
+    const sha = await sha256Hex('More than eight bytes.\n');
+    expect(big.json.data.files[0]).toMatchObject({ name: 'big.txt', pointer: true, sha256: sha });
+    expect(parseToml(read(dir, 'fixtures/FX-4-review-photo/big.txt.blob.toml'))).toMatchObject({
+      sha256: sha,
+    });
+    expect(existsSync(join(dir, '.indx-watch/fixtures/FX-4-review-photo/big.txt'))).toBe(false);
     writeFileSync(join(dir, 'key.txt'), 'AKIAABCDEFGHIJKLMNOP\n');
     const secret = iwJson(dir, 'fixture add', ['fixture', 'add', 'key.txt', '--to', 'FX-4']);
     expect([secret.code, secret.json.error.code]).toEqual([1, 'SECRETS_FOUND']);
@@ -646,6 +693,12 @@ describe('commands', () => {
     writeFileSync(join(dir, '.indx-watch', TC3), read(dir, TC3).replace('(price 40.00)', '(price 40)'));
     const stale = iwJson(dir, 'translate', set);
     expect(stale.json.error.message).toContain('preconditions');
+    const two = [...set, '--set', 'preconditions=x', '--set', 'steps.1.expected=y'];
+    expect(iwJson(dir, 'translate', two).json.data.written).toEqual([
+      'title',
+      'preconditions',
+      'steps.1.expected',
+    ]);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'en']).code).toBe(2);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja', '--set', 'nope=x']).code).toBe(2);
   });
@@ -690,6 +743,26 @@ describe('commands', () => {
     expect(
       iwJson(dir, 'report', ['report', '--format', 'html', '--audience', 'customer']).json.data.file,
     ).toBe('report-v1.2.0.customer.html');
+  });
+
+  it('the report gate equals the gate of status --json for the same scope', () => {
+    const dir = shop();
+    iwJson(dir, 'sync', ['sync']); // the sample results: TC-8 fails
+    for (const scope of [[], ['--env', 'staging'], ['--release', 'v1.2.0', '--env', 'staging']]) {
+      const status = iwJson(dir, 'status', ['status', ...scope]).json.data;
+      const r = iwJson(dir, 'report', ['report', ...scope, '--format', 'json', '--out', 'r.json']);
+      expect(status.gate.passed).toBe(false);
+      expect(r.json.data.gate, scope.join(' ')).toEqual(status.gate);
+      const report = JSON.parse(readFileSync(join(dir, 'r.json'), 'utf8'));
+      expect({ environment: null, ...report.scope }, scope.join(' ')).toEqual(status.scope);
+      expect(report.status.gate, scope.join(' ')).toEqual(status.gate);
+      if (!serverReady) continue;
+      const md = iw(dir, ['report', ...scope]).stdout;
+      for (const c of status.gate.checks)
+        expect(md, `${scope.join(' ')} ${c.key}`).toContain(
+          `| \`${c.actual}\` | \`${c.expected}\` | ${c.passed ? '✓' : '✕'}`,
+        );
+    }
   });
 
   it('export --full and import (dry run, conflicts, merge)', () => {
@@ -777,7 +850,9 @@ describe('commands', () => {
       });
       const line = await new Promise<string>((res) => child.stdout.once('data', (d) => res(String(d))));
       child.kill();
-      return JSON.parse(line);
+      const json = JSON.parse(line);
+      expect(okEnvelope(CommandData.serve).safeParse(json).success, line).toBe(true);
+      return json;
     };
     expect(await serve()).toMatchObject({
       ok: true,
@@ -796,5 +871,36 @@ describe('commands', () => {
     expect(iw(tmpdir(), ['fixture', 'add', '--help']).stdout).toContain('USAGE iw fixture add ');
     expect(iw(tmpdir(), ['deployment', 'add', '--help']).stdout).toContain('USAGE iw deployment add ');
     expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.0');
+  });
+});
+
+describe('signed records (docs/spec/security.md#signed-records)', () => {
+  it('iw keygen prints a key; writes with IW_SIGNING_KEY are signed and verify against project.toml', async () => {
+    const dir = shop();
+    const k = iwJson(dir, 'keygen', ['keygen', '--kid', 'ci-test', '--via', 'github']).json.data;
+    expect(k).toMatchObject({ kid: 'ci-test', via: ['github'] });
+    expect(k.secret).toMatch(/^iwsk1:ci-test:/);
+    expect(k.toml).not.toContain(k.secret.split(':')[2]);
+    expect(iw(dir, ['keygen', '--via', 'git']).code).toBe(2);
+    const project = join(dir, '.indx-watch/project.toml');
+    writeFileSync(project, `${readFileSync(project, 'utf8')}\n${k.toml}`);
+    expect(iwJson(dir, 'check', ['check']).code).toBe(0); // a public key is not a secret
+    const env = { IW_SIGNING_KEY: k.secret };
+    const run = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], { env }).json.data.run;
+    expect(run.sig).toMatchObject({ alg: 'Ed25519', kid: 'ci-test' });
+    const [file] = records(dir);
+    const stored = JSON.parse(readFileSync(join(dir, '.indx-watch/runs/records', String(file)), 'utf8'));
+    const { verifyRecord } = await import('@indx-watch/bundle');
+    expect(await verifyRecord(stored, [k])).toBe(true);
+    expect(await verifyRecord({ ...stored, note: 'edited' }, [k])).toBe(false);
+    expect(iw(dir, ['record', 'TC-1', '--verdict', 'pass'], { env: { IW_SIGNING_KEY: 'nope' } }).code).toBe(
+      3,
+    );
+    // well-formed but broken key material fails the write the same way, not as an internal error
+    const broken = { IW_SIGNING_KEY: `${k.secret.slice(0, 20)}AAAA` };
+    const bad = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], { env: broken });
+    expect([bad.code, bad.json.error.code]).toEqual([3, 'INVALID_CONFIG']);
+    // a malformed key fails writes only: a pull-only sync signs nothing
+    expect(iw(dir, ['sync', '--pull-only'], { env: { IW_SIGNING_KEY: 'nope' } }).code).toBe(0);
   });
 });

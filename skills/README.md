@@ -45,7 +45,7 @@ codex mcp add indx-watch -- npx -y indx-watch mcp
 
 ## What every skill enforces
 
-- AI-written items are `draft` with `origin = "ai"` and an `[ai]` table (`iw new --origin ai --model <id> --skill <name>`). Only a human runs `iw approve`, `iw review` or `iw waive`; they refuse agents.
+- AI-written items carry `origin = "ai"` and an `[ai]` table, and are `draft` where the kind has a status (features, environments, releases and plans do not; `iw check` warns until a human approves them) (`iw new --origin ai --model <id> --skill <name>`). Only a human runs `iw approve`, `iw review` or `iw waive`; they refuse agents.
 - Writes run with `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL=<model id>`, so every record says an agent made it.
 - Agent verdicts carry a confidence; low confidence becomes `needs_review`. Passing results carry evidence.
 - Quoted on-screen strings are copied exactly. Secrets are references (`env:NAME`), never values.

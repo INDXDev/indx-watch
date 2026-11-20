@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { AnyRecord, Bundle } from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -10,7 +11,7 @@ import {
   reportData,
   testCaseStatus,
 } from '../src/index.js';
-import { retraction, review, run, sampleRecords, shop, waiver } from './fixtures.js';
+import { retraction, review, run, SHOP, sampleRecords, shop, storeRecords, waiver } from './fixtures.js';
 
 let b: Bundle;
 beforeAll(async () => {
@@ -119,6 +120,29 @@ describe('test case status', () => {
     expect(testCaseStatus(model([r], translated), 'TC-4', scope).status).toBe('pass');
   });
 
+  it('a title edit keeps the version; a step edit changes it and makes earlier results stale', async () => {
+    const { testCaseVersion } = await import('@indx-watch/bundle');
+    const r = run(b, 'TC-3');
+    const text = new Map(b.useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)));
+    const edit = async (change: (d: Bundle['testCases'][number]['data']) => void) => {
+      const edited: Bundle = structuredClone(b);
+      const tc = edited.testCases.find((t) => t.data.key === 'TC-3')!;
+      change(tc.data);
+      tc.version = await testCaseVersion(tc.data, text);
+      return { version: tc.version, status: testCaseStatus(model([r], edited), 'TC-3', scope) };
+    };
+    const retitled = await edit((d) => {
+      d.title = 'Renamed';
+    });
+    expect(retitled.version).toBe(r.test_case.version);
+    expect(retitled.status.status).toBe('pass');
+    const restepped = await edit((d) => {
+      d.steps[0]!.expected = 'Something else.';
+    });
+    expect(restepped.version).not.toBe(r.test_case.version);
+    expect(restepped.status).toMatchObject({ status: 'stale', verdict: 'pass', stale: true });
+  });
+
   it('a different fixture version makes a result stale', () => {
     const r = run(b, 'TC-3');
     r.fixtures[0]!.version = 'fxv:000000000000';
@@ -188,6 +212,23 @@ describe('computeStatus and the gate on examples/shop', () => {
       p1_pass_rate: [false, '1/2 (0.50)', '≥ 0.95', ['TC-2']],
       max_needs_review: [true, '0', '≤ 0', undefined],
       max_untested: [false, '1', '≤ 0', ['TC-8']],
+      allow_stale: [true, '0', '≤ 0', undefined],
+      require_evidence: [true, '5/5', '5/5', undefined],
+    });
+  });
+
+  it('the sample store examples/shop/store gives the gate documented in reports.md#example', () => {
+    const g = evaluateGate(model(storeRecords(join(SHOP, '../store'))), scope);
+    expect(g.passed).toBe(false);
+    expect(
+      Object.fromEntries(g.checks.map((c) => [c.key, [c.passed, c.actual, c.expected, c.items]])),
+    ).toEqual({
+      has_gated_tests: [true, '8', '≥ 1', undefined],
+      p0_coverage: [true, '6/6', '≥ 1.00', undefined],
+      p0_all_pass: [false, '5/6', '6/6', ['TC-8']],
+      p1_pass_rate: [true, '2/2 (1.00)', '≥ 0.95', undefined],
+      max_needs_review: [true, '0', '≤ 0', undefined],
+      max_untested: [true, '0', '≤ 0', undefined],
       allow_stale: [true, '0', '≤ 0', undefined],
       require_evidence: [true, '5/5', '5/5', undefined],
     });

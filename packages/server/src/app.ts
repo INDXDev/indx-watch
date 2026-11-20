@@ -4,7 +4,7 @@
  */
 import * as B from '@indx-watch/bundle';
 import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
-import { type ContextProvider, checkRecord, StoreError } from '@indx-watch/store';
+import { type ContextProvider, checkRecord, StoreError, ulidTime } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { renderReport, reportTexts } from './report.js';
@@ -184,7 +184,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
         clone: deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null),
       },
       can: { declare: !!d.declaredIdentity, upload: !!d.publishBundle },
-      snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0]),
+      snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
     };
     return c.json(info);
   });
@@ -210,7 +210,10 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     return c.json(await V.fixtureDetail(fx, read));
   });
   app.get('/api/plans', async (c) => c.json(await V.planViews(await model())));
-  app.get('/api/snapshots', async (c) => c.json((await model()).snapshots.map(V.snapshotSummary)));
+  app.get('/api/snapshots', async (c) => {
+    const m = await model();
+    return c.json(m.snapshots.map((r) => V.snapshotSummary(r, m)));
+  });
   app.post('/api/bundle', async (c) => {
     const input = await json<UploadInput>(c);
     const who = await actor(c);
@@ -250,7 +253,11 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
       currentVersion: t?.version ?? record.test_case.version,
       ...(i18n && { i18n }),
     };
-    return c.json({ record, judgements, decision, stale, testCase } satisfies RunDetail);
+    // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
+    const flagged = (id: string, i: number) => m.unverified?.has(i ? `${record.id}#${id}` : id);
+    const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
+    const unverified = ids.length ? { unverified: ids } : {};
+    return c.json({ record, judgements, decision, stale, testCase, ...unverified } satisfies RunDetail);
   });
 
   app.post('/api/runs', async (c) => {
@@ -413,6 +420,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
       if (!m.success) throw bad(`${key} is not a store manifest`);
       if (project && m.data.project !== project) throw bad(`this store belongs to ${project}`);
     } else if (LOG_KEY.test(key)) {
+      // the earliest log key wins a merge, so a writer may not pick one far from now (docs/spec/sync.md#merge-rules)
+      if (Math.abs(ulidTime(key.slice(7, 33)) - Date.now()) > 3600_000)
+        throw bad(`${key}: not within an hour of now`);
       const log = B.LogObject.safeParse(await parsed(data));
       if (!log.success) throw bad(`${key} is not a log object`);
       for (const raw of log.data.records) {

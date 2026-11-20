@@ -63,6 +63,8 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 
 Other CI providers are detected by their standard variables in v0.2 (GitLab, CircleCI, Buildkite); until then set `IW_ACTOR` and `IW_COMMIT`.
 
+**Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](security.md#signed-records)). Signing through GitHub OIDC instead of a stored secret is not built yet.
+
 ## GitHub Action
 A **composite action** at the repository root (`action.yml`) wraps the CLI; there is no separate action code to maintain.
 
@@ -105,4 +107,4 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
 - [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
 - [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
-- [ ] With `gate: true` and a failing P0 test case, the action step fails.
+- [x] With `gate: true` and a failing P0 test case, the action step fails.

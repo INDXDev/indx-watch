@@ -11,6 +11,8 @@ import {
 import { request } from 'node:http';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { emptyState } from '@indx-watch/sync';
+import { fileStateStore } from '@indx-watch/sync/node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProjectInfo, RunSummary, TestCaseDetail } from '../src/index.js';
 import { hostGuard, requestIdentity, startNodeServer, writeGuard } from '../src/node.js';
@@ -125,6 +127,27 @@ describe('startNodeServer', () => {
     await until(
       async () => (await api<TestCaseDetail>('/api/test-cases/TC-1')).data.title === 'Product list',
     );
+  });
+
+  it('shows record conflicts that an earlier sync saved, right after a start', async () => {
+    const copy = mkdtempSync(join(tmpdir(), 'iw-server-conflict-'));
+    const at = join(copy, '.indx-watch');
+    cpSync(join(ROOT, 'examples/shop/.indx-watch'), at, {
+      recursive: true,
+      filter: (p) => !/[/\\](runs|cache)$/.test(p),
+    });
+    cpSync(join(ROOT, 'examples/shop/store'), join(copy, 'store'), { recursive: true });
+    const id = 'run_01JF7Z3K0W8N2Q4R6S8T0V0001';
+    const note = `record ${id} in v1/log/01JF7Z3K0W8N2Q4R6S8T0V0000.json differs from the local copy; kept the local copy`;
+    await (await fileStateStore(at, 'file://../store')).save({ ...emptyState(), conflicts: { [id]: note } });
+    const started = await startNodeServer({ dir: at, port: 0, sync: false, webRoot: web });
+    try {
+      const p = (await (await fetch(`${started.url}/api/project`)).json()) as ProjectInfo;
+      expect(p.problems.map((x) => x.message)).toContain(note);
+    } finally {
+      await started.close();
+      rmSync(copy, { recursive: true, force: true });
+    }
   });
 
   it('syncs in the background when [store] is configured', async () => {

@@ -2,7 +2,7 @@
  * Plan for `iw deploy` (pure). From [hosting] and the resources that already exist, decide what to create,
  * the exact wrangler commands and the generated wrangler.jsonc. No I/O (docs/spec/cli.md#iw-deploy).
  */
-import type { HostingConfig } from '@indx-watch/bundle';
+import type { HostingConfig, SigningKey } from '@indx-watch/bundle';
 
 /** nodejs_compat is on by default from 2026-08-04; the flag is kept explicit (redundant flags are ignored). */
 export const COMPATIBILITY_DATE = '2026-11-01';
@@ -21,6 +21,8 @@ export interface PlanOptions {
   /** --name (overrides [hosting].name) */
   name?: string;
   public?: boolean;
+  /** project.toml [[signing_keys]], pinned as the Worker's SIGNING_KEYS (docs/spec/security.md#signed-records) */
+  signingKeys?: SigningKey[];
   /** Path of the generated wrangler.jsonc (appears in the deploy command) */
   configPath: string;
   /** Paths relative to the config file: the Worker bundle and the web build */
@@ -74,6 +76,7 @@ export function planDeploy(hosting: HostingConfig, existing: Existing, opts: Pla
   if (hosting.access_team) vars.ACCESS_TEAM = hosting.access_team;
   if (hosting.access_aud) vars.ACCESS_AUD = hosting.access_aud;
   if (opts.public) vars.PUBLIC = 'true';
+  if (opts.signingKeys?.length) vars.SIGNING_KEYS = JSON.stringify(opts.signingKeys);
 
   const steps: string[][] = [];
   if (!hasBucket) steps.push(['r2', 'bucket', 'create', bucket]);

@@ -82,6 +82,7 @@ const TOKENS: [string, RegExp][] = [
   ['JWT', /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/],
   ['Anthropic API key', /\bsk-ant-[A-Za-z0-9_-]{20,}/],
   ['OpenAI API key', /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/],
+  ['INDX Watch signing key (IW_SIGNING_KEY)', /\biwsk1:[A-Za-z0-9._-]{1,64}:[A-Za-z0-9_-]{40,}/],
 ];
 const SENSITIVE =
   /(passw|pwd|passphrase|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)/i;
@@ -260,6 +261,14 @@ async function semanticChecks(b: Bundle, deps: CheckDeps): Promise<Problem[]> {
   for (const t of b.testCases) await ai(t.data, t.file, async () => t.version);
   for (const f of b.fixtures) await ai(f.data, f.file, async () => f.version);
   for (const u of b.useCases) await ai(u.data, u.file, () => useCaseVersion(u.data));
+  // they decide no verdict and have no status: an unreviewed AI-written one is only a warning
+  for (const x of [...b.features, ...b.environments, ...b.releases, ...b.plans]) {
+    const d: Life & { ai?: unknown } = x.data;
+    if (d.origin !== 'ai') continue;
+    if (!d.ai) err('missing-ai-meta', x.file, 'origin "ai" requires an [ai] table', 'ai');
+    const message = 'AI-written item has not been reviewed by a human; run iw approve';
+    if (!d.approved_by) add('warning', 'ai-not-approved', x.file, message, 'approved_by');
+  }
   for (const u of b.useCases)
     for (const [i, c] of u.data.criteria.entries()) {
       if (c.origin !== 'ai') continue;

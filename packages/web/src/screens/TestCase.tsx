@@ -49,8 +49,8 @@ function Detail({ d, criteria }: { d: TestCaseDetail; criteria: Map<string, Crit
         </h1>
         {last ? (
           <p className="muted last-run">
-            {t('tc.lastRun')} <Who who={last.actor} /> · <Badge status={last.verdict} /> ·{' '}
-            <a href={href.run(last.id)}>{ago(last.at)}</a>
+            {t('tc.lastRun')} <Who who={last.actor} unverified={last.unverified} /> ·{' '}
+            <Badge status={last.verdict} /> · <a href={href.run(last.id)}>{ago(last.at)}</a>
             {d.status.stale && <Chip tone="warn">{t('tc.staleHint')}</Chip>}
           </p>
         ) : (
@@ -164,7 +164,8 @@ export function RunTable({ runs }: { runs: RunSummary[] }) {
                 <Badge status={r.verdict} />
               </td>
               <td>
-                <Who who={r.actor} /> <span className="muted small">· {r.source}</span>
+                <Who who={r.actor} unverified={r.unverified} />{' '}
+                <span className="muted small">· {r.source}</span>
               </td>
               <td className="small">
                 {r.environment ?? '—'} {r.commit && <code>{r.commit.slice(0, 7)}</code>}

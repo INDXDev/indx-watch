@@ -16,6 +16,7 @@ import {
   Priority,
   SecretRef,
   Sha256,
+  SigningKey,
   Tag,
   translation,
 } from './common.js';
@@ -28,6 +29,12 @@ const lifecycle = {
   /** version (tcv:/fxv:) or use-case content hash at approval; written by `iw approve` */
   approved_version: z.string().optional(),
   tags: z.array(Tag).optional(),
+};
+/** Origin mark of features, environments, releases and plans (no status: an AI one is approved, not made ready). */
+const authored = {
+  origin: Origin.optional(),
+  /** human who reviewed an AI-written item (`iw approve`); without it `iw check` warns */
+  approved_by: z.string().optional(),
 };
 const tail = {
   notes: z.string().optional(),
@@ -44,6 +51,8 @@ export const Gate = z.strictObject({
   max_untested: z.number().int().min(0).optional(),
   allow_stale: z.boolean().optional(),
   require_evidence: z.boolean().optional(),
+  /** evaluate the gate without records that claim a verified `via` but carry no valid signature (v0.2) */
+  ignore_unverified: z.boolean().optional(),
 });
 export type Gate = z.infer<typeof Gate>;
 export const GATE_DEFAULTS: Required<Gate> = {
@@ -54,6 +63,7 @@ export const GATE_DEFAULTS: Required<Gate> = {
   max_untested: 0,
   allow_stale: false,
   require_evidence: true,
+  ignore_unverified: false,
 };
 
 export const DecisionPolicy = z.strictObject({
@@ -113,6 +123,8 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
+  signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
   notes: z.string().optional(),
   x: Extra.optional(),
@@ -129,6 +141,7 @@ export const Environment = z.strictObject({
   id: idOf('env'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
   title: z.string().min(1),
+  ...authored,
   base_url: z.string().url(),
   accounts: z.array(keyOf('fixture')).optional(),
   guide: z.string().optional(),
@@ -151,6 +164,7 @@ export const Release = z.strictObject({
   id: idOf('rel'),
   version: z.string().min(1),
   title: z.string().optional(),
+  ...authored,
   state: z.enum(['planning', 'testing', 'ready', 'released']),
   target_date: LocalDate.optional(),
   refs: z.array(z.string()).optional(),
@@ -166,6 +180,7 @@ export const Feature = z.strictObject({
   id: idOf('fea'),
   key: keyOf('feature'),
   title: z.string().min(1),
+  ...authored,
   description: z.string().optional(),
   i18n: z
     .partialRecord(Locale, translation({ title: z.string().optional(), description: z.string().optional() }))
@@ -347,6 +362,7 @@ export const Plan = z.strictObject({
   id: idOf('pln'),
   key: keyOf('plan'),
   title: z.string().min(1),
+  ...authored,
   release: z.string().optional(),
   environment: z.string().optional(),
   due: LocalDate.optional(),

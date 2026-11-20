@@ -75,6 +75,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "test_case": {
           "type": "object",
           "properties": {
@@ -541,6 +564,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "run": {
           "type": "string",
           "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$"
@@ -738,6 +784,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "release": {
           "type": "string",
           "minLength": 1
@@ -864,6 +933,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "environment": {
           "type": "string",
           "minLength": 1
@@ -983,6 +1075,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "commit": {
           "type": "string"
         },
@@ -1101,6 +1216,29 @@
             "import"
           ]
         },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
         "path": {
           "type": "string",
           "minLength": 1
@@ -1207,6 +1345,29 @@
             "ci",
             "import"
           ]
+        },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
         },
         "target": {
           "type": "string",

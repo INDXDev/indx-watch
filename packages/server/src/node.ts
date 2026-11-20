@@ -7,9 +7,9 @@ import type { AddressInfo } from 'node:net';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
-import { BundleError, loadBundle } from '@indx-watch/bundle';
+import { type AnyRecord, BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { buildModel } from '@indx-watch/core';
+import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
 import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watch/sync';
@@ -96,8 +96,11 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const dir = resolve(opts.dir);
   const fs = nodeFs(dir);
   const replica = SN.openReplica(dir);
+  // read on each write: a malformed key fails the write, it does not stop the server from starting
+  const sign = (r: AnyRecord) => recordSigner(process.env.IW_SIGNING_KEY)(r);
   const sync: ProjectInfo['sync'] = { configured: false };
   const cache: { model?: ReturnType<ServerDeps['loadModel']> } = {};
+  let syncState: Awaited<ReturnType<typeof fileStateStore>> | undefined;
   const build = async () => {
     const { bundle, problems } = await loadBundle(fs);
     const shown: ProjectInfo['problems'] = problems.map((p) => ({ ...p, path: undefined, code: undefined }));
@@ -105,8 +108,10 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     const records = await replica.records((file, error) =>
       shown.push({ severity: 'warning', message: `invalid record: ${error}`, file: `runs/${file}` }),
     );
-    const { model, warnings } = buildModel(bundle, records);
-    const more = warnings.map((message) => ({ severity: 'warning', message }));
+    const { model, warnings } = await buildVerifiedModel(bundle, records);
+    // records the store has two bodies of (docs/spec/sync.md#merge-rules)
+    const conflicts = Object.values((await syncState?.load())?.conflicts ?? {});
+    const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
     return { model, problems: [...shown, ...more] };
   };
   const invalidate = () => delete cache.model;
@@ -133,22 +138,28 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     try {
       store = createResultStore(SN.openObjectStore(cfg, { bundleDir: dir }));
       const state = await fileStateStore(dir, cfg.url);
+      syncState = state;
+      invalidate(); // the first model was built before the sync state, so without its conflicts
       const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
         f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
       );
       const [writer, evidence] = [await writerId(dir), cfg.evidence ?? 'on-demand'];
       // Records the secret scan held back stay local; the UI shows why (docs/spec/security.md#secrets).
-      const onResult = (r: SyncResult) =>
+      // Warnings may be new conflicts, which the sync state holds: rebuild the model's problems.
+      const onResult = (r: SyncResult) => {
+        if (r.warnings?.length) invalidate();
         Object.assign(sync, {
           lastSyncAt: new Date().toISOString(),
           lastError: r.held?.length ? r.warnings?.find((w) => w.startsWith('held back')) : undefined,
         });
+      };
       const onError = (e: unknown) => Object.assign(sync, { lastError: message(e) });
       const o = {
         replica,
         store,
         state,
         projectId: project.id,
+        keys: project.signing_keys,
         writer,
         evidence,
         extraBlobs,
@@ -166,7 +177,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const deps: ServerDeps = {
     mode: 'local',
     loadModel,
-    writeRecord: (record) => replica.putRecord(record).then(() => void invalidate()),
+    writeRecord: (record) => sign(record).then((r) => replica.putRecord(r).then(() => void invalidate())),
     putBlob: (data, contentType) => replica.putBlob(data, contentType),
     async getBlob(sha) {
       // read-through from the store for evidence = 'on-demand'

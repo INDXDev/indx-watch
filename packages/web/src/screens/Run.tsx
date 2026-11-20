@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, fmtBytes, Load, Meta, Section, Seg, Tx, useApi, Who } from '../ui';
+import { Badge, Chip, fmtBytes, Load, Mark, Meta, Section, Seg, Tx, useApi, Who } from '../ui';
 
 type Evidence = RunDetail['record']['evidence'][number];
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
@@ -42,7 +42,8 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
             <Tx of={r.testCase} field="title" mark />
           </h1>
           <p className="muted last-run">
-            <Who who={rec.actor} /> · {date(rec.ended_at)} · <span className="mono small">{rec.id}</span>
+            <Who who={rec.actor} unverified={r.unverified?.includes(rec.id)} /> · {date(rec.ended_at)} ·{' '}
+            <span className="mono small">{rec.id}</span>
           </p>
         </div>
       </div>
@@ -135,7 +136,8 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
                       </td>
                       <td className="pre">{j.reason ?? '—'}</td>
                       <td className="small">
-                        {j.by?.name ?? j.by?.id ?? '—'}
+                        {j.by?.name ?? j.by?.id ?? '—'}{' '}
+                        {j.by && <Mark who={j.by} unverified={r.unverified?.includes(j.id)} />}
                         <br />
                         <span className="muted">{date(j.at)}</span>
                       </td>

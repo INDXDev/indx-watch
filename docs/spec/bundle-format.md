@@ -74,14 +74,16 @@ key = "TC-3"
 |---|---|---|
 | `title` | string | Required. Plain language. |
 | `status` | `draft` \| `ready` \| `deprecated` | Default `draft`. Use cases, test cases, fixtures. |
-| `origin` | `human` \| `ai` \| `import` | Default `human` (omitted). |
-| `approved_by` | string | Identity of the human who approved the item (written by `iw approve`). |
+| `origin` | `human` \| `ai` \| `import` | Default `human` (omitted). Every definition except `project.toml` (features, environments, releases and plans too). |
+| `approved_by` | string | Identity of the human who approved the item (written by `iw approve`). Every definition that has `origin`. |
 | `approved_version` | string | Version hash at approval (`tcv:…`, `fxv:…`, or the use case's content hash). |
 | `tags` | string[] | Lowercase, `[a-z0-9-]+`. |
 | `notes` | string | Free text that survives formatting. Always the last plain value of a file. |
 | `[i18n.<locale>]` | table | Translations; see [i18n.md](i18n.md#content-translations). |
 | `[ai]` | table | `model`, `skill`, `created_at` — required when `origin = "ai"`. |
 | `[x]` | table | Free-form extension data. |
+
+Features, environments, releases and plans have no `status`, `approved_version` or `tags`: only `origin`, `approved_by` (right after `title`), `notes`, `[ai]` and `[x]` of these. An `origin = "ai"` one without `approved_by` is an `iw check` warning, not an error ([concepts](concepts.md#test-case-use-case-fixture)).
 
 Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](../../packages/bundle/src/schema/definitions.ts).
 
@@ -109,6 +111,7 @@ max_needs_review = 0
 max_untested = 0
 allow_stale = false
 require_evidence = true
+ignore_unverified = false
 
 [decision_policy]
 llm_pass_confidence = 0.8
@@ -147,6 +150,7 @@ definition = "A code that reduces the order total."
 | `[decision_policy]` | no | Project defaults; a test case may override. |
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default; `workspace` is reserved for v0.2). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). |
+| `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](security.md#signed-records). |
 
 ## `environments/<name>.toml`
 
@@ -490,5 +494,5 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 - [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
 - [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
-- [ ] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
+- [x] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
 - [x] A bundle with `schema_version` higher than supported is rejected with exit code 3.

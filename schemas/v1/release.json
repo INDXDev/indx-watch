@@ -13,6 +13,17 @@
     "title": {
       "type": "string"
     },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "human",
+        "ai",
+        "import"
+      ]
+    },
+    "approved_by": {
+      "type": "string"
+    },
     "state": {
       "type": "string",
       "enum": [

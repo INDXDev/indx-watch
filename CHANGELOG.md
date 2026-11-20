@@ -12,6 +12,14 @@ All notable changes to this project are documented here. The format follows [Kee
 - "Who's testing?": a tester can declare a name in the browser where no verified identity exists; runs record it as `via = "browser"` (T-214).
 - `iw push`, `iw clone`, drag-and-drop upload with a checked preview, and an Uploads screen (T-215).
 - `iw translate`; release and plan titles are translatable; reviews record their locale; `examples/shop` and this repository's bundle are complete in Japanese (T-216).
+- Signed records: `iw keygen`, `IW_SIGNING_KEY` and `[[signing_keys]]` in `project.toml`. A record that claims a verified `via` without a valid signature is shown as unverified, and `[gate] ignore_unverified` keeps it out of the gate (T-211, #5).
+- Features, environments, releases and plans written by an agent carry `origin = "ai"` and `[ai]`; `iw check` warns until `iw approve` records a reviewer (#4).
+
+### Fixed
+
+- Two bodies with one record ID now converge on the one whose log key sorts first, in every clone and in the hosted index; the conflict shows in `iw check` and the UI (#3).
+- `iw translate` keeps every `--set`, not only the last.
+- The remaining acceptance criteria are tested (T-117, #6).
 
 ## [0.1.0] - 2026-11-20
 

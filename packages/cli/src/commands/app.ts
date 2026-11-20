@@ -1,11 +1,11 @@
-/** serve, report, deploy, skills install, login. */
+/** serve, report, deploy, skills install, login, keygen. */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, readdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Problem } from '@indx-watch/bundle';
+import { formatTomlBody, generateSigningKey, type Problem, VERIFIED_VIA, type Via } from '@indx-watch/bundle';
 import { findBundleDir } from '@indx-watch/bundle/node';
 import { reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
@@ -193,6 +193,28 @@ export const appCommands: Record<string, Spec> = {
           r.error ? `cloudflared not found: ${r.error.message}` : `cloudflared exited ${r.status}`,
         );
       return { data: { url }, text: `Logged in to ${url}` };
+    },
+  },
+
+  keygen: {
+    description: 'Create a record-signing key pair (docs/spec/security.md#signed-records)',
+    args: {
+      kid: S('Key ID (default: iw-<date>)'),
+      via: S(`Verified via values it may sign: ${VERIFIED_VIA}`),
+    },
+    async run(_ctx, a) {
+      const kid = str(a.kid) ?? `iw-${new Date().toISOString().slice(0, 10)}`;
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(kid))
+        fail('USAGE', '--kid: up to 64 letters, digits, ".", "_", "-"');
+      const via = str(a.via)
+        ?.split(',')
+        .map((v) => v.trim()) as Via[] | undefined;
+      if (via?.some((v) => !VERIFIED_VIA.includes(v))) fail('USAGE', `--via: ${VERIFIED_VIA.join(', ')}`);
+      const { secret, key } = await generateSigningKey(kid);
+      const entry = { ...key, ...(via && { via }) };
+      const toml = formatTomlBody('project', { signing_keys: [entry] });
+      const text = `Add to project.toml (public, commit it), then run \`iw fmt\`:\n\n${toml}\nSet IW_SIGNING_KEY (a secret; never commit it) on the hosted server or CI:\n\n${secret}`;
+      return { data: { ...entry, secret, toml }, text };
     },
   },
 };

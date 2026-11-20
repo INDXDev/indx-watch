@@ -5,6 +5,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { openNodeIndex, openReplica } from '@indx-watch/store/node';
+import { fileStateStore } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { asset, B, csv, fail, git, iso, many, P, S, str } from '../util.js';
@@ -20,7 +21,6 @@ const KINDS: Record<string, iwb.NewKind> = {
   ...{ feature: 'feature', uc: 'use-case', ac: 'criterion', tc: 'test-case', fixture: 'fixture' },
   ...{ env: 'environment', release: 'release', plan: 'plan' },
 };
-const DRAFTS: iwb.NewKind[] = ['use-case', 'criterion', 'test-case', 'fixture'];
 const parseStep = (s: string) =>
   s.includes('=>')
     ? { instruction: s.split('=>')[0]!.trim(), expected: s.slice(s.indexOf('=>') + 2).trim() }
@@ -114,6 +114,12 @@ export const specCommands: Record<string, Spec> = {
         },
       };
       const r = await iwb.checkBundle(p.fs, deps);
+      // records the store has two bodies of, as of the last sync (docs/spec/sync.md#merge-rules)
+      const url = ctx.env.IW_STORE ?? p.bundle.project.data.store?.url;
+      const conflicts = url ? ((await (await fileStateStore(p.dir, url)).load()).conflicts ?? {}) : {};
+      for (const message of Object.values(conflicts))
+        r.problems.push({ severity: 'warning', code: 'record-conflict', file: 'runs/', message });
+      r.warnings += Object.keys(conflicts).length;
       const summary = `${r.files} files, ${r.errors} errors, ${r.warnings} warnings`;
       const text = [
         ...r.problems.map(problemLine),
@@ -190,8 +196,8 @@ export const specCommands: Record<string, Spec> = {
       let origin = str(a.origin) as 'human' | 'ai' | 'import' | undefined;
       if (origin && !['human', 'ai', 'import'].includes(origin))
         fail('USAGE', '--origin must be human, ai or import');
-      // agents always write AI drafts (docs/spec/agents.md#rules); other kinds have no origin field
-      if ((await cx.actorOf(ctx)).kind === 'agent' && DRAFTS.includes(kind)) {
+      // agents always write AI-marked items, drafts where the kind has a status (docs/spec/agents.md#rules)
+      if ((await cx.actorOf(ctx)).kind === 'agent') {
         if (a.ready) fail('USAGE', 'Agents cannot create ready items');
         if (origin && origin !== 'ai') fail('USAGE', `Agents write AI drafts, not --origin ${origin}`);
         origin = 'ai';
@@ -214,8 +220,8 @@ export const specCommands: Record<string, Spec> = {
   },
 
   approve: {
-    description: 'Approve a draft use case, criterion, test case or fixture (humans only)',
-    args: { ref: P('UC-n, AC-n.m, TC-n or FX-n') },
+    description: 'Approve a draft or an AI-written item (humans only)',
+    args: { ref: P('UC-n, AC-n.m, TC-n, FX-n, FEAT-n, PLAN-n, environment name or release version') },
     async run(ctx, a) {
       const actor = await cx.humanOnly(ctx, 'approve');
       const p = await cx.openProject(ctx, a);

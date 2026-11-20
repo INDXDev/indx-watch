@@ -11,6 +11,8 @@ import {
   type JudgementRecord,
   type Priority,
   type RunRecord,
+  verifiedClaims,
+  verifyRecord,
   type WaiverRecord,
 } from '@indx-watch/bundle';
 import { byAtThenId, decide } from './decide.js';
@@ -34,6 +36,8 @@ export const byKey = (a: string, b: string) => keyNum(a) - keyNum(b) || (a < b ?
 export function buildModel(
   bundle: Bundle,
   records: Iterable<AnyRecord>,
+  /** unverified: record IDs from verifyRecords() */
+  opts: { unverified?: ReadonlySet<string> } = {},
 ): { model: Model; warnings: string[] } {
   const warnings: string[] = [];
   const p = bundle.project.data;
@@ -136,11 +140,15 @@ export function buildModel(
   const live = <K extends AnyRecord['kind']>(kind: K) =>
     all.filter((r): r is Extract<AnyRecord, { kind: K }> => r.kind === kind && !retracted.has(r.id));
 
+  // judgements of unverified records as `<run id>#<judgement id>`: flagged per source record, so a forged
+  // record that copies a judgement ID cannot mark the genuine judgement unverified
+  const flagged = new Set<string>();
   const later = new Map<string, Judgement[]>();
   for (const jr of live('judgement') as JudgementRecord[]) {
     if (!byId.has(jr.run)) warnings.push(`Judgement ${jr.id} refers to unknown run ${jr.run}`);
     const j = { ...jr.judgement, at: jr.judgement.at ?? jr.at, by: jr.judgement.by ?? jr.actor };
     later.set(jr.run, [...(later.get(jr.run) ?? []), j]);
+    if (opts.unverified?.has(jr.id)) flagged.add(`${jr.run}#${j.id}`);
   }
   const runs = new Map<string, RunView>();
   for (const r of all.filter((x): x is RunRecord => x.kind === 'run')) {
@@ -148,6 +156,7 @@ export function buildModel(
     if (!tc)
       warnings.push(`Run ${r.id} refers to a test case that is not in the bundle (${r.test_case?.key})`);
     const inline = (r.judgements ?? []).map((j) => ({ ...j, at: j.at ?? r.ended_at, by: j.by ?? r.actor }));
+    if (opts.unverified?.has(r.id)) for (const j of inline) flagged.add(`${r.id}#${j.id}`);
     const judgements = [...inline, ...(later.get(r.id) ?? [])].sort(byAtThenId);
     const used = r.fixtures ?? [];
     const rows = used.flatMap((f) => f.rows ?? []).sort();
@@ -189,5 +198,45 @@ export function buildModel(
       return ids.get(bare) ?? (runs.has(bare) ? bare : undefined);
     },
   };
+  const unverified = opts.unverified;
+  if (unverified?.size) {
+    model.unverified = new Set([...unverified, ...flagged]);
+    if (p.gate?.ignore_unverified)
+      model.verifiedOnly = buildModel(
+        bundle,
+        all.filter((r) => !unverified.has(r.id)),
+      ).model;
+  }
   return { model, warnings };
+}
+
+/** verifyRecords() results per isolate or process: keys JSON → record JSON → valid (a rebuild re-checks nothing). */
+const verified = new Map<string, Map<string, boolean>>();
+
+/**
+ * IDs of records that claim a verified `via` without a valid signature by a key in project.toml
+ * [[signing_keys]] (docs/spec/security.md#signed-records). buildModel() flags the judgements in them per run.
+ */
+export async function verifyRecords(bundle: Bundle, records: Iterable<AnyRecord>): Promise<Set<string>> {
+  const keys = bundle.project.data.signing_keys ?? [];
+  const out = new Set<string>();
+  // results are cached by the exact keys and record bytes, so a forged body that copies id and sig misses the cache
+  const cache = verified.get(JSON.stringify(keys)) ?? new Map<string, boolean>();
+  if (cache.size > 50_000 || verified.size > 8) for (const m of [cache, verified]) m.clear();
+  verified.set(JSON.stringify(keys), cache);
+  const check = async (r: AnyRecord) => {
+    if (!verifiedClaims(r).length) return;
+    const json = JSON.stringify(r);
+    const ok = cache.get(json) ?? (await verifyRecord(r, keys));
+    cache.set(json, ok);
+    if (!ok) out.add(r.id);
+  };
+  await Promise.all([...records].map(check));
+  return out;
+}
+
+/** buildModel() with signatures checked: what the CLI and the server show. */
+export async function buildVerifiedModel(bundle: Bundle, records: Iterable<AnyRecord>) {
+  const list = [...records];
+  return buildModel(bundle, list, { unverified: await verifyRecords(bundle, list) });
 }

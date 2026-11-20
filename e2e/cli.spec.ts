@@ -91,12 +91,20 @@ test('html and customer reports', { tag: ['@TC-8'] }, async ({ page }) => {
   const cwd = shopCopy();
   const out = join(cwd, 'report.html');
   await test.step('1. iw report --format html', async () => {
+    expect(iw(['sync'], { cwd }).code).toBe(0); // the sample results, so the report has runs and a failure
     expect(iw(['report', '--release', 'v1.2.0', '--format', 'html', '--out', out], { cwd }).code).toBe(0);
+    const requests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url() !== `file://${out}` && !r.url().startsWith('data:')) requests.push(r.url());
+    });
     await page.route('**/*', (route) =>
       route.request().url().startsWith('file:') ? route.continue() : route.abort(),
     );
+    await page.context().setOffline(true);
     await page.goto(`file://${out}`);
     await expect(page.locator('body')).toContainText('v1.2.0');
+    await expect(page.locator('body')).toContainText('TC-8');
+    expect(requests).toEqual([]);
   });
   await test.step('2. customer audience has no emails', async () => {
     const r = iw(['report', '--release', 'v1.2.0', '--format', 'md', '--audience', 'customer'], { cwd });

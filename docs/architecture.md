@@ -52,7 +52,7 @@ Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.t
 | Port | Methods (abridged) | Adapters in v0.1 |
 |---|---|---|
 | `ObjectStore` | `get(key)`, `head(key)`, `put(key, body, { ifNoneMatch })`, `list({ prefix, startAfter, limit })`, `delete(key)` (tests only) | `fs`, `s3` (aws4fetch: S3, R2, MinIO, GCS), `r2` (binding), `http` (hosted server), `memory` |
-| `Index` | `ingest(records)`, `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
+| `Index` | `ingest(records, logKey?)` (applies the [merge rule](spec/sync.md#merge-rules) for two bodies with one ID), `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
 | `BundleFs` | `read`, `write`, `list`, `remove`, `stat` | Node fs, in-memory (tests, Workers snapshot), tar snapshot |
 | `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
@@ -99,19 +99,19 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
 ## Line budget
-Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216).
+Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216). Signed records (T-211) raised `bundle` by 40 (Ed25519 signing and verification over WebCrypto, no new dependency) and `cli` by 30 (`iw keygen`). The review of signed records raised `store` by 60 (guarded D1 ingest, signed bodies win merges), `server` by 70 (deploy-pinned trust root, the hosted catch-up's daily full listing, the log key clock window) and `cli` by 10 (`iw deploy` pins `SIGNING_KEYS`); the total rose by 140.
 
 | Package | Budget |
 |---|---|
-| bundle | 2,000 |
+| bundle | 2,040 |
 | core | 1,000 |
-| store | 1,380 |
+| store | 1,440 |
 | sync | 450 |
-| server | 1,600 |
+| server | 1,670 |
 | web | 3,800 |
-| cli (incl. MCP, deploy) | 2,450 |
+| cli (incl. MCP, deploy) | 2,490 |
 | playwright | 450 |
-| **Total** | **13,080** |
+| **Total** | **13,290** |
 
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.

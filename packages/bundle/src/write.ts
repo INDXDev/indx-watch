@@ -102,7 +102,8 @@ export async function createDefinition(
     ),
     ...(input.knownKeys ?? []),
   ];
-  const life = origin === 'human' ? {} : { origin };
+  // only `iw approve` (a human) records an approval: AI-written input never arrives approved
+  const life = origin === 'human' ? {} : { origin, ...(origin === 'ai' && { approved_by: undefined }) };
   const created_at = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
   const ai = input.ai && origin === 'ai' ? { ai: { ...input.ai, created_at } } : {};
   const title = String(fields.title ?? '');
@@ -182,6 +183,17 @@ export async function approveDefinition(
       approved_version: v,
     });
     return { file: item.file, version: v };
+  }
+  // features, environments, releases and plans have no status or version: approval records the reviewer
+  const named = (d: Record<string, unknown>) =>
+    match({ id: d.id as string, key: String(d.key ?? d.name ?? d.version) });
+  const { features, environments, releases, plans } = bundle;
+  const other = { feature: features, environment: environments, release: releases, plan: plans };
+  for (const [type, xs] of Object.entries(other) as [FileType, Loaded<Record<string, unknown>>[]][]) {
+    const x = xs.find((x) => named(x.data));
+    if (!x) continue;
+    await writeDefinition(fs, x.file, type, { ...x.data, approved_by: approver });
+    return { file: x.file, version: '' };
   }
   const owner =
     bundle.useCases.find((u) => u.data.criteria.some(match)) ?? fail('NOT_FOUND', `${ref} not found`);

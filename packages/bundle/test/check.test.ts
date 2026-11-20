@@ -112,6 +112,36 @@ describe('check problems', () => {
     expect(codes(await checkBundle(fs))).toEqual([]);
   });
 
+  it('AI-written features, environments, releases and plans warn until approved; [ai] is required', async () => {
+    const fs = memFs();
+    const { createDefinition, approveDefinition } = await import('../src/write.js');
+    const load = async () => (await loadBundle(fs)).bundle!;
+    const ai = { model: 'test' };
+    const made = [];
+    for (const [kind, title] of [
+      ['feature', 'Wishlist'],
+      ['environment', 'Preview'],
+      ['release', 'v9.0.0'],
+      ['plan', 'Agent plan'],
+    ] as const) {
+      // an approval in the input (`iw new --from`) is dropped: only `iw approve`, by a human, records one
+      const fields = { title, approved_by: 'lead@shop.test' };
+      made.push(await createDefinition(fs, await load(), { kind, fields, origin: 'ai', ai }));
+    }
+    for (const m of made) expect(parseToml(fs.text(m.file)!)).toMatchObject({ origin: 'ai', ai });
+    for (const m of made) expect(parseToml(fs.text(m.file)!)).not.toHaveProperty('approved_by');
+    const r = await checkBundle(fs);
+    expect(codes(r)).toEqual([]);
+    const warned = r.problems.filter((p) => p.code === 'ai-not-approved');
+    expect(warned.map((p) => [p.severity, p.file])).toEqual(made.map((m) => ['warning', m.file]));
+    for (const m of made) await approveDefinition(fs, await load(), m.key, 'alex@shop.test');
+    expect(codes(await checkBundle(fs), 'warning')).not.toContain('ai-not-approved');
+    // without the [ai] table the origin mark is an error
+    const f = made[0]!.file;
+    fs.files.set(f, new TextEncoder().encode(fs.text(f)!.replace(/\[ai\][^[]*/, '')));
+    expect(codes(await checkBundle(fs))).toEqual(['missing-ai-meta']);
+  });
+
   it('unresolved covers and fixture refs', async () => {
     const fs = memFs();
     fs.files.set(
@@ -184,6 +214,14 @@ describe('check problems', () => {
     expect(hits('machine api.internal login deploy password Hunter2Prod')).toBe(1);
     expect(hits('password: hunter22')).toBe(1);
     expect(hits(['-----BEGIN PGP PRIVATE', 'KEY BLOCK-----'].join(' '))).toBe(1);
+    // an `iw keygen` secret, wherever it is pasted (docs/spec/security.md#signed-records)
+    const secret = `iwsk1:ci-key:MC4CAQAwBQYDK2VwBCIEI${'A'.repeat(43)}`;
+    for (const line of [
+      `IW_SIGNING_KEY=${secret}`,
+      `  IW_SIGNING_KEY: ${secret}`,
+      `note = "CI key: ${secret}"`,
+    ])
+      expect(hits(line), line).toBe(1);
     // plain prose, references and placeholders stay quiet
     expect(hits('instruction = "Enter a wrong password and press Sign in"')).toBe(0);
     expect(hits('instruction = "Type the password from FX-3.password"')).toBe(0);

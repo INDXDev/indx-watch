@@ -1,6 +1,8 @@
-import type { AnyRecord, JudgementRecord, RunRecord } from '@indx-watch/bundle';
+import { type AnyRecord, type JudgementRecord, newUlid, type RunRecord } from '@indx-watch/bundle';
+import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, httpObjectStore, memoryObjectStore } from '@indx-watch/store';
 import { accessIdentity } from '@indx-watch/store/workers';
+import { ulidFloor } from '@indx-watch/sync';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -99,6 +101,19 @@ describe('read routes', () => {
     expect(await res.json()).toEqual({ error: { code: 'not-found', message: 'test case TC-99 not found' } });
   });
 
+  it("GET /api/test-cases/:key marks an edited step's translation stale", async () => {
+    const before = await get<TestCaseDetail>((await app()).app, '/api/test-cases/TC-4');
+    expect((before.data.steps[0]!.i18n as { ja: { status: string } }).ja.status).toBe('reviewed');
+    const bundle = await shop();
+    const tc4 = bundle.testCases.find((t) => t.data.key === 'TC-4')!;
+    const [step, ...rest] = tc4.data.steps;
+    tc4.data = { ...tc4.data, steps: [{ ...step!, expected: `${step!.expected} Edited.` }, ...rest] };
+    const { app: a } = await app({ bundle });
+    const after = await get<TestCaseDetail>(a, '/api/test-cases/TC-4');
+    expect((after.data.steps[0]!.i18n as { ja: { status: string } }).ja.status).toBe('stale');
+    expect((after.data.i18n as { ja: { status: string } }).ja.status).not.toBe('stale'); // only that step
+  });
+
   it('GET /api/fixtures and /api/fixtures/:key', async () => {
     const { app: a } = await app();
     const all = await get<FixtureDetail[]>(a, '/api/fixtures');
@@ -148,6 +163,24 @@ describe('read routes', () => {
     expect(d.testCase.currentVersion).not.toBe(d.record.test_case.version);
     expect((await a.fetch(req(`/api/runs/${tc8[0]!.id.slice(0, 26)}`))).status).toBe(404); // ambiguous prefix
     expect((await a.fetch(req('/api/runs/run_01JF7Z3K0W8N2Q4R6S8T0V9999'))).status).toBe(404);
+  });
+
+  it('marks records that claim a verified via without a signature as unverified (runs, run, report)', async () => {
+    const f = await fakeDeps();
+    const records = sampleRecords(f.bundle);
+    f.deps.loadModel = async () => ({
+      model: (await buildVerifiedModel(f.bundle, records)).model,
+      problems: [],
+    });
+    const a = createApp(f.deps);
+    const runs = await get<RunSummary[]>(a, '/api/runs?release=v1.2.0');
+    const tc1 = runs.find((r) => r.testCase === 'TC-1')!;
+    expect(tc1).toMatchObject({ actor: { via: 'github' }, unverified: true });
+    expect(runs.find((r) => r.testCase === 'TC-7')).not.toHaveProperty('unverified'); // via = "git" is self-asserted
+    const detail = await get<RunDetail>(a, `/api/runs/${tc1.id}`);
+    expect(detail.unverified).toEqual([tc1.id, ...detail.judgements.map((j) => j.id)]); // its inline judgements too
+    const md = await (await a.fetch(req('/api/report?format=md'))).text();
+    expect(md).toContain('octocat (ci) · unverified');
   });
 });
 
@@ -387,7 +420,7 @@ describe('report', () => {
 });
 
 describe('store endpoints', () => {
-  const LOG = 'v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json';
+  const LOG = `v1/log/${newUlid()}.json`;
   it('GET/HEAD/PUT/list and log ingestion; writes are create-only', async () => {
     const f = await fakeDeps();
     const objects = memoryObjectStore();
@@ -408,6 +441,9 @@ describe('store endpoints', () => {
     expect((await put(LOG, log([]))).status).toBe(412);
     expect((await put(LOG, log([]), false)).status).toBe(412);
     expect(logs).toEqual([LOG]);
+    // the earliest log key wins a merge: keys far from the server clock are refused
+    for (const t of [Date.now() - 2 * 3600_000, Date.now() + 2 * 3600_000])
+      expect((await put(`v1/log/${ulidFloor(t)}.json`, body)).status).toBe(400);
     const got = await a.fetch(req(`/api/store/objects/${LOG}`));
     expect(await got.text()).toBe(body);
     const head = await a.fetch(req(`/api/store/objects/${LOG}`, { method: 'HEAD' }));
