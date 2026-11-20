@@ -101,14 +101,13 @@ function toHtml(blocks: Block[], title: string, footer: string, locale: Locale):
     if ('p' in b) return `<p${b.muted ? ' class="muted small"' : ''}>${h(b.p)}</p>`;
     if ('meta' in b)
       return `<dl class="meta">${all(b.meta, ([k, v]) => `<dt>${esc(k)}</dt><dd>${h(v)}</dd>`)}</dl>`;
-    const cls = (s: string) => `class="${s}"`;
     if ('verdict' in b) {
       const strong = `<strong>${esc(b.title)}</strong><p>${esc(b.detail)}</p>`;
-      return `<div ${cls(`verdict s-${b.verdict}`)} role="status">${strong}</div>`;
+      return `<div class="verdict s-${b.verdict}" role="status">${strong}</div>`;
     }
     const count = (c: { cls: string; n: number; label: string }) => `<b>${c.n}</b>${esc(c.label)}`;
     if ('counts' in b)
-      return `<div class="counts">${all(b.counts, (c) => `<div ${cls(`count s-${c.cls}`)}>${count(c)}</div>`)}</div>`;
+      return `<div class="counts">${all(b.counts, (c) => `<div class="count s-${c.cls}">${count(c)}</div>`)}</div>`;
     if ('box' in b)
       return `<div class="uc"><p>${h(b.box)}</p><ul>${all(b.items, (i) => `<li>${h(i)}</li>`)}</ul></div>`;
     const td = (tag: string, i: number, c: string) =>
@@ -125,10 +124,7 @@ function toHtml(blocks: Block[], title: string, footer: string, locale: Locale):
 
 function toMd(blocks: Block[], footer: string): string {
   const m = (x: Inline) => inline(x, false);
-  const cell = (x: Inline) =>
-    m(x)
-      .replace(/\|/g, '\\|')
-      .replace(/\s*\n\s*/g, ' ') || ' ';
+  const cell = (x: Inline) => m(x).replace(/\||\s*\n\s*/g, (c) => (c === '|' ? '\\|' : ' ')) || ' ';
   const out = blocks.map((b) => {
     if ('h' in b) return `${'#'.repeat(b.h)} ${m(b.c)}`;
     if ('p' in b) return b.muted ? `_${m(b.p)}_` : m(b.p);
@@ -163,19 +159,23 @@ async function dataUri(sha: string, getBlob: RenderOptions['getBlob']): Promise<
   return `data:image/${type};base64,${btoa(bin)}`;
 }
 
-/** Render a report (docs/spec/reports.md). Markdown or a single self-contained HTML file. */
-export async function renderReport(data: ReportData, opts: RenderOptions): Promise<string> {
+const key = (v: string): Inline => ({ k: 'key', v });
+const code = (v: string): Inline => ({ k: 'code', v });
+const COLS = ['pass', 'fail', 'needs_review', 'stale', 'untested', 'waived'] as const;
+type Item = NonNullable<ReportData['planItems']>[number];
+// ciPr: change request to core (reportData runs); shown when present
+type Run = ReportData['runs'][number] & { ciPr?: number };
+
+/** Labels, inline builders and lookups shared by the section renderers of one report. */
+function context(data: ReportData, opts: RenderOptions) {
   const L: Dict = opts.locale === 'ja' ? LABELS.ja : LABELS.en;
-  const ICON: Dict = LABELS.icons;
-  const CLASS: Dict = LABELS.classes;
   const t = (l: string, v: Record<string, number> = {}) =>
     (L[l] ?? l).replace(/\{(\w+)\}/g, (_m, k) => `${v[k]}`);
   const T = (keys: string) => keys.split(' ').map((k) => t(k));
-  const icon = (s: string) => ICON[s] ?? '•';
+  const icon = (s: string) => (LABELS.icons as Dict)[s] ?? '•';
   const label = (s: string, only = false) => (only ? icon(s) : `${icon(s)} ${t(s)}`);
+  const CLASS: Dict = LABELS.classes;
   const badge = (s: string, only = false): Inline => ({ k: 'badge', v: CLASS[s] ?? s, x: label(s, only) });
-  const key = (v: string): Inline => ({ k: 'key', v });
-  const code = (v: string): Inline => ({ k: 'code', v });
   const texts = (data as ReportData & { texts?: ReportTexts }).texts;
   /** content text; the source text is marked with its locale when no translation is used */
   const tx = (x: Text | undefined, plain: string, lit = false): Inline => {
@@ -183,64 +183,66 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
     return x ? [lit ? { k: 'lit', v: x.text } : x.text, marker] : plain;
   };
   const tc = (k: string, title = ''): Inline => [key(k), ' ', tx(texts?.testCases[k], title)];
-  const customer = data.audience === 'customer';
   const s = data.status;
   const tcStatus = (k: string) => s.testCases.find((x) => x.key === k)?.status ?? 'untested';
-  const B: Block[] = [];
-  const section = (h: string, empty: boolean, block: () => Block) =>
-    B.push({ h: 2, c: t(h) }, empty ? { p: t('none'), muted: true } : block());
+  /** a section heading with its block, or "none" when it has nothing to show */
+  const none: Block = { p: t('none'), muted: true };
+  const h2 = (h: string): Block => ({ h: 2, c: t(h) });
+  const section = (h: string, empty: boolean, block: () => Block) => [h2(h), empty ? none : block()];
+  const customer = data.audience === 'customer';
+  return { data, opts, s, t, T, icon, badge, texts, tx, tc, tcStatus, h2, section, customer };
+}
+type Ctx = ReturnType<typeof context>;
 
-  // 1. Header
-  const subject = data.plan ? `${t('plan')} ${data.plan}` : `${t('release')} ${data.scope.release ?? '—'}`;
-  const title = `${data.project.name} — ${subject}`;
-  B.push({ p: `${t('report')} · ${t(customer ? 'customer' : 'internal')}`, muted: true }, { h: 1, c: title });
+/** 1–2. Header (title, scope, commit and cursor) and verdict (ready, not ready or ungated, with the gate checks) */
+function header({ data, s, t, T, badge, customer }: Ctx, title: string): Block[] {
   const meta: [string, Inline][] = [];
   if (data.plan && data.scope.release) meta.push([t('release'), data.scope.release]);
   meta.push([t('scope'), data.scope.environment ?? t('all')]);
   meta.push([t('generated'), `${when(data.generatedAt)} UTC · ${t('by')} ${data.generatedBy}`]);
   if (data.bundleCommit) meta.push([t('commit'), code(data.bundleCommit)]);
   if (data.cursor) meta.push([t('cursor'), code(data.cursor)]);
-  B.push({ meta });
-
-  // 2. Verdict
+  const kind = `${t('report')} · ${t(customer ? 'customer' : 'internal')}`;
+  const top: Block[] = [{ p: kind, muted: true }, { h: 1, c: title }, { meta }];
+  // 2. Verdict: ready, not ready or ungated, with the gate checks
   const [m, n] = [s.gate.checks.length, s.gate.checks.filter((c) => !c.passed).length];
   // nothing gated (no P0/P1 test case in scope): neutral, with what to do (docs/spec/concepts.md#gate)
   const ungated = s.gate.checks.some((c) => c.key === 'has_gated_tests' && !c.passed);
   const [v, msg] = ungated ? ['untested', 'ungated'] : n ? ['fail', 'notReady'] : ['pass', 'ready'];
   const detail = t(ungated ? 'ungatedDetail' : n ? 'failing' : 'passing', { n, m });
-  B.push({ verdict: v!, title: t(msg!), detail });
   const check = (c: (typeof s.gate.checks)[number]): Inline[] => {
     const items: Inline = c.items?.length ? [' ', { k: 'muted', v: c.items.join(', ') }] : '';
     return [[t(`gate.${c.key}`), items], code(c.actual), code(c.expected), badge(c.passed ? 'pass' : 'fail')];
   };
-  B.push({ head: T('check now needed result'), num: [1, 2], rows: s.gate.checks.map(check) });
+  const checks = { head: T('check now needed result'), num: [1, 2], rows: s.gate.checks.map(check) };
+  return [...top, { verdict: v!, title: t(msg!), detail }, checks];
+}
 
-  // 3. Summary counts, overall and by priority
-  const cols = ['pass', 'fail', 'needs_review', 'stale', 'untested', 'waived'] as const;
-  const shown = [...cols, ...(['blocked', 'skipped'] as const).filter((k) => s.counts[k] > 0)];
+/** 3. Summary counts, overall and by priority */
+function summary({ data, s, t, T, h2, icon }: Ctx): Block[] {
+  const shown = [...COLS, ...(['blocked', 'skipped'] as const).filter((k) => s.counts[k] > 0)];
   const counts = shown.map((k) => ({ cls: k, n: s.counts[k], label: `${icon(k)} ${t(k)}` }));
   const cov = `${s.coverage.covered}/${s.coverage.total} (${Math.round(s.coverage.ratio * 100)}%)`;
-  B.push({ h: 2, c: t('summary') }, { counts }, { p: [`${t('coverage')}: `, { k: 'bold', v: cov }] });
   const prio = Object.entries(data.countsByPriority).filter(([, c]) => Object.keys(c).length > 0);
   const ac = (c: Record<string, number>) => `${c.ac_covered ?? 0}/${c.ac_total ?? 0}`;
-  const rowsP = prio.map(([p, c]) => [p, ...cols.map((k) => `${c[k] ?? 0}`), ac(c)]);
-  B.push({ head: T(`priority ${cols.join(' ')} acCoverage`), num: [1, 2, 3, 4, 5, 6, 7], rows: rowsP });
+  const rows = prio.map(([p, c]) => [p, ...COLS.map((k) => `${c[k] ?? 0}`), ac(c)]);
+  const byPriority = { head: T(`priority ${COLS.join(' ')} acCoverage`), num: [1, 2, 3, 4, 5, 6, 7], rows };
+  const coverage: Inline = [`${t('coverage')}: `, { k: 'bold', v: cov }];
+  return [h2('summary'), { counts }, { p: coverage }, byPriority];
+}
 
-  // 4. Use cases, or plan items grouped by assignee
+/** 4. Use cases with their criteria and the latest status of each test case, or plan items grouped by assignee */
+function items({ data, s, t, T, h2, tx, tc, texts, badge, tcStatus }: Ctx): Block[] {
   if (data.planItems) {
-    B.push({ h: 2, c: t('planItems') });
-    const groups = new Map<string, NonNullable<ReportData['planItems']>>();
-    for (const i of data.planItems)
-      groups.set(i.assignee ?? '', [...(groups.get(i.assignee ?? '') ?? []), i]);
-    type Item = (typeof data.planItems)[number];
+    const byWho = new Map<string, Item[]>();
+    for (const i of data.planItems) byWho.set(i.assignee ?? '', [...(byWho.get(i.assignee ?? '') ?? []), i]);
     const row = (i: Item) => [tc(i.testCase), i.environment ?? '—', i.due ?? '—', badge(i.status)];
-    for (const [who, items] of groups)
-      B.push(
-        { h: 3, c: who || t('unassigned') },
-        { head: T('testCase env due status'), rows: items.map(row) },
-      );
-  } else B.push({ h: 2, c: t('useCases') });
-  for (const u of data.planItems ? [] : s.useCases) {
+    const [B, head] = [[h2('planItems')], T('testCase env due status')];
+    for (const [who, items] of byWho)
+      B.push({ h: 3, c: who || t('unassigned') }, { head, rows: items.map(row) });
+    return B;
+  }
+  const box = (u: (typeof s.useCases)[number]): Block => {
     const uc = tx(texts?.useCases[u.key], u.title);
     const head = [key(u.key), ' ', uc, ` · ${u.priority} · `, badge(u.status)];
     const items = u.criteria.map((c): Inline => {
@@ -248,78 +250,88 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
       const ac = tx(texts?.criteria[c.key], '', true);
       return [key(c.key), ' ', ac, ' — ', tcs.length ? spaced(tcs) : badge('uncovered')];
     });
-    B.push({ box: [head, u.done ? ` · ${t('done')}` : ''], items });
-  }
-
-  // 5. Failures and open items
-  const withEvidence = opts.evidence !== 'none';
-  const evidence = async (sha: string | undefined): Promise<Inline> => {
-    const embed = opts.format === 'html' && opts.evidence === 'embed';
-    const uri = sha && embed ? await dataUri(sha, opts.getBlob) : undefined;
-    const short = sha?.slice(0, 12) ?? '';
-    if (!sha || uri) return uri ? { k: 'img', v: uri, x: short } : '—';
-    // links: relative to `evidenceBase` (iw report --evidence-base; change request: add it to RenderOptions)
-    const base =
-      (opts as RenderOptions & { evidenceBase?: string }).evidenceBase ??
-      (opts.format === 'html' ? 'api/blobs' : '');
-    return base ? { k: 'link', v: `${base.replace(/\/+$/, '')}/${sha}`, x: short } : code(`sha256:${short}`);
+    return { box: [head, u.done ? ` · ${t('done')}` : ''], items };
   };
+  return [h2('useCases'), ...s.useCases.map(box)];
+}
+
+/** evidence cell: an embedded thumbnail, a link relative to `evidenceBase`, or the hash */
+async function evidence(opts: RenderOptions & { evidenceBase?: string }, sha?: string): Promise<Inline> {
+  const embed = opts.format === 'html' && opts.evidence === 'embed';
+  const uri = sha && embed ? await dataUri(sha, opts.getBlob) : undefined;
+  const short = sha?.slice(0, 12) ?? '';
+  if (!sha || uri) return uri ? { k: 'img', v: uri, x: short } : '—';
+  // links: relative to `evidenceBase` (iw report --evidence-base; change request: add it to RenderOptions)
+  const base = opts.evidenceBase ?? (opts.format === 'html' ? 'api/blobs' : '');
+  return base ? { k: 'link', v: `${base.replace(/\/+$/, '')}/${sha}`, x: short } : code(`sha256:${short}`);
+}
+
+/** 5. Failures and open items */
+async function failures({ data, opts, T, tc, badge, section, customer }: Ctx): Promise<Block[]> {
+  const ev = opts.evidence !== 'none';
   const failure = async (x: ReportData['failures'][number]): Promise<Inline[]> => [
-    ...[tc(x.testCase, x.title), x.priority, badge(x.status)],
-    ...[x.run ? code(shortRun(x.run)) : '—', x.step ? String(x.step) : '—'],
-    ...(customer ? [] : [x.note ?? '']),
-    ...(withEvidence ? [await evidence(x.evidence)] : []),
+    ...[tc(x.testCase, x.title), x.priority, badge(x.status), x.run ? code(shortRun(x.run)) : '—'],
+    ...[x.step ? String(x.step) : '—', ...(customer ? [] : [x.note ?? ''])],
+    ...(ev ? [await evidence(opts, x.evidence)] : []),
   ];
   const rows = await Promise.all(data.failures.map(failure));
-  const head = T(
-    `testCase priority status run step ${customer ? '' : 'note'} ${withEvidence ? 'evidence' : ''}`,
+  const head = T(`testCase priority status run step ${customer ? '' : 'note'} ${ev ? 'evidence' : ''}`);
+  return section('failures', !rows.length, () => ({ head: head.filter(Boolean), num: [4], rows }));
+}
+
+/** 7. Coverage matrix: every criterion with the latest status of its test cases */
+function matrix({ s, T, badge, tcStatus, section }: Ctx): Block[] {
+  const latest = (tcs: string[]) =>
+    tcs.length ? spaced(tcs.map((k) => badge(tcStatus(k), true))) : badge('uncovered', true);
+  const rows = s.useCases.flatMap((u) =>
+    u.criteria.map((c) => [u.key, c.key, c.testCases.join(', ') || '—', latest(c.testCases)]),
   );
-  section('failures', !rows.length, () => ({ head: head.filter(Boolean), num: [4], rows }));
+  return section('matrix', false, () => ({ head: T('useCase criterion testCase latest'), rows }));
+}
 
-  // 6. Waivers
-  const waivers = data.waivers.map((w) => [key(w.testCase), w.reason, w.by, when(w.at)]);
-  section('waivers', !waivers.length, () => ({ head: T('testCase reason who when'), rows: waivers }));
+/** the CI cell of a run: its CI run and pull request links, or a dash */
+const ciCell = ({ ciUrl, ciPr }: Run): Inline => {
+  const url = ciPr && prUrl(ciUrl, ciPr);
+  const pr: Inline[] = ciPr ? [url ? { k: 'link', v: url, x: `PR #${ciPr}` } : `PR #${ciPr}`] : [];
+  const links: Inline[] = [...(ciUrl ? [{ k: 'link' as const, v: ciUrl, x: 'CI' }] : []), ...pr];
+  return links.length ? spaced(links) : '—';
+};
 
-  // 7. Coverage matrix
-  const matrix = s.useCases.flatMap((u) =>
-    u.criteria.map((c) => {
-      const cells = c.testCases.length
-        ? spaced(c.testCases.map((k) => badge(tcStatus(k), true)))
-        : badge('uncovered', true);
-      return [u.key, c.key, c.testCases.join(', ') || '—', cells];
-    }),
-  );
-  section('matrix', false, () => ({ head: T('useCase criterion testCase latest'), rows: matrix }));
-
-  // 8. Run log
-  // ciPr: change request to core (reportData runs); shown when present
-  type Run = ReportData['runs'][number] & { ciPr?: number };
+/** 8. Run log */
+function runLog({ data, t, T, badge, section }: Ctx): Block[] {
   const ci = data.runs.some((r: Run) => r.ciUrl || r.ciPr);
-  const link = (v: string, x: string): Inline => ({ k: 'link', v, x });
-  const ciLinks = ({ ciUrl, ciPr }: Run): Inline[] => {
-    const url = ciPr && prUrl(ciUrl, ciPr);
-    const pr = ciPr ? [url ? link(url, `PR #${ciPr}`) : `PR #${ciPr}`] : [];
-    return [...(ciUrl ? [link(ciUrl, 'CI')] : []), ...pr];
-  };
   const run = (r: Run): Inline[] => {
     const [v = '', stale] = r.verdict.split(' (stale)');
     const verdict = stale === undefined ? badge(v) : spaced([badge(v), badge('stale')]);
-    const links = ciLinks(r);
-    const ciCell: Inline[] = ci ? [links.length ? spaced(links) : '—'] : [];
     const build = r.commit ? code(r.commit.slice(0, 7)) : '—';
     const who = `${r.actor} (${r.actorKind})${r.unverified ? ` · ${t('unverified')}` : ''}`;
     const cells = [key(r.testCase), code(r.version), verdict, who, r.source, build];
-    return [...cells, r.environment ?? '—', when(r.at), String(r.evidence), ...ciCell];
+    return [...cells, r.environment ?? '—', when(r.at), String(r.evidence), ...(ci ? [ciCell(r)] : [])];
   };
-  const runHead = T(`testCase version verdict who source build env ended evidence${ci ? ' ci' : ''}`);
-  section('runLog', !data.runs.length, () => ({ head: runHead, num: [8], rows: data.runs.map(run) }));
+  const head = T(`testCase version verdict who source build env ended evidence${ci ? ' ci' : ''}`);
+  return section('runLog', !data.runs.length, () => ({ head, num: [8], rows: data.runs.map(run) }));
+}
 
-  // 9. Appendix
-  const statuses = LABELS.statuses.map((k) => [badge(k), t(`def.${k}`)]);
-  B.push({ h: 2, c: t('appendix') }, { h: 3, c: t('statuses') }, { head: [t('status'), ''], rows: statuses });
-  B.push({ h: 3, c: t('thresholds') }, { p: code(kv(data.gateThresholds).join(' · ')) });
-  B.push({ h: 3, c: t('policy') }, { p: code(kv(data.policy).join(' · ')) });
+/** 9. Appendix: status definitions, gate thresholds and decision policy */
+function appendix({ data, t, h2, badge }: Ctx): Block[] {
+  const statuses = { head: [t('status'), ''], rows: LABELS.statuses.map((k) => [badge(k), t(`def.${k}`)]) };
+  const h3 = (h: string): Block => ({ h: 3, c: t(h) });
+  const kvs = (o: object): Block => ({ p: code(kv(o).join(' · ')) });
+  const head = [h2('appendix'), h3('statuses'), statuses];
+  return [...head, h3('thresholds'), kvs(data.gateThresholds), h3('policy'), kvs(data.policy)];
+}
 
+/** Render a report (docs/spec/reports.md). Markdown or a single self-contained HTML file. */
+export async function renderReport(data: ReportData, opts: RenderOptions): Promise<string> {
+  const c = context(data, opts);
+  const { t, T, section } = c;
+  const subject = data.plan ? `${t('plan')} ${data.plan}` : `${t('release')} ${data.scope.release ?? '—'}`;
+  const title = `${data.project.name} — ${subject}`;
+  // 6. Waivers
+  const rows = data.waivers.map((w) => [key(w.testCase), w.reason, w.by, when(w.at)]);
+  const waivers = section('waivers', !rows.length, () => ({ head: T('testCase reason who when'), rows }));
+  const first = [header(c, title), summary(c), items(c), await failures(c), waivers];
+  const B = [...first, matrix(c), runLog(c), appendix(c)].flat();
   const out = opts.format === 'html' ? toHtml(B, title, t('footer'), opts.locale) : toMd(B, t('footer'));
-  return customer ? out.replace(EMAIL, '[email removed]') : out;
+  return c.customer ? out.replace(EMAIL, '[email removed]') : out;
 }
