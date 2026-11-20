@@ -111,17 +111,21 @@ const row = (r: AnyRecord) => [
   r.id,
 ];
 type Query = (sql: string, ...args: unknown[]) => D1Stmt;
+/** Statements per D1 batch (one transaction), to stay under the bind limit. */
+const BATCH_LIMIT = 100;
+/** Ingest rounds before records still losing races are given up on (they are left out of the returned count). */
+const INGEST_ROUNDS = 5;
 type PlanItem = Awaited<ReturnType<typeof mergePlan>>['plan'][number];
 
 /**
- * Runs statement groups in batches. One batch is one transaction, at most 100 statements to stay under the bind
- * limit; a group never spans two. Returns the rows each statement changed.
+ * Runs statement groups in batches. One batch is one transaction of at most BATCH_LIMIT
+ * statements; a group never spans two. Returns the rows each statement changed.
  */
 async function runGroups(d: D1Like, groups: D1Stmt[][]) {
   const changes: number[] = [];
   for (let i = 0; i < groups.length; ) {
     const stmts: D1Stmt[] = [];
-    while (i < groups.length && (!stmts.length || stmts.length + groups[i]!.length <= 100))
+    while (i < groups.length && (!stmts.length || stmts.length + groups[i]!.length <= BATCH_LIMIT))
       stmts.push(...groups[i++]!);
     for (const r of await d.batch(stmts)) changes.push(r.meta?.changes ?? 0);
   }
@@ -153,7 +157,33 @@ async function ingestRound(d: D1Like, q: Query, [todo, logKey, trust]: Parameter
   return { lost: lost.map((p) => p.r), count: count - lost.length };
 }
 
-/** Index over a D1 binding (plain SQL schema in src/index-schema.sql). */
+/** Records matching `f`: SQL narrows by test case, release and time; kinds, order and limit are left to the caller. */
+async function selectRecords(q: Query, f: IndexFilter) {
+  const conds = Object.entries({
+    'test_case_id = ?': f.testCaseId,
+    'release = ?': f.release,
+    'at >= ?': f.since,
+  });
+  const used = conds.filter(([, v]) => v);
+  const where = used.length ? ` WHERE ${used.map(([c]) => c).join(' AND ')}` : '';
+  const { results } = await q(`SELECT json FROM records${where}`, ...used.map(([, v]) => v)).all<Held>();
+  return results.map((r) => JSON.parse(r.json) as AnyRecord);
+}
+
+/** Statements that replace the whole definitions snapshot, then its source and at meta (read back as the snapshot marker). */
+function definitionStatements(q: Query, files: Map<string, string>, m: { source: string; at: string }) {
+  return [
+    q('DELETE FROM definitions'),
+    ...[...files].map(([path, text]) => q('INSERT INTO definitions (path, text) VALUES (?, ?)', path, text)),
+    q(META, 'definitions.source', m.source),
+    q(META, 'definitions.at', m.at),
+  ];
+}
+
+/**
+ * Index over a D1 binding (plain SQL schema in src/index-schema.sql). The schema is created lazily on first use.
+ * ingest() retries records that lost a race with a concurrent ingest, up to INGEST_ROUNDS times.
+ */
 export function d1Index(db: unknown): Index {
   const d = db as D1Like;
   const q: Query = (sql, ...args) => d.prepare(sql).bind(...args);
@@ -166,7 +196,7 @@ export function d1Index(db: unknown): Index {
       await init();
       let [todo, n] = [records, 0];
       // a record that lost a race with another ingest is decided again
-      for (let round = 0; todo.length && round < 5; round++) {
+      for (let round = 0; todo.length && round < INGEST_ROUNDS; round++) {
         const { lost, count } = await ingestRound(d, q, [todo, logKey, trust]);
         [todo, n] = [lost, n + count];
       }
@@ -174,34 +204,12 @@ export function d1Index(db: unknown): Index {
     },
     async records(f: IndexFilter = {}) {
       await init();
-      const conds = Object.entries({
-        'test_case_id = ?': f.testCaseId,
-        'release = ?': f.release,
-        'at >= ?': f.since,
-      });
-      const used = conds.filter(([, v]) => v);
-      const where = used.length ? ` WHERE ${used.map(([c]) => c).join(' AND ')}` : '';
-      const { results } = await q(`SELECT json FROM records${where}`, ...used.map(([, v]) => v)).all<{
-        json: string;
-      }>();
       // kinds, order and limit follow the memory index through the same filterRecords
-      return filterRecords(
-        results.map((r) => JSON.parse(r.json) as AnyRecord),
-        f,
-      );
+      return filterRecords(await selectRecords(q, f), f);
     },
     async setDefinitions(files, m) {
       await init();
-      const ins = [...files].map(([path, text]) =>
-        q('INSERT INTO definitions (path, text) VALUES (?, ?)', path, text),
-      );
-      const stmts = [
-        q('DELETE FROM definitions'),
-        ...ins,
-        q(META, 'definitions.source', m.source),
-        q(META, 'definitions.at', m.at),
-      ];
-      await batch(stmts.map((x) => [x]));
+      await batch(definitionStatements(q, files, m).map((x) => [x]));
     },
     async definitions() {
       const [source, at] = [await this.getMeta('definitions.source'), await this.getMeta('definitions.at')];

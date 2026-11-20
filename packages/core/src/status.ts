@@ -5,6 +5,7 @@ import { GATE_DEFAULTS, type Priority, type WaiverRecord } from '@indx-watch/bun
 import { byTimeThenId } from './decide.js';
 import { byKey } from './model.js';
 import {
+  type CriterionStatus,
   type GateCheck,
   type GateResult,
   type Model,
@@ -15,6 +16,7 @@ import {
   type Status,
   type StatusResult,
   type TestCaseStatus,
+  type UseCaseNode,
   type UseCaseStatus,
   type Verdict,
 } from './types.js';
@@ -123,74 +125,84 @@ function statusTable(model: Model, scope: Scope): Map<string, TestCaseStatus> {
   return out;
 }
 
-/** Everything `iw status` shows. */
-export function computeStatus(model: Model, scope: Scope): StatusResult {
-  const table = statusTable(model, scope);
+type Table = Map<string, TestCaseStatus>;
+
+/** Ready criteria of a use case: uncovered without test cases, else the worst non-skipped result. */
+function criteriaStatus(uc: UseCaseNode, table: Table): CriterionStatus[] {
+  if (!uc.data.criteria.length) return [];
+  return uc.criteria
+    .filter((c) => acReady(c.data.status))
+    .map((c) => {
+      const results = c.testCases
+        .map((k) => table.get(k)?.status ?? 'untested')
+        .filter((s) => s !== 'skipped');
+      const status: Status = !c.testCases.length ? 'uncovered' : results.length ? worst(results) : 'untested';
+      return { key: c.data.key, status, testCases: c.testCases };
+    });
+}
+
+/** Computed done: every criterion passes or is waived, with evidence on passes when the gate requires it. */
+function isDone(criteria: CriterionStatus[], table: Table, requireEvidence: boolean): boolean {
+  const proven = (k: string) => table.get(k)?.status !== 'pass' || table.get(k)?.hasEvidence;
+  return (
+    criteria.length > 0 &&
+    criteria.every((c) => c.status === 'pass' || c.status === 'waived') &&
+    (!requireEvidence || criteria.every((c) => c.testCases.every(proven)))
+  );
+}
+
+/** Use case statuses by key; coverage and `uncovered` count only ready use cases. */
+function useCaseStatuses(model: Model, table: Table) {
   const requireEvidence = gateOf(model).require_evidence;
   const useCases: UseCaseStatus[] = [];
-  let covered = 0;
-  let total = 0;
-  let uncovered = 0;
+  const coverage = { covered: 0, total: 0, uncovered: 0 };
   for (const uc of [...model.useCases.values()].sort((a, b) => byKey(a.data.key, b.data.key))) {
     if (uc.data.status === 'deprecated') continue;
-    const criteria = uc.data.criteria.length
-      ? uc.criteria
-          .filter((c) => acReady(c.data.status))
-          .map((c) => {
-            const results = c.testCases
-              .map((k) => table.get(k)?.status ?? 'untested')
-              .filter((s) => s !== 'skipped');
-            const status: Status = !c.testCases.length
-              ? 'uncovered'
-              : results.length
-                ? worst(results)
-                : 'untested';
-            return { key: c.data.key, status, testCases: c.testCases };
-          })
-      : [];
+    const criteria = criteriaStatus(uc, table);
     if (isReady(uc.data.status)) {
-      total += criteria.length;
-      covered += criteria.filter((c) => c.testCases.length > 0).length;
-      uncovered += criteria.filter((c) => c.status === 'uncovered').length;
+      coverage.total += criteria.length;
+      coverage.covered += criteria.filter((c) => c.testCases.length > 0).length;
+      coverage.uncovered += criteria.filter((c) => c.status === 'uncovered').length;
     }
-    const done =
-      criteria.length > 0 &&
-      criteria.every((c) => c.status === 'pass' || c.status === 'waived') &&
-      (!requireEvidence ||
-        criteria.every((c) =>
-          c.testCases.every((k) => table.get(k)?.status !== 'pass' || table.get(k)?.hasEvidence),
-        ));
-    useCases.push({
-      key: uc.data.key,
-      title: uc.data.title,
-      priority: uc.data.priority,
-      status: criteria.length ? worst(criteria.map((c) => c.status)) : 'uncovered',
-      done,
-      criteria,
-    });
+    const { key, title, priority } = uc.data;
+    const status = criteria.length ? worst(criteria.map((c) => c.status)) : 'uncovered';
+    useCases.push({ key, title, priority, status, done: isDone(criteria, table, requireEvidence), criteria });
   }
-  const testCases = [...table.values()].sort((a, b) => byKey(a.key, b.key));
-  const counts = {
-    pass: 0,
-    fail: 0,
-    needs_review: 0,
-    untested: 0,
-    stale: 0,
-    waived: 0,
-    uncovered,
-    blocked: 0,
-    skipped: 0,
-  };
-  // drafts are listed but not counted, like the gate and coverage
+  return { useCases, ...coverage };
+}
+
+const ZERO_COUNTS = {
+  pass: 0,
+  fail: 0,
+  needs_review: 0,
+  untested: 0,
+  stale: 0,
+  waived: 0,
+  uncovered: 0,
+  blocked: 0,
+  skipped: 0,
+};
+
+/** Counts by status of ready test cases; drafts are listed but not counted, like the gate and coverage. */
+function countStatuses(model: Model, testCases: TestCaseStatus[], uncovered: number): StatusResult['counts'] {
+  const counts = { ...ZERO_COUNTS, uncovered };
   for (const t of testCases)
     if (isReady(model.testCases.get(t.key)!.data.status)) counts[t.status as keyof typeof counts]++;
+  return counts;
+}
+
+/** Everything `iw status` shows. An empty scope has coverage ratio 1 (nothing to cover). */
+export function computeStatus(model: Model, scope: Scope): StatusResult {
+  const table = statusTable(model, scope);
+  const { useCases, covered, total, uncovered } = useCaseStatuses(model, table);
+  const testCases = [...table.values()].sort((a, b) => byKey(a.key, b.key));
   return {
     scope,
     gate: gateFrom(model, scope, table),
     coverage: { covered, total, ratio: total ? covered / total : 1 },
     useCases,
     testCases,
-    counts,
+    counts: countStatuses(model, testCases, uncovered),
   };
 }
 
@@ -210,103 +222,93 @@ export function gateTestCases(model: Model, scope: Scope): string[] {
     .sort(byKey);
 }
 
-function gateFrom(model: Model, scope: Scope, table: Map<string, TestCaseStatus>): GateResult {
-  // gate.ignore_unverified: the gate sees only verified records (docs/spec/concepts.md#readiness-gate)
-  if (model.verifiedOnly) return evaluateGate(model.verifiedOnly, scope);
-  const g = gateOf(model);
+/** A gate check; `items` (offending keys) is kept only when it fails. */
+const check = ({ items, ...c }: Required<GateCheck>): GateCheck => (c.passed ? c : { ...c, items });
+/** A check over an empty denominator: passes with actual `n/a`. */
+const na = (key: string, expected: string): GateCheck => ({ key, passed: true, actual: 'n/a', expected });
+
+/** Inputs of a check over the keys `den`; `bad` are the offending keys listed when it fails. */
+interface Over {
+  key: string;
+  den: string[];
+  bad: string[];
+}
+
+/** num/den ≥ min; `withRatio` adds the ratio to `actual`. */
+type RatioCheck = Over & { num: string[]; min: number; withRatio: boolean };
+function ratio({ key, den, bad, num, min, withRatio }: RatioCheck) {
+  const expected = `≥ ${min.toFixed(2)}`;
+  if (!den.length) return na(key, expected);
+  const r = num.length / den.length;
+  const actual = `${num.length}/${den.length}${withRatio ? ` (${r.toFixed(2)})` : ''}`;
+  return check({ key, passed: r >= min, actual, expected, items: bad });
+}
+
+/** At most `max` bad keys; a disabled check reports but always passes. */
+function atMost({ key, den, bad, max, enabled = true }: Over & { max: number; enabled?: boolean }) {
+  const expected = `≤ ${max}`;
+  if (!den.length) return na(key, expected);
+  const passed = !enabled || bad.length <= max;
+  return check({ key, passed, actual: String(bad.length), expected, items: bad });
+}
+
+/** Every key of `den` is good; a disabled check reports but always passes. */
+function all(key: string, den: string[], good: string[], enabled: boolean) {
+  if (!den.length) return na(key, 'n/a');
+  const [actual, expected] = [`${good.length}/${den.length}`, `${den.length}/${den.length}`];
+  const items = den.filter((k) => !good.includes(k));
+  return check({ key, passed: !enabled || good.length === den.length, actual, expected, items });
+}
+
+/** Gated test cases by priority, ready P0 criteria and status lookups for the checks. */
+function gateInputs(model: Model, scope: Scope, table: Table) {
   const keys = gateTestCases(model, scope);
   const st = (k: string) => table.get(k) ?? testCaseStatus(model, k, scope);
   const pr = (...ps: Priority[]) => keys.filter((k) => ps.includes(model.testCases.get(k)!.priority));
-  const check = (
-    key: string,
-    passed: boolean,
-    actual: string,
-    expected: string,
-    items: string[],
-  ): GateCheck => (passed ? { key, passed, actual, expected } : { key, passed, actual, expected, items });
-  const na = (key: string, expected: string): GateCheck => ({ key, passed: true, actual: 'n/a', expected });
-  const ratio = (
-    key: string,
-    num: string[],
-    den: string[],
-    min: number,
-    withRatio: boolean,
-    bad: string[],
-  ) => {
-    if (!den.length) return na(key, `≥ ${min.toFixed(2)}`);
-    const r = num.length / den.length;
-    const actual = `${num.length}/${den.length}${withRatio ? ` (${r.toFixed(2)})` : ''}`;
-    return check(key, r >= min, actual, `≥ ${min.toFixed(2)}`, bad);
-  };
-  const atMost = (key: string, den: string[], bad: string[], max: number, enabled = true) =>
-    !den.length
-      ? na(key, `≤ ${max}`)
-      : check(key, !enabled || bad.length <= max, String(bad.length), `≤ ${max}`, bad);
-  const all = (key: string, den: string[], good: string[], enabled: boolean) =>
-    !den.length
-      ? na(key, 'n/a')
-      : check(
-          key,
-          !enabled || good.length === den.length,
-          `${good.length}/${den.length}`,
-          `${den.length}/${den.length}`,
-          den.filter((k) => !good.includes(k)),
-        );
-
+  const is = (k: string, ...s: Status[]) => s.includes(st(k).status);
   const p0Acs = [...model.useCases.values()]
     .filter((u) => isReady(u.data.status) && u.data.priority === 'P0')
     .flatMap((u) => u.criteria.filter((c) => acReady(c.data.status)));
-  const coveredAcs = p0Acs.filter((c) => c.testCases.length > 0).map((c) => c.data.key);
   const p0 = pr('P0');
-  const p1 = pr('P1');
-  const p01 = pr('P0', 'P1');
-  const is = (k: string, ...s: Status[]) => s.includes(st(k).status);
-  const p0Pass = p0.filter((k) => is(k, 'pass'));
+  return { p0, p1: pr('P1'), p01: pr('P0', 'P1'), p0Pass: p0.filter((k) => is(k, 'pass')), p0Acs, st, is };
+}
+
+function gateFrom(model: Model, scope: Scope, table: Table): GateResult {
+  // gate.ignore_unverified: the gate sees only verified records (docs/spec/concepts.md#readiness-gate)
+  if (model.verifiedOnly) return evaluateGate(model.verifiedOnly, scope);
+  const g = gateOf(model);
+  const { p0, p1, p01, p0Pass, p0Acs, st, is } = gateInputs(model, scope, table);
+  const acKeys = (cs: typeof p0Acs) => cs.map((c) => c.data.key);
+  const p1Ok = (k: string) => is(k, 'pass', 'waived');
+  const gated = String(p01.length);
+  const needsReview = p01.filter((k) => is(k, 'needs_review'));
+  const untested = p01.filter((k) => is(k, 'untested', 'blocked'));
+  const stale = p01.filter((k) => st(k).stale);
+  const proven = p0Pass.filter((k) => st(k).hasEvidence);
   const checks: GateCheck[] = [
     // nothing gated is never "ready": an empty or P2-only scope fails here, not as n/a everywhere
-    check('has_gated_tests', p01.length > 0, String(p01.length), '≥ 1', []),
-    ratio(
-      'p0_coverage',
-      coveredAcs,
-      p0Acs.map((c) => c.data.key),
-      g.p0_coverage,
-      false,
-      p0Acs.filter((c) => !c.testCases.length).map((c) => c.data.key),
-    ),
+    check({ key: 'has_gated_tests', passed: p01.length > 0, actual: gated, expected: '≥ 1', items: [] }),
+    ratio({
+      key: 'p0_coverage',
+      num: acKeys(p0Acs.filter((c) => c.testCases.length > 0)),
+      den: acKeys(p0Acs),
+      min: g.p0_coverage,
+      withRatio: false,
+      bad: acKeys(p0Acs.filter((c) => !c.testCases.length)),
+    }),
     all('p0_all_pass', p0, p0Pass, g.p0_all_pass),
-    ratio(
-      'p1_pass_rate',
-      p1.filter((k) => is(k, 'pass', 'waived')),
-      p1,
-      g.p1_pass_rate,
-      true,
-      p1.filter((k) => !is(k, 'pass', 'waived')),
-    ),
-    atMost(
-      'max_needs_review',
-      p01,
-      p01.filter((k) => is(k, 'needs_review')),
-      g.max_needs_review,
-    ),
-    atMost(
-      'max_untested',
-      p01,
-      p01.filter((k) => is(k, 'untested', 'blocked')),
-      g.max_untested,
-    ),
-    atMost(
-      'allow_stale',
-      p01,
-      p01.filter((k) => st(k).stale),
-      0,
-      !g.allow_stale,
-    ),
-    all(
-      'require_evidence',
-      p0Pass,
-      p0Pass.filter((k) => st(k).hasEvidence),
-      g.require_evidence,
-    ),
+    ratio({
+      key: 'p1_pass_rate',
+      num: p1.filter(p1Ok),
+      den: p1,
+      min: g.p1_pass_rate,
+      withRatio: true,
+      bad: p1.filter((k) => !p1Ok(k)),
+    }),
+    atMost({ key: 'max_needs_review', den: p01, bad: needsReview, max: g.max_needs_review }),
+    atMost({ key: 'max_untested', den: p01, bad: untested, max: g.max_untested }),
+    atMost({ key: 'allow_stale', den: p01, bad: stale, max: 0, enabled: !g.allow_stale }),
+    all('require_evidence', p0Pass, proven, g.require_evidence),
   ];
   return { passed: checks.every((c) => c.passed), checks };
 }

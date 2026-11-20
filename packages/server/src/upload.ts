@@ -69,67 +69,77 @@ const dirOf = (p: string) => p.split('/').slice(0, -1).join('/');
 const same = (a: Uint8Array | undefined, b: Uint8Array) =>
   !!a && a.byteLength === b.byteLength && a.every((x, i) => x === b[i]);
 
-/** Where a single dropped file goes in `base`: by `id`, by a new test case's covered criterion, or by name. */
+const CANNOT_PLACE = 'cannot place this file: drop the whole .indx-watch folder instead';
+
+/**
+ * Where a dropped file goes in `base`: its own path when that file exists, a non-TOML file by name, a TOML file by
+ * `id`, a new test case next to the use case of its first covered criterion; otherwise the reason it cannot go.
+ */
 function place(base: Map<string, Uint8Array>, f: UploadFile, data: Uint8Array): string | { reason: string } {
   if (f.path && base.has(f.path) && safePath(f.path)) return f.path;
-  const paths = [...base.keys()];
-  if (!f.name.endsWith('.toml')) {
-    const hits = paths.filter((p) => p.split('/').pop() === f.name);
-    return hits.length === 1
-      ? hits[0]!
-      : { reason: hits.length ? 'ambiguous name' : 'no file with this name' };
-  }
+  if (!f.name.endsWith('.toml')) return placeByName(base, f.name);
   const doc = tomlOf(data);
   if (!doc) return { reason: 'not valid TOML' };
-  const id = typeof doc.id === 'string' ? doc.id : undefined;
-  const existing = id && paths.find((p) => p.endsWith('.toml') && tomlOf(base.get(p)!)?.id === id);
-  if (existing) return existing;
-  const covers = Array.isArray(doc.covers) ? String(doc.covers[0] ?? '') : '';
-  if (id?.startsWith('tc_') && covers && typeof doc.key === 'string') {
-    const uc = paths.find((p) => {
-      if (!p.endsWith('/use-case.toml')) return false;
-      const criteria = tomlOf(base.get(p)!)?.criteria;
-      return Array.isArray(criteria) && criteria.some((c) => (c as { key?: unknown }).key === covers);
-    });
-    const name = `${doc.key}-${slugify(String(doc.title ?? ''))}.toml`;
-    if (uc) return `${dirOf(uc)}/${name}`;
-  }
-  return { reason: 'cannot place this file: drop the whole .indx-watch folder instead' };
+  return placeById(base, doc) ?? placeNewTestCase(base, doc) ?? { reason: CANNOT_PLACE };
 }
 
-/** Merge the dropped files into `base`, check the result and list the changes. */
+/** The one file of `base` with this name. */
+function placeByName(base: Map<string, Uint8Array>, name: string): string | { reason: string } {
+  const hits = [...base.keys()].filter((p) => p.split('/').pop() === name);
+  if (hits.length === 1) return hits[0]!;
+  return { reason: hits.length ? 'ambiguous name' : 'no file with this name' };
+}
+
+/** The TOML file of `base` with the same non-empty `id`. */
+function placeById(base: Map<string, Uint8Array>, doc: Record<string, unknown>) {
+  if (typeof doc.id !== 'string' || !doc.id) return undefined;
+  return [...base.keys()].find((p) => p.endsWith('.toml') && tomlOf(base.get(p)!)?.id === doc.id);
+}
+
+/** A new test case (`tc_` id, `key`, `covers`) goes next to the use case that holds its first covered criterion. */
+function placeNewTestCase(base: Map<string, Uint8Array>, doc: Record<string, unknown>) {
+  const covers = Array.isArray(doc.covers) ? String(doc.covers[0] ?? '') : '';
+  const isTestCase = typeof doc.id === 'string' && doc.id.startsWith('tc_') && typeof doc.key === 'string';
+  if (!isTestCase || !covers) return undefined;
+  const holds = (p: string) => {
+    const criteria = tomlOf(base.get(p)!)?.criteria;
+    return Array.isArray(criteria) && criteria.some((c) => (c as { key?: unknown }).key === covers);
+  };
+  const uc = [...base.keys()].find((p) => p.endsWith('/use-case.toml') && holds(p));
+  return uc && `${dirOf(uc)}/${doc.key}-${slugify(String(doc.title ?? ''))}.toml`;
+}
+
+/** Every path of `base` and `next` with its change, sorted by path. */
+function diff(base: Map<string, Uint8Array>, next: Map<string, Uint8Array>): UploadResult['changes'] {
+  const changeOf = (path: string, data: Uint8Array): Change =>
+    !base.has(path) ? 'added' : same(base.get(path), data) ? 'unchanged' : 'changed';
+  const changes = [...next].map(([path, data]) => ({ path, change: changeOf(path, data) }));
+  for (const path of base.keys()) if (!next.has(path)) changes.push({ path, change: 'removed' });
+  return changes.sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+/**
+ * Merge the dropped files into `base` (or replace it with them when `input.replace`), check the result and list the
+ * changes. The result is ok when something changed and the merged bundle has no errors.
+ */
 export async function prepareUpload(base: Map<string, Uint8Array>, input: UploadInput) {
   const files = Array.isArray(input.files) ? input.files.slice(0, MAX_UPLOAD_FILES) : [];
   const next = new Map(input.replace ? [] : base);
   const unplaced: UploadResult['unplaced'] = [];
   for (const f of files) {
     const data = decode(String(f.data ?? ''));
-    const name =
-      String(f.name ?? '')
-        .split('/')
-        .pop() ?? '';
-    if (input.replace) {
-      if (f.path && safePath(f.path)) next.set(f.path, data);
-      else unplaced.push({ name, reason: 'unsafe path' });
-      continue;
-    }
-    const at = place(base, { ...f, name }, data);
+    const given = String(f.name ?? '');
+    const name = given.slice(given.lastIndexOf('/') + 1);
+    // a replacing upload keeps the paths of the dropped folder; a merge places each file in the current bundle
+    const replaced = f.path && safePath(f.path) ? f.path : { reason: 'unsafe path' };
+    const at = input.replace ? replaced : place(base, { ...f, name }, data);
     if (typeof at === 'string') next.set(at, data);
     else unplaced.push({ name, ...at });
   }
-  const changes: UploadResult['changes'] = [];
-  for (const [path, data] of next)
-    changes.push({
-      path,
-      change: !base.has(path) ? 'added' : same(base.get(path), data) ? 'unchanged' : 'changed',
-    });
-  for (const path of base.keys()) if (!next.has(path)) changes.push({ path, change: 'removed' });
-  changes.sort((a, b) => (a.path < b.path ? -1 : 1));
+  const changes = diff(base, next);
   const { problems } = await checkBundle(memoryBundleFs(next));
-  const touched = changes.some((c) => c.change !== 'unchanged');
-  const ok =
-    touched && !problems.some((p) => p.severity === 'error') && !(input.replace && !next.has('project.toml'));
   if (input.replace && !next.has('project.toml'))
     problems.unshift({ severity: 'error', code: 'no-project', message: 'The folder has no project.toml' });
+  const ok = changes.some((c) => c.change !== 'unchanged') && !problems.some((p) => p.severity === 'error');
   return { next, result: { ok, changes, unplaced, problems } satisfies UploadResult };
 }

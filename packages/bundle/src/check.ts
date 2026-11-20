@@ -51,9 +51,8 @@ export async function checkBundle(fs: BundleFs, opts?: CheckOptions): Promise<Ch
   for (const f of loaded.files) {
     const canonical = canonicalText(f);
     if (canonical === null || canonical === f.text) continue;
-    const hint =
-      f.type === 'template' && f.text.startsWith('#:schema') ? ' Templates have no #:schema line.' : '';
-    const message = `Not in canonical form; run iw fmt.${hint}`;
+    const schema = f.type === 'template' && f.text.startsWith('#:schema');
+    const message = `Not in canonical form; run iw fmt.${schema ? ' Templates have no #:schema line.' : ''}`;
     problems.push({ severity: 'warning', code: 'non-canonical', file: f.path, message });
   }
   result.files = loaded.files.length;
@@ -168,13 +167,11 @@ async function semanticChecks(b: Bundle, deps: CheckDeps): Promise<Problem[]> {
   return out;
 }
 
-/** IDs and keys are unique; names start with the key (environments and releases: are the name). */
+/** IDs and keys are unique; names start with the key (environments and releases: are the name); AC-n.m in UC-n. */
 function checkNames({ b, err, warn }: Ctx) {
-  const p = b.project.data;
   const last = (f: string, up = 0) => f.split('/').at(-1 - up)!;
-  type Row = readonly [kind: string, id: string, key: string, file: string, name: string];
-  const items: Row[] = [
-    ['project', p.id, p.key, b.project.file, ''],
+  const rows = [
+    ['project', b.project.data.id, b.project.data.key, b.project.file, ''] as const,
     ...b.environments.map((x) => ['environment', x.data.id, x.data.name, x.file, last(x.file)] as const),
     ...b.releases.map((x) => ['release', x.data.id, x.data.version, x.file, last(x.file)] as const),
     ...b.features.map((x) => ['feature', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
@@ -186,24 +183,30 @@ function checkNames({ b, err, warn }: Ctx) {
   ];
   const ids = new Map<string, string>();
   const keys = new Map<string, string>();
-  for (const [kind, id, key, file, name] of items) {
+  for (const [kind, id, key, file, name] of rows) {
     const k = `${kind} ${key}`;
     if (ids.has(id)) err('duplicate-id', file, `ID ${id} is also used in ${ids.get(id)}`);
     if (keys.has(k))
       err('duplicate-key', file, `Duplicate ${k} (also in ${keys.get(k)}); iw check --fix renumbers it`);
     ids.set(id, file);
     keys.set(k, file);
-    const exact = kind === 'environment' || kind === 'release';
-    const want = exact ? `${key}.toml` : `${key}-`;
-    const msg = `Name should ${exact ? 'be' : 'start with'} ${want} (iw check --fix)`;
-    if (name && (exact ? name !== want : !name.startsWith(want))) warn('path-mismatch', file, msg);
+    const mismatch = nameMismatch(kind, key, name);
+    if (mismatch) warn('path-mismatch', file, mismatch);
   }
-  for (const uc of b.useCases)
-    for (const [i, c] of uc.data.criteria.entries()) {
-      const want = `AC-${uc.data.key.slice(3)}.`;
-      if (!c.key.startsWith(want))
-        err('invalid-key', uc.file, `${c.key} must be ${want}n`, `criteria[${i}].key`);
-    }
+  // criterion keys are numbered for their use case: AC-n.m inside UC-n
+  for (const uc of b.useCases) {
+    const want = `AC-${uc.data.key.slice(3)}.`;
+    for (const [i, { key }] of uc.data.criteria.entries())
+      if (!key.startsWith(want)) err('invalid-key', uc.file, `${key} must be ${want}n`, `criteria[${i}].key`);
+  }
+}
+
+/** The path-mismatch message when a name does not carry its key, else false (also for rows without a name). */
+function nameMismatch(kind: string, key: string, name: string): string | false {
+  const exact = kind === 'environment' || kind === 'release';
+  const want = exact ? `${key}.toml` : `${key}-`;
+  const ok = !name || (exact ? name === want : name.startsWith(want));
+  return !ok && `Name should ${exact ? 'be' : 'start with'} ${want} (iw check --fix)`;
 }
 
 /** Reference targets by key (docs/spec/concepts.md#invariants). */
@@ -272,34 +275,40 @@ function checkTestCase(c: Ctx, { file, data: d }: Bundle['testCases'][number]) {
 
 /** AI-written items are ready only with a human approval of their current version. */
 async function checkAi(c: Ctx) {
-  const { b, err, warn } = c;
-  for (const t of b.testCases) await aiReady(c, t.data, t.file, async () => t.version);
-  for (const f of b.fixtures) await aiReady(c, f.data, f.file, async () => f.version);
-  for (const u of b.useCases) await aiReady(c, u.data, u.file, () => useCaseVersion(u.data));
-  // they decide no verdict and have no status: an unreviewed AI-written one is only a warning
-  for (const x of [...b.features, ...b.environments, ...b.releases, ...b.plans]) {
-    const d: Life = x.data;
-    if (d.origin !== 'ai') continue;
-    if (!d.ai) err('missing-ai-meta', x.file, 'origin "ai" requires an [ai] table', 'ai');
-    const message = 'AI-written item has not been reviewed by a human; run iw approve';
-    if (!d.approved_by) warn('ai-not-approved', x.file, message, 'approved_by');
-  }
-  const message = 'AI-proposed criterion is ready without approval; run iw approve';
-  for (const u of b.useCases)
-    for (const [i, cr] of u.data.criteria.entries()) {
-      if (cr.origin !== 'ai') continue;
-      if (!cr.ai) err('missing-ai-meta', u.file, 'origin "ai" requires an [ai] table', `criteria[${i}].ai`);
-      if ((cr.status ?? 'ready') === 'ready' && !cr.approved_by)
-        err('ai-not-approved', u.file, message, `criteria[${i}].status`);
-    }
+  for (const t of c.b.testCases) await aiReady(c, t.data, t.file, async () => t.version);
+  for (const f of c.b.fixtures) await aiReady(c, f.data, f.file, async () => f.version);
+  for (const u of c.b.useCases) await aiReady(c, u.data, u.file, () => useCaseVersion(u.data));
+  for (const x of [...c.b.features, ...c.b.environments, ...c.b.releases, ...c.b.plans]) aiReviewed(c, x);
+  for (const u of c.b.useCases) aiCriteria(c, u);
 }
 
-async function aiReady({ err }: Ctx, d: Life, file: string, version: () => Promise<string>) {
-  if (d.origin !== 'ai') return;
-  if (!d.ai) err('missing-ai-meta', file, 'origin "ai" requires an [ai] table', 'ai');
+/** True when the item is AI-written; reports a missing [ai] table (`at` prefixes the path). */
+function aiWritten({ err }: Ctx, d: Life, file: string, at = ''): boolean {
+  const ai = d.origin === 'ai';
+  if (ai && !d.ai) err('missing-ai-meta', file, 'origin "ai" requires an [ai] table', `${at}ai`);
+  return ai;
+}
+
+/** Test cases, fixtures and use cases: ready needs an approval of the current version. */
+async function aiReady(c: Ctx, d: Life, file: string, version: () => Promise<string>) {
   const message = 'AI-written item is ready without approval of its current version; run iw approve';
-  if (d.status === 'ready' && (!d.approved_by || d.approved_version !== (await version())))
-    err('ai-not-approved', file, message, 'status');
+  if (!aiWritten(c, d, file) || d.status !== 'ready') return;
+  if (!d.approved_by || d.approved_version !== (await version()))
+    c.err('ai-not-approved', file, message, 'status');
+}
+
+/** Features, environments, releases and plans decide no verdict and have no status: an unreviewed one only warns. */
+function aiReviewed(c: Ctx, { file, data: d }: { file: string; data: Life }) {
+  const message = 'AI-written item has not been reviewed by a human; run iw approve';
+  if (aiWritten(c, d, file) && !d.approved_by) c.warn('ai-not-approved', file, message, 'approved_by');
+}
+
+/** AI-proposed criteria count (status ready, the default) only once a human approves them. */
+function aiCriteria(c: Ctx, { file, data }: Bundle['useCases'][number]) {
+  const message = 'AI-proposed criterion is ready without approval; run iw approve';
+  for (const [i, cr] of data.criteria.entries())
+    if (aiWritten(c, cr, file, `criteria[${i}].`) && (cr.status ?? 'ready') === 'ready' && !cr.approved_by)
+      c.err('ai-not-approved', file, message, `criteria[${i}].status`);
 }
 
 type Source = { file: string; src: Record<string, unknown>; fields: readonly string[]; at: string };

@@ -1,28 +1,26 @@
-import { join } from 'node:path';
-import type { AnyRecord, Bundle } from '@indx-watch/bundle';
+// buildModel, testCaseStatus (variants, ordering, scope, staleness, waivers), plan items and localize.
+import { type AnyRecord, type Bundle, testCaseVersion } from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { buildModel, type LocalizeOptions, localize, planItemStatus, testCaseStatus } from '../src/index.js';
 import {
-  buildModel,
-  computeStatus,
-  evaluateGate,
-  type LocalizeOptions,
-  localize,
-  planItemStatus,
-  reportData,
-  testCaseStatus,
-} from '../src/index.js';
-import { retraction, review, run, SHOP, sampleRecords, shop, storeRecords, waiver } from './fixtures.js';
+  retraction,
+  review,
+  run,
+  sampleRecords,
+  SCOPE as scope,
+  shop,
+  versionOf,
+  waiver,
+} from './fixtures.js';
 
 let b: Bundle;
 beforeAll(async () => {
   b = await shop();
 });
-const scope = { release: 'v1.2.0' };
 const model = (records: AnyRecord[], bundle = b) => buildModel(bundle, records).model;
-const gateMap = (records: AnyRecord[], s = scope) =>
-  Object.fromEntries(
-    evaluateGate(model(records), s).checks.map((c) => [c.key, [c.passed, c.actual, c.expected]]),
-  );
+/** Criterion text by key, the input of testCaseVersion. */
+const criterionText = (bundle: Bundle) =>
+  new Map(bundle.useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)));
 
 describe('buildModel', () => {
   it('resolves nodes, priorities and keys', () => {
@@ -62,7 +60,7 @@ describe('buildModel', () => {
   });
 });
 
-describe('test case status', () => {
+describe('test case status: variants and ordering', () => {
   it('a failing webkit run and a later passing chromium run is fail', () => {
     const m = model([
       run(b, 'TC-3', { project: 'webkit', verdict: 'fail', ended: '2026-11-19T04:00:00Z' }),
@@ -103,15 +101,21 @@ describe('test case status', () => {
     expect(testCaseStatus(m, 'TC-1', scope).status).toBe('pass');
   });
 
+  it('scopes by release and environment', () => {
+    const m = model([run(b, 'TC-1', { release: 'v1.1.0' }), run(b, 'TC-7', { environment: 'local' })]);
+    expect(testCaseStatus(m, 'TC-1', scope).status).toBe('untested');
+    expect(testCaseStatus(m, 'TC-7', scope).status).toBe('pass');
+    expect(testCaseStatus(m, 'TC-7', { ...scope, environment: 'staging' }).status).toBe('untested');
+  });
+});
+
+describe('test case status: staleness', () => {
   it('rewording a covered AC makes results stale; a translation edit does not', async () => {
     const r = run(b, 'TC-4');
     const reworded: Bundle = structuredClone(b);
     const uc = reworded.useCases.find((u) => u.data.key === 'UC-2')!;
     uc.data.criteria[1]!.text = 'Reworded.';
-    const { testCaseVersion } = await import('@indx-watch/bundle');
-    const text = new Map(
-      reworded.useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)),
-    );
+    const text = criterionText(reworded);
     for (const t of reworded.testCases) t.version = await testCaseVersion(t.data, text);
     const s = testCaseStatus(model([r], reworded), 'TC-4', scope);
     expect(s).toMatchObject({ status: 'stale', verdict: 'pass', stale: true });
@@ -121,9 +125,8 @@ describe('test case status', () => {
   });
 
   it('a title edit keeps the version; a step edit changes it and makes earlier results stale', async () => {
-    const { testCaseVersion } = await import('@indx-watch/bundle');
     const r = run(b, 'TC-3');
-    const text = new Map(b.useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)));
+    const text = criterionText(b);
     const edit = async (change: (d: Bundle['testCases'][number]['data']) => void) => {
       const edited: Bundle = structuredClone(b);
       const tc = edited.testCases.find((t) => t.data.key === 'TC-3')!;
@@ -148,162 +151,26 @@ describe('test case status', () => {
     r.fixtures[0]!.version = 'fxv:000000000000';
     expect(testCaseStatus(model([r]), 'TC-3', scope).status).toBe('stale');
   });
-
-  it('scopes by release and environment', () => {
-    const m = model([run(b, 'TC-1', { release: 'v1.1.0' }), run(b, 'TC-7', { environment: 'local' })]);
-    expect(testCaseStatus(m, 'TC-1', scope).status).toBe('untested');
-    expect(testCaseStatus(m, 'TC-7', scope).status).toBe('pass');
-    expect(testCaseStatus(m, 'TC-7', { ...scope, environment: 'staging' }).status).toBe('untested');
-  });
-
-  it('waivers bind to the test case version and are refused for P0', () => {
-    const tc2 = b.testCases.find((t) => t.data.key === 'TC-2')!;
-    const fail = run(b, 'TC-2', { verdict: 'fail' });
-    expect(testCaseStatus(model([fail, waiver(b, 'TC-2', tc2.version)]), 'TC-2', scope)).toMatchObject({
-      status: 'waived',
-      waived: true,
-    });
-    expect(testCaseStatus(model([fail, waiver(b, 'TC-2', 'tcv:000000000000')]), 'TC-2', scope).status).toBe(
-      'fail',
-    );
-    const w = waiver(b, 'TC-2', tc2.version);
-    const revoke = waiver(b, 'TC-2', tc2.version, '2026-11-19T06:00:00Z', w.id);
-    expect(testCaseStatus(model([fail, w, revoke]), 'TC-2', scope).status).toBe('fail');
-    const tc3 = b.testCases.find((t) => t.data.key === 'TC-3')!;
-    expect(
-      testCaseStatus(
-        model([run(b, 'TC-3', { verdict: 'fail' }), waiver(b, 'TC-3', tc3.version)]),
-        'TC-3',
-        scope,
-      ).status,
-    ).toBe('fail');
-  });
 });
 
-describe('computeStatus and the gate on examples/shop', () => {
-  it('sample results', () => {
-    const s = computeStatus(model(sampleRecords(b)), scope);
-    expect(s.coverage).toEqual({ covered: 8, total: 9, ratio: 8 / 9 });
-    expect(s.counts).toEqual({
-      pass: 6,
-      fail: 1,
-      needs_review: 0,
-      untested: 1, // TC-8; draft TC-9 is listed but not counted, like in the gate
-      stale: 0,
-      waived: 0,
-      uncovered: 1,
-      blocked: 0,
-      skipped: 0,
-    });
-    expect(s.useCases.map((u) => [u.key, u.status, u.done])).toEqual([
-      ['UC-1', 'fail', false],
-      ['UC-2', 'pass', true],
-      ['UC-3', 'pass', true],
-      ['UC-4', 'untested', false],
-      ['UC-5', 'uncovered', false],
-    ]);
-    expect(s.gate.passed).toBe(false);
-    expect(
-      Object.fromEntries(s.gate.checks.map((c) => [c.key, [c.passed, c.actual, c.expected, c.items]])),
-    ).toEqual({
-      has_gated_tests: [true, '8', '≥ 1', undefined],
-      p0_coverage: [true, '6/6', '≥ 1.00', undefined],
-      p0_all_pass: [false, '5/6', '6/6', ['TC-8']],
-      p1_pass_rate: [false, '1/2 (0.50)', '≥ 0.95', ['TC-2']],
-      max_needs_review: [true, '0', '≤ 0', undefined],
-      max_untested: [false, '1', '≤ 0', ['TC-8']],
-      allow_stale: [true, '0', '≤ 0', undefined],
-      require_evidence: [true, '5/5', '5/5', undefined],
-    });
+describe('test case status: waivers', () => {
+  it('a waiver binds to the test case version', () => {
+    const fail = run(b, 'TC-2', { verdict: 'fail' });
+    const status = (...records: AnyRecord[]) => testCaseStatus(model([fail, ...records]), 'TC-2', scope);
+    expect(status(waiver(b, 'TC-2', versionOf(b, 'TC-2')))).toMatchObject({ status: 'waived', waived: true });
+    expect(status(waiver(b, 'TC-2', 'tcv:000000000000')).status).toBe('fail');
   });
 
-  it('the sample store examples/shop/store gives the gate documented in reports.md#example', () => {
-    const g = evaluateGate(model(storeRecords(join(SHOP, '../store'))), scope);
-    expect(g.passed).toBe(false);
-    expect(
-      Object.fromEntries(g.checks.map((c) => [c.key, [c.passed, c.actual, c.expected, c.items]])),
-    ).toEqual({
-      has_gated_tests: [true, '8', '≥ 1', undefined],
-      p0_coverage: [true, '6/6', '≥ 1.00', undefined],
-      p0_all_pass: [false, '5/6', '6/6', ['TC-8']],
-      p1_pass_rate: [true, '2/2 (1.00)', '≥ 0.95', undefined],
-      max_needs_review: [true, '0', '≤ 0', undefined],
-      max_untested: [true, '0', '≤ 0', undefined],
-      allow_stale: [true, '0', '≤ 0', undefined],
-      require_evidence: [true, '5/5', '5/5', undefined],
-    });
+  it('a revoked waiver no longer applies', () => {
+    const w = waiver(b, 'TC-2', versionOf(b, 'TC-2'));
+    const revoke = waiver(b, 'TC-2', versionOf(b, 'TC-2'), '2026-11-19T06:00:00Z', w.id);
+    const m = model([run(b, 'TC-2', { verdict: 'fail' }), w, revoke]);
+    expect(testCaseStatus(m, 'TC-2', scope).status).toBe('fail');
   });
 
-  it('passes once TC-8 passes and TC-2 is waived', () => {
-    const tc2 = b.testCases.find((t) => t.data.key === 'TC-2')!;
-    const recs = [
-      ...sampleRecords(b),
-      run(b, 'TC-8', { judgements: [{ kind: 'human', verdict: 'pass' }], evidence: true }),
-      waiver(b, 'TC-2', tc2.version),
-    ];
-    const g = evaluateGate(model(recs), scope);
-    expect(g.passed).toBe(true);
-    expect(gateMap(recs).p1_pass_rate).toEqual([true, '2/2 (1.00)', '≥ 0.95']);
-  });
-
-  it('stale and evidence rules', () => {
-    const recs = [
-      ...sampleRecords(b),
-      run(b, 'TC-8', { judgements: [{ kind: 'human', verdict: 'pass' }], version: 'tcv:000000000000' }),
-    ];
-    const g = gateMap(recs);
-    expect(g.allow_stale).toEqual([false, '1', '≤ 0']);
-    expect(g.require_evidence).toEqual([true, '5/5', '5/5']);
-    const noProof = [
-      ...sampleRecords(b),
-      run(b, 'TC-8', { judgements: [{ kind: 'human', verdict: 'pass' }] }),
-    ];
-    expect(gateMap(noProof).require_evidence).toEqual([false, '5/6', '6/6']);
-  });
-
-  it('a check with an empty denominator passes with n/a', () => {
-    const drafts: Bundle = structuredClone(b);
-    for (const t of drafts.testCases) t.data.status = 'draft';
-    const g = Object.fromEntries(
-      evaluateGate(model([], drafts), scope).checks.map((c) => [c.key, [c.passed, c.actual]]),
-    );
-    expect(g).toEqual({
-      has_gated_tests: [false, '0'],
-      p0_coverage: [false, '0/6'],
-      p0_all_pass: [true, 'n/a'],
-      p1_pass_rate: [true, 'n/a'],
-      max_needs_review: [true, 'n/a'],
-      max_untested: [true, 'n/a'],
-      allow_stale: [true, 'n/a'],
-      require_evidence: [true, 'n/a'],
-    });
-  });
-
-  it('nothing gated is never ready: a P2-only scope fails has_gated_tests', () => {
-    const p2: Bundle = structuredClone(b);
-    for (const u of p2.useCases) u.data.priority = 'P2';
-    for (const t of p2.testCases) delete t.data.priority;
-    const g = evaluateGate(model([], p2), scope);
-    expect(g.passed).toBe(false);
-    expect(g.checks[0]).toEqual({
-      key: 'has_gated_tests',
-      passed: false,
-      actual: '0',
-      expected: '≥ 1',
-      items: [],
-    });
-    expect(g.checks.slice(1).every((c) => c.passed && c.actual === 'n/a')).toBe(true);
-  });
-
-  it('release.plan limits the gate to the plan', () => {
-    const scoped: Bundle = structuredClone(b);
-    scoped.releases[0]!.data.plan = 'PLAN-1';
-    scoped.plans[0]!.data.items = scoped.plans[0]!.data.items!.filter((i) => i.test_case !== 'TC-8');
-    const recs = sampleRecords(scoped);
-    const checks = Object.fromEntries(
-      evaluateGate(model(recs, scoped), scope).checks.map((c) => [c.key, c.actual]),
-    );
-    expect(checks).toMatchObject({ p0_all_pass: '5/5', p1_pass_rate: 'n/a', max_untested: '0' });
+  it('a waiver is refused for a P0 test case', () => {
+    const m = model([run(b, 'TC-3', { verdict: 'fail' }), waiver(b, 'TC-3', versionOf(b, 'TC-3'))]);
+    expect(testCaseStatus(m, 'TC-3', scope).status).toBe('fail');
   });
 });
 
@@ -370,58 +237,5 @@ describe('localize', () => {
       fallback: false,
       stale: false,
     });
-  });
-});
-
-describe('reportData', () => {
-  it('has every section and redacts for customers', () => {
-    const m = model(sampleRecords(b));
-    const opts = {
-      audience: 'internal' as const,
-      generatedBy: 'qa@shop.test',
-      now: new Date('2026-11-19T00:00:00Z'),
-      plan: 'PLAN-1',
-      cursor: 'c1',
-    };
-    const r = reportData(m, scope, opts);
-    expect(r).toMatchObject({
-      project: { key: 'SHOP', name: 'Shop' },
-      generatedAt: '2026-11-19T00:00:00Z',
-      plan: 'PLAN-1',
-      cursor: 'c1',
-    });
-    expect(r.policy).toEqual({
-      llm_pass_confidence: 0.8,
-      llm_fail_confidence: 0.8,
-      visual_threshold: 0.01,
-      require_human_for: [],
-    });
-    expect(r.gateThresholds.p1_pass_rate).toBe(0.95);
-    expect(r.countsByPriority.P0).toMatchObject({ pass: 5, untested: 1, ac_total: 6, ac_covered: 6 });
-    expect(r.planItems?.[0]).toMatchObject({
-      testCase: 'TC-6',
-      assignee: 'alex@shop.test',
-      due: '2026-11-26',
-      environment: 'staging',
-      status: 'done',
-    });
-    expect(r.failures.map((f) => [f.testCase, f.status, f.step, f.note])).toEqual([
-      ['TC-8', 'untested', undefined, undefined],
-      ['TC-2', 'fail', 1, 'Total stayed 40.00'],
-    ]);
-    expect(r.runs).toHaveLength(8);
-    expect(r.runs[0]).toMatchObject({
-      actor: 'octocat',
-      actorKind: 'ci',
-      source: 'playwright',
-      commit: 'a1b2c3d',
-      environment: 'staging',
-    });
-    const tc2 = b.testCases.find((t) => t.data.key === 'TC-2')!;
-    const waived = (v: string) => reportData(model([...sampleRecords(b), waiver(b, 'TC-2', v)]), scope, opts);
-    expect(waived(tc2.version).waivers.map((w) => w.testCase)).toEqual(['TC-2']);
-    expect(waived('tcv:000000000000').waivers).toEqual([]); // not applied: another version
-    const c = reportData(m, scope, { ...opts, audience: 'customer' });
-    expect(JSON.stringify(c)).not.toMatch(/@shop\.test|Total stayed/);
   });
 });

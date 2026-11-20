@@ -1,5 +1,6 @@
 /**
- * Node entry used by `iw serve`. CONTRACT: signatures frozen; implementation T-107.
+ * Node entry used by `iw serve`: the web UI, the API over a bundle directory and its replica, and background sync.
+ * CONTRACT: signatures frozen; implementation T-107.
  */
 import { watch as fsWatch } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -34,6 +35,10 @@ export interface NodeServerOptions {
 }
 
 const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/;
+/** port of `iw serve` without --port */
+const DEFAULT_PORT = 4321;
+/** quiet time after the last bundle edit before the model is rebuilt (an editor save touches several files) */
+const REBUILD_DELAY_MS = 150;
 const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
 Object.assign(TYPES, { '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' });
@@ -140,8 +145,10 @@ function modelCache(l: Local) {
   const changed = (_e: unknown, name: unknown) => {
     if (/^(runs|cache)([/\\]|$)/.test(String(name ?? ''))) return;
     clearTimeout(timer);
-    timer = setTimeout(invalidate, 150);
+    timer = setTimeout(invalidate, REBUILD_DELAY_MS);
   };
+  // a watcher error (the directory went away, too many watches) only stops live reload: the model still rebuilds
+  // after writes through the server and replica changes, so the error is ignored rather than crashing the server
   const watcher = fsWatch(l.dir, { recursive: true }, changed).on('error', () => {});
   const unsubscribe = l.replica.onChange(invalidate);
   const close = () => [clearTimeout(timer), watcher.close(), unsubscribe()];
@@ -242,7 +249,7 @@ async function listen(
     const host = local ? hostGuard(request.headers.get('host'), port) : undefined;
     return host ?? writeGuard(request.method, address, opts.identityHeader) ?? app.fetch(request);
   };
-  const server = serve({ hostname, port: opts.port ?? 4321, fetch });
+  const server = serve({ hostname, port: opts.port ?? DEFAULT_PORT, fetch });
   try {
     await new Promise((ok, no) =>
       server.listening ? ok(0) : server.once('listening', ok).once('error', no),
@@ -252,7 +259,8 @@ async function listen(
     const code = (e as { code?: string }).code;
     if (code !== 'EADDRINUSE' && code !== 'EACCES') throw e;
     const why = code === 'EACCES' ? 'is not allowed' : 'is already in use (another iw serve?)';
-    throw new BundleError('CONFLICT', `Port ${opts.port ?? 4321} on ${hostname} ${why}. Use --port <n>.`);
+    const taken = `Port ${opts.port ?? DEFAULT_PORT} on ${hostname} ${why}. Use --port <n>.`;
+    throw new BundleError('CONFLICT', taken);
   }
   const { address, family, ...a } = server.address() as AddressInfo;
   port = a.port;

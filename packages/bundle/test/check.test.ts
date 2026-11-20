@@ -3,7 +3,7 @@ import { type CheckDeps, checkBundle } from '../src/check.js';
 import { loadBundle } from '../src/load.js';
 import { nodeFs } from '../src/node/index.js';
 import { parseToml } from '../src/toml.js';
-import { codes, TC3, TC9 } from './check-helpers.js';
+import { codes, edit, TC3, TC9 } from './check-helpers.js';
 import { memFs, SHOP } from './helpers.js';
 
 describe('check on examples/shop', () => {
@@ -91,13 +91,10 @@ describe('check problems: keys and references', () => {
   });
 });
 
-describe('check problems: AI-written items', () => {
+describe('check problems: AI-written test cases and criteria', () => {
   it('ai-ready-without-approval and approval of the current version', async () => {
     const fs = memFs();
-    fs.files.set(
-      TC9,
-      new TextEncoder().encode(fs.text(TC9)!.replace('status = "draft"', 'status = "ready"')),
-    );
+    edit(fs, TC9, (t) => t.replace('status = "draft"', 'status = "ready"'));
     expect(codes(await checkBundle(fs))).toEqual(['ai-not-approved']);
     const { approveDefinition } = await import('../src/write.js');
     const { bundle } = await loadBundle(fs);
@@ -105,7 +102,7 @@ describe('check problems: AI-written items', () => {
     expect(version).toMatch(/^tcv:/);
     expect(codes(await checkBundle(fs))).toEqual([]);
     // editing a step after approval invalidates it again
-    fs.files.set(TC9, new TextEncoder().encode(fs.text(TC9)!.replace('Post review', 'Publish review')));
+    edit(fs, TC9, (t) => t.replace('Post review', 'Publish review'));
     expect(codes(await checkBundle(fs))).toEqual(['ai-not-approved']);
   });
 
@@ -132,19 +129,16 @@ describe('check problems: AI-written items', () => {
     });
     expect(codes(await checkBundle(fs))).toEqual([]);
     // a hand edit to ready does not count
-    fs.files.set(
-      r.file,
-      new TextEncoder().encode(
-        fs.text(r.file)!.replace(/status = "draft"\norigin = "ai"/, 'status = "ready"\norigin = "ai"'),
-      ),
-    );
+    edit(fs, r.file, (t) => t.replace(/status = "draft"\norigin = "ai"/, 'status = "ready"\norigin = "ai"'));
     expect(codes(await checkBundle(fs))).toEqual(['ai-not-approved']);
     await approveDefinition(fs, await load(), r.key, 'alex@shop.test');
     const after = parseToml(fs.text(r.file)!) as { criteria: Record<string, unknown>[] };
     expect(after.criteria.at(-1)).toMatchObject({ status: 'ready', approved_by: 'alex@shop.test' });
     expect(codes(await checkBundle(fs))).toEqual([]);
   });
+});
 
+describe('check problems: AI-written features, environments, releases and plans', () => {
   it('AI-written features, environments, releases and plans warn until approved; [ai] is required', async () => {
     const fs = memFs();
     const { createDefinition, approveDefinition } = await import('../src/write.js');
@@ -171,7 +165,7 @@ describe('check problems: AI-written items', () => {
     expect(codes(await checkBundle(fs), 'warning')).not.toContain('ai-not-approved');
     // without the [ai] table the origin mark is an error
     const f = made[0]!.file;
-    fs.files.set(f, new TextEncoder().encode(fs.text(f)!.replace(/\[ai\][^[]*/, '')));
+    edit(fs, f, (t) => t.replace(/\[ai\][^[]*/, ''));
     expect(codes(await checkBundle(fs))).toEqual(['missing-ai-meta']);
   });
 });

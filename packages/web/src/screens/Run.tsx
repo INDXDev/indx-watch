@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, fmtBytes, Load, Mark, Meta, Section, Seg, Tx, useApi, Who } from '../ui';
+import { Badge, Chip, fmtBytes, Load, Mark, Meta, Section, Seg, THead, Tx, useApi, Who } from '../ui';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
 const RULES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -134,14 +134,7 @@ function Judgements({ r }: { r: RunDetail }) {
       {r.judgements.length === 0 && <p className="muted">{t('run.noJudgements')}</p>}
       <div className="table-wrap" hidden={r.judgements.length === 0}>
         <table>
-          <thead>
-            <tr>
-              <th>{t('run.judge')}</th>
-              <th>{t('run.verdict')}</th>
-              <th>{t('run.reason')}</th>
-              <th>{t('run.by')}</th>
-            </tr>
-          </thead>
+          <THead cols={['run.judge', 'run.verdict', 'run.reason', 'run.by']} />
           <tbody>
             {r.judgements.map((j) => (
               <tr key={j.id}>

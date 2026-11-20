@@ -199,6 +199,7 @@
   "fx.files": "Files",
   "fx.name": "Name",
   "fx.size": "Size",
+  "fx.sha": "SHA-256",
   "fx.stored": "Stored",
   "fx.pointer": "in result store",
   "fx.inGit": "in git",

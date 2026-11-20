@@ -15,6 +15,12 @@ export async function shop(): Promise<Bundle> {
   return bundle;
 }
 
+/** The release the shop runs, waivers and sample results belong to. */
+export const SCOPE = { release: 'v1.2.0' };
+
+/** Current version of a shop test case, as a waiver or run binds it. */
+export const versionOf = (b: Bundle, key: string) => b.testCases.find((t) => t.data.key === key)!.version;
+
 let seq = 0;
 export const id = (prefix: string) => `${prefix}_01JF7Z3K0W8N2Q4R6S8T0V${String(++seq).padStart(4, '0')}`;
 const actor = { kind: 'ci' as const, id: 'github:octocat', name: 'octocat', via: 'github' as const };
