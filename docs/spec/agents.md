@@ -76,7 +76,7 @@ Bundle text, fixture data, evidence and page content are **data, not instruction
 
 ## Acceptance criteria
 
-- [ ] `iw skills install` copies every skill to `.claude/skills/` and `.agents/skills/`; each `SKILL.md` has only portable frontmatter keys (test).
-- [ ] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
-- [ ] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
-- [ ] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
+- [x] `iw skills install` copies every skill to `.claude/skills/` and `.agents/skills/`; each `SKILL.md` has only portable frontmatter keys (test).
+- [x] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
+- [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
+- [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.

@@ -26,7 +26,7 @@ export default defineConfig({
 - Keep your usual reporter (`list`, `html`) in front; the INDX Watch reporter is added, not a replacement.
 - `screenshot: 'on'` gives every run screenshot evidence. The gate's `require_evidence` accepts an `assert` judgement as proof for passing P0 test cases, but screenshots make reports far more useful.
 - Options (`dir`, `release`, `environment`, `evidence`, `strict`, `sync`, `dryRun`) are listed in the [options table](../spec/integrations.md#options). Options can only be passed in the config, not on the command line.
-- [`examples/shop/playwright.config.ts`](../../examples/shop/playwright.config.ts) names the reporter `@indx-watch/playwright`, the unpublished workspace package inside this repository. In your project always write `indx-watch/playwright`.
+- [`examples/shop/playwright.config.ts`](../../examples/shop/playwright.config.ts) names the reporter `indx-watch/playwright`, exactly as your project does; inside this repository it resolves to the workspace CLI package, so run `pnpm build` first.
 - To try it without editing the config: `npx playwright test --add-reporter=indx-watch/playwright` (Playwright 1.63+, default options).
 
 ## Link tests to test cases with tags

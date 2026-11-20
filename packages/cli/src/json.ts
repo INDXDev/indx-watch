@@ -118,6 +118,8 @@ export const CommandData = {
     cursor: z.string().nullable(),
     /** non-fatal problems (unreadable log objects, records held back) */
     warnings: z.array(z.string()).optional(),
+    /** secret-scan problems of records held back from the push */
+    held: z.array(Problem).optional(),
   }),
   serve: z.object({ url: z.string() }),
   report: z.object({

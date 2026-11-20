@@ -4,7 +4,7 @@ name: Release
 # Nothing runs on ordinary pushes. Requires the repository secret NPM_TOKEN; uses npm provenance.
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       dry-run:

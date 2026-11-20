@@ -197,6 +197,29 @@ describe('syncOnce', () => {
     expect(await storeRecords(objects)).toEqual([]);
   });
 
+  it('holds back a record that fails the secret scan, for every caller of syncOnce', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'w');
+    const key = `AKIA${'ABCDEFGHIJKLMNOP'}`;
+    const clean = runRecord();
+    const leaky = runRecord({ at: Date.now() + 1 });
+    leaky.steps[0]!.note = `token ${key}`;
+    await a.replica.putRecord(clean);
+    await a.replica.putRecord(leaky);
+    const r = await a.sync();
+    expect(r.pushed.records).toBe(1);
+    expect(r.held).toMatchObject([{ code: 'secret', file: `runs/${leaky.id}` }]);
+    expect(JSON.stringify(r)).not.toContain(key);
+    expect(r.warnings).toContain(`held back ${leaky.id}: the secret scan found 1 problem(s); retract it`);
+    expect((await storeRecords(objects)).map((x) => x.id)).toEqual([clean.id]);
+    // retracting it releases nothing but the retraction
+    const x = retraction(leaky.id);
+    await a.replica.putRecord(x);
+    const r2 = await a.sync();
+    expect([r2.pushed.records, r2.held]).toEqual([1, undefined]);
+    expect(JSON.stringify(await storeRecords(objects))).not.toContain(key);
+  });
+
   it('refuses a store bound to another project', async () => {
     const objects = memoryObjectStore();
     await createResultStore(objects).init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01');

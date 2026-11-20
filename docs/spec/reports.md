@@ -53,5 +53,5 @@ For `examples/shop` with the sample results in `examples/shop/store/`, `IW_NOW=2
 
 - [ ] `iw report --format html` works offline and produces one file with no external requests (checked by loading it in Playwright with network disabled).
 - [ ] `--audience customer` output contains no email addresses and no `notes` text from the bundle (tested on `examples/shop`).
-- [ ] The Markdown report for `examples/shop`, generated with the fixed `IW_NOW` and `IW_ACTOR`, matches the committed example byte-for-byte.
+- [x] The Markdown report for `examples/shop`, generated with the fixed `IW_NOW` and `IW_ACTOR`, matches the committed example byte-for-byte.
 - [ ] The gate section of the report equals the `gate` object of `iw status --json` for the same scope.

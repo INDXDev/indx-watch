@@ -32,12 +32,12 @@ importers:
 
   examples/shop:
     devDependencies:
-      '@indx-watch/playwright':
-        specifier: workspace:*
-        version: link:../../packages/playwright
       '@playwright/test':
         specifier: ^1.65.1
         version: 1.65.1
+      indx-watch:
+        specifier: workspace:*
+        version: link:../../packages/cli
 
   packages/bundle:
     dependencies:

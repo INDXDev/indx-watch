@@ -15,7 +15,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-105 | Sync: push, pull with lookback, watch, bundle snapshots | `sync` | [sync.md](spec/sync.md#acceptance-criteria) | ✅ |
 | T-106 | CLI v0.1 commands with `--json` | `cli` | [cli.md](spec/cli.md#acceptance-criteria) | ✅ |
 | T-107 | Server (Hono) for Node and Workers; report rendering md/html | `server` | [reports.md](spec/reports.md#acceptance-criteria), [architecture.md](architecture.md#acceptance-criteria) | ✅ Worker bundle checked by `pnpm check:worker` (`wrangler deploy --dry-run`); no live deploy in CI |
-| T-108 | Web UI: dashboard, spec tree, TC view, manual runner, run viewer + review, fixtures, report preview (en/ja) | `web` | [design](design/index.html) screens; [i18n.md](spec/i18n.md#acceptance-criteria) | ✅ i18n AC5 (Japanese manual run) is tested through the API, not by driving the UI |
+| T-108 | Web UI: dashboard, spec tree, TC view, manual runner, run viewer + review, fixtures, report preview (en/ja) | `web` | [design](design/index.html) screens; [i18n.md](spec/i18n.md#acceptance-criteria) | ✅ |
 | T-109 | Playwright reporter | `playwright` | [integrations.md](spec/integrations.md#acceptance-criteria) | ✅ |
 | T-110 | GitHub Action (composite) | `action.yml` | [integrations.md](spec/integrations.md#acceptance-criteria) | ✅ |
 | T-111 | `examples/shop` app, Playwright tests, sample results, committed report | `examples` | [reports.md](spec/reports.md#example) | ✅ unit tests may add scenario records of their own over the shop bundle ([AGENTS.md](../AGENTS.md) rule 10) |
@@ -23,7 +23,8 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-113 | `iw deploy` for Cloudflare (dry-run exact) + hosting guides | `cli`, `docs` | [guides/self-host-cloudflare.md](guides/self-host-cloudflare.md) | ✅ dry run and fake-wrangler tests only; a real deploy is manual |
 | T-114 | `iw export --full` / `iw import` | `bundle`, `cli` | [cli.md](spec/cli.md#iw-export---full-and-iw-import-archive) | ✅ |
 | T-115 | Dogfooding: this repo's `.indx-watch/`, CI posting runs, release report | repo | [CONTRIBUTING.md](../CONTRIBUTING.md#dogfooding) | ✅ |
-| T-116 | CI: lint, typecheck, test, schemas, round trip, docs links, LOC budget, e2e | repo | [.github/workflows/ci.yml](../.github/workflows/ci.yml) green | 🚧 green locally; waits for the first green CI run on GitHub |
+| T-116 | CI: lint, typecheck, test, schemas, round trip, docs links, LOC budget, e2e | repo | [.github/workflows/ci.yml](../.github/workflows/ci.yml) green | ✅ green on GitHub since PR #2 (Node 22 and 24; e2e writes both job-summary reports) |
+| T-117 | Close the remaining acceptance-criteria test gaps: the unchecked `- [ ]` bullets in `docs/spec/*.md` (fixture size threshold → `*.blob.toml`; `serve --json` schema; `evaluateGate()` on the shop sample store; a step edit makes earlier runs `stale`; stale step translation in the UI; the action's gate step failing; offline HTML with zero requests; customer report without bundle `notes`; report gate vs `status --json`; `github-oidc` identity; two clones under `iw sync --watch` via the CLI) | all | the bullets themselves | ⏳ each bullet is partly tested; the parenthesis lists the missing part |
 
 ### v0.1 definition of done
 

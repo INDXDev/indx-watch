@@ -193,7 +193,7 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null }`
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[] }`. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
 ### `iw serve`
 
@@ -281,15 +281,16 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_ACCESS_TOKEN` | http store | Pre-obtained Cloudflare Access token |
 | `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | http store | Access service token (CI) |
 | `IW_COMMIT` | writes | Build commit when git is unavailable |
+| `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 
 ## Acceptance criteria
 
 - [ ] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
-- [ ] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
-- [ ] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
-- [ ] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.
-- [ ] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
-- [ ] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
-- [ ] No command prompts when stdin is not a TTY.
+- [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
+- [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
+- [x] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.
+- [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
+- [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
+- [x] No command prompts when stdin is not a TTY.

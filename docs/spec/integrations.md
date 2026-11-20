@@ -56,7 +56,7 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | `build.commit` | PR head SHA from `GITHUB_EVENT_PATH` for `pull_request*` events, else `GITHUB_SHA` | `git rev-parse HEAD` |
 | `build.ref` | `refs/heads/$GITHUB_HEAD_REF` (PR) or `GITHUB_REF` | `git symbolic-ref HEAD` |
 | `build.dirty` | `false` | `git status --porcelain` non-empty |
-| `ci.provider` / `ci.url` | `github` / `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT` | — |
+| `ci.provider` / `ci.url` | `github` / the job page `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/$IW_CHECK_RUN_ID` when the step sets `IW_CHECK_RUN_ID: ${{ job.check_run_id }}` (GitHub has no default variable for it), else `…/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT` | — |
 | `ci.run_id`, `ci.run_attempt`, `ci.job`, `ci.workflow`, `ci.event` | `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_WORKFLOW`, `GITHUB_EVENT_NAME` | — |
 | `ci.pr` | PR number from the event payload | — |
 | `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }` | git identity |
@@ -98,8 +98,8 @@ PR comments and check runs are *v0.2* (they need `pull-requests: write` / `check
 
 ## Acceptance criteria
 
-- [ ] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
-- [ ] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
-- [ ] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
-- [ ] In GitHub Actions, the run's `ci.url` points to the job's run attempt and `ci.pr` is set on pull requests; the job summary contains the report.
+- [x] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
+- [x] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
+- [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
+- [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
 - [ ] With `gate: true` and a failing P0 test case, the action step fails.

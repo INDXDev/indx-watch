@@ -34,6 +34,8 @@ jobs:
       - name: Playwright tests (records runs through indx-watch/playwright)
         run: npx playwright test
         env:
+          # Lets ci.url open this job instead of the whole run (the `job` context exists only in step env).
+          IW_CHECK_RUN_ID: ${{ job.check_run_id }}
           SHOP_CUSTOMER_PASSWORD: ${{ secrets.SHOP_CUSTOMER_PASSWORD }}
           AWS_ACCESS_KEY_ID: ${{ secrets.IW_S3_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.IW_S3_SECRET }}
@@ -53,7 +55,7 @@ jobs:
 
 What happens:
 
-1. Playwright runs the tests. The reporter writes one run per tagged test case (and Playwright project) into `.indx-watch/runs/`, with the PR head commit, `ci.url` pointing at this job's run attempt, `ci.pr` on pull requests and the actor `github:<login>`. With a store configured it also pushes them.
+1. Playwright runs the tests. The reporter writes one run per tagged test case (and Playwright project) into `.indx-watch/runs/`, with the PR head commit, `ci.url` pointing at this job (at the run attempt without `IW_CHECK_RUN_ID`), `ci.pr` on pull requests and the actor `github:<login>`. With a store configured it also pushes them.
 2. `if: ${{ !cancelled() }}` runs the action even when tests failed — that is when you need the report most.
 3. The action runs `indx-watch sync`, `status` and `report --format md`, appends the report to the job summary, and with `gate: true` fails the step when the [readiness gate](../spec/concepts.md#readiness-gate) fails. On the default branch it also publishes a bundle snapshot for hosted viewers.
 

@@ -5,16 +5,9 @@ import { basename, dirname, join, resolve } from 'node:path';
 import * as zlib from 'node:zlib';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { blobRefs, checkRecord, createResultStore, type LocalReplica } from '@indx-watch/store';
+import { blobRefs, checkRecord, createResultStore } from '@indx-watch/store';
 import { openObjectStore, openReplica } from '@indx-watch/store/node';
-import {
-  pointerBlobs,
-  type StateStore,
-  type SyncOptions,
-  type SyncResult,
-  syncOnce,
-  watch,
-} from '@indx-watch/sync';
+import { pointerBlobs, type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -30,23 +23,6 @@ function scan(files: { path: string; text: string }[], what: string) {
   const found = secrets(files);
   if (found.length)
     fail('SECRETS_FOUND', `Refusing to ${what}: the secret scan found ${found.length} problem(s)`, found);
-}
-
-/**
- * The replica as sync sees it: records about to be pushed (not pushed or retracted yet) that fail the
- * secret scan are held back and their problems added to `found`. Pulled records are never scanned.
- */
-function scanned(replica: LocalReplica, state: StateStore, found: iwb.Problem[]): LocalReplica {
-  const records = async () => {
-    const [all, { pushed }] = [await replica.records(), await state.load()];
-    const done = new Set([...pushed, ...all.flatMap((r) => (r.kind === 'retraction' ? [r.target] : []))]);
-    return all.filter((r) => {
-      const f = done.has(r.id) ? [] : secrets([{ path: `runs/${r.id}`, text: JSON.stringify(r) }]);
-      found.push(...f);
-      return !f.length;
-    });
-  };
-  return { ...replica, records };
 }
 
 /** The result store of the project (or --store / IW_STORE). */
@@ -177,11 +153,10 @@ export const dataCommands: Record<string, Spec> = {
         commitTime: time ? iso(new Date(time)) : undefined,
         actor: await cx.actorOf(ctx),
       };
-      const [store, found] = [await openStore(ctx, p, a), [] as iwb.Problem[]];
-      const replica = scanned(p.replica, store.state, found);
-      const held = () => `Held back records: the secret scan found ${found.length} problem(s); retract them`;
+      const store = await openStore(ctx, p, a);
+      const held = (n: number) => `Held back records: the secret scan found ${n} problem(s); retract them`;
       const opts: SyncOptions = {
-        ...{ ...store, replica, projectId: p.bundle.project.data.id },
+        ...{ ...store, replica: p.replica, projectId: p.bundle.project.data.id },
         direction: a['pull-only'] ? 'pull' : a['push-only'] ? 'push' : 'both',
         ...{
           evidence: evidence as SyncOptions['evidence'],
@@ -193,7 +168,7 @@ export const dataCommands: Record<string, Spec> = {
       if (!a.watch) {
         const r = await syncOnce(opts);
         for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
-        if (found.length) fail('SECRETS_FOUND', held(), found, r, syncText(r));
+        if (r.held?.length) fail('SECRETS_FOUND', held(r.held.length), r.held, r, syncText(r));
         return { data: r, text: syncText(r) };
       }
       let last: SyncResult = {
@@ -208,7 +183,7 @@ export const dataCommands: Record<string, Spec> = {
           last = r;
           if (r.pushed.records + r.pulled.records) ctx.log(syncText(r));
           for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
-          if (found.length) ctx.log([held(), ...found.splice(0).map(problemLine)].join('\n  '));
+          if (r.held?.length) ctx.log([held(r.held.length), ...r.held.map(problemLine)].join('\n  '));
         },
         onError: (e) => ctx.log(`sync error: ${(e as Error).message}`),
       });

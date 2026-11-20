@@ -66,7 +66,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 
 ## Secrets
 - Bundle files contain **secret references only** (`env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`).
-- `iw check` runs a secret scan over every bundle file and data file: known token formats (AWS keys, GitHub tokens, Slack tokens, private key blocks, JWTs, Anthropic/OpenAI keys) and high-entropy strings in fields named like `password`, `token`, `secret`, `key`. Findings are errors. `iw sync` and `iw export` refuse to run while there are secret errors in any file under the bundle (including unknown files), and `iw sync` also scans every record it is about to push; pulled records are not scanned.
+- `iw check` runs a secret scan over every bundle file and data file: known token formats (AWS keys, GitHub tokens, Slack tokens, private key blocks, JWTs, Anthropic/OpenAI keys) and high-entropy strings in fields named like `password`, `token`, `secret`, `key`. Findings are errors. `iw sync` and `iw export` refuse to run while there are secret errors in any file under the bundle (including unknown files), and every push also scans each record it is about to upload — `iw sync`, the background sync of `iw serve` and the Playwright reporter's push alike — and holds back the ones with findings until they are retracted; pulled records are not scanned.
 - Account fixtures are resolved at execution time from the referenced source (`env:` from the process environment in v0.1). Resolved values are never written to records, logs, reports or the index, and the UI shows them masked with a copy button (the copy action is recorded on the hosted app).
 - Evidence can contain secrets (a screenshot of a token). The manual runner and the Playwright reporter warn when a step's evidence type is `log` or `trace` for steps that use account fixtures. Treat the result store as sensitive.
 
@@ -98,6 +98,6 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 ## Acceptance criteria
 
 - [ ] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT).
-- [ ] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
-- [ ] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
-- [ ] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).
+- [x] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
+- [x] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
+- [x] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).

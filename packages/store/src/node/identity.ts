@@ -116,13 +116,13 @@ export function processContext(opts: Opts = {}): ContextProvider {
         GITHUB_REPOSITORY: repo,
         GITHUB_RUN_ID: id,
         GITHUB_RUN_ATTEMPT: n,
+        IW_CHECK_RUN_ID: job,
       } = env;
+      // The job page when the workflow passes `IW_CHECK_RUN_ID: ${{ job.check_run_id }}`, else the run attempt.
+      const page = job && /^\d+$/.test(job) ? `/job/${job}` : n ? `/attempts/${n}` : '';
       return compact({
         provider: 'github',
-        url:
-          server && repo && id
-            ? `${server}/${repo}/actions/runs/${id}${n ? `/attempts/${n}` : ''}`
-            : undefined,
+        url: server && repo && id ? `${server}/${repo}/actions/runs/${id}${page}` : undefined,
         run_id: id,
         run_attempt: n && /^\d+$/.test(n) ? Number(n) : undefined,
         job: env.GITHUB_JOB,

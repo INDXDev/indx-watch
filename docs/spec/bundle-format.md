@@ -432,9 +432,9 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 
 ## Acceptance criteria
 
-- [ ] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
-- [ ] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
-- [ ] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
-- [ ] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
+- [x] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
+- [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
+- [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
+- [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
 - [ ] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
-- [ ] A bundle with `schema_version` higher than supported is rejected with exit code 3.
+- [x] A bundle with `schema_version` higher than supported is rejected with exit code 3.
