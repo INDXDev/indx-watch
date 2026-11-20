@@ -37,7 +37,7 @@ export async function fix(input: FixInput) {
   const groups: Group[] = [['feature', b.features]];
   groups.push(['useCase', b.useCases], ['testCase', b.testCases], ['fixture', b.fixtures], ['plan', b.plans]);
   const seen = new Set([...(deps.knownKeys ?? []), ...groups.flatMap(([, xs]) => xs.map((x) => x.data.key))]);
-  for (const uc of b.useCases) for (const c of uc.data.criteria) seen.add(c.key);
+  for (const c of b.useCases.flatMap((u) => u.data.criteria)) seen.add(c.key);
   const x: Fix = { ...input, seen, data: new Map() };
   for (const [kind, items] of groups)
     for (const key of new Set(items.map((it) => it.data.key))) {
@@ -134,20 +134,22 @@ async function followCovers(x: Fix, moved: Moved[]) {
 /** Directories and files whose name does not match the key: original path → new last segment. */
 function renames(x: Fix, groups: Group[]): Map<string, string> {
   const renamed = new Map<string, string>();
-  for (const [kind, items] of groups)
-    for (const it of items) {
-      const path = kind === 'testCase' || kind === 'plan' ? it.file : dirOf(it.file);
-      const key = (x.data.get(it.file)?.key as string | undefined) ?? it.data.key;
-      const [last, ext] = [path.split('/').at(-1)!, path.endsWith('.toml') ? '.toml' : ''];
-      const slug = /^[A-Z]+-\d+(-.+)$/.exec(last.slice(0, last.length - ext.length))?.[1];
-      if (!last.startsWith(`${key}-`))
-        renamed.set(path, `${key}${slug ?? `-${slugify(it.data.title)}`}${ext}`);
-    }
+  for (const [kind, items] of groups) for (const it of items) renameToKey(x, kind, it, renamed);
   for (const { file, data: d } of [...x.b.environments, ...x.b.releases]) {
     const name = `${'name' in d ? d.name : d.version}.toml`;
     if (!file.endsWith(`/${name}`)) renamed.set(file, name);
   }
   return renamed;
+}
+
+/** An item's file (test cases, plans) or directory not starting with its (new) key: key + kept slug, or title slug. */
+function renameToKey(x: Fix, kind: KeyKind, it: Item, renamed: Map<string, string>) {
+  const path = kind === 'testCase' || kind === 'plan' ? it.file : dirOf(it.file);
+  const key = (x.data.get(it.file)?.key as string | undefined) ?? it.data.key;
+  const [last, ext] = [path.split('/').at(-1)!, path.endsWith('.toml') ? '.toml' : ''];
+  if (last.startsWith(`${key}-`)) return;
+  const slug = /^[A-Z]+-\d+(-.+)$/.exec(last.slice(0, last.length - ext.length))?.[1];
+  renamed.set(path, `${key}${slug ?? `-${slugify(it.data.title)}`}${ext}`);
 }
 
 /** Write every changed or moved file at its final path, then move the other files of renamed directories. */
@@ -158,21 +160,24 @@ async function writeFiles({ fs, files, data, res }: Fix, renamed: Map<string, st
   };
   for (const f of files) {
     const target = finalPath(f.path);
-    const canonical = canonicalText(f, data.get(f.path) ?? f.raw);
     const moved = target !== f.path;
-    const out =
-      canonical === null ? moved && (await fs.read(f.path)) : (canonical !== f.text || moved) && canonical;
-    if (!out) continue;
+    // canonical text when it changed or the file moved; the bytes as they are when a non-TOML file moved
+    const out = canonicalText(f, data.get(f.path) ?? f.raw) ?? (moved && (await fs.read(f.path)));
+    if (!out || (out === f.text && !moved)) continue;
     await fs.write(target, out);
     if (moved) await fs.remove(f.path);
     res.changed.push(target);
   }
   // other files inside renamed directories (README.md, unknown files)
-  for (const dir of [...renamed.keys()].filter((k) => !files.some((f) => f.path === k))) {
-    for (const p of await walk(fs, dir)) {
-      const bytes = await fs.read(p);
-      if (bytes) await fs.write(finalPath(p), bytes);
-    }
-    await fs.remove(dir);
+  for (const dir of [...renamed.keys()].filter((k) => !files.some((f) => f.path === k)))
+    await moveDir(fs, dir, finalPath);
+}
+
+/** Move every file of a renamed directory to its final path, then remove the directory. */
+async function moveDir(fs: BundleFs, dir: string, finalPath: (p: string) => string) {
+  for (const p of await walk(fs, dir)) {
+    const bytes = await fs.read(p);
+    if (bytes) await fs.write(finalPath(p), bytes);
   }
+  await fs.remove(dir);
 }

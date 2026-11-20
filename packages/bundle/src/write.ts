@@ -51,16 +51,19 @@ export const PLACEHOLDER_STEP = {
   expected: 'Describe the expected result.',
 };
 
-/** File type, ID prefix, key kind and path ({d} parent dir, {k} key, {s} slug) of each kind with its own file. */
+/**
+ * File type, ID prefix, key kind, path ({d} parent dir, {k} key, {s} slug) and the field holding the key
+ * of each kind with its own file.
+ */
 const KINDS = {
-  feature: ['feature', 'fea', 'feature', 'specs/{k}-{s}/feature.toml'],
-  'use-case': ['use-case', 'uc', 'useCase', '{d}/{k}-{s}/use-case.toml'],
-  'test-case': ['test-case', 'tc', 'testCase', '{d}/{k}-{s}.toml'],
-  fixture: ['fixture', 'fx', 'fixture', 'fixtures/{k}-{s}/fixture.toml'],
-  environment: ['environment', 'env', null, 'environments/{k}.toml'],
-  release: ['release', 'rel', null, 'releases/{k}.toml'],
-  plan: ['plan', 'pln', 'plan', 'plans/{k}-{s}.toml'],
-} satisfies Record<string, [FileType, IdPrefix, KeyKind | null, string]>;
+  feature: ['feature', 'fea', 'feature', 'specs/{k}-{s}/feature.toml', 'key'],
+  'use-case': ['use-case', 'uc', 'useCase', '{d}/{k}-{s}/use-case.toml', 'key'],
+  'test-case': ['test-case', 'tc', 'testCase', '{d}/{k}-{s}.toml', 'key'],
+  fixture: ['fixture', 'fx', 'fixture', 'fixtures/{k}-{s}/fixture.toml', 'key'],
+  environment: ['environment', 'env', null, 'environments/{k}.toml', 'name'],
+  release: ['release', 'rel', null, 'releases/{k}.toml', 'version'],
+  plan: ['plan', 'pln', 'plan', 'plans/{k}-{s}.toml', 'key'],
+} satisfies Record<string, [FileType, IdPrefix, KeyKind | null, string, string]>;
 const DEFAULTS: Partial<Record<NewKind, object>> = {
   'use-case': { actor: 'User', priority: 'P1' }, // P1 is gated: a new use case is never silently out of scope
   'test-case': { mode: 'manual' },
@@ -136,23 +139,28 @@ export async function createDefinition(
   input: CreateInput,
 ): Promise<CreateResult> {
   const c = context(fs, bundle, input);
-  const { kind, fields } = input;
+  const { kind } = input;
   if (kind === 'criterion') return createCriterion(c);
-  const [type, prefix, keyKind, path] = KINDS[kind] ?? fail('USAGE', `Unknown kind ${String(kind)}`);
-  const tpl = bundle.templates.find((t) => t.name === input.template && t.kind === kind);
-  if (input.template && !tpl) fail('NOT_FOUND', `Template ${kind}.${input.template} not found`);
-  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl?.data, ...fields, ...c.life, ...c.ai };
-  if (['use-case', 'test-case', 'fixture'].includes(kind)) base.status = input.ready ? 'ready' : 'draft';
+  const [type, prefix, keyKind, path, field] = KINDS[kind] ?? fail('USAGE', `Unknown kind ${String(kind)}`);
+  const base = baseFields(c, kind);
   const named = c.given('name') ?? c.given('version') ?? (kind === 'release' ? c.title : slugify(c.title));
   const key = c.given('key') ?? (keyKind ? nextKey(keyKind, c.keys) : named);
   const dir =
     kind === 'use-case' ? placeUseCase(c, base, key) : kind === 'test-case' ? placeTestCase(c, base) : '';
-  base[kind === 'environment' ? 'name' : kind === 'release' ? 'version' : 'key'] = key;
   const file = path.replace('{d}', dir).replace('{k}', key).replace('{s}', slugify(c.title));
   if (await fs.read(file)) fail('CONFLICT', `${file} already exists`);
   const id = c.given('id') ?? newId(prefix, +c.now);
-  await writeDefinition(fs, file, type, { ...base, id });
+  await writeDefinition(fs, file, type, { ...base, [field]: key, id });
   return { kind, id, key, file };
+}
+
+/** Defaults, the template, the given fields, then provenance; use cases, test cases and fixtures get a status. */
+function baseFields({ input, life, ai, bundle }: Ctx, kind: keyof typeof KINDS): Record<string, unknown> {
+  const tpl = bundle.templates.find((t) => t.name === input.template && t.kind === kind);
+  if (input.template && !tpl) fail('NOT_FOUND', `Template ${kind}.${input.template} not found`);
+  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl?.data, ...input.fields, ...life, ...ai };
+  if (['use-case', 'test-case', 'fixture'].includes(kind)) base.status = input.ready ? 'ready' : 'draft';
+  return base;
 }
 type Approvable = Loaded<{ id: string; key: string }>;
 
@@ -169,17 +177,16 @@ export async function approveDefinition(
   const p = parseRef(ref);
   const match = (d: { id: string; key: string }) =>
     p?.type === 'id' ? d.id === p.id : d.key === (p?.key ?? ref);
-  const tc = bundle.testCases.find((t) => match(t.data));
-  const fx = bundle.fixtures.find((f) => match(f.data));
   const uc = bundle.useCases.find((u) => match(u.data));
-  const targets: [FileType, Approvable | undefined, () => Promise<string>][] = [
-    ['test-case', tc, async () => tc!.version],
-    ['fixture', fx, async () => fx!.version],
-    ['use-case', uc, () => useCaseVersion(uc!.data)],
+  const targets: [FileType, (Approvable & { version?: string }) | undefined][] = [
+    ['test-case', bundle.testCases.find((t) => match(t.data))],
+    ['fixture', bundle.fixtures.find((f) => match(f.data))],
+    ['use-case', uc],
   ];
-  for (const [type, item, version] of targets) {
+  for (const [type, item] of targets) {
     if (!item) continue;
-    const v = await version();
+    // test cases and fixtures carry their version (tcv/fxv); a use case's is its content hash
+    const v = item.version ?? (await useCaseVersion(uc!.data));
     const approved = { status: 'ready', approved_by: approver, approved_version: v };
     await writeDefinition(fs, item.file, type, { ...item.data, ...approved });
     return { file: item.file, version: v };
