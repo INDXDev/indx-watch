@@ -41,8 +41,16 @@ export interface Env {
   SIGNING_KEYS?: string;
 }
 
-const LOOKBACK = 15 * 60 * 1000;
-const DAY = 24 * 60 * 60 * 1000;
+/** keys this much older than the cursor are listed again: writers may land a little out of order */
+const LOOKBACK_MS = 15 * 60 * 1000;
+/** how often the full listing of the log starts over */
+const FULL_LISTING_EVERY_MS = 24 * 60 * 60 * 1000;
+/** how long one isolate holds the ingest lease; `catchUp` releases it when done */
+const LEASE_MS = 30_000;
+/** the most log objects one `catchUp` reads */
+const READS_PER_CALL = 50;
+/** how often a request triggers a catch-up of the index */
+const CATCH_UP_EVERY_MS = 5000;
 const keyTime = (key: string) => S.ulidTime(key.slice(S.LOG_PREFIX.length));
 
 const skipInvalid = (e: S.StoreError) => (e.code === 'invalid' ? null : Promise.reject(e));
@@ -63,7 +71,9 @@ async function eachLogKey(store: Store, after: string | undefined, each: Each) {
 
 /** The new keys since the cursor, minus the lookback window; advances the cursor. */
 async function catchUpRecent(store: Store, st: IngestState, pull: Each) {
-  const from = st.cursor ? S.LOG_PREFIX + ulidFloor(Math.max(0, keyTime(st.cursor) - LOOKBACK)) : undefined;
+  const from = st.cursor
+    ? S.LOG_PREFIX + ulidFloor(Math.max(0, keyTime(st.cursor) - LOOKBACK_MS))
+    : undefined;
   await eachLogKey(store, from, async (key) => {
     if (st.seen.has(key)) return true;
     if (!(await pull(key))) return false;
@@ -75,7 +85,7 @@ async function catchUpRecent(store: Store, st: IngestState, pull: Each) {
 
 /** The daily full listing, resumed across calls until it reaches the end of the log. */
 async function catchUpFull(store: Store, { cursor, seen, full }: IngestState, pull: Each, now: number) {
-  if (!cursor || (full.after === undefined && now - full.at < DAY)) return;
+  if (!cursor || (full.after === undefined && now - full.at < FULL_LISTING_EVERY_MS)) return;
   full.after ??= '';
   const done = await eachLogKey(store, full.after || undefined, async (key) => {
     if (!seen.has(key) && !(await pull(key))) return false;
@@ -86,7 +96,7 @@ async function catchUpFull(store: Store, { cursor, seen, full }: IngestState, pu
 }
 
 /**
- * Pull new log objects of the store into the index: at most 50 per call, with a lookback window, cursor and lease
+ * Pull new log objects of the store into the index: at most READS_PER_CALL per call, with a lookback window, cursor and lease
  * in the index meta, plus a daily full listing resumed across calls, so another body under an older key converges
  * as in clones (docs/spec/sync.md#the-hosted-server-and-the-index).
  */
@@ -98,14 +108,14 @@ export async function catchUp(
 ) {
   const [holder, until] = ((await index.getMeta('ingest.lease')) ?? '').split(' ');
   if (holder && holder !== owner && Number(until) > now) return 0;
-  await index.setMeta('ingest.lease', `${owner} ${now + 30_000}`);
+  await index.setMeta('ingest.lease', `${owner} ${now + LEASE_MS}`);
   try {
     const raw = JSON.parse((await index.getMeta('ingest.state')) ?? '{"cursor":null,"seen":[]}');
     const st: IngestState = { cursor: raw.cursor, seen: new Set(raw.seen), full: raw.full ?? { at: now } };
     let [read, added] = [0, 0];
-    // false once the budget of 50 reads is spent; an unreadable object is skipped, as in sync
+    // false once the budget of reads is spent; an unreadable object is skipped, as in sync
     const pull = async (key: string) => {
-      if (read++ >= 50) return false;
+      if (read++ >= READS_PER_CALL) return false;
       const log = await store.readLog(key).catch(skipInvalid);
       if (log) added += await index.ingest(log.records, key, trust);
       return true;
@@ -114,7 +124,7 @@ export async function catchUp(
     await catchUpFull(store, st, pull, now);
     const cap = `${S.LOG_PREFIX}${ulidFloor(now)}.json`;
     const cursor = st.cursor && st.cursor > cap ? cap : st.cursor;
-    const floor = cursor ? keyTime(cursor) - LOOKBACK : 0;
+    const floor = cursor ? keyTime(cursor) - LOOKBACK_MS : 0;
     const state = { cursor, seen: [...st.seen].filter((k) => keyTime(k) >= floor), full: st.full };
     await index.setMeta('ingest.state', JSON.stringify(state));
     if (added) await index.setMeta('records.rev', newUlid(now));
@@ -157,8 +167,10 @@ function pinnedKeys(env: Env) {
   let json: unknown;
   try {
     json = JSON.parse(env.SIGNING_KEYS || '[]');
-  } catch {
-    // not JSON: fails the schema check below, reported as a warning on every model instead of failing requests
+  } catch (e) {
+    // JSON.parse only throws SyntaxError: leave `json` undefined so it fails the schema check below and is
+    // reported as a warning on every model instead of failing requests
+    if (!(e instanceof SyntaxError)) throw e;
   }
   const pinned = SigningKey.array().safeParse(json);
   const keys = pinned.success ? pinned.data : [];
@@ -208,8 +220,10 @@ function create(env: Env, key: string) {
   };
 
   const loadModel = async (): Promise<Loaded> => {
-    if (Date.now() - ingested.at >= 5000) {
+    if (Date.now() - ingested.at >= CATCH_UP_EVERY_MS) {
       ingested.at = Date.now();
+      // best effort: a failed catch-up (lease, bucket or D1 error) serves the records indexed so far; the next
+      // request or the scheduled run retries
       await catchUp(store, index, s.owner, { trust }).catch(() => 0);
     }
     const rev = (await index.getMeta('records.rev')) ?? '';

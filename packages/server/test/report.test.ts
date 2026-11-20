@@ -1,3 +1,4 @@
+// renderReport over the examples/shop bundle and sample records: snapshots, audiences, evidence, locales and CSS.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildModel, type Model, reportData } from '@indx-watch/core';
@@ -40,7 +41,56 @@ async function render(o: {
   });
 }
 
-describe('renderReport on examples/shop', () => {
+const FORMATS = ['md', 'html'] as const;
+const LOCALES = ['en', 'ja'] as const;
+/** every format × locale pair */
+const formatsAndLocales = FORMATS.flatMap((format) => LOCALES.map((locale) => ({ format, locale })));
+
+/** Strings of the shop's records and bundle that a customer report must not contain. */
+const INTERNAL_ONLY = [
+  'internal note',
+  'Total stayed',
+  'VPN',
+  'Layout looks fine',
+  'Matches the copy deck',
+  'localhost:4173',
+  'No VPN is needed',
+  'github.com',
+  'SHOP_CUSTOMER_PASSWORD',
+];
+
+/** The shop bundle with a "Bundle note …" on the project, every feature, use case, criterion, test case, fixture and plan item. */
+async function shopWithNotes() {
+  const b = await shop();
+  const set = (o: { notes?: string }, n: string) =>
+    Object.assign(o, { notes: `Bundle note ${n} (do not share)` });
+  set(b.project.data, 'project');
+  for (const f of b.features) set(f.data, f.data.key);
+  for (const u of b.useCases) {
+    set(u.data, u.data.key);
+    for (const c of u.data.criteria) set(c, c.key);
+  }
+  for (const t of b.testCases) set(t.data, t.data.key);
+  for (const x of b.fixtures) set(x.data, x.data.key);
+  for (const p of b.plans)
+    for (const [i, item] of (p.data.items ?? []).entries()) set(item, `${p.data.key}#${i}`);
+  return b;
+}
+
+/** A customer report of `m` with embedded evidence, for the whole release or one plan. */
+async function customerReport(m: Model, o: { plan?: string; format: 'md' | 'html'; locale: 'en' | 'ja' }) {
+  const scope = { release: 'v1.2.0', environment: 'staging' };
+  const opts = {
+    audience: 'customer',
+    generatedBy: 'qa@shop.test',
+    now: NOW,
+    ...(o.plan ? { plan: o.plan } : {}),
+  } as const;
+  const data = Object.assign(reportData(m, scope, opts), { texts: await reportTexts(m, o.locale) });
+  return renderReport(data, { format: o.format, locale: o.locale, evidence: 'embed', getBlob });
+}
+
+describe('renderReport on examples/shop: snapshots', () => {
   it('Markdown (internal, en)', async () => {
     await expect(await render({ format: 'md' })).toMatchFileSnapshot('__snapshots__/shop-v1.2.0.md');
   });
@@ -57,67 +107,34 @@ describe('renderReport on examples/shop', () => {
   });
 
   it('HTML is one self-contained file: no scripts, no external resources, light and dark, printable', async () => {
-    for (const html of [
-      await render({ format: 'html' }),
-      await render({ format: 'html', audience: 'customer' }),
-    ]) {
+    for (const audience of ['internal', 'customer'] as const) {
+      const html = await render({ format: 'html', audience });
       expect(html).not.toMatch(/<script|<link|@import|url\(/i);
       expect(html).not.toMatch(/\ssrc="(?!data:)/);
       expect(html).toContain('@media screen and (prefers-color-scheme:dark)');
       expect(html).toContain('@media print');
     }
   });
+});
 
+describe('renderReport on examples/shop: audiences', () => {
   it('customer audience: no emails, notes, judgement reasons, environment details or CI links', async () => {
-    for (const format of ['md', 'html'] as const)
-      for (const locale of ['en', 'ja'] as const) {
-        const out = await render({ format, audience: 'customer', locale, evidence: 'embed' });
-        expect(out).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
-        for (const secret of [
-          'internal note',
-          'Total stayed',
-          'VPN',
-          'Layout looks fine',
-          'Matches the copy deck',
-          'localhost:4173',
-          'No VPN is needed',
-          'github.com',
-          'SHOP_CUSTOMER_PASSWORD',
-        ])
-          expect(out, `${format}/${locale}: ${secret}`).not.toContain(secret);
-        expect(out).toContain('QA team');
-      }
+    for (const { format, locale } of formatsAndLocales) {
+      const out = await render({ format, audience: 'customer', locale, evidence: 'embed' });
+      expect(out).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+      for (const secret of INTERNAL_ONLY) expect(out, `${format}/${locale}: ${secret}`).not.toContain(secret);
+      expect(out).toContain('QA team');
+    }
   });
 
   it('customer audience: no notes from the bundle', async () => {
-    const b = await shop();
-    const note = (n: string) => `Bundle note ${n} (do not share)`;
-    const set = (o: { notes?: string }, n: string) => Object.assign(o, { notes: note(n) });
-    set(b.project.data, 'project');
-    for (const f of b.features) set(f.data, f.data.key);
-    for (const u of b.useCases) {
-      set(u.data, u.data.key);
-      for (const c of u.data.criteria) set(c, c.key);
-    }
-    for (const t of b.testCases) set(t.data, t.data.key);
-    for (const x of b.fixtures) set(x.data, x.data.key);
-    for (const p of b.plans)
-      for (const [i, item] of (p.data.items ?? []).entries()) set(item, `${p.data.key}#${i}`);
+    const b = await shopWithNotes();
     const m = buildModel(b, sampleRecords(b)).model;
     for (const plan of [undefined, 'PLAN-1'])
-      for (const format of ['md', 'html'] as const)
-        for (const locale of ['en', 'ja'] as const) {
-          const scope = { release: 'v1.2.0', environment: 'staging' };
-          const opts = {
-            audience: 'customer',
-            generatedBy: 'qa@shop.test',
-            now: NOW,
-            ...(plan ? { plan } : {}),
-          } as const;
-          const data = Object.assign(reportData(m, scope, opts), { texts: await reportTexts(m, locale) });
-          const out = await renderReport(data, { format, locale, evidence: 'embed', getBlob });
-          expect(out, `${plan}/${format}/${locale}`).not.toContain('Bundle note');
-        }
+      for (const { format, locale } of formatsAndLocales) {
+        const out = await customerReport(m, { plan, format, locale });
+        expect(out, `${plan}/${format}/${locale}`).not.toContain('Bundle note');
+      }
   });
 
   it('internal audience keeps notes and CI links', async () => {
@@ -126,7 +143,9 @@ describe('renderReport on examples/shop', () => {
     expect(md).toContain('[CI](https://github.com/INDXDev/indx-watch/actions/runs/1)');
     expect(md).toContain(`\`sha256:${SHOT_SHA.slice(0, 12)}\``);
   });
+});
 
+describe('renderReport on examples/shop: evidence, locale and gate', () => {
   it('evidence links use the evidence base when given', async () => {
     const data = reportData(
       model,
@@ -148,12 +167,14 @@ describe('renderReport on examples/shop', () => {
     expect(md).not.toContain('sha256:');
   });
 
-  it('Japanese labels and content translations, with the source text marked', async () => {
+  it('Japanese labels and content translations', async () => {
     const md = await render({ format: 'md', locale: 'ja' });
     expect(md).toContain('# Shop — リリース v1.2.0');
     expect(md).toContain('誤ったパスワードではサインインできない');
     expect(md).toContain('ホームページにすべての商品が名前と価格つきで並ぶ。');
-    // a criterion without a translation falls back to the source text, marked with its locale
+  });
+
+  it('a criterion without a translation falls back to the source text, marked with its locale', async () => {
     const b = await shop();
     const ac = b.useCases.find((u) => u.data.key === 'UC-1')!.data.criteria[0]!;
     delete ac.i18n;
