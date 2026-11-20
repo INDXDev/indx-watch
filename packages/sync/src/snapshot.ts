@@ -12,6 +12,18 @@ async function collect(fs: BundleFs, dir: string, out: string[]): Promise<void> 
   }
 }
 
+/** The definition files of a bundle by path (what a snapshot packs). */
+export async function definitionFiles(fs: BundleFs): Promise<Map<string, Uint8Array>> {
+  const paths: string[] = [];
+  await collect(fs, '', paths);
+  const out = new Map<string, Uint8Array>();
+  for (const path of paths.sort()) {
+    const data = await fs.read(path);
+    if (data) out.set(path, data);
+  }
+  return out;
+}
+
 /** SHA-256 over the sorted `path sha256` lines (each ending in '\n'). */
 export async function definitionsHash(files: { path: string; sha256: string }[]): Promise<string> {
   const lines = files.map((f) => `${f.path} ${f.sha256}\n`).sort();

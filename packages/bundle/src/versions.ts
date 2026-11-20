@@ -73,6 +73,8 @@ export const TRANSLATABLE_FIELDS = {
   step: ['instruction', 'expected'],
   fixture: ['title'],
   environment: ['title', 'guide'],
+  release: ['title'],
+  plan: ['title'],
 } as const;
 
 /**

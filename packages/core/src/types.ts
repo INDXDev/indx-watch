@@ -4,6 +4,7 @@
  */
 import type {
   AnyRecord,
+  BundleRecord,
   Criterion,
   DecisionPolicy,
   DeploymentRecord,
@@ -128,6 +129,8 @@ export interface Model {
   runs: Map<string, RunView>; // by run ID
   waivers: WaiverRecord[];
   deployments: DeploymentRecord[];
+  /** bundle snapshots, newest first (by commit_time, then at, then id) */
+  snapshots: BundleRecord[];
   /** any ID or key → key (for parseRef resolution) */
   keyOf(ref: string): string | undefined;
 }

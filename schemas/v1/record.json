@@ -49,7 +49,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -390,7 +391,8 @@
                       "github",
                       "github-oidc",
                       "cloudflare-access",
-                      "env"
+                      "env",
+                      "browser"
                     ]
                   },
                   "model": {
@@ -407,6 +409,13 @@
               "at": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "locale": {
+                "type": "string",
+                "enum": [
+                  "en",
+                  "ja"
+                ]
               }
             },
             "required": [
@@ -506,7 +515,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -606,7 +616,8 @@
                     "github",
                     "github-oidc",
                     "cloudflare-access",
-                    "env"
+                    "env",
+                    "browser"
                   ]
                 },
                 "model": {
@@ -623,6 +634,13 @@
             "at": {
               "type": "string",
               "format": "date-time"
+            },
+            "locale": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ja"
+              ]
             }
           },
           "required": [
@@ -694,7 +712,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -819,7 +838,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -937,7 +957,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -984,6 +1005,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
         }
       },
       "required": [
@@ -1048,7 +1075,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {
@@ -1154,7 +1182,8 @@
                 "github",
                 "github-oidc",
                 "cloudflare-access",
-                "env"
+                "env",
+                "browser"
               ]
             },
             "model": {

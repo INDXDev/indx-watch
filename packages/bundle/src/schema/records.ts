@@ -15,7 +15,7 @@ export const Actor = z.strictObject({
   kind: ActorKind,
   id: z.string().min(1),
   name: z.string().optional(),
-  via: z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env']),
+  via: z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env', 'browser']),
   model: z.string().optional(),
 });
 export type Actor = z.infer<typeof Actor>;
@@ -75,6 +75,8 @@ export const Judgement = z.strictObject({
   flaky: z.boolean().optional(),
   by: Actor.optional(),
   at: DateTime.optional(),
+  /** content language the reviewer read and wrote the reason in (v0.2) */
+  locale: Locale.optional(),
 });
 export type Judgement = z.infer<typeof Judgement>;
 
@@ -180,6 +182,10 @@ export const BundleRecord = z.strictObject({
   /** hash over the definition files (sorted path + sha256 list); used to skip unchanged snapshots */
   definitions_hash: Sha256,
   files: z.number().int().min(0),
+  /** uncommitted changes were included (`iw push`, v0.2) */
+  dirty: z.boolean().optional(),
+  /** free text from `iw push --message` or the upload dialog (v0.2) */
+  message: z.string().optional(),
 });
 export type BundleRecord = z.infer<typeof BundleRecord>;
 
