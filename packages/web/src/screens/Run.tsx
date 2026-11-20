@@ -7,7 +7,6 @@ import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
 import { Badge, Chip, fmtBytes, Load, Mark, Meta, Section, Seg, Tx, useApi, Who } from '../ui';
 
-type Evidence = RunDetail['record']['evidence'][number];
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
 const RULES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -27,10 +26,6 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
   const { t, date } = useI18n();
   const rec = r.record;
   const review = r.decision.verdict === 'needs_review';
-  const byStep = new Map<number, Evidence[]>();
-  for (const e of rec.evidence) byStep.set(e.step ?? 0, [...(byStep.get(e.step ?? 0) ?? []), e]);
-  const ev = (sha: string) => rec.evidence.find((e) => e.sha256 === sha);
-  const ci = ciLinks(rec.ci);
   return (
     <>
       <div className="page-head">
@@ -48,29 +43,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
         </div>
       </div>
 
-      <div className={`verdict s-${r.decision.verdict}`}>
-        <Badge status={r.decision.verdict} size="lg" />
-        <div className="grow">
-          <strong>
-            {t('run.rule', { n: r.decision.rule, rule: t(`rule.${r.decision.rule}` as MsgKey) })}
-          </strong>
-          <p>{r.decision.reason}</p>
-          <details>
-            <summary>{t('run.howDecided')}</summary>
-            <ol className="rules">
-              {RULES.map((n) => (
-                <li
-                  key={n}
-                  className={n === r.decision.rule ? 'hit' : ''}
-                  aria-current={n === r.decision.rule ? 'step' : undefined}
-                >
-                  {t(`rule.${n}` as MsgKey)}
-                </li>
-              ))}
-            </ol>
-          </details>
-        </div>
-      </div>
+      <Verdict r={r} />
       {r.stale && (
         <div className="callout s-stale">
           {t('run.stale', { version: rec.test_case.version, current: r.testCase.currentVersion })}{' '}
@@ -81,108 +54,161 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
 
       <div className="split">
         <div className="stack">
-          <Section title={t('run.steps')}>
-            {rec.steps.length === 0 && <p className="muted">{t('run.noSteps')}</p>}
-            <ol className="steps">
-              {rec.steps.map((s) => (
-                <li key={s.index} className="step">
-                  <span className="step-n">{s.index}</span>
-                  <div className="grow stack-sm">
-                    <Badge status={s.status} />
-                    {s.note && <p className="pre">{s.note}</p>}
-                    <Shots
-                      items={(s.evidence ?? []).map(
-                        (sha) => ev(sha) ?? { sha256: sha, name: sha.slice(0, 12) },
-                      )}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
-            {(byStep.get(0)?.length ?? 0) > 0 && (
-              <>
-                <h3>{t('run.otherEvidence')}</h3>
-                <Shots items={byStep.get(0) ?? []} />
-              </>
-            )}
-          </Section>
-          <Section title={t('run.judgements', { count: r.judgements.length })}>
-            {r.judgements.length === 0 && <p className="muted">{t('run.noJudgements')}</p>}
-            <div className="table-wrap" hidden={r.judgements.length === 0}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('run.judge')}</th>
-                    <th>{t('run.verdict')}</th>
-                    <th>{t('run.reason')}</th>
-                    <th>{t('run.by')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.judgements.map((j) => (
-                    <tr key={j.id}>
-                      <td>
-                        <Chip>{j.kind}</Chip>
-                      </td>
-                      <td>
-                        {['pass', 'fail', 'blocked', 'skipped'].includes(j.verdict) ? (
-                          <Badge status={j.verdict} />
-                        ) : (
-                          <Chip>{j.verdict}</Chip>
-                        )}
-                        {j.confidence !== undefined && (
-                          <span className="muted small"> {Math.round(j.confidence * 100)}%</span>
-                        )}
-                      </td>
-                      <td className="pre">{j.reason ?? '—'}</td>
-                      <td className="small">
-                        {j.by?.name ?? j.by?.id ?? '—'}{' '}
-                        {j.by && <Mark who={j.by} unverified={r.unverified?.includes(j.id)} />}
-                        <br />
-                        <span className="muted">{date(j.at)}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Section>
+          <Steps r={r} />
+          <Judgements r={r} />
           {!review && <ReviewForm id={rec.id} onDone={reload} />}
         </div>
         <div className="stack">
-          <Section title={t('run.details')}>
-            <Meta
-              items={[
-                [t('run.actor'), `${rec.actor.name ?? rec.actor.id} (${rec.actor.kind})`],
-                [t('run.source'), rec.source],
-                [t('scope.release'), rec.release],
-                [t('scope.environment'), rec.environment],
-                [t('run.build'), rec.build.commit && <code>{rec.build.commit.slice(0, 12)}</code>],
-                [t('run.ci'), ci.url && <a href={ci.url}>{rec.ci?.job ?? rec.ci?.provider} ↗</a>],
-                [t('run.pr'), rec.ci?.pr && (ci.pr ? <a href={ci.pr}>#{rec.ci.pr} ↗</a> : `#${rec.ci.pr}`)],
-                [t('run.started'), date(rec.started_at)],
-                [t('run.ended'), date(rec.ended_at)],
-                [t('run.locale'), rec.locale],
-                [t('run.version'), <code key="v">{rec.test_case.version}</code>],
-              ]}
-            />
-            {rec.fixtures.length > 0 && (
-              <ul className="list small">
-                {rec.fixtures.map((f) => (
-                  <li key={f.id}>
-                    <a className="key" href={href.fixtures(f.key)}>
-                      {f.key}
-                    </a>
-                    <code>{f.version}</code> {f.rows?.join(', ')}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {rec.note && <p className="pre">{rec.note}</p>}
-          </Section>
+          <RunMeta r={r} />
         </div>
       </div>
     </>
+  );
+}
+
+/** The verdict and the decision rule that produced it. */
+function Verdict({ r }: { r: RunDetail }) {
+  const { t } = useI18n();
+  return (
+    <div className={`verdict s-${r.decision.verdict}`}>
+      <Badge status={r.decision.verdict} size="lg" />
+      <div className="grow">
+        <strong>{t('run.rule', { n: r.decision.rule, rule: t(`rule.${r.decision.rule}` as MsgKey) })}</strong>
+        <p>{r.decision.reason}</p>
+        <details>
+          <summary>{t('run.howDecided')}</summary>
+          <ol className="rules">
+            {RULES.map((n) => (
+              <li
+                key={n}
+                className={n === r.decision.rule ? 'hit' : ''}
+                aria-current={n === r.decision.rule ? 'step' : undefined}
+              >
+                {t(`rule.${n}` as MsgKey)}
+              </li>
+            ))}
+          </ol>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+/** Steps with their evidence, then evidence not tied to a step. */
+function Steps({ r }: { r: RunDetail }) {
+  const { t } = useI18n();
+  const { steps, evidence } = r.record;
+  const loose = evidence.filter((e) => (e.step ?? 0) === 0);
+  const ev = (sha: string) => evidence.find((e) => e.sha256 === sha);
+  return (
+    <Section title={t('run.steps')}>
+      {steps.length === 0 && <p className="muted">{t('run.noSteps')}</p>}
+      <ol className="steps">
+        {steps.map((s) => (
+          <li key={s.index} className="step">
+            <span className="step-n">{s.index}</span>
+            <div className="grow stack-sm">
+              <Badge status={s.status} />
+              {s.note && <p className="pre">{s.note}</p>}
+              <Shots
+                items={(s.evidence ?? []).map((sha) => ev(sha) ?? { sha256: sha, name: sha.slice(0, 12) })}
+              />
+            </div>
+          </li>
+        ))}
+      </ol>
+      {loose.length > 0 && (
+        <>
+          <h3>{t('run.otherEvidence')}</h3>
+          <Shots items={loose} />
+        </>
+      )}
+    </Section>
+  );
+}
+
+function Judgements({ r }: { r: RunDetail }) {
+  const { t, date } = useI18n();
+  return (
+    <Section title={t('run.judgements', { count: r.judgements.length })}>
+      {r.judgements.length === 0 && <p className="muted">{t('run.noJudgements')}</p>}
+      <div className="table-wrap" hidden={r.judgements.length === 0}>
+        <table>
+          <thead>
+            <tr>
+              <th>{t('run.judge')}</th>
+              <th>{t('run.verdict')}</th>
+              <th>{t('run.reason')}</th>
+              <th>{t('run.by')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {r.judgements.map((j) => (
+              <tr key={j.id}>
+                <td>
+                  <Chip>{j.kind}</Chip>
+                </td>
+                <td>
+                  {['pass', 'fail', 'blocked', 'skipped'].includes(j.verdict) ? (
+                    <Badge status={j.verdict} />
+                  ) : (
+                    <Chip>{j.verdict}</Chip>
+                  )}
+                  {j.confidence !== undefined && (
+                    <span className="muted small"> {Math.round(j.confidence * 100)}%</span>
+                  )}
+                </td>
+                <td className="pre">{j.reason ?? '—'}</td>
+                <td className="small">
+                  {j.by?.name ?? j.by?.id ?? '—'}{' '}
+                  {j.by && <Mark who={j.by} unverified={r.unverified?.includes(j.id)} />}
+                  <br />
+                  <span className="muted">{date(j.at)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
+/** Who ran it, where, on which build, with which fixtures. */
+function RunMeta({ r: { record: rec } }: { r: RunDetail }) {
+  const { t, date } = useI18n();
+  const ci = ciLinks(rec.ci);
+  return (
+    <Section title={t('run.details')}>
+      <Meta
+        items={[
+          [t('run.actor'), `${rec.actor.name ?? rec.actor.id} (${rec.actor.kind})`],
+          [t('run.source'), rec.source],
+          [t('scope.release'), rec.release],
+          [t('scope.environment'), rec.environment],
+          [t('run.build'), rec.build.commit && <code>{rec.build.commit.slice(0, 12)}</code>],
+          [t('run.ci'), ci.url && <a href={ci.url}>{rec.ci?.job ?? rec.ci?.provider} ↗</a>],
+          [t('run.pr'), rec.ci?.pr && (ci.pr ? <a href={ci.pr}>#{rec.ci.pr} ↗</a> : `#${rec.ci.pr}`)],
+          [t('run.started'), date(rec.started_at)],
+          [t('run.ended'), date(rec.ended_at)],
+          [t('run.locale'), rec.locale],
+          [t('run.version'), <code key="v">{rec.test_case.version}</code>],
+        ]}
+      />
+      {rec.fixtures.length > 0 && (
+        <ul className="list small">
+          {rec.fixtures.map((f) => (
+            <li key={f.id}>
+              <a className="key" href={href.fixtures(f.key)}>
+                {f.key}
+              </a>
+              <code>{f.version}</code> {f.rows?.join(', ')}
+            </li>
+          ))}
+        </ul>
+      )}
+      {rec.note && <p className="pre">{rec.note}</p>}
+    </Section>
   );
 }
 
