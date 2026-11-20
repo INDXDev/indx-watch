@@ -63,7 +63,7 @@ Exit codes: `0` success, `1` the answer is "no" (check found errors, gate failed
 
 ## Rules for agents (always)
 
-1. **Draft first.** Everything you create is `status = "draft"`, `origin = "ai"`, with an `[ai]` table. Use `iw new <kind> --origin ai --model <your model ID> --skill <skill name>`; never pass `--ready`.
+1. **Draft first.** Everything you create has `origin = "ai"` and an `[ai]` table; use cases, test cases, criteria and fixtures are also `status = "draft"` (features, environments, releases and plans have no status, and `iw check` warns until a human approves them). Use `iw new <kind> --origin ai --model <your model ID> --skill <skill name>`; never pass `--ready`.
 2. **Humans approve.** Never run `iw approve`, `iw review` or `iw waive`; they refuse agents (exit 2). Tell the human which command to run, e.g. `iw approve TC-10`.
 3. **Mark your writes.** Prefix every write command with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=<your model ID>` (writes: `new`, `fmt`, `check --fix`, `record`, `retract`, `fixture add`, `sync`, `deployment add`).
 4. **Confidence is mandatory** for verdicts you record (`--confidence 0-1`). Below the project's threshold (default 0.8) the run becomes `needs_review`. Report your real confidence; do not inflate it.

@@ -112,6 +112,32 @@ describe('check problems', () => {
     expect(codes(await checkBundle(fs))).toEqual([]);
   });
 
+  it('AI-written features, environments, releases and plans warn until approved; [ai] is required', async () => {
+    const fs = memFs();
+    const { createDefinition, approveDefinition } = await import('../src/write.js');
+    const load = async () => (await loadBundle(fs)).bundle!;
+    const ai = { model: 'test' };
+    const made = [];
+    for (const [kind, title] of [
+      ['feature', 'Wishlist'],
+      ['environment', 'Preview'],
+      ['release', 'v9.0.0'],
+      ['plan', 'Agent plan'],
+    ] as const)
+      made.push(await createDefinition(fs, await load(), { kind, fields: { title }, origin: 'ai', ai }));
+    for (const m of made) expect(parseToml(fs.text(m.file)!)).toMatchObject({ origin: 'ai', ai });
+    const r = await checkBundle(fs);
+    expect(codes(r)).toEqual([]);
+    const warned = r.problems.filter((p) => p.code === 'ai-not-approved');
+    expect(warned.map((p) => [p.severity, p.file])).toEqual(made.map((m) => ['warning', m.file]));
+    for (const m of made) await approveDefinition(fs, await load(), m.key, 'alex@shop.test');
+    expect(codes(await checkBundle(fs), 'warning')).not.toContain('ai-not-approved');
+    // without the [ai] table the origin mark is an error
+    const f = made[0]!.file;
+    fs.files.set(f, new TextEncoder().encode(fs.text(f)!.replace(/\[ai\][^[]*/, '')));
+    expect(codes(await checkBundle(fs))).toEqual(['missing-ai-meta']);
+  });
+
   it('unresolved covers and fixture refs', async () => {
     const fs = memFs();
     fs.files.set(

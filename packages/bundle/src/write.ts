@@ -183,6 +183,21 @@ export async function approveDefinition(
     });
     return { file: item.file, version: v };
   }
+  // features, environments, releases and plans have no status or version: approval records the reviewer
+  const named = (d: Record<string, unknown>) =>
+    match({ id: d.id as string, key: String(d.key ?? d.name ?? d.version) });
+  const other: [FileType, Loaded<Record<string, unknown>>[]][] = [
+    ['feature', bundle.features],
+    ['environment', bundle.environments],
+    ['release', bundle.releases],
+    ['plan', bundle.plans],
+  ];
+  for (const [type, xs] of other) {
+    const x = xs.find((x) => named(x.data));
+    if (!x) continue;
+    await writeDefinition(fs, x.file, type, { ...x.data, approved_by: approver });
+    return { file: x.file, version: '' };
+  }
   const owner =
     bundle.useCases.find((u) => u.data.criteria.some(match)) ?? fail('NOT_FOUND', `${ref} not found`);
   const criteria = owner.data.criteria.map((c) =>

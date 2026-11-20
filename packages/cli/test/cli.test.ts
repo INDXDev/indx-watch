@@ -330,6 +330,38 @@ describe('commands', () => {
     expect(iw(dir, ['check']).code).toBe(0);
   });
 
+  it('new feature|env|release|plan by an agent carries origin "ai"; check warns until a human approves', () => {
+    const dir = shop();
+    const agent = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'claude-test' };
+    const made = [
+      ['feature', '--title', 'Agent feature'],
+      ['env', '--title', 'Preview'],
+      ['release', '--title', 'v9.0.0'],
+      ['plan', '--title', 'Agent plan'],
+    ].map((args) => {
+      const r = iwJson(dir, 'new', ['new', ...args], { env: agent });
+      expect(r.code).toBe(0);
+      expect(parseToml(read(dir, r.json.data.file))).toMatchObject({
+        origin: 'ai',
+        ai: { model: 'claude-test' },
+      });
+      return r.json.data;
+    });
+    const check = iwJson(dir, 'check', ['check']);
+    expect(check.code).toBe(0);
+    const warned = check.json.data.problems.filter((p: { code: string }) => p.code === 'ai-not-approved');
+    expect(warned.map((p: { severity: string; file: string }) => [p.severity, p.file])).toEqual(
+      made.map((m) => ['warning', m.file]),
+    );
+    for (const m of made) {
+      const r = iwJson(dir, 'approve', ['approve', m.key]);
+      expect([r.code, r.json.data.file]).toEqual([0, m.file]);
+      expect(read(dir, m.file)).toContain('approved_by = "qa@shop.test"');
+    }
+    const after = iwJson(dir, 'check', ['check']).json.data.problems;
+    expect(after.filter((p: { code: string }) => p.code === 'ai-not-approved')).toEqual([]);
+  });
+
   it('new never reuses a fixture key that recorded runs used', () => {
     const dir = shop();
     expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // sample runs use FX-1..FX-3

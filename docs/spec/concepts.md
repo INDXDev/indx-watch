@@ -161,6 +161,7 @@ stateDiagram-v2
 - An `origin = "ai"` item is only valid as `ready` while `approved_version` equals its current version. Editing an approved AI-written test case therefore fails `iw check` until a human approves it again.
 - Items are **deprecated, not deleted**, so their keys stay reserved. Acceptance criteria have their own `status`: `draft`, `ready` (default) or `retired`.
 - An `origin = "ai"` acceptance criterion counts as `ready` only with `approved_by`; `iw approve AC-n.m` writes it (criteria have no version of their own: rewording one changes the versions of the test cases that cover it).
+- Features, environments, releases and plans have no `status`, but carry the same `origin` mark and `[ai]` table: `iw new` writes them for an agent like any other item. Since they decide no verdict and no gate rule counts them as drafts, the approval rule is only a **warning** for them: `iw check` reports `ai-not-approved` as a warning while an `origin = "ai"` one has no `approved_by` (`--strict` makes it fail). `iw approve FEAT-n`, `PLAN-n`, an environment name or a release version writes `approved_by` only; they have no version, so a later edit does not undo the approval.
 
 ### Run
 
@@ -253,7 +254,7 @@ These are enforced by `iw check` and unit tests:
 
 1. A run references exactly one test case ID, one test case version and one build.
 2. Human judgements follow the reason rule above.
-3. An `origin = "ai"` item is `ready` only with `approved_by` and an `approved_version` equal to its current version (an acceptance criterion: only with `approved_by`).
+3. An `origin = "ai"` item is `ready` only with `approved_by` and an `approved_version` equal to its current version (an acceptance criterion: only with `approved_by`). An `origin = "ai"` feature, environment, release or plan without `approved_by` is a warning. Every `origin = "ai"` item has an `[ai]` table.
 4. Keys are unique per kind; deprecated items and retired ACs keep their keys; `iw new` also avoids keys seen in results.
 5. No secret values appear in the bundle.
 6. Every reference resolves: `covers` → ready or draft ACs; fixture refs → fixtures; plan items → test cases; `project.default_environment`, `plan.environment`, item environments → environments; `project.current_release`, `plan.release` → releases; `release.plan` → a plan; `environment.accounts` → `account` fixtures; a `seed` fixture used with `apply = "before_run"` → an environment hook of that name.
@@ -268,6 +269,7 @@ These are enforced by `iw check` and unit tests:
 - [ ] `evaluateGate()` on `examples/shop` with its sample results returns the documented values in [reports.md](reports.md#example).
 - [ ] Changing only the title of a test case keeps its version hash; changing a step changes it and makes earlier results `stale`.
 - [x] `iw check` fails on an `origin = "ai"` test case marked `ready` without `approved_by`, or whose `approved_version` differs from its current version.
+- [x] `iw check` warns (not fails) on an `origin = "ai"` feature, environment, release or plan without `approved_by`, and fails on one without an `[ai]` table.
 - [x] `iw check --fix` resolves a duplicate `TC-` key by renumbering the newer file and updating references.
 - [x] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
 - [x] A confident agent pass on a test case that declares a `human` judge is `needs_review`.

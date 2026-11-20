@@ -29,6 +29,12 @@ const lifecycle = {
   approved_version: z.string().optional(),
   tags: z.array(Tag).optional(),
 };
+/** Origin mark of features, environments, releases and plans (no status: an AI one is approved, not made ready). */
+const authored = {
+  origin: Origin.optional(),
+  /** human who reviewed an AI-written item (`iw approve`); without it `iw check` warns */
+  approved_by: z.string().optional(),
+};
 const tail = {
   notes: z.string().optional(),
   ai: AiMeta.optional(),
@@ -129,6 +135,7 @@ export const Environment = z.strictObject({
   id: idOf('env'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
   title: z.string().min(1),
+  ...authored,
   base_url: z.string().url(),
   accounts: z.array(keyOf('fixture')).optional(),
   guide: z.string().optional(),
@@ -151,6 +158,7 @@ export const Release = z.strictObject({
   id: idOf('rel'),
   version: z.string().min(1),
   title: z.string().optional(),
+  ...authored,
   state: z.enum(['planning', 'testing', 'ready', 'released']),
   target_date: LocalDate.optional(),
   refs: z.array(z.string()).optional(),
@@ -166,6 +174,7 @@ export const Feature = z.strictObject({
   id: idOf('fea'),
   key: keyOf('feature'),
   title: z.string().min(1),
+  ...authored,
   description: z.string().optional(),
   i18n: z
     .partialRecord(Locale, translation({ title: z.string().optional(), description: z.string().optional() }))
@@ -347,6 +356,7 @@ export const Plan = z.strictObject({
   id: idOf('pln'),
   key: keyOf('plan'),
   title: z.string().min(1),
+  ...authored,
   release: z.string().optional(),
   environment: z.string().optional(),
   due: LocalDate.optional(),

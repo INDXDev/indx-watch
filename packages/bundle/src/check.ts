@@ -260,6 +260,14 @@ async function semanticChecks(b: Bundle, deps: CheckDeps): Promise<Problem[]> {
   for (const t of b.testCases) await ai(t.data, t.file, async () => t.version);
   for (const f of b.fixtures) await ai(f.data, f.file, async () => f.version);
   for (const u of b.useCases) await ai(u.data, u.file, () => useCaseVersion(u.data));
+  // they decide no verdict and have no status: an unreviewed AI-written one is only a warning
+  for (const x of [...b.features, ...b.environments, ...b.releases, ...b.plans]) {
+    const d: Life & { ai?: unknown } = x.data;
+    if (d.origin !== 'ai') continue;
+    if (!d.ai) err('missing-ai-meta', x.file, 'origin "ai" requires an [ai] table', 'ai');
+    const message = 'AI-written item has not been reviewed by a human; run iw approve';
+    if (!d.approved_by) add('warning', 'ai-not-approved', x.file, message, 'approved_by');
+  }
   for (const u of b.useCases)
     for (const [i, c] of u.data.criteria.entries()) {
       if (c.origin !== 'ai') continue;

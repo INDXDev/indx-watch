@@ -74,14 +74,16 @@ key = "TC-3"
 |---|---|---|
 | `title` | string | Required. Plain language. |
 | `status` | `draft` \| `ready` \| `deprecated` | Default `draft`. Use cases, test cases, fixtures. |
-| `origin` | `human` \| `ai` \| `import` | Default `human` (omitted). |
-| `approved_by` | string | Identity of the human who approved the item (written by `iw approve`). |
+| `origin` | `human` \| `ai` \| `import` | Default `human` (omitted). Every definition except `project.toml` (features, environments, releases and plans too). |
+| `approved_by` | string | Identity of the human who approved the item (written by `iw approve`). Every definition that has `origin`. |
 | `approved_version` | string | Version hash at approval (`tcv:…`, `fxv:…`, or the use case's content hash). |
 | `tags` | string[] | Lowercase, `[a-z0-9-]+`. |
 | `notes` | string | Free text that survives formatting. Always the last plain value of a file. |
 | `[i18n.<locale>]` | table | Translations; see [i18n.md](i18n.md#content-translations). |
 | `[ai]` | table | `model`, `skill`, `created_at` — required when `origin = "ai"`. |
 | `[x]` | table | Free-form extension data. |
+
+Features, environments, releases and plans have no `status`, `approved_version` or `tags`: only `origin`, `approved_by` (right after `title`), `notes`, `[ai]` and `[x]` of these. An `origin = "ai"` one without `approved_by` is an `iw check` warning, not an error ([concepts](concepts.md#test-case-use-case-fixture)).
 
 Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](../../packages/bundle/src/schema/definitions.ts).
 
