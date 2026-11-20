@@ -79,7 +79,7 @@ Rewrite files in canonical form. Equivalent to the formatting part of `check --f
 
 ### `iw new <kind>`
 
-When the actor is an agent, `uc`, `ac`, `tc` and `fixture` are always created as `origin = "ai"` drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). A new use case defaults to priority `P1`.
+When the actor is an agent, every kind is created with `origin = "ai"` and an `[ai]` table, and `uc`, `ac`, `tc` and `fixture` as drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). A new use case defaults to priority `P1`.
 
 Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `fixture`, `env`, `release`, `plan`.
 
@@ -99,13 +99,13 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 | `--template <name>` | `tc`, `uc`, `fixture` | From `templates/` |
 | `--from <file.toml\|->` | all | Merge field values from a TOML/JSON file or stdin (agents use this) |
 | `--ready` | `uc`, `tc`, `fixture` | Create as `ready` (humans only; rejected with `--origin ai`). Default `draft`. |
-| `--origin ai --model <id> [--skill <name>]` | `uc`, `ac`, `tc`, `fixture` | Marks the item as AI-written (`origin = "ai"`, `[ai]` table, `draft`; for `ac`, a criterion with `status = "draft"`) |
+| `--origin ai --model <id> [--skill <name>]` | all | Marks the item as AI-written (`origin = "ai"`, `[ai]` table; `uc`, `tc`, `fixture` are `draft`; for `ac`, a criterion with `status = "draft"`) |
 
 `data`: `{ "kind": string, "id": string, "key": string, "file": string }`
 
 ### `iw approve <ref>`
 
-For an acceptance criterion, `approve` sets `status = "ready"` and `approved_by` (criteria have no `approved_version`); the returned `version` is the use case's content hash.
+For an acceptance criterion, `approve` sets `status = "ready"` and `approved_by` (criteria have no `approved_version`); the returned `version` is the use case's content hash. For a feature (`FEAT-n`), plan (`PLAN-n`), environment (its name) or release (its version), `approve` sets only `approved_by`, which clears the `ai-not-approved` warning; the returned `version` is `""`.
 
 Approve a draft use case, test case or fixture (or a draft acceptance criterion): sets `status = "ready"`, `approved_by` from your identity and `approved_version`. Refused for agents. `data`: `{ "ref", "file", "version", "approved_by" }`
 
@@ -341,6 +341,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [ ] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
+- [x] `iw new feature|env|release|plan` by an agent writes `origin = "ai"` and an `[ai]` table; `iw check` warns `ai-not-approved` until a human runs `iw approve` on it.
 - [x] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.

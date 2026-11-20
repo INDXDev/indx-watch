@@ -20,7 +20,6 @@ const KINDS: Record<string, iwb.NewKind> = {
   ...{ feature: 'feature', uc: 'use-case', ac: 'criterion', tc: 'test-case', fixture: 'fixture' },
   ...{ env: 'environment', release: 'release', plan: 'plan' },
 };
-const DRAFTS: iwb.NewKind[] = ['use-case', 'criterion', 'test-case', 'fixture'];
 const parseStep = (s: string) =>
   s.includes('=>')
     ? { instruction: s.split('=>')[0]!.trim(), expected: s.slice(s.indexOf('=>') + 2).trim() }
@@ -190,8 +189,8 @@ export const specCommands: Record<string, Spec> = {
       let origin = str(a.origin) as 'human' | 'ai' | 'import' | undefined;
       if (origin && !['human', 'ai', 'import'].includes(origin))
         fail('USAGE', '--origin must be human, ai or import');
-      // agents always write AI drafts (docs/spec/agents.md#rules); other kinds have no origin field
-      if ((await cx.actorOf(ctx)).kind === 'agent' && DRAFTS.includes(kind)) {
+      // agents always write AI-marked items, drafts where the kind has a status (docs/spec/agents.md#rules)
+      if ((await cx.actorOf(ctx)).kind === 'agent') {
         if (a.ready) fail('USAGE', 'Agents cannot create ready items');
         if (origin && origin !== 'ai') fail('USAGE', `Agents write AI drafts, not --origin ${origin}`);
         origin = 'ai';
@@ -214,8 +213,8 @@ export const specCommands: Record<string, Spec> = {
   },
 
   approve: {
-    description: 'Approve a draft use case, criterion, test case or fixture (humans only)',
-    args: { ref: P('UC-n, AC-n.m, TC-n or FX-n') },
+    description: 'Approve a draft or an AI-written item (humans only)',
+    args: { ref: P('UC-n, AC-n.m, TC-n, FX-n, FEAT-n, PLAN-n, environment name or release version') },
     async run(ctx, a) {
       const actor = await cx.humanOnly(ctx, 'approve');
       const p = await cx.openProject(ctx, a);
