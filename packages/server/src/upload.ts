@@ -128,7 +128,8 @@ export async function prepareUpload(base: Map<string, Uint8Array>, input: Upload
   const unplaced: UploadResult['unplaced'] = [];
   for (const f of files) {
     const data = decode(String(f.data ?? ''));
-    const name = String(f.name ?? '').split('/').at(-1) ?? '';
+    const given = String(f.name ?? '');
+    const name = given.slice(given.lastIndexOf('/') + 1);
     // a replacing upload keeps the paths of the dropped folder; a merge places each file in the current bundle
     const replaced = f.path && safePath(f.path) ? f.path : { reason: 'unsafe path' };
     const at = input.replace ? replaced : place(base, { ...f, name }, data);
