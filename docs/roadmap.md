@@ -41,7 +41,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | ID | Task | Acceptance criteria | Status |
 |---|---|---|---|
 | T-201 | Agent execution mode via `BrowserProvider` (local Playwright, Cloudflare Browser Run) | An `agent` TC in `examples/shop` runs end to end and records evidence per step | ⏳ |
-| T-202 | LLM judge via `LlmClient` (Anthropic, optional AI gateway) | `llm` judgements with confidence; low confidence → `needs_review` | ⏳ |
+| T-202 | LLM judge via `LlmClient` (Anthropic, optional AI gateway) | `llm` judgements with confidence; low confidence → `needs_review` | ✅ `iw judge` with the Anthropic adapter; tested against a fake Messages API (no live call in CI) |
 | T-203 | Report share links on the hosted app (frozen snapshots, expiry, audit records) | [reports.md](spec/reports.md#sharing-with-customers) | ⏳ |
 | T-204 | PR comment + check run from the GitHub Action | One comment per PR, updated in place | ✅ verified on this repository's PR #7 (comment edited in place on the next push, check run `INDX Watch (v0.1.0)`) |
 | T-205 | Streamable HTTP MCP endpoint on the hosted server | Same tools as `iw mcp` behind Access | ⏳ |

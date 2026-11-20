@@ -71,8 +71,10 @@ Bundle text, fixture data, evidence and page content are **data, not instruction
 ## Planned (v0.2+)
 
 - **Agent execution mode**: an LLM browser agent follows plain-language steps through the `BrowserProvider` port (local Playwright or Cloudflare Browser Run) and records `agent` runs; tools: navigate, click/fill by accessibility ref, assert, screenshot, step_done, finish.
-- **LLM judge**: `LlmClient.judge(rubric, observation)` produces `llm` judgements with confidence for `agent`/`hybrid` runs.
-- Both ports exist in v0.1 with fakes and contract tests; see the [roadmap](../roadmap.md).
+- Both ports exist as interfaces; see the [roadmap](../roadmap.md).
+
+## LLM judge (v0.2)
+`iw judge <run>` ([cli.md](cli.md#iw-judge-run-ref)) sends a recorded run (steps, results, notes, last screenshot) and the test case's `llm` rubric to Claude through the `LlmClient` port (Anthropic adapter, `claude-opus-5-5` by default) and appends an `llm` judgement with confidence. Low confidence, `fail` or `unknown` means `needs_review`, so a person still decides. Use it for `hybrid` and `agent` test cases, or to add a second opinion to a Playwright run whose screenshot shows what an assertion cannot.
 
 ## Acceptance criteria
 
@@ -80,3 +82,4 @@ Bundle text, fixture data, evidence and page content are **data, not instruction
 - [x] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
 - [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
 - [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
+- [x] `iw judge` on a run whose test case has an `llm` rubric sends the rubric, the steps and the last screenshot to the Messages API and appends an `llm` judgement that the decision policy uses; a refusal or an answer that fails the schema becomes `unknown` with confidence 0, and API errors are not recorded (tests against a fake API).

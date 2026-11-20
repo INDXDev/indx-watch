@@ -6,11 +6,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./node": "./src/node/index.ts",
-    "./workers": "./src/workers/index.ts"
+    "./workers": "./src/workers/index.ts",
+    "./llm": "./src/node/anthropic.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
     "@indx-watch/bundle": "workspace:*",
     "aws4fetch": "^1.0.20",
-    "jose": "^6.2.18"
+    "jose": "^6.2.18",
+    "zod": "^4.6.7"
   }
 }
