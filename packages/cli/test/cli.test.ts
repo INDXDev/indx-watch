@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { createArchive, parseToml, sha256Hex } from '@indx-watch/bundle';
 import { renderReport } from '@indx-watch/server';
 import { describe, expect, it } from 'vitest';
+import { CommandData, okEnvelope } from '../src/json.js';
 import { cleanEnv, fakeBin, iw, iwJson, ROOT, shop, TSX } from './helpers.js';
 
 const TC3 = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml';
@@ -607,6 +608,20 @@ describe('commands', () => {
       pointer: true,
       sha256: await sha256Hex('This is not a photo.\n'),
     });
+    // over [fixtures].inline_max_bytes without --blob: a *.blob.toml pointer whose hash matches the content
+    const project = join(dir, '.indx-watch/project.toml');
+    writeFileSync(
+      project,
+      read(dir, 'project.toml').replace('inline_max_bytes = 1048576', 'inline_max_bytes = 8'),
+    );
+    writeFileSync(join(dir, 'big.txt'), 'More than eight bytes.\n');
+    const big = iwJson(dir, 'fixture add', ['fixture', 'add', 'big.txt', '--to', 'FX-4']);
+    const sha = await sha256Hex('More than eight bytes.\n');
+    expect(big.json.data.files[0]).toMatchObject({ name: 'big.txt', pointer: true, sha256: sha });
+    expect(parseToml(read(dir, 'fixtures/FX-4-review-photo/big.txt.blob.toml'))).toMatchObject({
+      sha256: sha,
+    });
+    expect(existsSync(join(dir, '.indx-watch/fixtures/FX-4-review-photo/big.txt'))).toBe(false);
     writeFileSync(join(dir, 'key.txt'), 'AKIAABCDEFGHIJKLMNOP\n');
     const secret = iwJson(dir, 'fixture add', ['fixture', 'add', 'key.txt', '--to', 'FX-4']);
     expect([secret.code, secret.json.error.code]).toEqual([1, 'SECRETS_FOUND']);
@@ -678,6 +693,12 @@ describe('commands', () => {
     writeFileSync(join(dir, '.indx-watch', TC3), read(dir, TC3).replace('(price 40.00)', '(price 40)'));
     const stale = iwJson(dir, 'translate', set);
     expect(stale.json.error.message).toContain('preconditions');
+    const two = [...set, '--set', 'preconditions=x', '--set', 'steps.1.expected=y'];
+    expect(iwJson(dir, 'translate', two).json.data.written).toEqual([
+      'title',
+      'preconditions',
+      'steps.1.expected',
+    ]);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'en']).code).toBe(2);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja', '--set', 'nope=x']).code).toBe(2);
   });
@@ -722,6 +743,26 @@ describe('commands', () => {
     expect(
       iwJson(dir, 'report', ['report', '--format', 'html', '--audience', 'customer']).json.data.file,
     ).toBe('report-v1.2.0.customer.html');
+  });
+
+  it('the report gate equals the gate of status --json for the same scope', () => {
+    const dir = shop();
+    iwJson(dir, 'sync', ['sync']); // the sample results: TC-8 fails
+    for (const scope of [[], ['--env', 'staging'], ['--release', 'v1.2.0', '--env', 'staging']]) {
+      const status = iwJson(dir, 'status', ['status', ...scope]).json.data;
+      const r = iwJson(dir, 'report', ['report', ...scope, '--format', 'json', '--out', 'r.json']);
+      expect(status.gate.passed).toBe(false);
+      expect(r.json.data.gate, scope.join(' ')).toEqual(status.gate);
+      const report = JSON.parse(readFileSync(join(dir, 'r.json'), 'utf8'));
+      expect({ environment: null, ...report.scope }, scope.join(' ')).toEqual(status.scope);
+      expect(report.status.gate, scope.join(' ')).toEqual(status.gate);
+      if (!serverReady) continue;
+      const md = iw(dir, ['report', ...scope]).stdout;
+      for (const c of status.gate.checks)
+        expect(md, `${scope.join(' ')} ${c.key}`).toContain(
+          `| \`${c.actual}\` | \`${c.expected}\` | ${c.passed ? '✓' : '✕'}`,
+        );
+    }
   });
 
   it('export --full and import (dry run, conflicts, merge)', () => {
@@ -809,7 +850,9 @@ describe('commands', () => {
       });
       const line = await new Promise<string>((res) => child.stdout.once('data', (d) => res(String(d))));
       child.kill();
-      return JSON.parse(line);
+      const json = JSON.parse(line);
+      expect(okEnvelope(CommandData.serve).safeParse(json).success, line).toBe(true);
+      return json;
     };
     expect(await serve()).toMatchObject({
       ok: true,

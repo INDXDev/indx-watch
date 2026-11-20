@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type AnyRecord, type Bundle, type Judgement, loadBundle, type RunRecord } from '@indx-watch/bundle';
@@ -153,4 +154,12 @@ export function sampleRecords(b: Bundle): AnyRecord[] {
     tc6,
     run(b, 'TC-7'),
   ];
+}
+
+/** Every record in the log of a folder store, e.g. the sample store examples/shop/store. */
+export function storeRecords(store: string): AnyRecord[] {
+  const log = join(store, 'v1/log');
+  return readdirSync(log)
+    .sort()
+    .flatMap((f) => JSON.parse(readFileSync(join(log, f), 'utf8')).records as AnyRecord[]);
 }

@@ -1,7 +1,27 @@
+import { type ChildProcess, spawn } from 'node:child_process';
 import { cpSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { iw, shopCopy, tempDir } from './helpers';
+import { iw, ROOT, shopCopy, tempDir } from './helpers';
+
+/** `iw sync --watch` in cwd; resolves once it watches the store. */
+function syncWatch(cwd: string, env: Record<string, string>): Promise<ChildProcess> {
+  const bin = join(ROOT, 'packages/cli/dist/bin.js');
+  const child = spawn(process.execPath, [bin, 'sync', '--watch'], {
+    cwd,
+    env: { ...process.env, NO_COLOR: '1', IW_ACTOR: 'e2e@indx.dev', ...env },
+  });
+  return new Promise((ok, fail) => {
+    let out = '';
+    const seen = (d: Buffer) => {
+      out += String(d);
+      if (out.includes('Watching the store')) ok(child);
+    };
+    child.stdout.on('data', seen);
+    child.stderr.on('data', seen);
+    child.once('exit', (code) => fail(new Error(`iw sync --watch exited ${code}: ${out}`)));
+  });
+}
 
 test('two clones sync through a folder store', { tag: ['@TC-6'] }, async () => {
   const store = tempDir('iw-store-');
@@ -40,5 +60,25 @@ test('two clones sync through a folder store', { tag: ['@TC-6'] }, async () => {
     const again = iw(['sync', '--json'], { cwd: a, env });
     expect(again.json.data.pushed).toEqual({ records: 0, blobs: 0 });
     expect(again.json.data.pulled.records).toBe(0);
+  });
+  await test.step('3. with iw sync --watch in both, a run recorded in A shows in B within 5 s', async () => {
+    const watchers = await Promise.all([syncWatch(a, env), syncWatch(b, env)]);
+    try {
+      const tc1 = () =>
+        iw(['status', '--release', 'v1.2.0', '--json'], { cwd: b, env }).json.data.testCases.find(
+          (t: { key: string }) => t.key === 'TC-1',
+        ).status;
+      expect(tc1()).toBe('untested');
+      const started = Date.now();
+      const rec = iw(['record', 'TC-1', '--verdict', 'pass', '--release', 'v1.2.0', '--json'], {
+        cwd: a,
+        env,
+      });
+      expect(rec.code, rec.stderr).toBe(0);
+      await expect.poll(tc1, { timeout: 5000, intervals: [100] }).toBe('pass');
+      expect(Date.now() - started).toBeLessThan(5000);
+    } finally {
+      for (const w of watchers) w.kill('SIGTERM');
+    }
   });
 });

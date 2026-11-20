@@ -492,5 +492,5 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 - [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
 - [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
-- [ ] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
+- [x] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
 - [x] A bundle with `schema_version` higher than supported is rejected with exit code 3.

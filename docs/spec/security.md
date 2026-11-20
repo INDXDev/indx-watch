@@ -25,7 +25,7 @@ Resolution order, implemented once in the `IdentityProvider` port:
 1. **Explicit** — `IW_ACTOR` (+ `IW_ACTOR_NAME`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`); `via = "env"`.
    **Agent detection** — independently of the source, `kind` becomes `agent` when `IW_ACTOR_KIND=agent`, when running under `iw mcp`, or when a known coding-agent environment marker is set (the list lives in [platform notes](../research/platform-notes.md#agent-skills), e.g. `CLAUDECODE=1`).
 2. **Hosted server** — the verified Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`), checked with `jose` against the team's JWKS and the application's `aud`; `via = "cloudflare-access"`. Requests without a valid JWT are rejected (401) unless the server runs in local mode.
-3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`. With `id-token: write`, the action can attach OIDC claims (`repository`, `ref`, `sha`, `run_id`) and sets `via = "github-oidc"`.
+3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`, `via = "github"`. *(v0.2)* With `id-token: write`, the action will attach OIDC claims (`repository`, `ref`, `sha`, `run_id`) and set `via = "github-oidc"`; the value is reserved in the schema and shown as verified, but v0.1 never produces it.
 4. **Local** — `git config user.email` / `user.name`; `via = "git"`.
 5. **Fallback** — OS user name with `via = "env"` and a warning.
 
@@ -87,7 +87,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 | Threat | Mitigation |
 |---|---|
 | Secret committed in a fixture | Secret scan in `iw check`, sync and export refuse; references only |
-| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access and GitHub OIDC; bucket write access limited to trusted principals. Known limitation (v0.1): anyone who can write to the bucket can write records claiming any `via`; signed records are planned for v0.2. |
+| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access (and GitHub OIDC from v0.2); bucket write access limited to trusted principals. Known limitation (v0.1): anyone who can write to the bucket can write records claiming any `via`; signed records are planned for v0.2. |
 | Tampering with past results | Records are immutable and content-addressed blobs are hash-verified on read; corrections are new judgements. A bucket with object versioning or WORM retention gives stronger guarantees. |
 | Malicious evidence (HTML/SVG with script) | Non-image media served as attachments; strict CSP |
 | Public exposure of the hosted app | Access in front of every route; `iw deploy` refuses public deploys without `--public` |
@@ -99,7 +99,7 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 
 ## Acceptance criteria
 
-- [ ] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT).
+- [x] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT; `github-oidc` is v0.2).
 - [x] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
 - [x] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
 - [x] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).
