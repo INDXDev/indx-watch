@@ -1,0 +1,54 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7VHHAAZTVTSKTZMAKK49Q6J"
+key = "TC-12"
+title = "Step through tests and run a session"
+status = "draft"
+origin = "ai"
+covers = ["AC-3.3"]
+mode = "playwright"
+
+[[steps]]
+instruction = "On Home of a copy of examples/shop, press \"Start testing\""
+expected = "The manual runner opens the first open test case with a session bar."
+
+[steps.i18n.ja]
+instruction = "examples/shop のコピーのホームで「Start testing」を押す。"
+expected = "最初の未完了のテストケースが、セッションバーつきの手動ランナーで開く。"
+status = "machine"
+source_hash = "24f34f988d38"
+
+[[steps]]
+instruction = "Record a result and press \"Save and next\""
+expected = "The next test case of the session opens."
+
+[steps.i18n.ja]
+instruction = "結果を記録して「Save and next」を押す。"
+expected = "セッションの次のテストケースが開く。"
+status = "machine"
+source_hash = "b3d778696c6a"
+
+[[steps]]
+instruction = "Open TC-3 and press the right arrow key"
+expected = "TC-4 opens in the same view."
+
+[steps.i18n.ja]
+instruction = "TC-3 を開いて右矢印キーを押す。"
+expected = "同じ表示のまま TC-4 が開く。"
+status = "machine"
+source_hash = "32d123b787d2"
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/web.spec.ts"]
+
+[i18n.ja]
+title = "テストを 1 件ずつ進めてセッションを実行する"
+status = "machine"
+source_hash = "60f89f77218f"
+
+[ai]
+model = "claude-code"
+created_at = 2026-11-20T03:55:51Z

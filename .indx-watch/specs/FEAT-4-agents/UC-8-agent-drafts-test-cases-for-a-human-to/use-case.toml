@@ -13,7 +13,24 @@ id = "ac_01M7TF47D34Z8N0GRHEKCQV5XK"
 key = "AC-8.1"
 text = "Running \"iw new --origin ai\" creates a draft marked origin \"ai\"."
 
+[criteria.i18n.ja]
+text = "「iw new --origin ai」を実行すると、origin が「ai」の下書きができる。"
+status = "machine"
+source_hash = "781d26af8bc3"
+
 [[criteria]]
 id = "ac_01M7TF47D34Z8N0GRHEKCQV5XM"
 key = "AC-8.2"
 text = "An agent cannot approve, review or waive."
+
+[criteria.i18n.ja]
+text = "エージェントは承認、レビュー、許容ができない。"
+status = "machine"
+source_hash = "5a1f3ac141c0"
+
+[i18n.ja]
+title = "エージェントがテストケースを下書きし、人が承認する"
+actor = "コーディングエージェント"
+goal = "レビューを飛ばさずにテスト作成を速くする。"
+status = "machine"
+source_hash = "66e554609bc6"

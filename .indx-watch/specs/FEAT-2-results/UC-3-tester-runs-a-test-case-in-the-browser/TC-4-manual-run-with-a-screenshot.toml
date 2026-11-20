@@ -16,13 +16,30 @@ instruction = "Start \"iw serve\" on a copy of examples/shop, open TC-8 and star
 expected = "The runner shows the steps of TC-8."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "examples/shop のコピーで「iw serve」を起動し、TC-8 を開いて手動実行を始める。"
+expected = "ランナーに TC-8 の手順が表示される。"
+status = "machine"
+source_hash = "a6c6ad7b6822"
+
 [[steps]]
 instruction = "Upload the FX-2 screenshot on step 1, mark both steps and finish with \"fail\" and a note."
 expected = "The run page shows verdict \"fail\", the screenshot and the local git identity."
 evidence = ["screenshot"]
+
+[steps.i18n.ja]
+instruction = "手順 1 に FX-2 のスクリーンショットをアップロードし、両方の手順に結果をつけ、メモつきの「fail」で終える。"
+expected = "実行ページに判定「fail」、スクリーンショット、ローカルの git の ID が表示される。"
+status = "machine"
+source_hash = "07069189be17"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/ui.spec.ts"]
+
+[i18n.ja]
+title = "スクリーンショットつきの手動実行"
+status = "machine"
+source_hash = "0b3391a433b9"

@@ -12,8 +12,19 @@ mode = "playwright"
 instruction = "Run the examples/shop Playwright tests with the INDX Watch reporter."
 expected = "One run per tagged test case appears in the local replica, with test case version, fixture versions and build commit."
 
+[steps.i18n.ja]
+instruction = "examples/shop の Playwright テストを INDX Watch のレポーターつきで実行する。"
+expected = "タグつきのテストケースごとに 1 つの実行が、テストケースの版、フィクスチャの版、ビルドのコミットつきでローカルのレプリカに現れる。"
+status = "machine"
+source_hash = "e94f70a0eb6e"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/reporter.spec.ts"]
+
+[i18n.ja]
+title = "レポーターが実行をテストケースに結びつける"
+status = "machine"
+source_hash = "d236898cd7e8"

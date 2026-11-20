@@ -4,3 +4,9 @@ id = "fea_01M7TF479ZBEAM6YS0KX55HC63"
 key = "FEAT-4"
 title = "Agents"
 description = "AI-written drafts and human approval."
+
+[i18n.ja]
+title = "エージェント"
+description = "AI が書いた下書きと人による承認。"
+status = "machine"
+source_hash = "bb5585e52e8a"

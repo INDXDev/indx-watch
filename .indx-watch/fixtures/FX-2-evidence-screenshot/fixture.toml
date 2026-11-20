@@ -6,3 +6,8 @@ title = "Evidence screenshot"
 status = "ready"
 kind = "file"
 files = ["evidence.png"]
+
+[i18n.ja]
+title = "証拠のスクリーンショット"
+status = "machine"
+source_hash = "11914394d1f2"

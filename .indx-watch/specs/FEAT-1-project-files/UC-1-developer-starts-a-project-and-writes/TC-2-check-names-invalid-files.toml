@@ -16,8 +16,19 @@ rows = ["unknown-key"]
 instruction = "Break one file of a fresh bundle as described by the selected FX-1 row and run \"iw check --json\"."
 expected = "The command exits 1 and lists a problem with the file path and the expected code."
 
+[steps.i18n.ja]
+instruction = "新しいバンドルのファイルを 1 つ、選んだ FX-1 の行のとおりに壊して「iw check --json」を実行する。"
+expected = "コマンドは 1 で終わり、ファイルのパスと想定のコードつきで問題を示す。"
+status = "machine"
+source_hash = "91b477b6bfba"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "check が不正なファイルを示す"
+status = "machine"
+source_hash = "dccb1670fb01"

@@ -12,8 +12,19 @@ mode = "playwright"
 instruction = "Run \"iw export --full\" on examples/shop, \"iw import\" the archive into an empty folder, and export again."
 expected = "Both manifests have the same sha256."
 
+[steps.i18n.ja]
+instruction = "examples/shop で「iw export --full」を実行し、そのアーカイブを空のフォルダに「iw import」して、もう一度エクスポートする。"
+expected = "2 つのマニフェストの sha256 が同じになる。"
+status = "machine"
+source_hash = "e3dce7022f8a"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "エクスポートとインポートの往復"
+status = "machine"
+source_hash = "4d4e23d7c6c9"

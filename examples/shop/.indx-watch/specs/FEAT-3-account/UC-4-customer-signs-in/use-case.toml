@@ -13,7 +13,24 @@ id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA7"
 key = "AC-4.1"
 text = "Valid credentials show \"Welcome back, Casey\"."
 
+[criteria.i18n.ja]
+text = "正しい認証情報で「Welcome back, Casey」と表示される。"
+status = "machine"
+source_hash = "2d2ab19ef83a"
+
 [[criteria]]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA8"
 key = "AC-4.2"
 text = "A wrong password shows \"Email or password is incorrect\" and the customer stays signed out."
+
+[criteria.i18n.ja]
+text = "パスワードを間違えると「Email or password is incorrect」と表示され、顧客はサインアウトのまま。"
+status = "machine"
+source_hash = "285e558dee56"
+
+[i18n.ja]
+title = "顧客がサインインする"
+actor = "登録済みの顧客"
+goal = "自分のアカウントと保存した情報を見る。"
+status = "machine"
+source_hash = "8223d0a1ae7a"

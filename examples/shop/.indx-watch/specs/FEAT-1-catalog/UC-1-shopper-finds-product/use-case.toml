@@ -13,7 +13,24 @@ id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA1"
 key = "AC-1.1"
 text = "The home page lists every product with its name and price."
 
+[criteria.i18n.ja]
+text = "ホームページにすべての商品が名前と価格つきで並ぶ。"
+status = "machine"
+source_hash = "841fc1d4ed48"
+
 [[criteria]]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA2"
 key = "AC-1.2"
 text = "Searching by part of a product name shows only matching products."
+
+[criteria.i18n.ja]
+text = "商品名の一部で検索すると、一致する商品だけが表示される。"
+status = "machine"
+source_hash = "f9e31d9f5637"
+
+[i18n.ja]
+title = "買い物客が商品を見つける"
+actor = "買い物客"
+goal = "買いたい商品をすばやく見つける。"
+status = "machine"
+source_hash = "d28fb21c2123"

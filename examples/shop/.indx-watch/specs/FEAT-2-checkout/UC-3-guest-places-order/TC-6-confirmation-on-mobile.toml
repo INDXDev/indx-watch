@@ -17,5 +17,16 @@ instruction = "On a phone (or a 390 px wide browser window), add any product to 
 expected = "The confirmation page fits the screen without horizontal scrolling and the order number is fully visible."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "スマートフォン（または幅 390 px のブラウザウィンドウ）で、任意の商品をカートに入れて注文する。"
+expected = "確認ページが横スクロールなしで画面に収まり、注文番号がすべて見える。"
+status = "machine"
+source_hash = "7125e891e53e"
+
 [[judges]]
 kind = "human"
+
+[i18n.ja]
+title = "確認ページがスマートフォンで読める"
+status = "machine"
+source_hash = "4bf8672b6671"

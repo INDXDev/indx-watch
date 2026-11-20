@@ -8,3 +8,12 @@ guide = """
 Run `pnpm build`, then `node packages/cli/dist/bin.js serve --dir examples/shop/.indx-watch` and open the printed URL.
 No login is needed.
 """
+
+[i18n.ja]
+title = "ローカルマシン"
+guide = """
+`pnpm build` を実行し、`node packages/cli/dist/bin.js serve --dir examples/shop/.indx-watch` を実行して表示された URL を開きます。
+ログインは不要です。
+"""
+status = "machine"
+source_hash = "b0f261432a5b"

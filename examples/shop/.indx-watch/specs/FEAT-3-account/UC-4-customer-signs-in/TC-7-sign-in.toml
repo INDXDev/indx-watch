@@ -16,8 +16,19 @@ instruction = "Open \"Sign in\", enter {{FX-3.username}} and the account passwor
 expected = "The header shows \"Welcome back, Casey\"."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "「Sign in」を開き、{{FX-3.username}} とアカウントのパスワードを入力して「Sign in」を押す。"
+expected = "ヘッダーに「Welcome back, Casey」と表示される。"
+status = "machine"
+source_hash = "2e8d5986ddae"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/sign-in.spec.ts"]
+
+[i18n.ja]
+title = "正しい認証情報でサインインできる"
+status = "machine"
+source_hash = "469ea696614e"

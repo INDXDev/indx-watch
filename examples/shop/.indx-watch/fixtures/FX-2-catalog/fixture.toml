@@ -7,3 +7,8 @@ status = "ready"
 kind = "seed"
 files = ["catalog.json"]
 hook = "seed"
+
+[i18n.ja]
+title = "3 商品のカタログ"
+status = "machine"
+source_hash = "c83fa24529ce"

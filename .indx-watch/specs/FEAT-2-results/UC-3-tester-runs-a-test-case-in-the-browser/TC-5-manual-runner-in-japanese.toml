@@ -13,13 +13,30 @@ instruction = "Switch the UI language to Japanese and open the manual runner for
 expected = "Labels are Japanese, the step shows the reviewed Japanese translation, and quoted on-screen strings stay in English."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "UI の言語を日本語に切り替え、examples/shop の TC-4 の手動ランナーを開く。"
+expected = "ラベルは日本語で、手順はレビュー済みの日本語訳で表示され、引用した画面上の文字列は英語のまま。"
+status = "machine"
+source_hash = "ac500c7523b2"
+
 [[steps]]
 instruction = "Finish the run with \"pass\"."
 expected = "The run records locale \"ja\"."
 evidence = ["screenshot"]
+
+[steps.i18n.ja]
+instruction = "「pass」で実行を終える。"
+expected = "実行に locale「ja」が記録される。"
+status = "machine"
+source_hash = "5d59bde4452f"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/ui.spec.ts"]
+
+[i18n.ja]
+title = "日本語の手動ランナー"
+status = "machine"
+source_hash = "cfd9b4f7cd0f"

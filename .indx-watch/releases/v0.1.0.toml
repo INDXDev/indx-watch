@@ -5,3 +5,8 @@ version = "v0.1.0"
 title = "First open-source release"
 state = "testing"
 refs = ["v0.1.0", "main"]
+
+[i18n.ja]
+title = "最初のオープンソースリリース"
+status = "machine"
+source_hash = "7eb097edbe45"

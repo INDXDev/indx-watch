@@ -4,3 +4,9 @@ id = "fea_01M7TF479R1T7SV6SH4QE5ET6S"
 key = "FEAT-1"
 title = "Project files"
 description = "The bundle format and the iw CLI."
+
+[i18n.ja]
+title = "プロジェクトファイル"
+description = "バンドル形式と iw CLI。"
+status = "machine"
+source_hash = "27c621766637"

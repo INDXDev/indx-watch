@@ -22,12 +22,30 @@ instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then p
 expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
+expected = "割引行に「-4.00」と表示され、合計が「36.00」になる。"
+status = "machine"
+source_hash = "2419bce9941f"
+
 [[steps]]
 instruction = "Press \"Place order\"."
 expected = "The confirmation page shows an order number."
+
+[steps.i18n.ja]
+instruction = "「Place order」を押す。"
+expected = "確認ページに注文番号が表示される。"
+status = "machine"
+source_hash = "f52f16d20298"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/coupon.spec.ts"]
+
+[i18n.ja]
+title = "有効なクーポンで合計が下がる"
+preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+status = "machine"
+source_hash = "21a0e3b40174"

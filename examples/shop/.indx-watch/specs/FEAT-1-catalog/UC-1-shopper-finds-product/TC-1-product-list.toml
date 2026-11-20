@@ -17,8 +17,19 @@ instruction = "Open the home page."
 expected = "Three products are listed, each with a name and a price, including \"Canvas Tote\" at \"40.00\"."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "ホームページを開く。"
+expected = "3 つの商品がそれぞれ名前と価格つきで並び、「Canvas Tote」が「40.00」で表示される。"
+status = "machine"
+source_hash = "03a8e18611a5"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/catalog.spec.ts"]
+
+[i18n.ja]
+title = "商品一覧に名前と価格が表示される"
+status = "machine"
+source_hash = "ef00b87ed26d"

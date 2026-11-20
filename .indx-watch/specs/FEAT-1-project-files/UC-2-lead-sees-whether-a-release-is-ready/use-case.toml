@@ -13,7 +13,24 @@ id = "ac_01M7TF47ASDXBENF5HS5EF55G4"
 key = "AC-2.1"
 text = "Running \"iw status\" shows each use case status and every gate check."
 
+[criteria.i18n.ja]
+text = "「iw status」を実行すると、各ユースケースの状態とすべての判定項目が表示される。"
+status = "machine"
+source_hash = "7d05949081c9"
+
 [[criteria]]
 id = "ac_01M7TF47ASDXBENF5HS5EF55G5"
 key = "AC-2.2"
 text = "Running \"iw status --gate\" exits with code 1 when the gate fails."
+
+[criteria.i18n.ja]
+text = "判定が不合格のとき、「iw status --gate」は終了コード 1 で終わる。"
+status = "machine"
+source_hash = "10fcd91e3256"
+
+[i18n.ja]
+title = "リードがリリースできるかを確認する"
+actor = "QA リード"
+goal = "計算された事実からリリース可否を決める。"
+status = "machine"
+source_hash = "8b16815ac61b"

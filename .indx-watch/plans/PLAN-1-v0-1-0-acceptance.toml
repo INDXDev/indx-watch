@@ -45,3 +45,8 @@ assignee = "ci"
 [[items]]
 test_case = "TC-10"
 assignee = "ci"
+
+[i18n.ja]
+title = "v0.1.0 受け入れテスト"
+status = "machine"
+source_hash = "e0faefdeed50"

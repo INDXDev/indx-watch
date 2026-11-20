@@ -1,0 +1,44 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7VHHB4SQS1SQR3PV9VEQCB7"
+key = "TC-13"
+title = "Declare who is testing"
+status = "draft"
+origin = "ai"
+covers = ["AC-3.4"]
+mode = "playwright"
+
+[[steps]]
+instruction = "In the account menu choose \"Not you?\" and save the name Sam with sam@shop.test"
+expected = "The menu shows Sam, declared in this browser."
+
+[steps.i18n.ja]
+instruction = "アカウントメニューで「Not you?」を選び、名前 Sam と sam@shop.test を保存する。"
+expected = "メニューに Sam が、このブラウザで申告した ID として表示される。"
+status = "machine"
+source_hash = "a4b440bfb913"
+
+[[steps]]
+instruction = "Record a manual run of TC-9"
+expected = "The run record has actor sam@shop.test with via \"browser\", and the run page shows Sam."
+
+[steps.i18n.ja]
+instruction = "TC-9 の手動実行を記録する。"
+expected = "実行記録の actor は sam@shop.test で via は「browser」になり、実行ページに Sam が表示される。"
+status = "machine"
+source_hash = "87e72eadedc8"
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/web.spec.ts"]
+
+[i18n.ja]
+title = "誰がテストしているかを申告する"
+status = "machine"
+source_hash = "2f9df708fcf7"
+
+[ai]
+model = "claude-code"
+created_at = 2026-11-20T03:55:51Z

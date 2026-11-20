@@ -9,3 +9,8 @@ kind = "account"
 [account]
 username = "casey@shop.test"
 secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
+
+[i18n.ja]
+title = "ステージングの顧客アカウント"
+status = "machine"
+source_hash = "dda545a9a99b"

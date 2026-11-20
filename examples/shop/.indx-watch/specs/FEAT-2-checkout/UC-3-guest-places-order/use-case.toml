@@ -13,7 +13,24 @@ id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA5"
 key = "AC-3.1"
 text = "Placing an order shows a confirmation page with an order number."
 
+[criteria.i18n.ja]
+text = "注文すると、注文番号つきの確認ページが表示される。"
+status = "machine"
+source_hash = "47ebce33259a"
+
 [[criteria]]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA6"
 key = "AC-3.2"
 text = "After the order is placed, the cart is empty."
+
+[criteria.i18n.ja]
+text = "注文後、カートは空になる。"
+status = "machine"
+source_hash = "c05893fe6e4f"
+
+[i18n.ja]
+title = "ゲストが注文する"
+actor = "ゲストの買い物客"
+goal = "アカウントを作らずにカートの商品を購入する。"
+status = "machine"
+source_hash = "753366a759ea"

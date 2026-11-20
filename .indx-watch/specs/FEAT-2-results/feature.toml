@@ -4,3 +4,9 @@ id = "fea_01M7TF479TDAMQQN6GBCWQJV9N"
 key = "FEAT-2"
 title = "Results"
 description = "Recording runs manually, from Playwright, and syncing them."
+
+[i18n.ja]
+title = "結果"
+description = "手動、Playwright からの結果の記録と同期。"
+status = "machine"
+source_hash = "e4436246cdc9"
