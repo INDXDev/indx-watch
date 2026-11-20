@@ -121,7 +121,18 @@ describe('renderReport on examples/shop', () => {
     const md = await render({ format: 'md', locale: 'ja' });
     expect(md).toContain('# Shop — リリース v1.2.0');
     expect(md).toContain('誤ったパスワードではサインインできない');
-    expect(md).toMatch(/AC-1\.1 .+ _\(en\)_/);
+    expect(md).toContain('ホームページにすべての商品が名前と価格つきで並ぶ。');
+    // a criterion without a translation falls back to the source text, marked with its locale
+    const b = await shop();
+    const ac = b.useCases.find((u) => u.data.key === 'UC-1')!.data.criteria[0]!;
+    delete ac.i18n;
+    const saved = model;
+    model = buildModel(b, sampleRecords(b)).model;
+    try {
+      expect(await render({ format: 'md', locale: 'ja' })).toMatch(/AC-1\.1 .+ _\(en\)_/);
+    } finally {
+      model = saved;
+    }
   });
 
   it('the gate section equals the status gate', async () => {

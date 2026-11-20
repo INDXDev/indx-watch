@@ -48,6 +48,7 @@ export const ROUTES = {
 export interface PlanView {
   key: string;
   title: string;
+  i18n?: unknown;
   release?: string;
   environment?: string;
   due?: string;
@@ -80,7 +81,7 @@ export interface ProjectInfo {
     default_environment?: string;
     current_release?: string;
   };
-  releases: { version: string; title?: string; state: string }[];
+  releases: { version: string; title?: string; state: string; i18n?: unknown }[];
   environments: {
     name: string;
     title: string;
@@ -94,6 +95,26 @@ export interface ProjectInfo {
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
   /** problems from loading the bundle (shown as a banner) */
   problems: { severity: string; message: string; file?: string }[];
+  /** source for `iw clone` (this hosted app, or the local `[store].url`) */
+  share: { clone: string | null };
+  /** "Not you?" (iw_tester cookie) and uploads are possible on this server */
+  can: { declare: boolean; upload: boolean };
+  /** newest bundle snapshot, when there is one */
+  snapshot?: SnapshotSummary;
+}
+
+/** GET /api/snapshots item: a bundle record (newest first). */
+export interface SnapshotSummary {
+  id: string;
+  at: string;
+  actor: Actor;
+  source: string;
+  commit?: string;
+  ref?: string;
+  files: number;
+  dirty?: boolean;
+  message?: string;
+  sha256: string;
 }
 
 export interface SpecTree {
@@ -158,6 +179,7 @@ export interface TestCaseDetail {
     version: string;
     rows?: string[];
     values?: Record<string, string>[];
+    i18n?: unknown;
   }[];
   status: TestCaseStatus;
   runs: RunSummary[];
@@ -179,7 +201,7 @@ export interface RunDetail {
   judgements: Judgement[];
   decision: Decision;
   stale: boolean;
-  testCase: { key: string; title: string; currentVersion: string };
+  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */
@@ -204,6 +226,8 @@ export interface ManualRunResult {
 export interface ReviewInput {
   verdict: 'pass' | 'fail' | 'blocked' | 'skipped';
   reason: string;
+  /** content language the reviewer read (v0.2) */
+  locale?: Locale;
 }
 
 /** POST /api/blobs: raw body; headers Content-Type and X-Filename (ASCII only; clients replace other characters with '_'). */

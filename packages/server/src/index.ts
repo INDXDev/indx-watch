@@ -4,6 +4,20 @@
  * renderReport(data: ReportData, opts: RenderOptions): Markdown or a single self-contained HTML file
  * (docs/spec/reports.md); attach `texts` from reportTexts(model, locale) for localized titles and AC texts.
  */
-export { createApp, errorResponse, HttpError, resolveRelease, type ServerDeps } from './app.js';
+export {
+  createApp,
+  declaredTester,
+  errorResponse,
+  HttpError,
+  resolveRelease,
+  type ServerDeps,
+} from './app.js';
 export * from './contract.js';
 export { type ReportTexts, renderReport, reportTexts } from './report.js';
+export {
+  memoryBundleFs,
+  prepareUpload,
+  type UploadFile,
+  type UploadInput,
+  type UploadResult,
+} from './upload.js';

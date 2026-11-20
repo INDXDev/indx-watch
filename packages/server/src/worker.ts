@@ -4,14 +4,23 @@
  * Definitions: the latest bundle snapshot record (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
  */
-import type { AnyRecord, BundleFs, BundleRecord } from '@indx-watch/bundle';
-import { loadBundle, newUlid, sha256Hex } from '@indx-watch/bundle';
+import type { Actor, AnyRecord, BundleRecord } from '@indx-watch/bundle';
+import {
+  BundleRecord as BundleRecordSchema,
+  loadBundle,
+  newId,
+  newUlid,
+  sha256Hex,
+} from '@indx-watch/bundle';
 import { buildModel } from '@indx-watch/core';
 import * as S from '@indx-watch/store';
 import { accessIdentity, d1Index, r2ObjectStore } from '@indx-watch/store/workers';
-import { ulidFloor } from '@indx-watch/sync';
+import { isoSeconds, snapshotBundle, ulidFloor } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import { createApp, HttpError, type ServerDeps } from './app.js';
+import { memoryBundleFs } from './upload.js';
+
+export { memoryBundleFs };
 
 export interface Env {
   STORE: unknown;
@@ -22,24 +31,6 @@ export interface Env {
   STORE_PREFIX?: string;
   /** 'true' only for deploys made with --public */
   PUBLIC?: string;
-}
-
-/** BundleFs over a map of paths (a bundle snapshot unpacked in memory). */
-export function memoryBundleFs(files: Map<string, Uint8Array>): BundleFs {
-  const children = (dir: string) => {
-    const prefix = dir ? `${dir.replace(/\/+$/, '')}/` : '';
-    const inside = [...files.keys()].filter((k) => k.startsWith(prefix));
-    const parts = inside.map((k) => k.slice(prefix.length).split('/'));
-    return new Map(parts.map(([n = '', ...r]) => [n, r.length > 0]));
-  };
-  return {
-    read: async (p) => files.get(p) ?? null,
-    write: async (p, d) => void files.set(p, typeof d === 'string' ? new TextEncoder().encode(d) : d),
-    remove: async (p) => {
-      for (const k of files.keys()) if (k === p || k.startsWith(`${p}/`)) files.delete(k);
-    },
-    list: async (dir) => [...children(dir)].sort().map(([name, d]) => ({ name, dir: d })),
-  };
 }
 
 const LOOKBACK = 15 * 60 * 1000;
@@ -151,9 +142,41 @@ function create(env: Env, key: string) {
     syncInfo: () => ({ configured: true, store: objects.url, lastSyncAt: new Date(ingested.at).toJSON() }),
     assets: (request) => env.ASSETS.fetch(request),
     readFile: async (path) => files.get(path) ?? null,
+    declaredIdentity: env.PUBLIC === 'true',
+    bundleFiles: async () => {
+      await loadModel().catch(() => undefined); // opens the newest snapshot; none yet → empty
+      return new Map(files);
+    },
+    publishBundle: (next, info) => publish(store, deps, next, info),
   };
   const s = { key, app: createApp(deps), store, index, open: !!identity, owner: newUlid(), ingested };
   return s;
+}
+
+/** A browser upload becomes a snapshot like `iw push` (docs/spec/sync.md#snapshots-from-people-v02). */
+async function publish(
+  store: S.ResultStore,
+  deps: ServerDeps,
+  files: Map<string, Uint8Array>,
+  info: { actor: Actor; message?: string },
+) {
+  const fs = memoryBundleFs(new Map(files));
+  const [snap, { bundle }] = [await snapshotBundle(fs), await loadBundle(fs)];
+  const project = bundle?.project.data.id ?? fail('the upload has no valid project.toml');
+  await store.init(project);
+  const [sha, at] = [await deps.putBlob(snap.tar, 'application/x-tar'), isoSeconds(Date.now())];
+  const record = BundleRecordSchema.parse({
+    ...{ kind: 'bundle', id: newId('rec'), v: 1, project, at, actor: info.actor, source: 'manual' },
+    ...{
+      commit_time: at,
+      sha256: sha,
+      definitions_hash: snap.hash,
+      files: snap.files,
+      message: info.message,
+    },
+  });
+  await deps.writeRecord(record);
+  return record.id;
 }
 
 function fail(message: string): never {

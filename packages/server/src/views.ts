@@ -11,7 +11,14 @@ import {
   planItemStatus,
   testCaseStatus,
 } from '@indx-watch/core';
-import type { FixtureDetail, PlanView, RunSummary, SpecTree, TestCaseDetail } from './contract.js';
+import type {
+  FixtureDetail,
+  PlanView,
+  RunSummary,
+  SnapshotSummary,
+  SpecTree,
+  TestCaseDetail,
+} from './contract.js';
 
 type Obj = Record<string, unknown>;
 export type ReadFile = (path: string) => Promise<Uint8Array | null>;
@@ -137,7 +144,9 @@ export async function testCaseDetail(model: Model, key: string, scope: Scope, re
       const col = row_key ?? Object.keys(all[0] ?? {})[0] ?? '';
       values = rows ? all.filter((r) => rows.includes(r[col] ?? '')) : all;
     }
-    return { key: ref, title, kind, version: fx.version, ...(rows && { rows }), ...(values && { values }) };
+    const { i18n } = await markStale(fx.data, 'fixture');
+    const more = { ...(rows && { rows }), ...(values && { values }), ...(i18n && { i18n }) };
+    return { key: ref, title, kind, version: fx.version, ...more };
   });
   const { file, version, priority, useCase } = t;
   const runs = listRuns(model, { ...scope, tcId: t.data.id }).map((v) => runSummary(v, model));
@@ -147,12 +156,22 @@ export async function testCaseDetail(model: Model, key: string, scope: Scope, re
   return { ...detail, status, runs } satisfies TestCaseDetail;
 }
 
-export function planViews(model: Model): PlanView[] {
-  return model.plans.map(({ key, title, release, environment, due, items = [] }) => ({
-    ...{ key, title, release, environment, due },
-    items: items.map((it, i) => ({
-      ...{ test_case: it.test_case, assignee: it.assignee, environment: it.environment ?? environment },
-      ...{ due: it.due ?? due, status: planItemStatus(model, key, i) },
-    })),
-  }));
+export function planViews(model: Model): Promise<PlanView[]> {
+  const view = async (plan: Model['plans'][number]) => {
+    const { key, title, release, environment, due, items = [], i18n } = await markStale(plan, 'plan');
+    return {
+      ...{ key, title, release, environment, due, i18n },
+      items: items.map((it, i) => ({
+        ...{ test_case: it.test_case, assignee: it.assignee, environment: it.environment ?? environment },
+        ...{ due: it.due ?? due, status: planItemStatus(model, key, i) },
+      })),
+    };
+  };
+  return Promise.all(model.plans.map(view));
+}
+
+/** A bundle record as listed on the Uploads screen (docs/spec/web.md#upload). */
+export function snapshotSummary(r: Model['snapshots'][number]): SnapshotSummary {
+  const { id, at, actor, source, commit, ref, files, dirty, message, sha256 } = r;
+  return { id, at, actor, source, commit, ref, files, dirty, message, sha256 };
 }
