@@ -8,7 +8,7 @@ import { openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { asset, B, csv, fail, git, iso, many, P, S, str } from '../util.js';
+import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
 
 /** Keys used by records (test cases and fixtures), so retired keys are never reused. */
 const used = (r: iwb.AnyRecord) =>
@@ -26,6 +26,61 @@ const parseStep = (s: string) =>
     ? { instruction: s.split('=>')[0]!.trim(), expected: s.slice(s.indexOf('=>') + 2).trim() }
     : fail('USAGE', `--step "${s}" must look like "<instruction> => <expected>"`);
 
+/** `iw init --example`: the shop bundle and its sample store, with the store's blobs in the replica. */
+async function copyExample(fs: iwb.BundleFs, dir: string, target: string) {
+  // test paths relative to the source: the package itself may live under a folder named cache/
+  const from = asset('example-bundle', 'examples/shop/.indx-watch');
+  const filter = (src: string) => !/(^|[/\\])(runs|cache)([/\\]|$)/.test(relative(from, src));
+  await cp(from, dir, { recursive: true, filter });
+  await fs.write('.gitignore', 'cache/\nruns/\n'); // npm drops .gitignore from packages
+  // the sample store ([store] url = "file://../store") with its results; its blobs go into the replica
+  const store = join(target, 'store');
+  await cp(asset('example-store', 'examples/shop/store'), store, { recursive: true, force: false });
+  const replica = openReplica(dir);
+  for (const f of await readdir(join(store, 'v1/blobs'), { recursive: true, withFileTypes: true }))
+    if (f.isFile()) await replica.putBlob(new Uint8Array(await readFile(join(f.parentPath, f.name))));
+  const files = await iwb.walk(fs, '');
+  if (!files.includes('project.toml')) fail('INTERNAL', `Nothing was copied to ${dir}; reinstall`);
+  return { data: { dir, files }, text: `Copied the shop example to ${dir} and its store to ${store}` };
+}
+
+/** Fields of `iw new`: --from input merged with the flags. */
+async function newFields(ctx: Ctx, a: Args, kind: iwb.NewKind) {
+  const fields: Record<string, unknown> = { ...(await cx.fromInput(ctx, a)) };
+  const set = (k: string, v: unknown) => {
+    if (v !== undefined && !(Array.isArray(v) && !v.length)) fields[k] = v;
+  };
+  for (const k of ['title', 'actor', 'goal', 'priority', 'mode']) set(k, str(a[k]));
+  set('covers', csv(a.covers));
+  set('steps', many(a.step).map(parseStep));
+  if (kind === 'fixture') set('kind', str(a.kind));
+  if (kind === 'use-case') set('criteria', [...((fields.criteria as unknown[]) ?? []), ...many(a.ac)]);
+  if (kind === 'use-case' && !fields.criteria) fail('USAGE', 'A use case needs at least one --ac');
+  if (kind === 'criterion') {
+    set('text', str(a.text) ?? fields.title);
+    delete fields.title;
+  }
+  if (!fields.title && !fields.text && !fields.version && !fields.name) fail('USAGE', '--title is required');
+  return fields;
+}
+
+/** Origin and AI model of `iw new`; agents always write AI-marked items. */
+async function originOf(ctx: Ctx, a: Args) {
+  let origin = str(a.origin) as 'human' | 'ai' | 'import' | undefined;
+  if (origin && !['human', 'ai', 'import'].includes(origin))
+    fail('USAGE', '--origin must be human, ai or import');
+  // agents always write AI-marked items, drafts where the kind has a status (docs/spec/agents.md#rules)
+  if ((await cx.actorOf(ctx)).kind === 'agent') {
+    if (a.ready) fail('USAGE', 'Agents cannot create ready items');
+    if (origin && origin !== 'ai') fail('USAGE', `Agents write AI drafts, not --origin ${origin}`);
+    origin = 'ai';
+  }
+  const model = str(a.model) ?? (origin === 'ai' ? ctx.env.IW_AGENT_MODEL : undefined);
+  if (origin === 'ai' && !model)
+    fail('USAGE', 'AI drafts need the model ID: pass --model or set IW_AGENT_MODEL');
+  return { origin, model };
+}
+
 export const specCommands: Record<string, Spec> = {
   init: {
     description: 'Create .indx-watch/ with a project, an environment, a release and a feature',
@@ -39,28 +94,13 @@ export const specCommands: Record<string, Spec> = {
       const dir = join(target, '.indx-watch');
       if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', `${dir} already has a project.toml`);
       const fs = nodeFs(dir);
-      if (a.example) {
-        // test paths relative to the source: the package itself may live under a folder named cache/
-        const from = asset('example-bundle', 'examples/shop/.indx-watch');
-        const filter = (src: string) => !/(^|[/\\])(runs|cache)([/\\]|$)/.test(relative(from, src));
-        await cp(from, dir, { recursive: true, filter });
-        await fs.write('.gitignore', 'cache/\nruns/\n'); // npm drops .gitignore from packages
-        // the sample store ([store] url = "file://../store") with its results; its blobs go into the replica
-        const store = join(target, 'store');
-        await cp(asset('example-store', 'examples/shop/store'), store, { recursive: true, force: false });
-        const replica = openReplica(dir);
-        for (const f of await readdir(join(store, 'v1/blobs'), { recursive: true, withFileTypes: true }))
-          if (f.isFile()) await replica.putBlob(new Uint8Array(await readFile(join(f.parentPath, f.name))));
-        const files = await iwb.walk(fs, '');
-        if (!files.includes('project.toml')) fail('INTERNAL', `Nothing was copied to ${dir}; reinstall`);
-        return { data: { dir, files }, text: `Copied the shop example to ${dir} and its store to ${store}` };
-      }
-      const name = basename(target);
-      const guess = name
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '')
-        .replace(/^\d+/, '')
-        .slice(0, 10);
+      if (a.example) return copyExample(fs, dir, target);
+      // letters and digits, without leading digits, at most 10
+      const guess = /^\d*(.{0,10})/.exec(
+        basename(target)
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, ''),
+      )![1]!;
       const key = str(a.key) ?? (guess.length >= 2 ? guess : 'APP');
       if (!iwb.KEY_PATTERNS.project.test(key)) fail('USAGE', `Invalid project key ${key} (2–10 of A-Z, 0-9)`);
       const locale =
@@ -69,7 +109,7 @@ export const specCommands: Record<string, Spec> = {
         schema_version: iwb.SCHEMA_VERSION,
         id: iwb.newId('prj'),
         key,
-        name: str(a.name) ?? name,
+        name: str(a.name) ?? basename(target),
       };
       const defaults = { default_environment: 'local', current_release: 'v0.1.0' };
       await fs.write(
@@ -86,10 +126,8 @@ export const specCommands: Record<string, Spec> = {
       ] as const)
         files.push((await iwb.createDefinition(fs, bundle!, { kind, fields })).file);
       const bin = /(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch';
-      return {
-        data: { dir, files },
-        text: `Created ${dir} (${key}). Next: ${bin} new uc --title "…" --ac "…"`,
-      };
+      const text = `Created ${dir} (${key}). Next: ${bin} new uc --title "…" --ac "…"`;
+      return { data: { dir, files }, text };
     },
   },
 
@@ -177,34 +215,8 @@ export const specCommands: Record<string, Spec> = {
     async run(ctx, a) {
       const kind = KINDS[str(a.entity) ?? ''] ?? fail('USAGE', `Unknown kind ${a.entity}; see iw new --help`);
       const p = await cx.openProject(ctx, a);
-      const fields: Record<string, unknown> = { ...(await cx.fromInput(ctx, a)) };
-      const set = (k: string, v: unknown) => {
-        if (v !== undefined && !(Array.isArray(v) && !v.length)) fields[k] = v;
-      };
-      for (const k of ['title', 'actor', 'goal', 'priority', 'mode']) set(k, str(a[k]));
-      set('covers', csv(a.covers));
-      set('steps', many(a.step).map(parseStep));
-      if (kind === 'fixture') set('kind', str(a.kind));
-      if (kind === 'use-case') set('criteria', [...((fields.criteria as unknown[]) ?? []), ...many(a.ac)]);
-      if (kind === 'use-case' && !fields.criteria) fail('USAGE', 'A use case needs at least one --ac');
-      if (kind === 'criterion') {
-        set('text', str(a.text) ?? fields.title);
-        delete fields.title;
-      }
-      if (!fields.title && !fields.text && !fields.version && !fields.name)
-        fail('USAGE', '--title is required');
-      let origin = str(a.origin) as 'human' | 'ai' | 'import' | undefined;
-      if (origin && !['human', 'ai', 'import'].includes(origin))
-        fail('USAGE', '--origin must be human, ai or import');
-      // agents always write AI-marked items, drafts where the kind has a status (docs/spec/agents.md#rules)
-      if ((await cx.actorOf(ctx)).kind === 'agent') {
-        if (a.ready) fail('USAGE', 'Agents cannot create ready items');
-        if (origin && origin !== 'ai') fail('USAGE', `Agents write AI drafts, not --origin ${origin}`);
-        origin = 'ai';
-      }
-      const model = str(a.model) ?? (origin === 'ai' ? ctx.env.IW_AGENT_MODEL : undefined);
-      if (origin === 'ai' && !model)
-        fail('USAGE', 'AI drafts need the model ID: pass --model or set IW_AGENT_MODEL');
+      const fields = await newFields(ctx, a, kind);
+      const { origin, model } = await originOf(ctx, a);
       const r = await iwb.createDefinition(p.fs, p.bundle, {
         ...{
           kind,

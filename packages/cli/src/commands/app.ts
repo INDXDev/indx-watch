@@ -1,4 +1,7 @@
-/** serve, report, deploy, skills install, login, keygen. */
+/**
+ * Commands that run or ship the app rather than edit the bundle: serve (local server and web UI),
+ * report (md/html/pdf/json), deploy (Cloudflare), skills install, login (Cloudflare Access) and keygen.
+ */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, readdir, writeFile } from 'node:fs/promises';
@@ -7,14 +10,14 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { formatTomlBody, generateSigningKey, type Problem, VERIFIED_VIA, type Via } from '@indx-watch/bundle';
 import { findBundleDir } from '@indx-watch/bundle/node';
-import { reportData } from '@indx-watch/core';
+import { type Model, reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
 import { startNodeServer } from '@indx-watch/server/node';
 import { fileStateStore } from '@indx-watch/sync/node';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { deploy } from '../deploy/index.js';
-import { asset, B, type Ctx, fail, git, here, P, S, str } from '../util.js';
+import { type Args, asset, B, type Ctx, fail, git, here, P, S, str } from '../util.js';
 
 const oneOf = <T extends string>(v: unknown, values: readonly T[], flag: string): T | undefined =>
   v === undefined || values.includes(v as T)
@@ -23,6 +26,7 @@ const oneOf = <T extends string>(v: unknown, values: readonly T[], flag: string)
 
 type Browser = { newPage(): Promise<Page>; close(): Promise<void> };
 type Page = { setContent(h: string, o: object): Promise<void>; pdf(o: object): Promise<unknown> };
+const NO_PLAYWRIGHT = 'PDF needs Playwright: npm i -D @playwright/test && npx playwright install chromium';
 /** Print HTML to PDF with the Playwright the user installed (or the one next to the CLI). */
 async function printPdf(ctx: Ctx, html: string, path: string): Promise<void> {
   let chromium: { launch(o: object): Promise<Browser> } | undefined;
@@ -31,12 +35,10 @@ async function printPdf(ctx: Ctx, html: string, path: string): Promise<void> {
       try {
         const mod = await import(pathToFileURL(createRequire(from).resolve(name)).href);
         chromium ??= mod.chromium ?? mod.default?.chromium;
-      } catch {}
-  if (!chromium)
-    fail(
-      'EXTERNAL_TOOL',
-      'PDF needs Playwright: npm i -D @playwright/test && npx playwright install chromium',
-    );
+      } catch {
+        // not resolvable from here (or not loadable): try the next package name and location
+      }
+  if (!chromium) fail('EXTERNAL_TOOL', NO_PLAYWRIGHT);
   const exe = ctx.env.PW_CHROMIUM_PATH;
   const browser = await chromium!
     .launch(exe ? { executablePath: exe } : {})
@@ -49,6 +51,40 @@ async function printPdf(ctx: Ctx, html: string, path: string): Promise<void> {
     await browser.close();
   }
 }
+
+/** Options and scope of `iw report`: flags first, then the plan's, then the defaults. */
+function reportArgs(ctx: Ctx, p: cx.Project, m: Model, a: Args) {
+  const format = oneOf(str(a.format), ['md', 'html', 'pdf', 'json'], 'format') ?? 'md';
+  const audience = oneOf(str(a.audience), ['internal', 'customer'], 'audience') ?? 'internal';
+  const locale = oneOf(str(a.locale), ['en', 'ja'], 'locale') ?? m.project.source_locale;
+  const links = audience === 'customer' ? 'none' : ['md', 'json'].includes(format) ? 'links' : 'embed';
+  const evidence = oneOf(str(a.evidence), ['none', 'links', 'embed'], 'evidence') ?? links;
+  const plan = str(a.plan) ? m.plans.find((x) => x.key === cx.resolveKey(m, str(a.plan)!)) : undefined;
+  if (str(a.plan) && !plan) fail('NOT_FOUND', `${a.plan} is not a plan`);
+  const release = str(a.release) ?? plan?.release ?? cx.releaseOf(ctx, p, a);
+  const scope = { release, environment: str(a.env) ?? plan?.environment ?? ctx.env.IW_ENV };
+  return { format, audience, locale, evidence, plan, release, scope };
+}
+
+type ReportOpts = { scope: { release?: string; environment?: string }; audience: string; plan?: string };
+/** Report data with the generator, time, commit and sync cursor (IW_NOW pins the time and drops the commit). */
+async function buildReport(ctx: Ctx, p: cx.Project, m: Model, o: ReportOpts) {
+  const [now, store] = [ctx.env.IW_NOW, m.project.store];
+  const cursor = store ? (await (await fileStateStore(p.dir, store.url)).load()).cursor : null;
+  const commit = now ? undefined : (await cx.contextOf(ctx).build()).commit;
+  return reportData(m, o.scope, {
+    audience: o.audience,
+    generatedBy: ctx.env.IW_ACTOR ?? (await cx.actorOf(ctx)).id,
+    now: now ? new Date(now) : new Date(),
+    ...JSON.parse(JSON.stringify({ plan: o.plan, commit, cursor: cursor ?? undefined })),
+  });
+}
+
+/** Default output file; md and json go to stdout. A customer report never overwrites the internal one (which has notes and emails). */
+const outName = (format: string, audience: string, of = 'all') =>
+  ['md', 'json'].includes(format)
+    ? undefined
+    : `report-${of}${audience === 'customer' ? '.customer' : ''}.${format}`;
 
 export const appCommands: Record<string, Spec> = {
   serve: {
@@ -99,33 +135,13 @@ export const appCommands: Record<string, Spec> = {
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
       const m = await cx.loadModel(p);
-      const format = oneOf(str(a.format), ['md', 'html', 'pdf', 'json'], 'format') ?? 'md';
-      const audience = oneOf(str(a.audience), ['internal', 'customer'], 'audience') ?? 'internal';
-      const locale = oneOf(str(a.locale), ['en', 'ja'], 'locale') ?? m.project.source_locale;
-      const links = audience === 'customer' ? 'none' : ['md', 'json'].includes(format) ? 'links' : 'embed';
-      const evidence = oneOf(str(a.evidence), ['none', 'links', 'embed'], 'evidence') ?? links;
-      const plan = str(a.plan) ? m.plans.find((x) => x.key === cx.resolveKey(m, str(a.plan)!)) : undefined;
-      if (str(a.plan) && !plan) fail('NOT_FOUND', `${a.plan} is not a plan`);
-      const release = str(a.release) ?? plan?.release ?? cx.releaseOf(ctx, p, a);
-      const scope = { release, environment: str(a.env) ?? plan?.environment ?? ctx.env.IW_ENV };
+      const { format, audience, locale, evidence, plan, release, scope } = reportArgs(ctx, p, m, a);
       const warnings = cx.checkScope(m, a, scope);
-      const [now, store] = [ctx.env.IW_NOW, m.project.store];
-      const cursor = store ? (await (await fileStateStore(p.dir, store.url)).load()).cursor : null;
-      const commit = now ? undefined : (await cx.contextOf(ctx).build()).commit;
-      const data = reportData(m, scope, {
-        ...{
-          audience,
-          generatedBy: ctx.env.IW_ACTOR ?? (await cx.actorOf(ctx)).id,
-          now: now ? new Date(now) : new Date(),
-        },
-        ...JSON.parse(JSON.stringify({ plan: plan?.key, commit, cursor: cursor ?? undefined })),
-      });
+      const data = await buildReport(ctx, p, m, { scope, audience, plan: plan?.key });
       Object.assign(data, { texts: await reportTexts(m, locale) });
-      // a customer report never overwrites the internal one (which has notes and emails)
-      const name = `report-${plan?.key ?? release ?? 'all'}${audience === 'customer' ? '.customer' : ''}.${format}`;
-      const out = str(a.out) ?? (['md', 'json'].includes(format) ? undefined : name);
-      const html = format === 'md' ? 'md' : 'html';
+      const out = str(a.out) ?? outName(format, audience, plan?.key ?? release);
       const getBlob = (sha: string) => p.replica.getBlob(sha);
+      const html = format === 'md' ? 'md' : 'html';
       const text =
         format === 'json'
           ? `${JSON.stringify(data, null, 2)}\n`
