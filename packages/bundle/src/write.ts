@@ -186,13 +186,9 @@ export async function approveDefinition(
   // features, environments, releases and plans have no status or version: approval records the reviewer
   const named = (d: Record<string, unknown>) =>
     match({ id: d.id as string, key: String(d.key ?? d.name ?? d.version) });
-  const other: [FileType, Loaded<Record<string, unknown>>[]][] = [
-    ['feature', bundle.features],
-    ['environment', bundle.environments],
-    ['release', bundle.releases],
-    ['plan', bundle.plans],
-  ];
-  for (const [type, xs] of other) {
+  const { features, environments, releases, plans } = bundle;
+  const other = { feature: features, environment: environments, release: releases, plan: plans };
+  for (const [type, xs] of Object.entries(other) as [FileType, Loaded<Record<string, unknown>>[]][]) {
     const x = xs.find((x) => named(x.data));
     if (!x) continue;
     await writeDefinition(fs, x.file, type, { ...x.data, approved_by: approver });

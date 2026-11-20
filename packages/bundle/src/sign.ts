@@ -7,11 +7,9 @@ import { AnyRecord } from './schema/records.js';
 
 const ED = { name: 'Ed25519' } as const;
 const enc = new TextEncoder();
+const B64U: Record<string, string> = { '+': '-', '/': '_', '=': '' };
 const b64u = (b: ArrayBuffer) =>
-  btoa(String.fromCharCode(...new Uint8Array(b)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  btoa(String.fromCharCode(...new Uint8Array(b))).replace(/[+/=]/g, (c) => B64U[c]!);
 const unb64u = (s: string) =>
   Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 const message = (r: AnyRecord) =>
