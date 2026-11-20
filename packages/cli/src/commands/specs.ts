@@ -5,6 +5,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { openNodeIndex, openReplica } from '@indx-watch/store/node';
+import { fileStateStore } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { asset, B, csv, fail, git, iso, many, P, S, str } from '../util.js';
@@ -113,6 +114,12 @@ export const specCommands: Record<string, Spec> = {
         },
       };
       const r = await iwb.checkBundle(p.fs, deps);
+      // records the store has two bodies of, as of the last sync (docs/spec/sync.md#merge-rules)
+      const url = ctx.env.IW_STORE ?? p.bundle.project.data.store?.url;
+      const conflicts = url ? ((await (await fileStateStore(p.dir, url)).load()).conflicts ?? {}) : {};
+      for (const message of Object.values(conflicts))
+        r.problems.push({ severity: 'warning', code: 'record-conflict', file: 'runs/', message });
+      r.warnings += Object.keys(conflicts).length;
       const summary = `${r.files} files, ${r.errors} errors, ${r.warnings} warnings`;
       const text = [
         ...r.problems.map(problemLine),

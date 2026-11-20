@@ -69,7 +69,7 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--fix` | Canonicalize files, regenerate slugs, renumber duplicate keys (prints mapping) |
 | `--strict` | Treat warnings as errors |
 
-Reference checks: see [concepts invariants](concepts.md#invariants).
+Reference checks: see [concepts invariants](concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](sync.md#merge-rules)).
 
 `data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "changed": string[], "renumbered": { "from": string, "to": string, "id": string }[] }`
 

@@ -1,4 +1,4 @@
-import { sha256Hex } from '@indx-watch/bundle';
+import { type AnyRecord, sha256Hex } from '@indx-watch/bundle';
 import type { LocalReplica, ObjectStore } from './ports.js';
 import { StoreError } from './ports.js';
 import { blobPath, checkRecord, idTime, parseJson } from './util.js';
@@ -23,14 +23,18 @@ export function createReplica(
       throw new StoreError('invalid', `invalid record id ${id}`);
     return `records/${new Date(t).toISOString().slice(0, 7)}/${id}.json`;
   };
+  const write = async (record: AnyRecord, ifNoneMatch: boolean) => {
+    const c = checkRecord(record);
+    if ('error' in c) throw new StoreError('invalid', `record ${record.id}: ${c.error}`);
+    const done = await objects.put(recordKey(record.id), JSON.stringify(record), { ifNoneMatch });
+    if (done) notify();
+    return done;
+  };
 
   return {
-    async putRecord(record) {
-      const c = checkRecord(record);
-      if ('error' in c) throw new StoreError('invalid', `record ${record.id}: ${c.error}`);
-      const created = await objects.put(recordKey(record.id), JSON.stringify(record), { ifNoneMatch: true });
-      if (created) notify();
-      return created;
+    putRecord: (record) => write(record, true),
+    async replaceRecord(record) {
+      await write(record, false);
     },
     async getRecord(id) {
       const raw = await objects.get(recordKey(id));

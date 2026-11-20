@@ -310,12 +310,39 @@ describe('syncOnce', () => {
     await a.replica.putRecord(run);
     await a.sync();
     const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
-    const key = await putLog(objects, Date.now(), [forged]);
+    const key = await putLog(objects, Date.now() + 1000, [forged]); // sorts after the key of the push
     const r = await a.sync();
-    expect(r.warnings).toEqual([
-      `record ${run.id} in ${key} differs from the local copy; kept the local copy`,
-    ]);
+    const warning = `record ${run.id} in ${key} differs from the local copy; kept the local copy`;
+    expect(r.warnings).toEqual([warning]);
     expect(await a.replica.getRecord(run.id)).toEqual(run);
+    expect((await a.state.load()).conflicts).toEqual({ [run.id]: warning });
+  });
+
+  it('two bodies with one record ID converge on the one whose log key sorts first', async () => {
+    const objects = memoryObjectStore();
+    const [a, b] = [clone(objects, 'a'), clone(objects, 'b')];
+    const run = runRecord();
+    await a.replica.putRecord(run);
+    await a.sync();
+    await b.sync();
+    expect(await b.replica.getRecord(run.id)).toEqual(run);
+    const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+    const key = await putLog(objects, Date.now() - 5 * MIN, [forged]); // earlier than the push, inside the lookback
+    const replaced = `record ${run.id} in ${key} differs from the local copy; replaced the local copy (its log key sorts first)`;
+    for (const c of [a, b]) {
+      expect((await c.sync()).warnings).toEqual([replaced]);
+      expect(await c.replica.getRecord(run.id)).toEqual(forged);
+      expect((await c.sync()).warnings).toEqual([]);
+      await c.state.save(emptyState()); // cache/ deleted: the full listing reads the earlier key first
+      expect((await c.sync()).warnings).toEqual([
+        expect.stringMatching(/differs from the local copy; kept the local copy$/),
+      ]);
+      expect(await c.replica.getRecord(run.id)).toEqual(forged);
+    }
+    // a fresh clone reads the earlier key first and keeps its body as well
+    const fresh = clone(objects, 'c');
+    expect((await fresh.sync()).warnings).toEqual([expect.stringContaining('kept the local copy')]);
+    expect(await fresh.replica.getRecord(run.id)).toEqual(forged);
   });
 
   it('a push-only sync on a fresh state does not push records the store already has', async () => {

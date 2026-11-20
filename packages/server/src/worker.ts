@@ -54,7 +54,7 @@ export async function catchUp(store: S.ResultStore, index: S.Index, owner: strin
       const page = await store.listLog(after ? { startAfter: after } : {});
       for (const key of page.keys.filter((k) => !seen.has(k))) {
         if (read++ >= 50) break pages;
-        added += await index.ingest((await store.readLog(key)).records);
+        added += await index.ingest((await store.readLog(key)).records, key);
         seen.add(key);
         cursor = !cursor || key > cursor ? key : cursor;
       }
@@ -108,8 +108,8 @@ function create(env: Env, key: string) {
   const files = new Map<string, Uint8Array>();
   let snapshot: Snapshot | undefined;
   let cache: { rev: string; value: Loaded } | undefined;
-  const ingest = async (records: AnyRecord[]) => {
-    if (await index.ingest(records)) await index.setMeta('records.rev', newUlid());
+  const ingest = async (records: AnyRecord[], key?: string) => {
+    if (await index.ingest(records, key)) await index.setMeta('records.rev', newUlid());
   };
 
   const loadModel = async (): Promise<Loaded> => {
@@ -125,7 +125,9 @@ function create(env: Env, key: string) {
     if (!latest) fail('No bundle snapshot yet: run `iw sync --snapshot` on the default branch.');
     if (snapshot?.id !== latest.id) snapshot = await openSnapshot(store, latest, files);
     const { model, warnings } = buildModel(snapshot.bundle, records);
-    const problems = [...snapshot.problems, ...warnings.map((message) => ({ severity: 'warning', message }))];
+    const conflicts = Object.values(JSON.parse((await index.getMeta(S.CONFLICTS_META)) ?? '{}')) as string[];
+    const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
+    const problems = [...snapshot.problems, ...more];
     cache = { rev, value: { model, problems } };
     return cache.value;
   };
@@ -133,12 +135,12 @@ function create(env: Env, key: string) {
   const deps: ServerDeps = {
     mode: 'hosted',
     loadModel,
-    writeRecord: (record) => store.appendLog('hosted', [record]).then(() => ingest([record])),
+    writeRecord: (record) => store.appendLog('hosted', [record]).then(([key]) => ingest([record], key)),
     putBlob: (data, type) => sha256Hex(data).then((sha) => store.putBlob(sha, data, type).then(() => sha)),
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
     objects,
-    onLogObject: async (key) => void (await ingest((await store.readLog(key)).records)),
+    onLogObject: async (key) => void (await ingest((await store.readLog(key)).records, key)),
     syncInfo: () => ({ configured: true, store: objects.url, lastSyncAt: new Date(ingested.at).toJSON() }),
     assets: (request) => env.ASSETS.fetch(request),
     readFile: async (path) => files.get(path) ?? null,

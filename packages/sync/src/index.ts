@@ -11,9 +11,11 @@ import {
 } from '@indx-watch/bundle';
 import {
   blobRefs,
+  conflictMessage,
   LOG_PREFIX,
   type LocalReplica,
   type LogEntry,
+  mergeStep,
   type ResultStore,
   type StoreError,
   ulidTime,
@@ -29,6 +31,10 @@ export interface SyncState {
   pushed: string[];
   lastFullAt: string | null;
   lastSnapshotHash: string | null;
+  /** record ID → the earliest log key holding the body the replica has (docs/spec/sync.md#merge-rules) */
+  keys?: Record<string, string>;
+  /** record ID → warning, for records the store has two bodies of (`iw check` and the UI show them) */
+  conflicts?: Record<string, string>;
 }
 
 export interface StateStore {
@@ -118,6 +124,8 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const state = await opts.state.load();
   const pushed = new Set(state.pushed);
   const seen = new Set(state.seen);
+  const keys = { ...state.keys };
+  const conflicts = { ...state.conflicts };
   const result: SyncResult = {
     pushed: { records: 0, blobs: 0 },
     pulled: { records: 0, blobs: 0 },
@@ -128,7 +136,7 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const warn = (msg: string) => (result.warnings ?? []).push(msg) > 0;
   const foreign = (r: AnyRecord, where: string) =>
     r.project !== opts.projectId && warn(`skipped ${r.id} ${where}: it belongs to project ${r.project}`);
-  const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen] });
+  const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen], keys, conflicts });
 
   // Pull first: a full listing rebuilds the pushed set, so deleting cache/ never causes a double push.
   // For the same reason a push-only sync on a fresh state (no full listing yet) lists the log once too.
@@ -161,9 +169,18 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
         if (entry.invalid) warn(`skipped ${entry.invalid} invalid record(s) in ${key}`);
         for (const r of entry.records) {
           if (foreign(r, `in ${key}`)) continue;
-          if (await opts.replica.putRecord(r)) result.pulled.records++;
-          else if (await differs(opts.replica, r))
-            warn(`record ${r.id} in ${key} differs from the local copy; kept the local copy`);
+          // Two bodies with one ID: every replica ends with the one under the log key that sorts first.
+          const local = await opts.replica.getRecord(r.id);
+          const held = local ? { json: JSON.stringify(local), key: keys[r.id] } : undefined;
+          const step = mergeStep(held, JSON.stringify(r), key);
+          if (step === 'add' && (await opts.replica.putRecord(r))) result.pulled.records++;
+          if (step === 'replace') await opts.replica.replaceRecord(r);
+          if (step === 'replace' || step === 'keep') {
+            const note = conflictMessage(r.id, key, step, 'local');
+            conflicts[r.id] = note;
+            warn(note);
+          }
+          if (step && step !== 'keep') keys[r.id] = key;
           pushed.add(r.id);
           if (opts.evidence === 'all') result.pulled.blobs += await fetchBlobs(opts, r);
         }
@@ -205,8 +222,12 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     }
     for (let i = 0; i < todo.length; i += BATCH) {
       const part = todo.slice(i, i + BATCH);
-      for (const key of await opts.store.appendLog(opts.writer, part, now())) seen.add(key);
-      for (const r of part) pushed.add(r.id);
+      const written = await opts.store.appendLog(opts.writer, part, now());
+      for (const key of written) seen.add(key);
+      for (const r of part) {
+        pushed.add(r.id);
+        keys[r.id] ??= written[0]!;
+      }
       result.pushed.records += part.length;
       await save();
     }
@@ -256,7 +277,9 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
           ...(b.message && { message: b.message }),
         });
         await opts.replica.putRecord(record);
-        for (const key of await opts.store.appendLog(opts.writer, [record], now())) seen.add(key);
+        const [key] = await opts.store.appendLog(opts.writer, [record], now());
+        seen.add(key!);
+        keys[record.id] = key!;
         pushed.add(record.id);
         result.pushed.records++;
         result.snapshot = record.id;
@@ -267,12 +290,6 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   }
   result.cursor = state.cursor;
   return result;
-}
-
-/** Two bodies with the same ID (docs/spec/sync.md#merge-rules). */
-async function differs(replica: LocalReplica, r: AnyRecord): Promise<boolean> {
-  const local = await replica.getRecord(r.id);
-  return !!local && JSON.stringify(local) !== JSON.stringify(r);
 }
 
 /** Upload the blobs a record references. null when one of them is missing locally. */
