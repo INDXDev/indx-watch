@@ -50,6 +50,8 @@ export interface Localized {
   translated: boolean;
   /** a translation exists but is outdated: the source text is shown with a badge */
   outdated: boolean;
+  /** the translation used is a machine translation nobody reviewed yet */
+  machine?: boolean;
 }
 
 /**
@@ -66,7 +68,7 @@ export function pick(entity: unknown, field: string, locale: Locale): Localized 
   if (typeof text !== 'string') return { text: source, translated: false, outdated: false };
   if (tr?.status === 'stale' || tr?.stale === true)
     return { text: source, translated: false, outdated: true };
-  return { text, translated: true, outdated: false };
+  return { text, translated: true, outdated: false, machine: tr?.status === 'machine' };
 }
 
 export type Segment = { kind: 'text' | 'literal' | 'placeholder'; text: string };

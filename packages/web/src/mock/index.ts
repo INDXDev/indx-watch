@@ -85,7 +85,12 @@ export function mockTransport(): Transport {
   };
 
   const routes: [string, RegExp, (m: RegExpMatchArray, url: URL, body: unknown) => Response][] = [
-    ['GET', /^api\/project$/, () => json(D.project)],
+    [
+      'GET',
+      /^api\/project$/,
+      () => json({ ...D.project, share: { clone: null }, can: { declare: true, upload: false } }),
+    ],
+    ['GET', /^api\/snapshots$/, () => json([])],
     ['GET', /^api\/status$/, () => json(D.status())],
     [
       'GET',

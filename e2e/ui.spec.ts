@@ -37,6 +37,7 @@ test('manual runner in Japanese', { tag: ['@TC-5'] }, async ({ page }) => {
   try {
     await test.step('1. switch the UI to Japanese and open the manual runner for TC-4', async () => {
       await page.goto(server.url);
+      await page.getByRole('button', { name: /^Account:/ }).click();
       await page.getByRole('combobox', { name: 'Language' }).selectOption('ja');
       await page.goto(`${server.url}#/tc/TC-4/run`);
       const step = page.getByRole('group', { name: '手順 1 の結果' });

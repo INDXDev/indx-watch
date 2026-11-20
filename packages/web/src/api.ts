@@ -11,9 +11,12 @@ import type {
   ReviewInput,
   RunDetail,
   RunSummary,
+  SnapshotSummary,
   SpecTree,
   StatusResult,
   TestCaseDetail,
+  UploadInput,
+  UploadResult,
 } from '@indx-watch/server';
 
 export type {
@@ -22,9 +25,12 @@ export type {
   ProjectInfo,
   RunDetail,
   RunSummary,
+  SnapshotSummary,
   SpecTree,
   StatusResult,
   TestCaseDetail,
+  UploadInput,
+  UploadResult,
 };
 export type Scope = { release?: string | undefined; env?: string | undefined };
 export type PlanItemStatus = 'todo' | 'done' | 'blocked' | 'review';
@@ -32,6 +38,7 @@ export type PlanItemStatus = 'todo' | 'done' | 'blocked' | 'review';
 export interface PlanView {
   key: string;
   title: string;
+  i18n?: unknown;
   release?: string;
   environment?: string;
   due?: string;
@@ -69,6 +76,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** body of a 422 upload preview */
+    readonly preview?: unknown,
   ) {
     super(message);
   }
@@ -88,13 +97,14 @@ async function call<T>(path: string, init?: RequestInit, as: 'json' | 'text' = '
   if (!res.ok) {
     let code = 'http';
     let message = `${res.status} ${res.statusText}`;
+    let body: { error?: { code: string; message: string } } | undefined;
     try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
+      body = (await res.json()) as typeof body;
+      if (body?.error) ({ code, message } = body.error);
     } catch {
       // not JSON
     }
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, res.status === 422 ? body : undefined);
   }
   return (as === 'json' ? res.json() : res.text()) as Promise<T>;
 }
@@ -133,6 +143,13 @@ export const api = {
       body: file,
     }),
   report: (q: ReportQuery) => call<string>(reportPath(q), undefined, 'text'),
+  snapshots: () => call<SnapshotSummary[]>('api/snapshots'),
+  /** 422 still carries the preview (check errors): return it instead of throwing */
+  uploadBundle: (input: UploadInput) =>
+    post<UploadResult>('api/bundle', input).catch((e: unknown) => {
+      if (e instanceof ApiError && e.preview) return e.preview as UploadResult;
+      throw e;
+    }),
   blobUrl: (sha256: string) => transport.blobUrl(sha256),
 };
 
