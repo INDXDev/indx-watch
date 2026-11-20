@@ -12,3 +12,14 @@ priority = "P0"
 id = "ac_01M7TF47BYZGG4MK61CTPY3RW0"
 key = "AC-5.1"
 text = "Tagged Playwright tests produce runs linked to their test cases, with the commit and fixture versions."
+
+[[criteria]]
+id = "ac_01M7V705FAEA5XRSHEB1KZSCMP"
+key = "AC-5.2"
+text = "A fixture secret's value never appears in run records, the store, the server's views or reports."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-code"
+created_at = 2026-11-20T00:51:43Z
