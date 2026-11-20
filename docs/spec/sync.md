@@ -184,10 +184,10 @@ Records written by the hosted server itself carry an Access-verified actor. Reco
 ## Acceptance criteria
 
 - [ ] Two clones configured with the same `file://` or MinIO store: a run recorded in clone A appears in clone B's `iw status` within 5 s while B runs `iw sync --watch`.
-- [ ] Sync is idempotent: running `iw sync` twice in a row transfers nothing the second time.
-- [ ] A record uploaded with a key 10 minutes older than the reader's cursor is still pulled (lookback test with a fake clock).
-- [ ] Interrupting a push after blobs but before the log object, then re-running, leaves no record without its blobs.
-- [ ] A store whose `indx-watch-store.json` names another project is refused with exit code 4.
-- [ ] A reader whose store contains a log key 1 day in the future still pulls records written afterwards by correctly clocked writers.
-- [ ] `iw sync` without `--snapshot` never writes a `bundle` record.
-- [ ] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).
+- [x] Sync is idempotent: running `iw sync` twice in a row transfers nothing the second time.
+- [x] A record uploaded with a key 10 minutes older than the reader's cursor is still pulled (lookback test with a fake clock).
+- [x] Interrupting a push after blobs but before the log object, then re-running, leaves no record without its blobs.
+- [x] A store whose `indx-watch-store.json` names another project is refused with exit code 4.
+- [x] A reader whose store contains a log key 1 day in the future still pulls records written afterwards by correctly clocked writers.
+- [x] `iw sync` without `--snapshot` never writes a `bundle` record.
+- [x] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).

@@ -98,6 +98,6 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 ## Acceptance criteria
 
 - [ ] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT).
-- [ ] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
-- [ ] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
-- [ ] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).
+- [x] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
+- [x] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
+- [x] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).

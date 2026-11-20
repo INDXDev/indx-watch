@@ -98,8 +98,8 @@ PR comments and check runs are *v0.2* (they need `pull-requests: write` / `check
 
 ## Acceptance criteria
 
-- [ ] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
-- [ ] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
-- [ ] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
-- [ ] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
+- [x] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
+- [x] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
+- [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
+- [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
 - [ ] With `gate: true` and a failing P0 test case, the action step fails.

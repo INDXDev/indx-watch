@@ -262,12 +262,12 @@ These are enforced by `iw check` and unit tests:
 
 ## Acceptance criteria
 
-- [ ] `decide()` has a unit test per decision-policy row (1–10), including rule-order conflicts (human beats assert fail; assert fail beats llm pass), missing llm confidence, and a visual diff within the threshold.
-- [ ] A TC with a failing webkit run and a later passing chromium run in the same scope has status `fail`.
-- [ ] Rewording a covered AC makes earlier results of its test cases `stale`; editing a translation does not.
+- [x] `decide()` has a unit test per decision-policy row (1–10), including rule-order conflicts (human beats assert fail; assert fail beats llm pass), missing llm confidence, and a visual diff within the threshold.
+- [x] A TC with a failing webkit run and a later passing chromium run in the same scope has status `fail`.
+- [x] Rewording a covered AC makes earlier results of its test cases `stale`; editing a translation does not.
 - [ ] `evaluateGate()` on `examples/shop` with its sample results returns the documented values in [reports.md](reports.md#example).
 - [ ] Changing only the title of a test case keeps its version hash; changing a step changes it and makes earlier results `stale`.
-- [ ] `iw check` fails on an `origin = "ai"` test case marked `ready` without `approved_by`, or whose `approved_version` differs from its current version.
-- [ ] `iw check --fix` resolves a duplicate `TC-` key by renumbering the newer file and updating references.
-- [ ] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
-- [ ] A confident agent pass on a test case that declares a `human` judge is `needs_review`.
+- [x] `iw check` fails on an `origin = "ai"` test case marked `ready` without `approved_by`, or whose `approved_version` differs from its current version.
+- [x] `iw check --fix` resolves a duplicate `TC-` key by renumbering the newer file and updating references.
+- [x] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
+- [x] A confident agent pass on a test case that declares a `human` judge is `needs_review`.
