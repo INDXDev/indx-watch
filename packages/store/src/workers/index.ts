@@ -24,6 +24,13 @@ interface R2Like {
   delete(key: string): Promise<void>;
 }
 
+/** One list() page request: continue from the cursor, or start after `after` on the first page. */
+const r2Page = (prefix: string, cursor?: string, after?: string): R2ListOpts => ({
+  prefix,
+  limit: 1000,
+  ...(cursor ? { cursor } : after ? { startAfter: after } : {}),
+});
+
 /** ObjectStore over an R2 bucket binding, under an optional key prefix. */
 export function r2ObjectStore(bucket: unknown, prefix?: string): ObjectStore {
   const b = bucket as R2Like;
@@ -58,11 +65,7 @@ export function r2ObjectStore(bucket: unknown, prefix?: string): ObjectStore {
       const out: ObjectInfo[] = [];
       let cursor: string | undefined;
       for (;;) {
-        const r = await b.list({
-          prefix: p + opts.prefix,
-          limit: 1000,
-          ...(cursor ? { cursor } : { ...(after ? { startAfter: after } : {}) }),
-        });
+        const r = await b.list(r2Page(p + opts.prefix, cursor, after));
         for (const o of r.objects) if (!after || o.key > after) out.push(info(o));
         if (out.length > limit || !r.truncated || !r.cursor)
           return { keys: out.slice(0, limit), truncated: out.length > limit || r.truncated };
@@ -86,78 +89,86 @@ interface D1Like {
   batch(stmts: D1Stmt[]): Promise<{ meta?: { changes?: number } }[]>;
 }
 
+const META =
+  'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value';
+// Guarded writes: each applies only to the state ingest read, so concurrent ingests cannot overwrite each other
+const ADD = `INSERT INTO records (kind, at, test_case_id, release, json, id) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`;
+const REPLACE =
+  'UPDATE records SET kind = ?, at = ?, test_case_id = ?, release = ?, json = ? WHERE id = ? AND json = ?';
+const KEY = `INSERT INTO record_keys (id, log_key) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM records WHERE id = ?1 AND json = ?3)
+    ON CONFLICT (id) DO UPDATE SET log_key = excluded.log_key WHERE log_key IS ?4 OR excluded.log_key < log_key`;
+const NOTES = `INSERT INTO meta (key, value) VALUES (?, ?)
+    ON CONFLICT (key) DO UPDATE SET value = json_patch(value, excluded.value)`;
+const HELD = `SELECT r.id, r.json, k.log_key AS key FROM records r LEFT JOIN record_keys k ON k.id = r.id
+    WHERE r.id IN (SELECT value FROM json_each(?))`;
+const row = (r: AnyRecord) => [
+  r.kind,
+  r.at,
+  recordTestCase(r) ?? null,
+  recordRelease(r) ?? null,
+  JSON.stringify(r),
+  r.id,
+];
+type Query = (sql: string, ...args: unknown[]) => D1Stmt;
+type PlanItem = Awaited<ReturnType<typeof mergePlan>>['plan'][number];
+
+/**
+ * Runs statement groups in batches. One batch is one transaction, at most 100 statements to stay under the bind
+ * limit; a group never spans two. Returns the rows each statement changed.
+ */
+async function runGroups(d: D1Like, groups: D1Stmt[][]) {
+  const changes: number[] = [];
+  for (let i = 0; i < groups.length; ) {
+    const stmts: D1Stmt[] = [];
+    while (i < groups.length && (!stmts.length || stmts.length + groups[i]!.length <= 100))
+      stmts.push(...groups[i++]!);
+    for (const r of await d.batch(stmts)) changes.push(r.meta?.changes ?? 0);
+  }
+  return changes;
+}
+
+/** A record's statements, kept in one transaction: the body (unless only its key changes), then its key. */
+function planStatements(q: Query, { r, step, held }: PlanItem, logKey?: string) {
+  return [
+    ...(step === 'add' ? [q(ADD, ...row(r))] : step === 'replace' ? [q(REPLACE, ...row(r), held!.json)] : []),
+    ...(logKey ? [q(KEY, r.id, logKey, JSON.stringify(r), held?.key ?? null)] : []),
+  ];
+}
+
+/** One ingest round: plans `todo` against the held rows, writes it guarded, and returns what lost a race and the count. */
+async function ingestRound(d: D1Like, q: Query, [todo, logKey, trust]: Parameters<Index['ingest']>) {
+  const { results } = await q(HELD, JSON.stringify(todo.map((r) => r.id))).all<Held & { id: string }>();
+  const { plan, notes, count } = await mergePlan(new Map(results.map((h) => [h.id, h])), todo, logKey, trust);
+  const groups = plan.map((item) => planStatements(q, item, logKey));
+  const changes = await runGroups(d, groups);
+  let i = 0;
+  // a guarded write that changed nothing lost a race with another ingest
+  const lost = plan.filter((p, g) => {
+    const won = p.step === 'key' || !!changes[i];
+    i += groups[g]!.length;
+    return !won;
+  });
+  if (Object.keys(notes).length) await q(NOTES, CONFLICTS_META, JSON.stringify(notes)).run();
+  return { lost: lost.map((p) => p.r), count: count - lost.length };
+}
+
 /** Index over a D1 binding (plain SQL schema in src/index-schema.sql). */
 export function d1Index(db: unknown): Index {
   const d = db as D1Like;
-  const q = (sql: string, ...args: unknown[]) => d.prepare(sql).bind(...args);
+  const q: Query = (sql, ...args) => d.prepare(sql).bind(...args);
   let ready: Promise<unknown> | undefined;
   const init = () => (ready ??= d.batch(INDEX_SCHEMA.map((s) => d.prepare(s))));
-  // One batch is one transaction, at most 100 statements to stay under the bind limit; a group never spans two.
-  // Returns the rows each statement changed.
-  const batch = async (groups: D1Stmt[][]) => {
-    const changes: number[] = [];
-    for (let i = 0; i < groups.length; ) {
-      const stmts: D1Stmt[] = [];
-      while (i < groups.length && (!stmts.length || stmts.length + groups[i]!.length <= 100))
-        stmts.push(...groups[i++]!);
-      for (const r of await d.batch(stmts)) changes.push(r.meta?.changes ?? 0);
-    }
-    return changes;
-  };
-  const META =
-    'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value';
-  // Guarded writes: each applies only to the state ingest read, so concurrent ingests cannot overwrite each other
-  const ADD = `INSERT INTO records (kind, at, test_case_id, release, json, id) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT (id) DO NOTHING`;
-  const REPLACE =
-    'UPDATE records SET kind = ?, at = ?, test_case_id = ?, release = ?, json = ? WHERE id = ? AND json = ?';
-  const KEY = `INSERT INTO record_keys (id, log_key) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM records WHERE id = ?1 AND json = ?3)
-    ON CONFLICT (id) DO UPDATE SET log_key = excluded.log_key WHERE log_key IS ?4 OR excluded.log_key < log_key`;
-  const NOTES = `INSERT INTO meta (key, value) VALUES (?, ?)
-    ON CONFLICT (key) DO UPDATE SET value = json_patch(value, excluded.value)`;
-  const HELD = `SELECT r.id, r.json, k.log_key AS key FROM records r LEFT JOIN record_keys k ON k.id = r.id
-    WHERE r.id IN (SELECT value FROM json_each(?))`;
-  const row = (r: AnyRecord) => [
-    r.kind,
-    r.at,
-    recordTestCase(r) ?? null,
-    recordRelease(r) ?? null,
-    JSON.stringify(r),
-    r.id,
-  ];
+  const batch = (groups: D1Stmt[][]) => runGroups(d, groups);
 
   const index: Index = {
     async ingest(records, logKey, trust) {
       await init();
       let [todo, n] = [records, 0];
-      // a guarded write that changed nothing lost a race with another ingest: decide that record again
+      // a record that lost a race with another ingest is decided again
       for (let round = 0; todo.length && round < 5; round++) {
-        const ids = JSON.stringify(todo.map((r) => r.id));
-        const { results } = await q(HELD, ids).all<Held & { id: string }>();
-        const { plan, notes, count } = await mergePlan(
-          new Map(results.map((h) => [h.id, h])),
-          todo,
-          logKey,
-          trust,
-        );
-        // a record's statements stay in one transaction: the body (unless only its key changes), then its key
-        const groups = plan.map(({ r, step, held }) => [
-          ...(step === 'add'
-            ? [q(ADD, ...row(r))]
-            : step === 'replace'
-              ? [q(REPLACE, ...row(r), held!.json)]
-              : []),
-          ...(logKey ? [q(KEY, r.id, logKey, JSON.stringify(r), held?.key ?? null)] : []),
-        ]);
-        const changes = await batch(groups);
-        let i = 0;
-        const lost = plan.filter((p, g) => {
-          const won = p.step === 'key' || !!changes[i];
-          i += groups[g]!.length;
-          return !won;
-        });
-        if (Object.keys(notes).length) await q(NOTES, CONFLICTS_META, JSON.stringify(notes)).run();
-        [todo, n] = [lost.map((p) => p.r), n + count - lost.length];
+        const { lost, count } = await ingestRound(d, q, [todo, logKey, trust]);
+        [todo, n] = [lost, n + count];
       }
       return n;
     },
