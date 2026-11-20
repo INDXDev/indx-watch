@@ -105,4 +105,4 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
 - [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
 - [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
-- [ ] With `gate: true` and a failing P0 test case, the action step fails.
+- [x] With `gate: true` and a failing P0 test case, the action step fails.

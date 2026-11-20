@@ -187,7 +187,7 @@ Records written by the hosted server itself carry an Access-verified actor. Reco
 
 ## Acceptance criteria
 
-- [ ] Two clones configured with the same `file://` or MinIO store: a run recorded in clone A appears in clone B's `iw status` within 5 s while B runs `iw sync --watch`.
+- [x] Two clones configured with the same `file://` or MinIO store: a run recorded in clone A appears in clone B's `iw status` within 5 s while B runs `iw sync --watch`.
 - [x] Sync is idempotent: running `iw sync` twice in a row transfers nothing the second time.
 - [x] A record uploaded with a key 10 minutes older than the reader's cursor is still pulled (lookback test with a fake clock).
 - [x] Interrupting a push after blobs but before the log object, then re-running, leaves no record without its blobs.

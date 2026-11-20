@@ -89,6 +89,37 @@ describe('renderReport on examples/shop', () => {
       }
   });
 
+  it('customer audience: no notes from the bundle', async () => {
+    const b = await shop();
+    const note = (n: string) => `Bundle note ${n} (do not share)`;
+    const set = (o: { notes?: string }, n: string) => Object.assign(o, { notes: note(n) });
+    set(b.project.data, 'project');
+    for (const f of b.features) set(f.data, f.data.key);
+    for (const u of b.useCases) {
+      set(u.data, u.data.key);
+      for (const c of u.data.criteria) set(c, c.key);
+    }
+    for (const t of b.testCases) set(t.data, t.data.key);
+    for (const x of b.fixtures) set(x.data, x.data.key);
+    for (const p of b.plans)
+      for (const [i, item] of (p.data.items ?? []).entries()) set(item, `${p.data.key}#${i}`);
+    const m = buildModel(b, sampleRecords(b)).model;
+    for (const plan of [undefined, 'PLAN-1'])
+      for (const format of ['md', 'html'] as const)
+        for (const locale of ['en', 'ja'] as const) {
+          const scope = { release: 'v1.2.0', environment: 'staging' };
+          const opts = {
+            audience: 'customer',
+            generatedBy: 'qa@shop.test',
+            now: NOW,
+            ...(plan ? { plan } : {}),
+          } as const;
+          const data = Object.assign(reportData(m, scope, opts), { texts: await reportTexts(m, locale) });
+          const out = await renderReport(data, { format, locale, evidence: 'embed', getBlob });
+          expect(out, `${plan}/${format}/${locale}`).not.toContain('Bundle note');
+        }
+  });
+
   it('internal audience keeps notes and CI links', async () => {
     const md = await render({ format: 'md' });
     expect(md).toContain('Total stayed 40.00, no message (internal note)');

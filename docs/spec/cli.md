@@ -338,7 +338,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 
 ## Acceptance criteria
 
-- [ ] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
+- [x] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
 - [x] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.

@@ -99,6 +99,19 @@ describe('read routes', () => {
     expect(await res.json()).toEqual({ error: { code: 'not-found', message: 'test case TC-99 not found' } });
   });
 
+  it("GET /api/test-cases/:key marks an edited step's translation stale", async () => {
+    const before = await get<TestCaseDetail>((await app()).app, '/api/test-cases/TC-4');
+    expect((before.data.steps[0]!.i18n as { ja: { status: string } }).ja.status).toBe('reviewed');
+    const bundle = await shop();
+    const tc4 = bundle.testCases.find((t) => t.data.key === 'TC-4')!;
+    const [step, ...rest] = tc4.data.steps;
+    tc4.data = { ...tc4.data, steps: [{ ...step!, expected: `${step!.expected} Edited.` }, ...rest] };
+    const { app: a } = await app({ bundle });
+    const after = await get<TestCaseDetail>(a, '/api/test-cases/TC-4');
+    expect((after.data.steps[0]!.i18n as { ja: { status: string } }).ja.status).toBe('stale');
+    expect((after.data.i18n as { ja: { status: string } }).ja.status).not.toBe('stale'); // only that step
+  });
+
   it('GET /api/fixtures and /api/fixtures/:key', async () => {
     const { app: a } = await app();
     const all = await get<FixtureDetail[]>(a, '/api/fixtures');
