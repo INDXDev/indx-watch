@@ -57,7 +57,10 @@ const warn = (msg: string) => {
 const read = (a: TestResult['attachments'][number]) => {
   try {
     return a.body ?? (a.path ? readFileSync(a.path) : undefined);
-  } catch {}
+  } catch {
+    // an attachment file Playwright already removed or cannot read: recorded without that evidence
+    return undefined;
+  }
 };
 const sourceKey = (t: TestCase) => t.titlePath().filter(Boolean).join(' › ');
 
@@ -172,6 +175,32 @@ export default class IndxWatchReporter implements Reporter {
   }
 
   private async record(bundle: Bundle, model: Model): Promise<void> {
+    const ctx = await this.context(bundle);
+    const records: AnyRecord[] = [];
+    for (const g of this.groups()) records.push(await this.run(model, g, ctx));
+    const verdicts = buildModel(bundle, records).model.runs;
+    const lines = (records as RunRecord[]).map(
+      (r) =>
+        `${r.test_case.key}${r.automation?.project ? ` [${r.automation.project}]` : ''} ${verdicts.get(r.id)?.decision.verdict}`,
+    );
+    if (this.opts.dryRun) for (const r of records) log(`would record ${encodeRecord(r)}`);
+    else {
+      const sign = recordSigner(this.env.IW_SIGNING_KEY); // docs/spec/security.md#signed-records
+      for (const r of records) await this.replica!.putRecord(await sign(r));
+    }
+    const where = this.opts.dryRun
+      ? '(dry run, nothing written)'
+      : `to ${relative(process.cwd(), join(this.dir, 'runs')) || '.'}`;
+    log(`${records.length} run(s) ${where}${lines.length ? `: ${lines.join(', ')}` : ''}`);
+    if (this.unlinked.size)
+      warn(`${this.unlinked.size} unlinked test(s):\n  ${[...this.unlinked].join('\n  ')}`);
+    if (this.unknown.size) warn(`unknown test case keys:\n  ${[...this.unknown].join('\n  ')}`);
+    if (this.unlinked.size + this.unknown.size > 0) this.failed = true;
+    if (!this.opts.dryRun && this.opts.sync !== false) await this.push(bundle, ctx.actor);
+  }
+
+  /** Who, what build and which release/environment every run of this invocation records. */
+  private async context(bundle: Bundle): Promise<Ctx> {
     const [actor, build, ci] = await Promise.all([
       processIdentity({ env: this.env, cwd: this.dir }).current(),
       processContext({ env: this.env, cwd: this.dir }).build(),
@@ -181,8 +210,11 @@ export default class IndxWatchReporter implements Reporter {
     const rel = M.resolveRelease(bundle, build, { explicit, inCi: !!ci || !!this.env.CI });
     if (rel.warning) warn(rel.warning);
     const environment = this.environment(bundle);
-    const ctx: Ctx = { actor, build, ci, release: rel.release, environment, group: M.runGroup(this.env) };
+    return { actor, build, ci, release: rel.release, environment, group: M.runGroup(this.env) };
+  }
 
+  /** Seen tests that ran, grouped by (test case, Playwright project, annotated fixture rows). */
+  private groups(): Iterable<Group> {
     const groups = new Map<string, Group>();
     for (const s of this.seen.values()) {
       if (!s.test.results.length) continue;
@@ -198,63 +230,11 @@ export default class IndxWatchReporter implements Reporter {
         groups.set(key, g);
       }
     }
-    const records: AnyRecord[] = [];
-    for (const g of groups.values()) records.push(await this.run(model, g, ctx));
-    const verdicts = buildModel(bundle, records).model.runs;
-    const lines = (records as RunRecord[]).map(
-      (r) =>
-        `${r.test_case.key}${r.automation?.project ? ` [${r.automation.project}]` : ''} ${verdicts.get(r.id)?.decision.verdict}`,
-    );
-    if (this.opts.dryRun) for (const r of records) log(`would record ${encodeRecord(r)}`);
-    else {
-      const sign = recordSigner(process.env.IW_SIGNING_KEY); // docs/spec/security.md#signed-records
-      for (const r of records) await this.replica!.putRecord(await sign(r));
-    }
-    const where = this.opts.dryRun
-      ? '(dry run, nothing written)'
-      : `to ${relative(process.cwd(), join(this.dir, 'runs')) || '.'}`;
-    log(`${records.length} run(s) ${where}${lines.length ? `: ${lines.join(', ')}` : ''}`);
-    if (this.unlinked.size)
-      warn(`${this.unlinked.size} unlinked test(s):\n  ${[...this.unlinked].join('\n  ')}`);
-    if (this.unknown.size) warn(`unknown test case keys:\n  ${[...this.unknown].join('\n  ')}`);
-    if (this.unlinked.size || this.unknown.size) this.failed = true;
-    if (!this.opts.dryRun && this.opts.sync !== false) await this.push(bundle, actor);
+    return groups.values();
   }
 
   private async run(model: Model, g: Group, ctx: Ctx): Promise<AnyRecord> {
-    const judgements: RunRecord['judgements'] = [];
-    const steps = new Map<number, RunRecord['steps'][number]>();
-    const evidence = new Map<string, Evidence>();
-    let start = Number.POSITIVE_INFINITY;
-    let end = 0;
-    let interrupted = false;
-    for (const s of g.tests) {
-      for (const e of await Promise.all(s.pending))
-        if (e && !evidence.has(e.sha256)) evidence.set(e.sha256, e);
-      for (const r of s.test.results) {
-        start = Math.min(start, r.startTime.getTime());
-        end = Math.max(end, r.startTime.getTime() + r.duration);
-      }
-      const last = s.test.results.at(-1)!;
-      const outcome = s.test.outcome();
-      interrupted ||= last.status === 'interrupted';
-      if (outcome === 'skipped' || last.status === 'interrupted') continue;
-      const error = last.errors?.[0]?.message ?? last.error?.message;
-      judgements.push({
-        id: newId('jdg'),
-        kind: 'assert',
-        verdict: outcome === 'unexpected' ? 'fail' : 'pass',
-        ...(outcome === 'unexpected' && error ? { reason: this.redact(error) } : {}),
-        test: this.redact(s.test.titlePath().slice(2).join(' › '), 500),
-        ...(outcome === 'flaky' ? { flaky: true } : {}),
-      });
-      for (const [n, st] of M.numberedSteps(last.steps)) {
-        if (n > g.tc.data.steps.length || steps.get(n)?.status === 'fail') continue;
-        const note = st.error?.message ? this.redact(st.error.message.split('\n')[0]!, 500) : undefined;
-        steps.set(n, { index: n, status: st.error ? 'fail' : 'pass', note });
-      }
-    }
-    const allSkipped = g.tests.every((s) => s.test.outcome() === 'skipped');
+    const { judgements, steps, evidence, start, end, interrupted } = await this.outcomes(g);
     const fixtureKeys = new Set([...(g.tc.data.fixtures ?? []).map((f) => f.ref), ...g.rows.keys()]);
     const fixtures = [...fixtureKeys].flatMap((key) => {
       const fx = model.fixtures.get(key);
@@ -262,7 +242,7 @@ export default class IndxWatchReporter implements Reporter {
       const rows = g.rows.get(key) ?? g.tc.data.fixtures?.find((f) => f.ref === key)?.rows;
       return [{ id: fx.data.id, key, version: fx.version, ...(rows?.length ? { rows } : {}) }];
     });
-    const file = g.tests[0]!.test.location.file;
+    const allSkipped = g.tests.every((s) => s.test.outcome() === 'skipped');
     const shas = (n: number) => {
       const list = [...evidence.values()].filter((e) => e.step === n).map((e) => e.sha256);
       return list.length ? list : undefined;
@@ -293,10 +273,54 @@ export default class IndxWatchReporter implements Reporter {
         framework: 'playwright',
         ...(g.project ? { project: g.project } : {}),
         group: ctx.group,
-        file: relative(this.root, file).split(sep).join('/'),
+        file: relative(this.root, g.tests[0]!.test.location.file).split(sep).join('/'),
       },
     };
     return JSON.parse(encodeRecord(raw)) as AnyRecord; // validated, canonical key order
+  }
+
+  /** Evidence, time span, judgements and step results gathered from a group's tests, in test order. */
+  private async outcomes(g: Group) {
+    const judgements: RunRecord['judgements'] = [];
+    const steps = new Map<number, RunRecord['steps'][number]>();
+    const evidence = new Map<string, Evidence>();
+    let [start, end, interrupted] = [Number.POSITIVE_INFINITY, 0, false];
+    for (const s of g.tests) {
+      for (const e of await Promise.all(s.pending))
+        if (e && !evidence.has(e.sha256)) evidence.set(e.sha256, e);
+      for (const r of s.test.results) {
+        start = Math.min(start, r.startTime.getTime());
+        end = Math.max(end, r.startTime.getTime() + r.duration);
+      }
+      const last = s.test.results.at(-1)!;
+      interrupted ||= last.status === 'interrupted';
+      if (s.test.outcome() === 'skipped' || last.status === 'interrupted') continue;
+      judgements.push(this.judgement(s.test, last));
+      this.mergeSteps(steps, last, g.tc.data.steps.length);
+    }
+    return { judgements, steps, evidence, start, end, interrupted };
+  }
+
+  private judgement(test: TestCase, last: TestResult): RunRecord['judgements'][number] {
+    const outcome = test.outcome();
+    const error = last.errors?.[0]?.message ?? last.error?.message;
+    return {
+      id: newId('jdg'),
+      kind: 'assert',
+      verdict: outcome === 'unexpected' ? 'fail' : 'pass',
+      ...(outcome === 'unexpected' && error ? { reason: this.redact(error) } : {}),
+      test: this.redact(test.titlePath().slice(2).join(' › '), 500),
+      ...(outcome === 'flaky' ? { flaky: true } : {}),
+    };
+  }
+
+  /** Numbered steps up to the test case's step count; a failed step stays failed across tests. */
+  private mergeSteps(steps: Map<number, RunRecord['steps'][number]>, last: TestResult, max: number): void {
+    for (const [n, st] of M.numberedSteps(last.steps)) {
+      if (n > max || steps.get(n)?.status === 'fail') continue;
+      const note = st.error?.message ? this.redact(st.error.message.split('\n')[0]!, 500) : undefined;
+      steps.set(n, { index: n, status: st.error ? 'fail' : 'pass', note });
+    }
   }
 
   private async push(bundle: Bundle, actor: RunRecord['actor']): Promise<void> {
