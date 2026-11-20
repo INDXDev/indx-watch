@@ -131,13 +131,28 @@ describe('planDeploy', () => {
   });
 });
 
-describe('deploy', () => {
-  it('dry run prints the exact commands and changes nothing', async () => {
+const NO_ACCESS_TEAM = '[hosting]\nprovider = "cloudflare"\nname = "shop-watch"\n';
+const noLog = () => {};
+
+/** Where deploy writes the generated wrangler config inside a bundle dir. */
+const configPath = (dir: string) => join(dir, 'cache', 'deploy', 'wrangler.jsonc');
+
+/** The generated wrangler config, parsed after dropping its leading comment line. */
+const readConfig = (dir: string) =>
+  JSON.parse(readFileSync(configPath(dir), 'utf8').replace(/^\/\/.*\n/, ''));
+
+/** A dry run that collects its log lines. */
+async function dryRun(dir: string, dist: string, exec: Exec, extra: { public?: boolean } = {}) {
+  const lines: string[] = [];
+  const data = await deploy({ dir, distDir: dist, dryRun: true, exec, log: (l) => lines.push(l), ...extra });
+  return { data, out: lines.join('\n') };
+}
+
+describe('deploy --dry-run', () => {
+  it('returns the exact commands and changes nothing', async () => {
     const { dir, dist } = setup();
     const { exec, calls, files } = fakeExec({});
-    const lines: string[] = [];
-    const data = await deploy({ dir, distDir: dist, dryRun: true, exec, log: (l) => lines.push(l) });
-    const config = join(dir, 'cache', 'deploy', 'wrangler.jsonc');
+    const { data } = await dryRun(dir, dist, exec);
     expect(data).toEqual({
       resources: [
         { type: 'r2', name: 'shop-watch', exists: false },
@@ -147,91 +162,24 @@ describe('deploy', () => {
       commands: [
         'wrangler r2 bucket create shop-watch',
         'wrangler d1 create shop-watch',
-        `wrangler deploy --config ${shellQuote(config)}`,
+        `wrangler deploy --config ${shellQuote(configPath(dir))}`,
       ],
       url: null,
     });
     expect(CommandData.deploy.parse(data)).toEqual(data);
     expect(mutating(calls)).toEqual([]);
     expect(files[0]).toBe('npx --yes wrangler@4'); // wrangler is not on PATH
-    const out = lines.join('\n');
+  });
+
+  it('prints the plan and the Access setup hints', async () => {
+    const { dir, dist } = setup();
+    const { out } = await dryRun(dir, dist, fakeExec({}).exec);
     expect(out).toContain('wrangler d1 create shop-watch');
     expect(out).toContain('Zero Trust → Access → Applications');
     expect(out).toContain('[hosting].access_aud');
-    const written = JSON.parse(readFileSync(config, 'utf8').replace(/^\/\/.*\n/, ''));
-    expect(written.main).toBe('../../../dist/worker.js');
-    expect(written.assets.directory).toBe('../../../dist/web');
-    expect(written.vars.SIGNING_KEYS).toBeUndefined();
   });
 
-  it('pins the [[signing_keys]] of project.toml as the Worker var SIGNING_KEYS', async () => {
-    const { dir, dist } = setup();
-    const key = { kid: 'hosted', public_key: 'A'.repeat(43), via: ['cloudflare-access'] };
-    const entry = `\n[[signing_keys]]\nkid = "hosted"\npublic_key = "${key.public_key}"\nvia = ["cloudflare-access"]\n`;
-    writeFileSync(join(dir, 'project.toml'), readFileSync(join(dir, 'project.toml'), 'utf8') + entry);
-    const { exec } = fakeExec({});
-    await deploy({ dir, distDir: dist, dryRun: true, exec, log: () => {} });
-    const config = readFileSync(join(dir, 'cache', 'deploy', 'wrangler.jsonc'), 'utf8');
-    expect(JSON.parse(JSON.parse(config.replace(/^\/\/.*\n/, '')).vars.SIGNING_KEYS)).toEqual([key]);
-  });
-
-  it('does not recreate existing resources', async () => {
-    const { dir, dist } = setup();
-    const { exec, calls } = fakeExec({
-      onPath: true,
-      bucket: true,
-      d1: [{ name: 'shop-watch', uuid: UUID }],
-    });
-    const data = await deploy({ dir, distDir: dist, exec, log: () => {} });
-    expect(mutating(calls)).toEqual([`deploy --config ${join(dir, 'cache', 'deploy', 'wrangler.jsonc')}`]);
-    expect(data.resources.map((r) => r.exists)).toEqual([true, true, false]);
-    expect(data.url).toBe('https://shop-watch.example.workers.dev');
-  });
-
-  it('creates missing resources, then deploys with the new D1 id', async () => {
-    const { dir, dist } = setup();
-    const { exec, calls } = fakeExec({ onPath: true });
-    await deploy({ dir, distDir: dist, exec, log: () => {} });
-    expect(mutating(calls).map((c) => c.split(' ').slice(0, 3).join(' '))).toEqual([
-      'r2 bucket create',
-      'd1 create shop-watch',
-      `deploy --config ${join(dir, 'cache', 'deploy', 'wrangler.jsonc')}`,
-    ]);
-    const config = readFileSync(join(dir, 'cache', 'deploy', 'wrangler.jsonc'), 'utf8');
-    expect(config).toContain(UUID);
-  });
-
-  it('refuses without access_team unless --public', async () => {
-    const { dir, dist } = setup('[hosting]\nprovider = "cloudflare"\nname = "shop-watch"\n');
-    const { exec, calls } = fakeExec({ onPath: true });
-    await expect(deploy({ dir, distDir: dist, dryRun: true, exec, log: () => {} })).rejects.toMatchObject({
-      code: 'INVALID_CONFIG',
-    });
-    expect(calls).toEqual([]);
-    const lines: string[] = [];
-    const data = await deploy({
-      dir,
-      distDir: dist,
-      dryRun: true,
-      public: true,
-      exec,
-      log: (l) => lines.push(l),
-    });
-    expect(data.commands).toHaveLength(3);
-    expect(lines.join('\n')).toContain('--public');
-  });
-
-  it('fails with EXTERNAL_TOOL when wrangler is not logged in', async () => {
-    const { dir, dist } = setup();
-    const { exec, calls } = fakeExec({ onPath: true, loggedIn: false });
-    await expect(deploy({ dir, distDir: dist, exec, log: () => {} })).rejects.toMatchObject({
-      code: 'EXTERNAL_TOOL',
-      message: expect.stringContaining('wrangler login'),
-    });
-    expect(mutating(calls)).toEqual([]);
-  });
-
-  it('dry run without a Cloudflare login still prints the plan, with a warning', async () => {
+  it('still prints the plan without a Cloudflare login, with a warning', async () => {
     const { dir, dist } = setup();
     const { exec, calls } = fakeExec({ onPath: true, loggedIn: false });
     const lines: string[] = [];
@@ -244,55 +192,131 @@ describe('deploy', () => {
     expect(data.commands).toHaveLength(3);
     expect(warnings).toEqual([expect.stringContaining('wrangler login')]);
     expect(mutating(calls)).toEqual([]);
-    const config = join(dir, 'cache', 'deploy', 'wrangler.jsonc');
-    expect(readFileSync(config, 'utf8')).toContain('"bucket_name": "shop-watch"');
+    expect(readFileSync(configPath(dir), 'utf8')).toContain('"bucket_name": "shop-watch"');
     const out = lines.join('\n');
     expect(out).toContain('R2 bucket shop-watch (binding STORE): create');
     expect(out).toContain('D1 database shop-watch (binding DB): create');
     expect(out).toContain('Worker shop-watch: deploy');
-    expect(out).toContain(`Config: ${config}`);
+    expect(out).toContain(`Config: ${configPath(dir)}`);
+  });
+});
+
+describe('deploy wrangler config', () => {
+  it('writes a wrangler config relative to the dist dir, without SIGNING_KEYS', async () => {
+    const { dir, dist } = setup();
+    await dryRun(dir, dist, fakeExec({}).exec);
+    const written = readConfig(dir);
+    expect(written.main).toBe('../../../dist/worker.js');
+    expect(written.assets.directory).toBe('../../../dist/web');
+    expect(written.vars.SIGNING_KEYS).toBeUndefined();
   });
 
-  it('refuses resource names that are not plain names, before running wrangler', async () => {
-    for (const [hosting, name] of [
-      [
-        '[hosting]\nprovider = "cloudflare"\nname = "w"\nr2_bucket = "x & calc.exe"\naccess_team = "t"\n',
-        undefined,
-      ],
-      [
-        '[hosting]\nprovider = "cloudflare"\nname = "w"\nd1_database = "--help"\naccess_team = "t"\n',
-        undefined,
-      ],
-      [undefined, '-x'],
-    ] as const) {
-      const { dir, dist } = setup(hosting);
-      const { exec, calls } = fakeExec({ onPath: true });
-      const opts = { dir, distDir: dist, dryRun: true, exec, log: () => {}, ...(name ? { name } : {}) };
-      await expect(deploy(opts)).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
-      expect(calls).toEqual([]);
-    }
+  it('pins the [[signing_keys]] of project.toml as the Worker var SIGNING_KEYS', async () => {
+    const { dir, dist } = setup();
+    const key = { kid: 'hosted', public_key: 'A'.repeat(43), via: ['cloudflare-access'] };
+    const entry = `\n[[signing_keys]]\nkid = "hosted"\npublic_key = "${key.public_key}"\nvia = ["cloudflare-access"]\n`;
+    writeFileSync(join(dir, 'project.toml'), readFileSync(join(dir, 'project.toml'), 'utf8') + entry);
+    await dryRun(dir, dist, fakeExec({}).exec);
+    expect(JSON.parse(readConfig(dir).vars.SIGNING_KEYS)).toEqual([key]);
   });
+});
 
-  it('quotes arguments for cmd.exe on Windows and refuses shell characters', () => {
-    expect(winArg('deploy')).toBe('deploy');
-    expect(winArg('C:\\Users\\Jo Do\\wrangler.jsonc')).toBe('"C:\\Users\\Jo Do\\wrangler.jsonc"');
-    for (const bad of ['a&b', 'x|y', '%PATH%', 'a"b', 'a^b', 'a\nb']) expect(() => winArg(bad)).toThrow();
-  });
-
-  it('reports a missing [hosting] table as INVALID_CONFIG and a missing bundle as NO_BUNDLE', async () => {
-    const { dir, root } = setup('');
-    await expect(deploy({ dir, exec: fakeExec({}).exec })).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
-    await expect(deploy({ dir: join(root, 'nope'), exec: fakeExec({}).exec })).rejects.toMatchObject({
-      code: 'NO_BUNDLE',
+describe('deploy', () => {
+  it('does not recreate existing resources', async () => {
+    const { dir, dist } = setup();
+    const { exec, calls } = fakeExec({
+      onPath: true,
+      bucket: true,
+      d1: [{ name: 'shop-watch', uuid: UUID }],
     });
+    const data = await deploy({ dir, distDir: dist, exec, log: noLog });
+    expect(mutating(calls)).toEqual([`deploy --config ${configPath(dir)}`]);
+    expect(data.resources.map((r) => r.exists)).toEqual([true, true, false]);
+    expect(data.url).toBe('https://shop-watch.example.workers.dev');
+  });
+
+  it('creates missing resources, then deploys with the new D1 id', async () => {
+    const { dir, dist } = setup();
+    const { exec, calls } = fakeExec({ onPath: true });
+    await deploy({ dir, distDir: dist, exec, log: noLog });
+    expect(mutating(calls).map((c) => c.split(' ').slice(0, 3).join(' '))).toEqual([
+      'r2 bucket create',
+      'd1 create shop-watch',
+      `deploy --config ${configPath(dir)}`,
+    ]);
+    expect(readFileSync(configPath(dir), 'utf8')).toContain(UUID);
+  });
+
+  it('fails with EXTERNAL_TOOL when wrangler is not logged in', async () => {
+    const { dir, dist } = setup();
+    const { exec, calls } = fakeExec({ onPath: true, loggedIn: false });
+    await expect(deploy({ dir, distDir: dist, exec, log: noLog })).rejects.toMatchObject({
+      code: 'EXTERNAL_TOOL',
+      message: expect.stringContaining('wrangler login'),
+    });
+    expect(mutating(calls)).toEqual([]);
   });
 
   it('refuses to deploy when the build output is missing', async () => {
     const { dir, root } = setup();
     const { exec, calls } = fakeExec({ onPath: true });
-    await expect(deploy({ dir, distDir: join(root, 'nodist'), exec, log: () => {} })).rejects.toMatchObject({
+    await expect(deploy({ dir, distDir: join(root, 'nodist'), exec, log: noLog })).rejects.toMatchObject({
       code: 'INTERNAL',
     });
     expect(mutating(calls)).toEqual([]);
+  });
+});
+
+describe('deploy configuration checks', () => {
+  it('refuses without access_team before running wrangler', async () => {
+    const { dir, dist } = setup(NO_ACCESS_TEAM);
+    const { exec, calls } = fakeExec({ onPath: true });
+    await expect(deploy({ dir, distDir: dist, dryRun: true, exec, log: noLog })).rejects.toMatchObject({
+      code: 'INVALID_CONFIG',
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('accepts a missing access_team with --public and says so', async () => {
+    const { dir, dist } = setup(NO_ACCESS_TEAM);
+    const { data, out } = await dryRun(dir, dist, fakeExec({ onPath: true }).exec, { public: true });
+    expect(data.commands).toHaveLength(3);
+    expect(out).toContain('--public');
+  });
+
+  it.each([
+    ['an R2 bucket with shell characters', 'r2_bucket = "x & calc.exe"', undefined],
+    ['a D1 database that looks like a flag', 'd1_database = "--help"', undefined],
+    ['a --name that looks like a flag', undefined, '-x'],
+  ] as const)('refuses %s before running wrangler', async (_, field, name) => {
+    const hosting = field && `[hosting]\nprovider = "cloudflare"\nname = "w"\n${field}\naccess_team = "t"\n`;
+    const { dir, dist } = setup(hosting);
+    const { exec, calls } = fakeExec({ onPath: true });
+    const opts = { dir, distDir: dist, dryRun: true, exec, log: noLog, ...(name ? { name } : {}) };
+    await expect(deploy(opts)).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+    expect(calls).toEqual([]);
+  });
+
+  it('reports a missing [hosting] table as INVALID_CONFIG', async () => {
+    const { dir } = setup('');
+    await expect(deploy({ dir, exec: fakeExec({}).exec })).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+  });
+
+  it('reports a missing bundle as NO_BUNDLE', async () => {
+    const { root } = setup();
+    await expect(deploy({ dir: join(root, 'nope'), exec: fakeExec({}).exec })).rejects.toMatchObject({
+      code: 'NO_BUNDLE',
+    });
+  });
+});
+
+describe('winArg', () => {
+  it('quotes arguments for cmd.exe on Windows', () => {
+    expect(winArg('deploy')).toBe('deploy');
+    expect(winArg('C:\\Users\\Jo Do\\wrangler.jsonc')).toBe('"C:\\Users\\Jo Do\\wrangler.jsonc"');
+  });
+
+  it.each(['a&b', 'x|y', '%PATH%', 'a"b', 'a^b', 'a\nb'])('refuses the shell character in %j', (bad) => {
+    expect(() => winArg(bad)).toThrow();
   });
 });

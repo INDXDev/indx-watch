@@ -1,3 +1,4 @@
+/** The Playwright reporter end to end over examples/shop: test-to-run mapping, warnings, evidence, redaction and sync. */
 import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -11,6 +12,9 @@ import IndxWatchReporter, { type IndxWatchReporterOptions } from '../src/index.j
 
 const SHOP = resolve(import.meta.dirname, '../../../examples/shop');
 const COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+const ACTOR = 'ci-bot@example.com';
+const RUN_GROUP = 'build-512';
+const RELEASE = 'v1.2.0';
 const PASSWORD = 'hunter2-not-a-real-password';
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
 
@@ -25,11 +29,11 @@ beforeEach(() => {
     filter: (src) => !/[\\/]\.indx-watch[\\/](runs|cache)$/.test(src),
   });
   for (const [k, v] of Object.entries({
-    IW_ACTOR: 'ci-bot@example.com',
+    IW_ACTOR: ACTOR,
     IW_ACTOR_KIND: 'ci',
     IW_COMMIT: COMMIT,
-    IW_RUN_GROUP: 'build-512',
-    IW_RELEASE: 'v1.2.0',
+    IW_RUN_GROUP: RUN_GROUP,
+    IW_RELEASE: RELEASE,
     IW_STORE: '',
     SHOP_CUSTOMER_PASSWORD: PASSWORD,
     GITHUB_ACTIONS: '',
@@ -122,10 +126,21 @@ const step = (title: string, error?: string) => ({
   ...(error ? { error: { message: error } } : {}),
 });
 
-describe('mapping', () => {
-  it('writes one run per test case and project with versions, fixtures, steps, evidence and context', async () => {
+/** A single-attempt test linked by `tag` that ends with `status`. */
+const single = (tag: string, status: TestResult['status'] = 'passed', extra: Partial<Fake> = {}): Fake => ({
+  title: 'x',
+  tags: [tag],
+  results: [{ status }],
+  ...extra,
+});
+
+describe('mapping a passing run of examples/shop', () => {
+  let end: Awaited<ReturnType<typeof report>>['end'];
+  let records: RunRecord[];
+  let tc3: RunRecord;
+  beforeEach(async () => {
     const shot = { name: 'screenshot', contentType: 'image/png', path: join(tmp, 'shot.png') };
-    const { end, records } = await report([
+    ({ end, records } = await report([
       {
         title: 'valid coupon reduces the total',
         tags: ['@TC-3'],
@@ -134,38 +149,39 @@ describe('mapping', () => {
           { status: 'passed', steps: [step('1. Apply'), step('2. Order')] as never, attachments: [shot] },
         ],
       },
-      {
-        title: 'product list',
-        tags: ['@SHOP:TC-1'],
-        file: 'catalog.spec.ts',
-        results: [{ status: 'passed' }],
-      },
-      {
-        title: 'product list again',
-        tags: ['@tc_01JF3Q8M5X2V7K9D4R6T1W0Y31'],
-        results: [{ status: 'passed' }],
-      },
-      { title: 'product list webkit', tags: ['@TC-1'], project: 'webkit', results: [{ status: 'passed' }] },
-    ]);
+      single('@SHOP:TC-1', 'passed', { title: 'product list', file: 'catalog.spec.ts' }),
+      single('@tc_01JF3Q8M5X2V7K9D4R6T1W0Y31', 'passed', { title: 'product list again' }),
+      single('@TC-1', 'passed', { title: 'product list webkit', project: 'webkit' }),
+    ]));
+    tc3 = records[2]!;
+  });
+
+  it('writes one run per test case and project, all passing', async () => {
     expect(end).toBeUndefined();
     expect(records.map((r) => [r.test_case.key, r.automation?.project, r.judgements.length])).toEqual([
       ['TC-1', 'chromium', 2],
       ['TC-1', 'webkit', 1],
       ['TC-3', 'chromium', 1],
     ]);
+    expect(await verdicts(records)).toEqual(['pass', 'pass', 'pass']);
+  });
+
+  it('pins the test case version and the fixtures with their selected rows', async () => {
     const { bundle } = await loadBundle(nodeFs(bundleDir));
-    const tc3 = records[2]!;
     expect(tc3.test_case.version).toBe(bundle!.testCases.find((t) => t.data.key === 'TC-3')!.version);
     expect(tc3.fixtures.map((f) => [f.key, f.rows])).toEqual([
       ['FX-1', ['SUMMER10']],
       ['FX-2', undefined],
     ]);
     expect(tc3.fixtures[0]!.version).toMatch(/^fxv:[0-9a-f]{12}$/);
+  });
+
+  it('records the actor, build, release, steps, judgement and automation context', () => {
     expect(tc3).toMatchObject({
       source: 'playwright',
-      actor: { kind: 'ci', id: 'ci-bot@example.com', via: 'env' },
+      actor: { kind: 'ci', id: ACTOR, via: 'env' },
       build: { commit: COMMIT },
-      release: 'v1.2.0',
+      release: RELEASE,
       environment: 'staging',
       reported: null,
       steps: [
@@ -175,15 +191,19 @@ describe('mapping', () => {
       judgements: [
         { kind: 'assert', verdict: 'pass', test: 'coupon.spec.ts › valid coupon reduces the total' },
       ],
-      automation: { framework: 'playwright', group: 'build-512', file: 'examples/shop/tests/coupon.spec.ts' },
+      automation: { framework: 'playwright', group: RUN_GROUP, file: 'examples/shop/tests/coupon.spec.ts' },
     });
+  });
+
+  it('stores attachments as evidence blobs', async () => {
     expect(tc3.evidence).toEqual([
       { sha256: expect.any(String), name: 'shot.png', media_type: 'image/png', size: 7, kind: 'screenshot' },
     ]);
     expect(await openReplica(bundleDir).hasBlob(tc3.evidence[0]!.sha256)).toBe(true);
-    expect(await verdicts(records)).toEqual(['pass', 'pass', 'pass']);
   });
+});
 
+describe('mapping outcomes', () => {
   it('maps a failed step and a failure in any test of the test case to fail', async () => {
     const { records } = await report([
       { title: 'a', tags: ['@TC-5'], results: [{ status: 'passed', steps: [step('1. Add')] as never }] },
@@ -218,93 +238,96 @@ describe('mapping', () => {
 
   it('reports interrupted runs as blocked and skipped tests as skipped', async () => {
     const { records } = await report([
-      { title: 'i', tags: ['@TC-1'], results: [{ status: 'interrupted' }] },
-      { title: 's', tags: ['@TC-2'], outcome: 'skipped', results: [{ status: 'skipped' }] },
+      single('@TC-1', 'interrupted', { title: 'i' }),
+      single('@TC-2', 'skipped', { title: 's', outcome: 'skipped' }),
     ]);
     expect(records.map((r) => r.reported)).toEqual(['blocked', 'skipped']);
     expect(await verdicts(records)).toEqual(['blocked', 'skipped']);
   });
+});
 
-  it('warns about unknown keys and unlinked tests; strict fails the run', async () => {
-    const fakes: Fake[] = [
-      { title: 'ghost @TC-999', results: [{ status: 'passed' }] },
-      { title: 'untagged', results: [{ status: 'passed' }] },
-      { title: 'other project', tags: ['@OTHER:TC-1', '@smoke'], results: [{ status: 'passed' }] },
-    ];
-    const lenient = await report(fakes);
+describe('unlinked tests, a missing bundle and dry run', () => {
+  const unlinked: Fake[] = [
+    { title: 'ghost @TC-999', results: [{ status: 'passed' }] },
+    { title: 'untagged', results: [{ status: 'passed' }] },
+    { title: 'other project', tags: ['@OTHER:TC-1', '@smoke'], results: [{ status: 'passed' }] },
+  ];
+
+  it('warns about unknown keys and unlinked tests and writes nothing', async () => {
+    const lenient = await report(unlinked);
     expect(lenient.end).toBeUndefined();
     expect(lenient.records).toEqual([]);
     expect(warnings()).toContain('@TC-999 (chromium › coupon.spec.ts › ghost @TC-999)');
     expect(warnings()).toContain('2 unlinked test(s)');
     expect(warnings()).toContain('chromium › coupon.spec.ts › untagged');
-    expect((await report(fakes, { strict: true })).end).toEqual({ status: 'failed' });
+  });
+
+  it('fails the run on unknown keys in strict mode', async () => {
+    expect((await report(unlinked, { strict: true })).end).toEqual({ status: 'failed' });
   });
 
   it('warns when there is no bundle; strict fails the run', async () => {
-    const fake: Fake = { title: 'x', tags: ['@TC-1'], results: [{ status: 'passed' }] };
     bundleDir = join(tmp, 'missing');
-    expect((await report([fake])).end).toBeUndefined();
+    expect((await report([single('@TC-1')])).end).toBeUndefined();
     expect(warnings()).toContain('cannot load');
-    expect((await report([fake], { strict: true })).end).toEqual({ status: 'failed' });
+    expect((await report([single('@TC-1')], { strict: true })).end).toEqual({ status: 'failed' });
   });
 
   it('prints records without writing in dry-run mode', async () => {
-    const { records } = await report([{ title: 'x', tags: ['@TC-1'], results: [{ status: 'passed' }] }], {
-      dryRun: true,
-    });
+    const { records } = await report([single('@TC-1')], { dryRun: true });
     expect(records).toEqual([]);
     expect(String(vi.mocked(console.log).mock.calls[0]?.[0])).toContain('would record {"kind":"run"');
   });
 });
 
-describe('evidence and safety', () => {
-  const trace = () => ({ name: 'trace', contentType: 'application/zip', path: join(tmp, 'shot.png') });
-  const shot = () => ({ name: 'screenshot', contentType: 'image/png', body: Buffer.from('png') });
+const trace = () => ({ name: 'trace', contentType: 'application/zip', path: join(tmp, 'shot.png') });
+const video = () => ({ name: 'video', contentType: 'video/webm', body: Buffer.from('webm') });
+const shot = () => ({ name: 'screenshot', contentType: 'image/png', body: Buffer.from('png') });
+/** The evidence kinds of the first (only) run. */
+const evidenceKinds = (records: RunRecord[]) => records[0]!.evidence.map((e) => e.kind);
 
-  it('respects the evidence option', async () => {
-    const pass: Fake = {
-      title: 'p',
-      tags: ['@TC-1'],
-      results: [{ status: 'passed', attachments: [shot()] }],
-    };
-    const fail: Fake = {
-      title: 'f',
-      tags: ['@TC-2'],
-      results: [{ status: 'failed', attachments: [shot()] }],
-    };
-    const failures = await report([pass, fail], { evidence: 'failures' });
+describe('the evidence option', () => {
+  const both = () => [
+    single('@TC-1', 'passed', { results: [{ status: 'passed', attachments: [shot()] }] }),
+    single('@TC-2', 'failed', { results: [{ status: 'failed', attachments: [shot()] }] }),
+  ];
+
+  it('keeps only the evidence of failures with evidence: failures', async () => {
+    const failures = await report(both(), { evidence: 'failures' });
     expect(failures.records.map((r) => r.evidence.length)).toEqual([0, 1]);
-    rmSync(join(bundleDir, 'runs'), { recursive: true });
-    const none = await report([pass, fail], { evidence: 'none' });
-    expect(none.records.map((r) => r.evidence.length)).toEqual([0, 0]);
   });
 
-  it('skips traces and videos of test cases with an account fixture unless traces is always', async () => {
-    const video = { name: 'video', contentType: 'video/webm', body: Buffer.from('webm') };
-    const fake: Fake = {
-      title: 'sign in',
-      tags: ['@TC-7'],
-      results: [{ status: 'passed', attachments: [trace(), video, shot()] }],
-    };
-    const auto = await report([fake]);
-    expect(auto.records[0]!.evidence.map((e) => e.kind)).toEqual(['screenshot']);
-    rmSync(join(bundleDir, 'runs'), { recursive: true });
-    const always = await report([fake], { traces: 'always' });
-    expect(always.records[0]!.evidence.map((e) => e.kind)).toEqual(['trace', 'video', 'screenshot']);
+  it('keeps no evidence with evidence: none', async () => {
+    const none = await report(both(), { evidence: 'none' });
+    expect(none.records.map((r) => r.evidence.length)).toEqual([0, 0]);
+  });
+});
+
+describe('traces and videos that may show secrets', () => {
+  const signIn = () =>
+    single('@TC-7', 'passed', { results: [{ status: 'passed', attachments: [trace(), video(), shot()] }] });
+  const list = () => single('@TC-1', 'passed', { results: [{ status: 'passed', attachments: [trace()] }] });
+
+  it('skips traces and videos of test cases with an account fixture', async () => {
+    expect(evidenceKinds((await report([signIn()])).records)).toEqual(['screenshot']);
+  });
+
+  it('keeps them with traces: always', async () => {
+    const always = await report([signIn()], { traces: 'always' });
+    expect(evidenceKinds(always.records)).toEqual(['trace', 'video', 'screenshot']);
+  });
+
+  it('keeps the trace of a test case without secrets', async () => {
+    expect(evidenceKinds((await report([list()])).records)).toEqual(['trace']);
   });
 
   it('also skips them when the environment has a secret set in this process (seed token)', async () => {
-    const fake: Fake = {
-      title: 'list',
-      tags: ['@TC-1'],
-      results: [{ status: 'passed', attachments: [trace()] }],
-    };
-    expect((await report([fake])).records[0]!.evidence.map((e) => e.kind)).toEqual(['trace']);
-    rmSync(join(bundleDir, 'runs'), { recursive: true });
     vi.stubEnv('SHOP_SEED_TOKEN', 'seed-token-not-real');
-    expect((await report([fake])).records[0]!.evidence).toEqual([]);
+    expect((await report([list()])).records[0]!.evidence).toEqual([]);
   });
+});
 
+describe('redaction', () => {
   it('redacts resolved secret values from reasons, notes, titles and text attachments', async () => {
     const log = {
       name: 'error-context',
@@ -325,8 +348,7 @@ describe('evidence and safety', () => {
         ],
       },
     ]);
-    const text = JSON.stringify(records);
-    expect(text).not.toContain(PASSWORD);
+    expect(JSON.stringify(records)).not.toContain(PASSWORD);
     expect(records[0]!.judgements[0]!.reason).toBe('expected ***');
     expect(records[0]!.steps[0]!.note).toBe('fill ***');
     const blob = await openReplica(bundleDir).getBlob(records[0]!.evidence[0]!.sha256);
@@ -338,9 +360,8 @@ describe('sync', () => {
   it('pushes records and blobs to the configured store after the run', async () => {
     const store = join(tmp, 'store');
     vi.stubEnv('IW_STORE', `file://${store}`);
-    const shot = { name: 'screenshot', contentType: 'image/png', body: Buffer.from('png') };
     const { end } = await report([
-      { title: 'x', tags: ['@TC-1'], results: [{ status: 'passed', attachments: [shot] }] },
+      single('@TC-1', 'passed', { results: [{ status: 'passed', attachments: [shot()] }] }),
     ]);
     expect(end).toBeUndefined();
     expect(readdirSync(join(store, 'v1', 'log'))).toHaveLength(1);
@@ -353,7 +374,7 @@ describe('sync', () => {
     await openReplica(bundleDir).putBlob(new Uint8Array(photo), 'image/png');
     const store = join(tmp, 'store');
     vi.stubEnv('IW_STORE', `file://${store}`);
-    await report([{ title: 'x', tags: ['@TC-1'], results: [{ status: 'passed' }] }]);
+    await report([single('@TC-1')]);
     expect(readdirSync(join(store, 'v1', 'blobs', 'sha256', '87'))).toEqual([sha]);
   });
 
@@ -361,7 +382,7 @@ describe('sync', () => {
     vi.stubEnv('IW_STORE', 's3://bucket/prefix');
     vi.stubEnv('AWS_ACCESS_KEY_ID', '');
     vi.stubEnv('AWS_PROFILE', '');
-    const fake: Fake = { title: 'x', tags: ['@TC-1'], results: [{ status: 'passed' }] };
+    const fake = single('@TC-1');
     expect((await report([fake])).end).toBeUndefined();
     expect(warnings()).toContain('push failed');
     expect((await report([fake], { strict: true })).end).toEqual({ status: 'failed' });
