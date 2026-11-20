@@ -312,6 +312,7 @@ export default class IndxWatchReporter implements Reporter {
         store,
         state: await fileStateStore(this.dir, store.objects.url),
         projectId: p.id,
+        keys: p.signing_keys,
         writer: await writerId(this.dir),
         direction: 'push',
         extraBlobs: pointerBlobs(bundle),

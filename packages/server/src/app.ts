@@ -4,7 +4,7 @@
  */
 import * as B from '@indx-watch/bundle';
 import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
-import { type ContextProvider, checkRecord, StoreError } from '@indx-watch/store';
+import { type ContextProvider, checkRecord, StoreError, ulidTime } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { renderReport, reportTexts } from './report.js';
@@ -420,6 +420,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
       if (!m.success) throw bad(`${key} is not a store manifest`);
       if (project && m.data.project !== project) throw bad(`this store belongs to ${project}`);
     } else if (LOG_KEY.test(key)) {
+      // the earliest log key wins a merge, so a writer may not pick one far from now (docs/spec/sync.md#merge-rules)
+      if (Math.abs(ulidTime(key.slice(7, 33)) - Date.now()) > 3600_000)
+        throw bad(`${key}: not within an hour of now`);
       const log = B.LogObject.safeParse(await parsed(data));
       if (!log.success) throw bad(`${key} is not a log object`);
       for (const raw of log.data.records) {

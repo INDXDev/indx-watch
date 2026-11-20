@@ -59,10 +59,12 @@ export function verifiedClaims(r: AnyRecord): Via[] {
 export async function verifyRecord(r: AnyRecord, keys: readonly SigningKey[]): Promise<boolean> {
   const fits = (k: SigningKey) => verifiedClaims(r).every((v) => !k.via || k.via.includes(v));
   // every pinned key with the kid: two `iw keygen` runs on one day share the default kid
+  const v = r.sig?.value ?? '';
   for (const key of keys.filter((k) => r.sig && k.kid === r.sig.kid && fits(k)))
     try {
       const pub = await crypto.subtle.importKey('raw', unb64u(key.public_key), ED, false, ['verify']);
-      if (await crypto.subtle.verify(ED, pub, unb64u(r.sig!.value), message(r))) return true;
+      const sig = unb64u(v); // one spelling only: 4 spare bits in 86 base64url characters would allow 16
+      if (b64u(sig.buffer) === v && (await crypto.subtle.verify(ED, pub, sig, message(r)))) return true;
     } catch {
       // a malformed key or record verifies nothing
     }

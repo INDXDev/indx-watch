@@ -159,6 +159,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
         store,
         state,
         projectId: project.id,
+        keys: project.signing_keys,
         writer,
         evidence,
         extraBlobs,

@@ -1,7 +1,8 @@
-import type { AnyRecord, JudgementRecord, RunRecord } from '@indx-watch/bundle';
+import { type AnyRecord, type JudgementRecord, newUlid, type RunRecord } from '@indx-watch/bundle';
 import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, httpObjectStore, memoryObjectStore } from '@indx-watch/store';
 import { accessIdentity } from '@indx-watch/store/workers';
+import { ulidFloor } from '@indx-watch/sync';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -419,7 +420,7 @@ describe('report', () => {
 });
 
 describe('store endpoints', () => {
-  const LOG = 'v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json';
+  const LOG = `v1/log/${newUlid()}.json`;
   it('GET/HEAD/PUT/list and log ingestion; writes are create-only', async () => {
     const f = await fakeDeps();
     const objects = memoryObjectStore();
@@ -440,6 +441,9 @@ describe('store endpoints', () => {
     expect((await put(LOG, log([]))).status).toBe(412);
     expect((await put(LOG, log([]), false)).status).toBe(412);
     expect(logs).toEqual([LOG]);
+    // the earliest log key wins a merge: keys far from the server clock are refused
+    for (const t of [Date.now() - 2 * 3600_000, Date.now() + 2 * 3600_000])
+      expect((await put(`v1/log/${ulidFloor(t)}.json`, body)).status).toBe(400);
     const got = await a.fetch(req(`/api/store/objects/${LOG}`));
     expect(await got.text()).toBe(body);
     const head = await a.fetch(req(`/api/store/objects/${LOG}`, { method: 'HEAD' }));

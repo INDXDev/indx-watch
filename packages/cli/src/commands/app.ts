@@ -213,7 +213,7 @@ export const appCommands: Record<string, Spec> = {
       const { secret, key } = await generateSigningKey(kid);
       const entry = { ...key, ...(via && { via }) };
       const toml = formatTomlBody('project', { signing_keys: [entry] });
-      const text = `Add to project.toml (public, commit it):\n\n${toml}\nSet IW_SIGNING_KEY (a secret; never commit it) on the hosted server or CI:\n\n${secret}`;
+      const text = `Add to project.toml (public, commit it), then run \`iw fmt\`:\n\n${toml}\nSet IW_SIGNING_KEY (a secret; never commit it) on the hosted server or CI:\n\n${secret}`;
       return { data: { ...entry, secret, toml }, text };
     },
   },

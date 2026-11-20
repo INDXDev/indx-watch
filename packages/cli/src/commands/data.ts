@@ -35,6 +35,7 @@ export async function openStore(ctx: Ctx, p: cx.Project, a: Args) {
     store: createResultStore(objects),
     state: await fileStateStore(p.dir, url),
     writer: await writerId(p.dir),
+    keys: p.bundle.project.data.signing_keys,
   };
 }
 

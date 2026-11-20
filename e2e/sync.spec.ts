@@ -7,9 +7,10 @@ import { iw, ROOT, shopCopy, tempDir } from './helpers';
 /** `iw sync --watch` in cwd; resolves once it watches the store. */
 function syncWatch(cwd: string, env: Record<string, string>): Promise<ChildProcess> {
   const bin = join(ROOT, 'packages/cli/dist/bin.js');
+  const { IW_DIR: _, ...parent } = process.env; // the clone is found from cwd
   const child = spawn(process.execPath, [bin, 'sync', '--watch'], {
     cwd,
-    env: { ...process.env, NO_COLOR: '1', IW_ACTOR: 'e2e@indx.dev', ...env },
+    env: { ...parent, NO_COLOR: '1', IW_ACTOR: 'e2e@indx.dev', ...env },
   });
   return new Promise((ok, fail) => {
     let out = '';
@@ -62,7 +63,11 @@ test('two clones sync through a folder store', { tag: ['@TC-6'] }, async () => {
     expect(again.json.data.pulled.records).toBe(0);
   });
   await test.step('3. with iw sync --watch in both, a run recorded in A shows in B within 5 s', async () => {
-    const watchers = await Promise.all([syncWatch(a, env), syncWatch(b, env)]);
+    const spawned = await Promise.allSettled([syncWatch(a, env), syncWatch(b, env)]);
+    const watchers = spawned.flatMap((s) => (s.status === 'fulfilled' ? [s.value] : []));
+    const failed = spawned.find((s) => s.status === 'rejected');
+    if (failed) for (const w of watchers) w.kill('SIGTERM');
+    if (failed) throw failed.reason;
     try {
       const tc1 = () =>
         iw(['status', '--release', 'v1.2.0', '--json'], { cwd: b, env }).json.data.testCases.find(

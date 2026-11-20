@@ -69,6 +69,27 @@ describe('signed records', () => {
     expect(await verifyRecord(signed, [{ ...key, via: ['github-oidc'] }])).toBe(false);
   });
 
+  it('a signature has one spelling: re-encoding its spare bits does not verify', async () => {
+    const signed = await sign(human('TC-6'));
+    const v = signed.sig!.value;
+    // the last character carries 2 bits and 4 zero bits (A, Q, g or w); the next one only sets a spare bit
+    const next = { A: 'B', Q: 'R', g: 'h', w: 'x' }[v.at(-1) as 'A'];
+    expect(next).toBeDefined();
+    const respelled = { ...signed, sig: { ...signed.sig!, value: v.slice(0, -1) + next } };
+    expect(await verifyRecord(respelled, [key])).toBe(false);
+  });
+
+  it('verification results are cached by the exact record bytes', async () => {
+    const signed = await sign(human('TC-6'));
+    const bundle = withKeys([key]);
+    expect((await verifyRecords(bundle, [signed])).size).toBe(0);
+    // a forged body that copies id and sig misses the cache and is checked again
+    const forged = { ...signed, judgements: [{ ...signed.judgements[0]!, verdict: 'fail' as const }] };
+    expect(await verifyRecords(bundle, [signed, forged])).toEqual(new Set([forged.id]));
+    // another key set has its own results
+    expect((await verifyRecords(withKeys([]), [signed])).size).toBe(1);
+  });
+
   it('every pinned key with the kid is tried: two keys made on one day share the default kid', async () => {
     const [ci, hosted] = [
       await generateSigningKey('iw-2026-11-20'),

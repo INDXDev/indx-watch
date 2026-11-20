@@ -64,8 +64,16 @@ export function memoryIndex(): Index {
   const held = new Map<string, Held>();
   const meta = new Map<string, string>();
   let defs: { files: Map<string, string>; source: string; at: string } | null = null;
+  let queue: Promise<unknown> = Promise.resolve();
   const index: Index = {
-    ingest: (list, logKey) => mergeIngest(index, held, list, logKey, (r) => records.set(r.id, r)),
+    // one ingest at a time: the merge rule reads what is held before it writes
+    ingest(list, logKey, trust) {
+      const run = queue.then(() =>
+        mergeIngest(index, held, list, logKey, trust, (r) => records.set(r.id, r)),
+      );
+      queue = run.catch(() => 0);
+      return run;
+    },
     async records(filter) {
       return filterRecords(records.values(), filter);
     },

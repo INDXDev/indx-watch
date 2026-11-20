@@ -210,6 +210,9 @@ export function buildModel(
   return { model, warnings };
 }
 
+/** verifyRecords() results per isolate or process: keys JSON → record JSON → valid (a rebuild re-checks nothing). */
+const verified = new Map<string, Map<string, boolean>>();
+
 /**
  * IDs of records that claim a verified `via` without a valid signature by a key in project.toml
  * [[signing_keys]] (docs/spec/security.md#signed-records). buildModel() flags the judgements in them per run.
@@ -217,8 +220,16 @@ export function buildModel(
 export async function verifyRecords(bundle: Bundle, records: Iterable<AnyRecord>): Promise<Set<string>> {
   const keys = bundle.project.data.signing_keys ?? [];
   const out = new Set<string>();
+  // results are cached by the exact keys and record bytes, so a forged body that copies id and sig misses the cache
+  const cache = verified.get(JSON.stringify(keys)) ?? new Map<string, boolean>();
+  if (cache.size > 50_000 || verified.size > 8) for (const m of [cache, verified]) m.clear();
+  verified.set(JSON.stringify(keys), cache);
   const check = async (r: AnyRecord) => {
-    if (verifiedClaims(r).length && !(await verifyRecord(r, keys))) out.add(r.id);
+    if (!verifiedClaims(r).length) return;
+    const json = JSON.stringify(r);
+    const ok = cache.get(json) ?? (await verifyRecord(r, keys));
+    cache.set(json, ok);
+    if (!ok) out.add(r.id);
   };
   await Promise.all([...records].map(check));
   return out;

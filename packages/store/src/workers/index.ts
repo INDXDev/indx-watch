@@ -5,7 +5,7 @@
 import type { AnyRecord } from '@indx-watch/bundle';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { filterRecords, recordRelease, recordTestCase } from '../adapters/memory.js';
-import { type Held, mergeIngest } from '../merge.js';
+import { CONFLICTS_META, type Held, mergePlan } from '../merge.js';
 import type { IdentityProvider, Index, IndexFilter, ObjectInfo, ObjectStore } from '../ports.js';
 import { StoreError } from '../ports.js';
 import { checkKey, compact, toBytes } from '../util.js';
@@ -92,43 +92,73 @@ export function d1Index(db: unknown): Index {
   const q = (sql: string, ...args: unknown[]) => d.prepare(sql).bind(...args);
   let ready: Promise<unknown> | undefined;
   const init = () => (ready ??= d.batch(INDEX_SCHEMA.map((s) => d.prepare(s))));
-  // One batch is one transaction. One statement per row, 100 per batch, to stay under the bind limit
-  const batch = async (stmts: D1Stmt[]) => {
-    let changes = 0;
-    for (let i = 0; i < stmts.length; i += 100) {
-      for (const r of await d.batch(stmts.slice(i, i + 100))) changes += r.meta?.changes ?? 0;
+  // One batch is one transaction, at most 100 statements to stay under the bind limit; a group never spans two.
+  // Returns the rows each statement changed.
+  const batch = async (groups: D1Stmt[][]) => {
+    const changes: number[] = [];
+    for (let i = 0; i < groups.length; ) {
+      const stmts: D1Stmt[] = [];
+      while (i < groups.length && (!stmts.length || stmts.length + groups[i]!.length <= 100))
+        stmts.push(...groups[i++]!);
+      for (const r of await d.batch(stmts)) changes.push(r.meta?.changes ?? 0);
     }
     return changes;
   };
   const META =
     'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value';
-  const RECORD =
-    'INSERT OR REPLACE INTO records (id, kind, at, test_case_id, release, json) VALUES (?, ?, ?, ?, ?, ?)';
-  const KEY =
-    'INSERT INTO record_keys (id, log_key) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET log_key = excluded.log_key';
+  // Guarded writes: each applies only to the state ingest read, so concurrent ingests cannot overwrite each other
+  const ADD = `INSERT INTO records (kind, at, test_case_id, release, json, id) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`;
+  const REPLACE =
+    'UPDATE records SET kind = ?, at = ?, test_case_id = ?, release = ?, json = ? WHERE id = ? AND json = ?';
+  const KEY = `INSERT INTO record_keys (id, log_key) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM records WHERE id = ?1 AND json = ?3)
+    ON CONFLICT (id) DO UPDATE SET log_key = excluded.log_key WHERE log_key IS ?4 OR excluded.log_key < log_key`;
+  const NOTES = `INSERT INTO meta (key, value) VALUES (?, ?)
+    ON CONFLICT (key) DO UPDATE SET value = json_patch(value, excluded.value)`;
   const HELD = `SELECT r.id, r.json, k.log_key AS key FROM records r LEFT JOIN record_keys k ON k.id = r.id
     WHERE r.id IN (SELECT value FROM json_each(?))`;
   const row = (r: AnyRecord) => [
-    r.id,
     r.kind,
     r.at,
     recordTestCase(r) ?? null,
     recordRelease(r) ?? null,
     JSON.stringify(r),
+    r.id,
   ];
 
   const index: Index = {
-    async ingest(records, logKey) {
+    async ingest(records, logKey, trust) {
       await init();
-      const ids = JSON.stringify(records.map((r) => r.id));
-      const { results } = await q(HELD, ids).all<Held & { id: string }>();
-      const held = new Map(results.map((h) => [h.id, h]));
-      const stmts: D1Stmt[] = [];
-      const n = await mergeIngest(index, held, records, logKey, (r, body) => {
-        if (body) stmts.push(q(RECORD, ...row(r)));
-        if (logKey) stmts.push(q(KEY, r.id, logKey));
-      });
-      await batch(stmts);
+      let [todo, n] = [records, 0];
+      // a guarded write that changed nothing lost a race with another ingest: decide that record again
+      for (let round = 0; todo.length && round < 5; round++) {
+        const ids = JSON.stringify(todo.map((r) => r.id));
+        const { results } = await q(HELD, ids).all<Held & { id: string }>();
+        const { plan, notes, count } = await mergePlan(
+          new Map(results.map((h) => [h.id, h])),
+          todo,
+          logKey,
+          trust,
+        );
+        // a record's statements stay in one transaction: the body (unless only its key changes), then its key
+        const groups = plan.map(({ r, step, held }) => [
+          ...(step === 'add'
+            ? [q(ADD, ...row(r))]
+            : step === 'replace'
+              ? [q(REPLACE, ...row(r), held!.json)]
+              : []),
+          ...(logKey ? [q(KEY, r.id, logKey, JSON.stringify(r), held?.key ?? null)] : []),
+        ]);
+        const changes = await batch(groups);
+        let i = 0;
+        const lost = plan.filter((p, g) => {
+          const won = p.step === 'key' || !!changes[i];
+          i += groups[g]!.length;
+          return !won;
+        });
+        if (Object.keys(notes).length) await q(NOTES, CONFLICTS_META, JSON.stringify(notes)).run();
+        [todo, n] = [lost.map((p) => p.r), n + count - lost.length];
+      }
       return n;
     },
     async records(f: IndexFilter = {}) {
@@ -154,12 +184,13 @@ export function d1Index(db: unknown): Index {
       const ins = [...files].map(([path, text]) =>
         q('INSERT INTO definitions (path, text) VALUES (?, ?)', path, text),
       );
-      await batch([
+      const stmts = [
         q('DELETE FROM definitions'),
         ...ins,
         q(META, 'definitions.source', m.source),
         q(META, 'definitions.at', m.at),
-      ]);
+      ];
+      await batch(stmts.map((x) => [x]));
     },
     async definitions() {
       const [source, at] = [await this.getMeta('definitions.source'), await this.getMeta('definitions.at')];
@@ -180,7 +211,7 @@ export function d1Index(db: unknown): Index {
     },
     async reset() {
       await init();
-      await batch(['records', 'record_keys', 'definitions', 'meta'].map((t) => q(`DELETE FROM ${t}`)));
+      await batch(['records', 'record_keys', 'definitions', 'meta'].map((t) => [q(`DELETE FROM ${t}`)]));
     },
   };
   return index;

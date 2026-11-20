@@ -124,7 +124,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Data | Rule |
 |---|---|
-| Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one whose log key sorts first and report a warning (see below). |
+| Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one signed by a pinned key, otherwise the one whose log key sorts first, and report a warning (see below). |
 | Verdict changes | Never edit; append a `judgement` record. Verdict = decision policy over all judgements of the run. |
 | Waivers | Latest non-revoked waiver per (release, test case) by `at`, ties broken by `id`. |
 | Bundle snapshots | Latest by `commit_time`, then `at`, per `ref`, so an outdated checkout cannot roll the hosted view back. |
@@ -133,10 +133,11 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 **Two bodies with one record ID.** Normal writers never produce this; it means a forged or corrupted upload. So that every replica and index ends with the same body, each one remembers, per record ID, the earliest log key under which it read the body it holds: the sync state (`keys` in `cache/sync/<store>.json`) for a clone, the `record_keys` table for an index. A record written locally and not yet pushed, or held before keys were remembered, has no key and sorts last. When a log object brings another body for a held ID:
 
-- its key sorts first: the held copy is replaced (`LocalReplica.replaceRecord`, which only sync calls; an `INSERT OR REPLACE` in the index), and the key is remembered;
+- exactly one of the two bodies carries a valid signature by a key pinned in `project.toml` [[signing_keys]] (on the hosted app: the keys `iw deploy` pinned, see [signed records](security.md#signed-records)): that body wins, whatever the log keys, so a forged unsigned body can never replace a signed one;
+- otherwise, its key sorts first: the held copy is replaced (`LocalReplica.replaceRecord`, which only sync calls; a guarded `UPDATE` in the D1 index), and the key is remembered;
 - otherwise the held copy stays.
 
-Both cases produce the warning `record <id> in <log key> differs from the local copy; replaced the local copy (its log key sorts first)` (or `…; kept the local copy`; `indexed copy` in an index). Sync returns it in `warnings` and keeps it in the sync state (`conflicts`); `iw check` reports it as a `record-conflict` warning, and the web app shows it in the problems banner (a hosted server keeps it in the index meta `record.conflicts`). Because a full listing reads log objects in key order, a clone that lost `cache/` meets the earliest key first and converges again on the next sync. An index whose rows predate remembered keys converges once it is rebuilt from the store.
+Both cases produce the warning `record <id> in <log key> differs from the local copy; replaced the local copy (signed, or its log key sorts first)` (or `…; kept the local copy`; `indexed copy` in an index). Sync returns it in `warnings` and keeps it in the sync state (`conflicts`); `iw check` reports it as a `record-conflict` warning, and the web app shows it in the problems banner (a hosted server keeps it in the index meta `record.conflicts`). Because a full listing reads log objects in key order, a clone that lost `cache/` meets the earliest key first and converges again on the next sync. An index whose rows predate remembered keys converges once it is rebuilt from the store. The D1 index writes each decision as statements guarded by the state it read (the held body and key), so two ingests running at once cannot overwrite each other: a guarded write that changes nothing is decided again. Because the uploader picks the log key, `PUT /api/store/objects/v1/log/…` refuses a key whose time is more than an hour from the server clock; a direct bucket writer can still pick any key, which is why signed bodies win regardless of keys.
 
 Because every operation is a union of immutable items, sync is idempotent, order-independent and safe to interrupt at any point.
 
@@ -191,9 +192,9 @@ The server keeps an index (SQLite on Node, D1 on Cloudflare) of records and the 
 
 - its own writes, immediately;
 - uploads through `/api/store/*`, on receipt;
-- writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger. Each ingest handles at most 50 log objects, saves its cursor in the index, and holds a lease row so only one runs at a time; a fresh deploy on a large bucket catches up over several invocations.
+- writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger. Each ingest handles at most 50 log objects, saves its cursor in the index, and holds a lease row so only one runs at a time; a fresh deploy on a large bucket catches up over several invocations. Like a clone, it lists the whole log once a day (step 4), resuming across invocations within the same 50-object budget, so another body under an older key converges in the index as in clones.
 
-Records written by the hosted server itself carry an Access-verified actor and, when the Worker has `IW_SIGNING_KEY`, a signature. Records written directly to the bucket are ingested as written; those claiming a verified `via` without a valid signature are shown as unverified ([signed records](security.md#signed-records), [threat model](security.md#threat-model)).
+Records written by the hosted server itself carry an Access-verified actor and, when the Worker has `IW_SIGNING_KEY`, a signature. Records written directly to the bucket are ingested as written; those claiming a verified `via` without a valid signature by a key the deploy pinned (`SIGNING_KEYS`) are shown as unverified ([signed records](security.md#signed-records), [threat model](security.md#threat-model)).
 
 `iw reindex` (or deleting the index) rebuilds it from the store; nothing is lost.
 
@@ -207,4 +208,8 @@ Records written by the hosted server itself carry an Access-verified actor and, 
 - [x] A reader whose store contains a log key 1 day in the future still pulls records written afterwards by correctly clocked writers.
 - [x] `iw sync` without `--snapshot` never writes a `bundle` record.
 - [x] Two clones holding a record, after a different body for its ID is uploaded under an earlier log key, both hold that body after their next sync and report a warning; a fresh clone, and the memory and D1 indexes, keep it too.
+- [x] A body signed by a pinned key is never replaced by an unsigned body under an earlier key, in clones and indexes; one that arrives later replaces an unsigned body.
+- [x] Two concurrent D1 ingests of different bodies for one ID end with the body under the earliest key and a conflict note.
+- [x] The hosted catch-up's daily full listing ingests another body written straight to the bucket under a key older than its lookback window.
+- [x] `PUT /api/store/objects/v1/log/<key>` refuses a key more than an hour from the server clock.
 - [x] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).

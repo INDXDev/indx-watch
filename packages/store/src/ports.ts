@@ -98,10 +98,15 @@ export interface IndexFilter {
 export interface Index {
   /**
    * Add records read from the log object `logKey` (none: unknown, sorts last). Another body with a held ID replaces
-   * the held copy when its log key sorts first (docs/spec/sync.md#merge-rules); both cases are noted in the meta
-   * key CONFLICTS_META. Returns the number of records added or replaced plus conflicts noted.
+   * the held copy when `trust` holds for it and not for the held copy, or (both or neither) its log key sorts first
+   * (docs/spec/sync.md#merge-rules); both cases are noted in the meta key CONFLICTS_META. Safe to run concurrently.
+   * Returns the number of records added or replaced plus conflicts noted.
    */
-  ingest(records: AnyRecord[], logKey?: string): Promise<number>;
+  ingest(
+    records: AnyRecord[],
+    logKey?: string,
+    trust?: (record: AnyRecord) => Promise<boolean>,
+  ): Promise<number>;
   records(filter?: IndexFilter): Promise<AnyRecord[]>;
   /** Current definition files (path → canonical text) when definitions come from snapshots/workspace. */
   setDefinitions(files: Map<string, string>, meta: { source: string; at: string }): Promise<void>;

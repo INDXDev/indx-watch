@@ -314,7 +314,7 @@ Copy the shipped agent skills into the repository: `--claude` → `.claude/skill
 
 ### `iw keygen`
 
-*(v0.2)* Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it (the secret scan reports it). In the rare case that `iw check` reports the new public key as a possible secret (about one key in 200,000 looks like an API key), run `iw keygen` again.
+Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it; run `iw fmt` afterwards so the file stays canonical) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it (the secret scan reports it). In the rare case that `iw check` reports the new public key as a possible secret (about one key in 200,000 looks like an API key), run `iw keygen` again.
 
 | Flag | Default | |
 |---|---|---|

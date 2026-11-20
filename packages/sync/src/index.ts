@@ -7,7 +7,9 @@ import {
   AnyRecord as AnyRecordSchema,
   newId,
   type Problem,
+  type SigningKey,
   scanSecrets,
+  verifyRecord,
 } from '@indx-watch/bundle';
 import {
   blobRefs,
@@ -65,6 +67,8 @@ export interface SyncOptions {
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
   full?: boolean;
+  /** project.toml [[signing_keys]]: a body they verify is never replaced by one they do not (merge rules) */
+  keys?: SigningKey[];
   /** blobs to upload besides those records reference: fixture pointers (`pointerBlobs(bundle)`); skipped when not in the replica */
   extraBlobs?: string[];
   /** lookback window in ms (default 15 min) */
@@ -138,6 +142,7 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const warn = (msg: string) => (result.warnings ?? []).push(msg) > 0;
   const foreign = (r: AnyRecord, where: string) =>
     r.project !== opts.projectId && warn(`skipped ${r.id} ${where}: it belongs to project ${r.project}`);
+  const trust = opts.keys?.length ? (r: AnyRecord) => verifyRecord(r, opts.keys!) : undefined;
   const save = () => opts.state.save({ ...state, pushed: [...pushed], seen: [...seen], keys, conflicts });
 
   // Pull first: a full listing rebuilds the pushed set, so deleting cache/ never causes a double push.
@@ -174,7 +179,7 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
           // Two bodies with one ID: every replica ends with the one under the log key that sorts first.
           const local = await opts.replica.getRecord(r.id);
           const held = local ? { json: JSON.stringify(local), key: keys[r.id] } : undefined;
-          const step = mergeStep(held, JSON.stringify(r), key);
+          const step = await mergeStep(held, r, key, trust);
           if (step === 'add' && (await opts.replica.putRecord(r))) result.pulled.records++;
           if (step === 'replace') await opts.replica.replaceRecord(r);
           if (step === 'replace' || step === 'keep') {

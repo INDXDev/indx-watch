@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { AnyRecord } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import { memoryIndex } from '../src/adapters/memory.js';
 import { CONFLICTS_META } from '../src/merge.js';
@@ -47,6 +48,40 @@ function indexContract(name: string, make: () => Index) {
       expect(await idx.ingest([run], 'v1/log/A.json')).toBe(1);
       expect(await idx.records({ testCaseId: TC3.id })).toEqual([forged]);
       expect(Object.values(await conflicts())[0]).toMatch(/in v1\/log\/A.json .*kept the indexed copy$/);
+    });
+
+    it('a body the trust check accepts (signed by a pinned key) beats one it does not, whatever the log keys', async () => {
+      const idx = make();
+      const run = runRecord({ at: T });
+      const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+      const trust = async (r: AnyRecord) => JSON.stringify(r) === JSON.stringify(run);
+      expect(await idx.ingest([run], 'v1/log/B.json', trust)).toBe(1);
+      expect(await idx.ingest([forged], 'v1/log/A.json', trust)).toBe(1); // earlier key, but unsigned: kept
+      expect(await idx.records()).toEqual([run]);
+      const other = make();
+      await other.ingest([forged], 'v1/log/A.json', trust);
+      expect(await other.ingest([run], 'v1/log/B.json', trust)).toBe(2); // later key, but signed: replaced
+      expect(await other.records()).toEqual([run]);
+      expect(await other.ingest([forged], 'v1/log/0.json', trust)).toBe(1);
+      expect(await other.records()).toEqual([run]);
+    });
+
+    it('concurrent ingests of two bodies converge on the earliest key and note the conflict', async () => {
+      for (const [first, second] of [
+        ['v1/log/A.json', 'v1/log/B.json'],
+        ['v1/log/B.json', 'v1/log/A.json'],
+      ]) {
+        const idx = make();
+        const run = runRecord({ at: T });
+        const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+        await Promise.all([idx.ingest([run], first), idx.ingest([forged], second)]);
+        const winner = first === 'v1/log/A.json' ? run : forged;
+        expect(await idx.records()).toEqual([winner]);
+        expect(Object.keys(JSON.parse((await idx.getMeta(CONFLICTS_META)) ?? '{}'))).toEqual([run.id]);
+        // the earliest key is remembered: a third body under a later key is kept out
+        await idx.ingest([{ ...run, steps: [] }], 'v1/log/C.json');
+        expect(await idx.records()).toEqual([winner]);
+      }
     });
 
     it('stores definitions and meta, and resets', async () => {

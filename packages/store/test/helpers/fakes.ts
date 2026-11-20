@@ -41,6 +41,7 @@ export function fakeR2(opts: { honorStartAfter?: boolean } = {}) {
 /** The parts of D1 we use (prepare/bind/all/first/run/batch), imitated with node:sqlite. */
 export function fakeD1() {
   const db = new DatabaseSync(':memory:');
+  let queue: Promise<unknown> = Promise.resolve();
   interface Stmt {
     bind(...a: unknown[]): Stmt;
     all(): Promise<{ results: unknown[] }>;
@@ -56,7 +57,13 @@ export function fakeD1() {
   return {
     db,
     prepare: (sql: string) => stmt(sql),
-    async batch(stmts: { run(): Promise<{ meta: { changes: number } }> }[]) {
+    // D1 runs one batch at a time
+    batch(stmts: { run(): Promise<{ meta: { changes: number } }> }[]) {
+      const run = queue.then(() => this.batchNow(stmts));
+      queue = run.catch(() => undefined);
+      return run;
+    },
+    async batchNow(stmts: { run(): Promise<{ meta: { changes: number } }> }[]) {
       db.exec('BEGIN');
       try {
         const out = [];

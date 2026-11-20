@@ -161,6 +161,18 @@ describe('deploy', () => {
     const written = JSON.parse(readFileSync(config, 'utf8').replace(/^\/\/.*\n/, ''));
     expect(written.main).toBe('../../../dist/worker.js');
     expect(written.assets.directory).toBe('../../../dist/web');
+    expect(written.vars.SIGNING_KEYS).toBeUndefined();
+  });
+
+  it('pins the [[signing_keys]] of project.toml as the Worker var SIGNING_KEYS', async () => {
+    const { dir, dist } = setup();
+    const key = { kid: 'hosted', public_key: 'A'.repeat(43), via: ['cloudflare-access'] };
+    const entry = `\n[[signing_keys]]\nkid = "hosted"\npublic_key = "${key.public_key}"\nvia = ["cloudflare-access"]\n`;
+    writeFileSync(join(dir, 'project.toml'), readFileSync(join(dir, 'project.toml'), 'utf8') + entry);
+    const { exec } = fakeExec({});
+    await deploy({ dir, distDir: dist, dryRun: true, exec, log: () => {} });
+    const config = readFileSync(join(dir, 'cache', 'deploy', 'wrangler.jsonc'), 'utf8');
+    expect(JSON.parse(JSON.parse(config.replace(/^\/\/.*\n/, '')).vars.SIGNING_KEYS)).toEqual([key]);
   });
 
   it('does not recreate existing resources', async () => {

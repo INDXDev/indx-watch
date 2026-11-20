@@ -1,8 +1,15 @@
-import { type AnyRecord, generateSigningKey, newId, sha256Hex, verifyRecord } from '@indx-watch/bundle';
+import {
+  type AnyRecord,
+  generateSigningKey,
+  newId,
+  recordSigner,
+  sha256Hex,
+  verifyRecord,
+} from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { createResultStore, memoryIndex, memoryObjectStore } from '@indx-watch/store';
 import { r2ObjectStore } from '@indx-watch/store/workers';
-import { definitionFiles, snapshotBundle } from '@indx-watch/sync';
+import { definitionFiles, snapshotBundle, ulidFloor } from '@indx-watch/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fakeD1, fakeR2 } from '../../store/test/helpers/fakes.js';
 import type { ProjectInfo, RunSummary, StatusResult } from '../src/index.js';
@@ -102,6 +109,41 @@ describe('worker', () => {
     expect(await verifyRecord(written, [k.key])).toBe(true);
     const runs = (await (await call(signed, '/api/runs?tc=TC-1')).json()) as RunSummary[];
     expect(runs[0]).toMatchObject({ actor: { via: 'github' }, unverified: true });
+  });
+
+  it('trusts only the keys pinned at deploy (SIGNING_KEYS), never keys from a snapshot', async () => {
+    const { r2, b } = await bucket();
+    const [team, attacker] = [await generateSigningKey('hosted'), await generateSigningKey('hosted-2')];
+    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const pinned = { ...env, SIGNING_KEYS: JSON.stringify([team.key]) };
+    // anyone who can write the store publishes a snapshot that pins their own key
+    const files = await definitionFiles(nodeFs(SHOP));
+    const toml = `${new TextDecoder().decode(files.get('project.toml'))}
+[[signing_keys]]
+kid = "hosted-2"
+public_key = "${attacker.key.public_key}"
+`;
+    const upload = await call(pinned, '/api/bundle', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ files: [{ name: 'project.toml', data: Buffer.from(toml).toString('base64') }] }),
+    });
+    expect(upload.status).toBe(201);
+    const lead = { kind: 'human', id: 'lead@shop.test', via: 'cloudflare-access' } as const;
+    const [r1, r2b] = sampleRecords(b).filter((r) => r.kind === 'run');
+    const forged = await recordSigner(attacker.secret)({ ...r1!, actor: lead } as AnyRecord);
+    const genuine = await recordSigner(team.secret)({ ...r2b!, actor: lead } as AnyRecord);
+    await createResultStore(r2ObjectStore(r2, 'shop')).appendLog('x', [forged, genuine]);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000);
+    const runs = (await (await call(pinned, '/api/runs')).json()) as RunSummary[];
+    expect(runs.find((r) => r.id === forged.id)?.unverified).toBe(true);
+    expect(runs.find((r) => r.id === genuine.id)?.unverified).toBeFalsy();
+    const p = (await (await call(pinned, '/api/project')).json()) as ProjectInfo;
+    expect(p.problems.map((x) => x.message)).toContainEqual(expect.stringContaining('iw deploy'));
+    // without SIGNING_KEYS nothing is trusted
+    const none = (await (await call(env, '/api/runs')).json()) as RunSummary[];
+    expect(none.find((r) => r.id === genuine.id)?.unverified).toBe(true);
+    vi.restoreAllMocks();
   });
 
   it('a malformed IW_SIGNING_KEY fails the writes, not the reads, /healthz or the catch-up', async () => {
@@ -221,6 +263,38 @@ describe('catchUp', () => {
       base + 59 * 60_000 - 5 * 60_000,
     );
     expect(await catchUp(store, index, 'a', now)).toBe(1);
+  });
+
+  it('a daily full listing, resumed across calls, ingests another body under an older key', async () => {
+    const objects = memoryObjectStore();
+    const store = createResultStore(objects);
+    const index = memoryIndex();
+    const b = await shop();
+    const base = Date.parse('2026-11-19T00:00:00Z');
+    // hand-made keys: newUlid() is monotonic, so it cannot write under a time before one it already used
+    const put = (t: number, r: AnyRecord) =>
+      objects.put(`v1/log/${ulidFloor(t)}.json`, JSON.stringify({ v: 1, writer: 'w', records: [r] }));
+    const run = sampleRecords(b).find((r) => r.kind === 'run')!;
+    await put(base, run);
+    for (let i = 0; i < 120; i++)
+      await put(base + 3600_000 + i * 60_000, { ...run, id: newId('run', base + i) } as AnyRecord);
+    const now = base + 3 * 3600_000;
+    while (await catchUp(store, index, 'a', now));
+    const forged = { ...run, at: '2026-11-18T23:00:00Z' } as AnyRecord;
+    await put(base - 3600_000, forged); // written straight to the bucket under an older key, far behind the cursor
+    expect(await catchUp(store, index, 'a', now + 60_000)).toBe(0);
+    const held = async () => (await index.records()).find((r) => r.id === run.id);
+    expect(await held()).toEqual(run);
+    // a day later: the oldest key comes first; 50 reads per call, so the listing resumes over three calls
+    // replaced and noted, then the original body under its later key: kept and noted
+    expect(await catchUp(store, index, 'a', now + 86_400_000)).toBe(3);
+    expect(await held()).toEqual(forged);
+    const full = async () => JSON.parse((await index.getMeta('ingest.state'))!).full;
+    expect((await full()).after).toMatch(/^v1\/log\//);
+    await catchUp(store, index, 'a', now + 86_400_000 + 60_000);
+    expect((await full()).after).toMatch(/^v1\/log\//);
+    await catchUp(store, index, 'a', now + 86_400_000 + 120_000);
+    expect(await full()).toEqual({ at: now + 86_400_000 + 120_000 });
   });
 
   it('respects another invocation’s lease', async () => {
