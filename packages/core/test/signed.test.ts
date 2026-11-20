@@ -46,7 +46,12 @@ describe('signed records', () => {
     const bundle = withKeys([key]);
     expect(await verifyRecord(forged, [key])).toBe(false);
     const ids = await verifyRecords(bundle, [forged]);
-    expect(ids).toEqual(new Set([forged.id, ...forged.judgements.map((j) => j.id)]));
+    expect(ids).toEqual(new Set([forged.id]));
+    // the model flags its judgements per run: `<run id>#<judgement id>`
+    const { model } = await buildVerifiedModel(bundle, [forged]);
+    expect(model.unverified).toEqual(
+      new Set([forged.id, ...forged.judgements.map((j) => `${forged.id}#${j.id}`)]),
+    );
     // a signature by an unknown key is no better
     const other = await generateSigningKey('attacker');
     const byOther = await recordSigner(other.secret)(human('TC-6'));
@@ -62,6 +67,43 @@ describe('signed records', () => {
     expect(await verifyRecord(tampered, [key])).toBe(false);
     // a key limited to other via values cannot vouch for cloudflare-access
     expect(await verifyRecord(signed, [{ ...key, via: ['github-oidc'] }])).toBe(false);
+  });
+
+  it('every pinned key with the kid is tried: two keys made on one day share the default kid', async () => {
+    const [ci, hosted] = [
+      await generateSigningKey('iw-2026-11-20'),
+      await generateSigningKey('iw-2026-11-20'),
+    ];
+    const signed = await recordSigner(hosted.secret)(human('TC-6'));
+    expect(await verifyRecord(signed, [{ ...ci.key, via: ['github'] }, hosted.key])).toBe(true);
+    expect(await verifyRecord(signed, [ci.key])).toBe(false);
+  });
+
+  it('a signer vouches only for its own identity: a verified `by` of someone else stays unsigned', async () => {
+    const r = human('TC-6');
+    const lead = { kind: 'human' as const, id: 'lead@shop.test', via: 'cloudflare-access' as const };
+    const ci = { kind: 'ci' as const, id: 'github:octocat', via: 'github' as const };
+    const copied: RunRecord = { ...r, actor: ci, judgements: [{ ...r.judgements[0]!, by: lead }] };
+    expect((await sign(copied)).sig).toBeUndefined();
+    expect((await sign({ ...copied, judgements: [{ ...r.judgements[0]!, by: ci }] })).sig).toBeDefined();
+  });
+
+  it('a record read leniently without `judgements` does not break verification', async () => {
+    const { judgements: _, ...raw } = human('TC-6');
+    const lenient = { ...raw, x_newer_field: 1 } as unknown as AnyRecord; // checkRecord keeps such a record as is
+    expect(await verifyRecords(withKeys([key]), [lenient])).toEqual(new Set([lenient.id]));
+    expect((await buildVerifiedModel(withKeys([key]), [lenient])).model.runs.has(lenient.id)).toBe(true);
+  });
+
+  it('a forged record that copies a genuine judgement ID does not mark the genuine one unverified', async () => {
+    const genuine = await sign(human('TC-6'));
+    const copy = { ...human('TC-6'), judgements: genuine.judgements };
+    const { model } = await buildVerifiedModel(withKeys([key]), [genuine, copy]);
+    const jid = genuine.judgements[0]!.id;
+    expect([
+      model.unverified?.has(`${copy.id}#${jid}`),
+      model.unverified?.has(`${genuine.id}#${jid}`),
+    ]).toEqual([true, false]);
   });
 
   it('self-asserted via values never count as unverified', async () => {

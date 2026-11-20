@@ -102,7 +102,8 @@ export async function createDefinition(
     ),
     ...(input.knownKeys ?? []),
   ];
-  const life = origin === 'human' ? {} : { origin };
+  // only `iw approve` (a human) records an approval: AI-written input never arrives approved
+  const life = origin === 'human' ? {} : { origin, ...(origin === 'ai' && { approved_by: undefined }) };
   const created_at = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
   const ai = input.ai && origin === 'ai' ? { ai: { ...input.ai, created_at } } : {};
   const title = String(fields.title ?? '');

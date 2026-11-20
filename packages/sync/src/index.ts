@@ -210,7 +210,9 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     for (const r of local) {
       if (pushed.has(r.id) || retracted.has(r.id) || foreign(r, 'in the local replica')) continue;
       // Every caller (iw sync, iw serve, the Playwright reporter) gets the same per-record secret scan.
-      const found = scanSecrets(`runs/${r.id}`, JSON.stringify(r)).filter((x) => x.severity === 'error');
+      // Not over `sig`: a signature is random base64url, so it can look like an API key, and it is no secret.
+      const text = JSON.stringify({ ...r, sig: undefined });
+      const found = scanSecrets(`runs/${r.id}`, text).filter((x) => x.severity === 'error');
       if (found.length) {
         result.held = [...(result.held ?? []), ...found];
         warn(`held back ${r.id}: the secret scan found ${found.length} problem(s); retract it`);
@@ -225,7 +227,11 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     for (let i = 0; i < todo.length; i += BATCH) {
       const part = todo.slice(i, i + BATCH);
       const written = await opts.store.appendLog(opts.writer, part, now());
-      for (const key of written) seen.add(key);
+      for (const key of written) {
+        seen.add(key);
+        // a part over 5 MB spans several log objects: remember the one each record is in
+        if (written.length > 1) for (const r of (await opts.store.readLog(key)).records) keys[r.id] ??= key;
+      }
       for (const r of part) {
         pushed.add(r.id);
         keys[r.id] ??= written[0]!;

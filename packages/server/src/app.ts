@@ -253,7 +253,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
       currentVersion: t?.version ?? record.test_case.version,
       ...(i18n && { i18n }),
     };
-    const ids = [record.id, ...judgements.map((j) => j.id)].filter((id) => m.unverified?.has(id));
+    // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
+    const flagged = (id: string, i: number) => m.unverified?.has(i ? `${record.id}#${id}` : id);
+    const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
     const unverified = ids.length ? { unverified: ids } : {};
     return c.json({ record, judgements, decision, stale, testCase, ...unverified } satisfies RunDetail);
   });

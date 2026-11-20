@@ -896,5 +896,11 @@ describe('signed records (docs/spec/security.md#signed-records)', () => {
     expect(iw(dir, ['record', 'TC-1', '--verdict', 'pass'], { env: { IW_SIGNING_KEY: 'nope' } }).code).toBe(
       3,
     );
+    // well-formed but broken key material fails the write the same way, not as an internal error
+    const broken = { IW_SIGNING_KEY: `${k.secret.slice(0, 20)}AAAA` };
+    const bad = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], { env: broken });
+    expect([bad.code, bad.json.error.code]).toEqual([3, 'INVALID_CONFIG']);
+    // a malformed key fails writes only: a pull-only sync signs nothing
+    expect(iw(dir, ['sync', '--pull-only'], { env: { IW_SIGNING_KEY: 'nope' } }).code).toBe(0);
   });
 });

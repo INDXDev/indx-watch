@@ -79,7 +79,7 @@ Rewrite files in canonical form. Equivalent to the formatting part of `check --f
 
 ### `iw new <kind>`
 
-When the actor is an agent, every kind is created with `origin = "ai"` and an `[ai]` table, and `uc`, `ac`, `tc` and `fixture` as drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). A new use case defaults to priority `P1`.
+When the actor is an agent, every kind is created with `origin = "ai"` and an `[ai]` table, and `uc`, `ac`, `tc` and `fixture` as drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). An `origin = "ai"` item never starts approved: `approved_by` from `--from` is dropped (only `iw approve` writes it). A new use case defaults to priority `P1`.
 
 Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `fixture`, `env`, `release`, `plan`.
 
@@ -314,7 +314,7 @@ Copy the shipped agent skills into the repository: `--claude` → `.claude/skill
 
 ### `iw keygen`
 
-*(v0.2)* Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it.
+*(v0.2)* Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it (the secret scan reports it). In the rare case that `iw check` reports the new public key as a possible secret (about one key in 200,000 looks like an API key), run `iw keygen` again.
 
 | Flag | Default | |
 |---|---|---|

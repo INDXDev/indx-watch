@@ -220,6 +220,35 @@ describe('syncOnce', () => {
     expect(JSON.stringify(await storeRecords(objects))).not.toContain(key);
   });
 
+  it('does not scan the signature: random base64url can look like an API key', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'w');
+    // a real signature looks like this about once in 130,000 records (docs/spec/security.md#signed-records)
+    const value = `${'A'.repeat(40)}-sk-${'B'.repeat(42)}`;
+    const signed = Schema.parse({ ...runRecord(), sig: { alg: 'Ed25519', kid: 'ci', value } });
+    await a.replica.putRecord(signed);
+    const r = await a.sync();
+    expect([r.pushed.records, r.held]).toEqual([1, undefined]);
+  });
+
+  it('remembers the log key of each record when one push spans several log objects', async () => {
+    const objects = memoryObjectStore();
+    const a = clone(objects, 'a');
+    const big = Array.from({ length: 3 }, (_, i) => {
+      const r = runRecord({ at: Date.now() + i });
+      r.steps[0]!.note = 'lorem ipsum '.repeat(170_000); // three of these are over the 5 MB of one log object
+      return r;
+    });
+    for (const r of big) await a.replica.putRecord(r);
+    expect((await a.sync()).pushed.records).toBe(3);
+    const where = new Map<string, string>();
+    for (const key of (await createResultStore(objects).listLog({})).keys)
+      for (const r of (await createResultStore(objects).readLog(key)).records) where.set(r.id, key);
+    expect(new Set(where.values()).size).toBeGreaterThan(1);
+    const { keys } = await a.state.load();
+    expect(big.map((r) => keys?.[r.id])).toEqual(big.map((r) => where.get(r.id)));
+  });
+
   it('refuses a store bound to another project', async () => {
     const objects = memoryObjectStore();
     await createResultStore(objects).init('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01');

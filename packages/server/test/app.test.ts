@@ -176,7 +176,8 @@ describe('read routes', () => {
     const tc1 = runs.find((r) => r.testCase === 'TC-1')!;
     expect(tc1).toMatchObject({ actor: { via: 'github' }, unverified: true });
     expect(runs.find((r) => r.testCase === 'TC-7')).not.toHaveProperty('unverified'); // via = "git" is self-asserted
-    expect((await get<RunDetail>(a, `/api/runs/${tc1.id}`)).unverified).toContain(tc1.id);
+    const detail = await get<RunDetail>(a, `/api/runs/${tc1.id}`);
+    expect(detail.unverified).toEqual([tc1.id, ...detail.judgements.map((j) => j.id)]); // its inline judgements too
     const md = await (await a.fetch(req('/api/report?format=md'))).text();
     expect(md).toContain('octocat (ci) · unverified');
   });

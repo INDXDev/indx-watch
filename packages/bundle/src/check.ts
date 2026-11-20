@@ -82,6 +82,7 @@ const TOKENS: [string, RegExp][] = [
   ['JWT', /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/],
   ['Anthropic API key', /\bsk-ant-[A-Za-z0-9_-]{20,}/],
   ['OpenAI API key', /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/],
+  ['INDX Watch signing key (IW_SIGNING_KEY)', /\biwsk1:[A-Za-z0-9._-]{1,64}:[A-Za-z0-9_-]{40,}/],
 ];
 const SENSITIVE =
   /(passw|pwd|passphrase|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)/i;

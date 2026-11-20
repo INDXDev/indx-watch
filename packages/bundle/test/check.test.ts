@@ -123,9 +123,13 @@ describe('check problems', () => {
       ['environment', 'Preview'],
       ['release', 'v9.0.0'],
       ['plan', 'Agent plan'],
-    ] as const)
-      made.push(await createDefinition(fs, await load(), { kind, fields: { title }, origin: 'ai', ai }));
+    ] as const) {
+      // an approval in the input (`iw new --from`) is dropped: only `iw approve`, by a human, records one
+      const fields = { title, approved_by: 'lead@shop.test' };
+      made.push(await createDefinition(fs, await load(), { kind, fields, origin: 'ai', ai }));
+    }
     for (const m of made) expect(parseToml(fs.text(m.file)!)).toMatchObject({ origin: 'ai', ai });
+    for (const m of made) expect(parseToml(fs.text(m.file)!)).not.toHaveProperty('approved_by');
     const r = await checkBundle(fs);
     expect(codes(r)).toEqual([]);
     const warned = r.problems.filter((p) => p.code === 'ai-not-approved');
@@ -210,6 +214,14 @@ describe('check problems', () => {
     expect(hits('machine api.internal login deploy password Hunter2Prod')).toBe(1);
     expect(hits('password: hunter22')).toBe(1);
     expect(hits(['-----BEGIN PGP PRIVATE', 'KEY BLOCK-----'].join(' '))).toBe(1);
+    // an `iw keygen` secret, wherever it is pasted (docs/spec/security.md#signed-records)
+    const secret = `iwsk1:ci-key:MC4CAQAwBQYDK2VwBCIEI${'A'.repeat(43)}`;
+    for (const line of [
+      `IW_SIGNING_KEY=${secret}`,
+      `  IW_SIGNING_KEY: ${secret}`,
+      `note = "CI key: ${secret}"`,
+    ])
+      expect(hits(line), line).toBe(1);
     // plain prose, references and placeholders stay quiet
     expect(hits('instruction = "Enter a wrong password and press Sign in"')).toBe(0);
     expect(hits('instruction = "Type the password from FX-3.password"')).toBe(0);

@@ -4,7 +4,7 @@
  * Definitions: the latest bundle snapshot record (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
  */
-import type { Actor, AnyRecord, BundleRecord } from '@indx-watch/bundle';
+import type { Actor, AnyRecord, Bundle, BundleRecord } from '@indx-watch/bundle';
 import {
   BundleRecord as BundleRecordSchema,
   loadBundle,
@@ -79,11 +79,7 @@ export async function catchUp(store: S.ResultStore, index: S.Index, owner: strin
 /** Latest snapshot: by commit_time, then at, then id. */
 const order = (r: BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 type Loaded = Awaited<ReturnType<ServerDeps['loadModel']>>;
-type Snapshot = {
-  id: string;
-  bundle: Parameters<typeof buildVerifiedModel>[0];
-  problems: Loaded['problems'];
-};
+type Snapshot = { id: string; bundle: Bundle; problems: Loaded['problems'] };
 type State = ReturnType<typeof create>;
 /** per isolate, by R2 binding */
 const states = new WeakMap<object, State>();
@@ -112,7 +108,8 @@ function create(env: Env, key: string) {
   const access = env.ACCESS_TEAM && env.ACCESS_AUD ? { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD } : null;
   const identity = env.PUBLIC === 'true' ? anon : access && accessIdentity(access);
   const ingested = { at: 0 };
-  const sign = recordSigner(env.IW_SIGNING_KEY);
+  // read on each write: a malformed key fails the write, not every request (reads, /healthz, catch-up)
+  const sign = (r: AnyRecord) => recordSigner(env.IW_SIGNING_KEY)(r);
   const files = new Map<string, Uint8Array>();
   let snapshot: Snapshot | undefined;
   let cache: { rev: string; value: Loaded } | undefined;

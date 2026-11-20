@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
-import { BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
+import { type AnyRecord, BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
@@ -96,7 +96,8 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const dir = resolve(opts.dir);
   const fs = nodeFs(dir);
   const replica = SN.openReplica(dir);
-  const sign = recordSigner(process.env.IW_SIGNING_KEY);
+  // read on each write: a malformed key fails the write, it does not stop the server from starting
+  const sign = (r: AnyRecord) => recordSigner(process.env.IW_SIGNING_KEY)(r);
   const sync: ProjectInfo['sync'] = { configured: false };
   const cache: { model?: ReturnType<ServerDeps['loadModel']> } = {};
   let syncState: Awaited<ReturnType<typeof fileStateStore>> | undefined;
@@ -138,6 +139,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
       store = createResultStore(SN.openObjectStore(cfg, { bundleDir: dir }));
       const state = await fileStateStore(dir, cfg.url);
       syncState = state;
+      invalidate(); // the first model was built before the sync state, so without its conflicts
       const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
         f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
       );

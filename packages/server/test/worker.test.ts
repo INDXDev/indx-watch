@@ -104,6 +104,21 @@ describe('worker', () => {
     expect(runs[0]).toMatchObject({ actor: { via: 'github' }, unverified: true });
   });
 
+  it('a malformed IW_SIGNING_KEY fails the writes, not the reads, /healthz or the catch-up', async () => {
+    const { r2 } = await bucket();
+    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const bad = { ...env, IW_SIGNING_KEY: 'pasted the TOML entry by mistake' };
+    expect((await call(bad, '/healthz')).status).toBe(200);
+    expect((await call(bad, '/api/project')).status).toBe(200);
+    await worker.scheduled({}, bad as never);
+    const res = await call(bad, '/api/runs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ test_case: 'TC-9', steps: [], verdict: 'pass' }),
+    });
+    expect(res.status).toBe(500);
+  });
+
   it('answers 503 until a snapshot exists', async () => {
     const env = { STORE: fakeR2(), DB: fakeD1(), ASSETS: assets, PUBLIC: 'true' };
     const res = await call(env, '/api/project');

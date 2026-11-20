@@ -37,14 +37,14 @@ export const loadModel = async (p: Project): Promise<Model> =>
   (await buildVerifiedModel(p.bundle, await p.replica.records())).model;
 export const actorOf = (ctx: Ctx): Promise<Actor> =>
   processIdentity({ env: ctx.env, cwd: ctx.cwd }).current();
-/** Signs written records with IW_SIGNING_KEY (docs/spec/security.md#signed-records); a no-op without it. */
-export const signerOf = (ctx: Ctx) => {
-  try {
-    return recordSigner(ctx.env.IW_SIGNING_KEY);
-  } catch (e) {
-    return fail('INVALID_CONFIG', (e as Error).message);
-  }
-};
+/**
+ * Signs written records with IW_SIGNING_KEY (docs/spec/security.md#signed-records); a no-op without it. The key is
+ * read when a record is signed, so a malformed one (also broken key material) fails that write with exit 3.
+ */
+export function signerOf(ctx: Ctx) {
+  const bad = () => fail('INVALID_CONFIG', 'IW_SIGNING_KEY is not a signing key from `iw keygen`');
+  return <R extends AnyRecord>(r: R) => (async () => recordSigner(ctx.env.IW_SIGNING_KEY)(r))().catch(bad);
+}
 export const contextOf = (ctx: Ctx) => processContext({ env: ctx.env, cwd: ctx.cwd });
 
 /** Refuse agents for approve / review / waive (exit 2). */
