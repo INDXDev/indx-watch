@@ -176,6 +176,7 @@ export const shareCommands: Record<string, Spec> = {
 
   translate: {
     description: 'List or write content translations with the right source_hash',
+    repeat: ['set'],
     args: {
       ...{ ref: P('Entity (TC-3, UC-2, FEAT-1, FX-1, PLAN-1, a release or an environment)', false) },
       ...{ locale: S('Translation locale (ja)', true), set: S('<path>=<text>, repeatable') },

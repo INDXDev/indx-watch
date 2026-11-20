@@ -646,6 +646,12 @@ describe('commands', () => {
     writeFileSync(join(dir, '.indx-watch', TC3), read(dir, TC3).replace('(price 40.00)', '(price 40)'));
     const stale = iwJson(dir, 'translate', set);
     expect(stale.json.error.message).toContain('preconditions');
+    const two = [...set, '--set', 'preconditions=x', '--set', 'steps.1.expected=y'];
+    expect(iwJson(dir, 'translate', two).json.data.written).toEqual([
+      'title',
+      'preconditions',
+      'steps.1.expected',
+    ]);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'en']).code).toBe(2);
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja', '--set', 'nope=x']).code).toBe(2);
   });
