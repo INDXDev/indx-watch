@@ -202,7 +202,8 @@ export default class IndxWatchReporter implements Reporter {
     for (const g of groups.values()) records.push(await this.run(model, g, ctx));
     const verdicts = buildModel(bundle, records).model.runs;
     const lines = (records as RunRecord[]).map(
-      (r) => `${r.test_case.key} [${r.automation?.project ?? ''}] ${verdicts.get(r.id)?.decision.verdict}`,
+      (r) =>
+        `${r.test_case.key}${r.automation?.project ? ` [${r.automation.project}]` : ''} ${verdicts.get(r.id)?.decision.verdict}`,
     );
     if (this.opts.dryRun) for (const r of records) log(`would record ${encodeRecord(r)}`);
     else for (const r of records) await this.replica!.putRecord(r);
