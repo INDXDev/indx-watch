@@ -119,12 +119,19 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Data | Rule |
 |---|---|
-| Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one whose log key sorts first and report a warning. |
+| Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one whose log key sorts first and report a warning (see below). |
 | Verdict changes | Never edit; append a `judgement` record. Verdict = decision policy over all judgements of the run. |
 | Waivers | Latest non-revoked waiver per (release, test case) by `at`, ties broken by `id`. |
 | Bundle snapshots | Latest by `commit_time`, then `at`, per `ref`, so an outdated checkout cannot roll the hosted view back. |
 | Retractions | A retracted record is ignored by the model; push never uploads a retracted record again. |
 | Blobs | Content-addressed; identical by definition. |
+
+**Two bodies with one record ID.** Normal writers never produce this; it means a forged or corrupted upload. So that every replica and index ends with the same body, each one remembers, per record ID, the earliest log key under which it read the body it holds: the sync state (`keys` in `cache/sync/<store>.json`) for a clone, the `record_keys` table for an index. A record written locally and not yet pushed, or held before keys were remembered, has no key and sorts last. When a log object brings another body for a held ID:
+
+- its key sorts first: the held copy is replaced (`LocalReplica.replaceRecord`, which only sync calls; an `INSERT OR REPLACE` in the index), and the key is remembered;
+- otherwise the held copy stays.
+
+Both cases produce the warning `record <id> in <log key> differs from the local copy; replaced the local copy (its log key sorts first)` (or `…; kept the local copy`; `indexed copy` in an index). Sync returns it in `warnings` and keeps it in the sync state (`conflicts`); `iw check` reports it as a `record-conflict` warning, and the web app shows it in the problems banner (a hosted server keeps it in the index meta `record.conflicts`). Because a full listing reads log objects in key order, a clone that lost `cache/` meets the earliest key first and converges again on the next sync. An index whose rows predate remembered keys converges once it is rebuilt from the store.
 
 Because every operation is a union of immutable items, sync is idempotent, order-independent and safe to interrupt at any point.
 
@@ -142,7 +149,7 @@ Because every operation is a union of immutable items, sync is idempotent, order
 **Pull**
 
 1. List `v1/log/` with `StartAfter` = the ULID of (cursor time − 15 minutes) — the **lookback window** that absorbs clock skew and slow uploads between writers.
-2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent, mark them as pushed. Unreadable log objects (corrupt, or from a newer format) are skipped with a warning and remembered as seen; unknown top-level fields are accepted. Records of another project are ignored with a warning.
+2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent (another body for a held ID follows the [merge rules](#merge-rules)), mark them as pushed. Unreadable log objects (corrupt, or from a newer format) are skipped with a warning and remembered as seen; unknown top-level fields are accepted. Records of another project are ignored with a warning.
 3. Advance the cursor to min(greatest key seen, ULID of the reader's current time), so one writer with a clock running ahead cannot push every reader's cursor into the future. When no key has been seen, the cursor stays unset.
 4. Every 24 hours (or with `--full`, or when `cache/` was deleted), list the whole log once to catch writers whose clocks were wrong by more than the window and to rebuild the pushed set.
 5. Blobs are fetched per `[store].evidence`: `on-demand` (when a page, report or command needs them — read-through from `iw serve`), `all`, or `none`.
@@ -194,4 +201,5 @@ Records written by the hosted server itself carry an Access-verified actor. Reco
 - [x] A store whose `indx-watch-store.json` names another project is refused with exit code 4.
 - [x] A reader whose store contains a log key 1 day in the future still pulls records written afterwards by correctly clocked writers.
 - [x] `iw sync` without `--snapshot` never writes a `bundle` record.
+- [x] Two clones holding a record, after a different body for its ID is uploaded under an earlier log key, both hold that body after their next sync and report a warning; a fresh clone, and the memory and D1 indexes, keep it too.
 - [x] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).

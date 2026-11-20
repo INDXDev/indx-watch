@@ -5,6 +5,7 @@
 import type { AnyRecord } from '@indx-watch/bundle';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { filterRecords, recordRelease, recordTestCase } from '../adapters/memory.js';
+import { type Held, mergeIngest } from '../merge.js';
 import type { IdentityProvider, Index, IndexFilter, ObjectInfo, ObjectStore } from '../ports.js';
 import { StoreError } from '../ports.js';
 import { checkKey, compact, toBytes } from '../util.js';
@@ -102,7 +103,11 @@ export function d1Index(db: unknown): Index {
   const META =
     'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value';
   const RECORD =
-    'INSERT OR IGNORE INTO records (id, kind, at, test_case_id, release, json) VALUES (?, ?, ?, ?, ?, ?)';
+    'INSERT OR REPLACE INTO records (id, kind, at, test_case_id, release, json) VALUES (?, ?, ?, ?, ?, ?)';
+  const KEY =
+    'INSERT INTO record_keys (id, log_key) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET log_key = excluded.log_key';
+  const HELD = `SELECT r.id, r.json, k.log_key AS key FROM records r LEFT JOIN record_keys k ON k.id = r.id
+    WHERE r.id IN (SELECT value FROM json_each(?))`;
   const row = (r: AnyRecord) => [
     r.id,
     r.kind,
@@ -112,10 +117,19 @@ export function d1Index(db: unknown): Index {
     JSON.stringify(r),
   ];
 
-  return {
-    async ingest(records) {
+  const index: Index = {
+    async ingest(records, logKey) {
       await init();
-      return batch(records.map((r) => q(RECORD, ...row(r))));
+      const ids = JSON.stringify(records.map((r) => r.id));
+      const { results } = await q(HELD, ids).all<Held & { id: string }>();
+      const held = new Map(results.map((h) => [h.id, h]));
+      const stmts: D1Stmt[] = [];
+      const n = await mergeIngest(index, held, records, logKey, (r, body) => {
+        if (body) stmts.push(q(RECORD, ...row(r)));
+        if (logKey) stmts.push(q(KEY, r.id, logKey));
+      });
+      await batch(stmts);
+      return n;
     },
     async records(f: IndexFilter = {}) {
       await init();
@@ -166,9 +180,10 @@ export function d1Index(db: unknown): Index {
     },
     async reset() {
       await init();
-      await batch(['records', 'definitions', 'meta'].map((t) => q(`DELETE FROM ${t}`)));
+      await batch(['records', 'record_keys', 'definitions', 'meta'].map((t) => q(`DELETE FROM ${t}`)));
     },
   };
+  return index;
 }
 
 /** Identity from Cf-Access-Jwt-Assertion verified against https://<team>.cloudflareaccess.com/cdn-cgi/access/certs and aud. */

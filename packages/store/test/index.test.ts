@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { memoryIndex } from '../src/adapters/memory.js';
+import { CONFLICTS_META } from '../src/merge.js';
 import type { Index } from '../src/ports.js';
 import { d1Index, INDEX_SCHEMA } from '../src/workers/index.js';
 import { fakeD1 } from './helpers/fakes.js';
@@ -27,6 +28,25 @@ function indexContract(name: string, make: () => Index) {
       expect(await ids({ since: '2026-11-19T04:01:00Z' })).toEqual([r2.id, r3.id, x.id]);
       expect(await ids({ kinds: ['run'], limit: 2 })).toEqual([r2.id, r3.id]);
       expect((await idx.records({ kinds: ['run'] }))[0]).toEqual(r1);
+    });
+
+    it('keeps the body whose log key sorts first and notes the conflict', async () => {
+      const idx = make();
+      const run = runRecord({ at: T });
+      const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+      const conflicts = async () => JSON.parse((await idx.getMeta(CONFLICTS_META)) ?? '{}');
+      expect(await idx.ingest([run], 'v1/log/B.json')).toBe(1);
+      expect(await idx.ingest([forged], 'v1/log/C.json')).toBe(1); // a later key: kept, noted
+      expect(await idx.records()).toEqual([run]);
+      expect(await conflicts()).toEqual({
+        [run.id]: `record ${run.id} in v1/log/C.json differs from the indexed copy; kept the indexed copy`,
+      });
+      expect(await idx.ingest([forged], 'v1/log/A.json')).toBe(2); // an earlier key: replaced, noted
+      expect(await idx.records()).toEqual([forged]);
+      expect(await idx.ingest([forged], 'v1/log/0.json')).toBe(0); // same body, earlier key: remembered
+      expect(await idx.ingest([run], 'v1/log/A.json')).toBe(1);
+      expect(await idx.records({ testCaseId: TC3.id })).toEqual([forged]);
+      expect(Object.values(await conflicts())[0]).toMatch(/in v1\/log\/A.json .*kept the indexed copy$/);
     });
 
     it('stores definitions and meta, and resets', async () => {

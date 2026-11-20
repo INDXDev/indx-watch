@@ -52,7 +52,7 @@ Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.t
 | Port | Methods (abridged) | Adapters in v0.1 |
 |---|---|---|
 | `ObjectStore` | `get(key)`, `head(key)`, `put(key, body, { ifNoneMatch })`, `list({ prefix, startAfter, limit })`, `delete(key)` (tests only) | `fs`, `s3` (aws4fetch: S3, R2, MinIO, GCS), `r2` (binding), `http` (hosted server), `memory` |
-| `Index` | `ingest(records)`, `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
+| `Index` | `ingest(records, logKey?)` (applies the [merge rule](spec/sync.md#merge-rules) for two bodies with one ID), `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
 | `BundleFs` | `read`, `write`, `list`, `remove`, `stat` | Node fs, in-memory (tests, Workers snapshot), tar snapshot |
 | `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |

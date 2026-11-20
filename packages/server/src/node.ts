@@ -98,6 +98,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const replica = SN.openReplica(dir);
   const sync: ProjectInfo['sync'] = { configured: false };
   const cache: { model?: ReturnType<ServerDeps['loadModel']> } = {};
+  let syncState: Awaited<ReturnType<typeof fileStateStore>> | undefined;
   const build = async () => {
     const { bundle, problems } = await loadBundle(fs);
     const shown: ProjectInfo['problems'] = problems.map((p) => ({ ...p, path: undefined, code: undefined }));
@@ -106,7 +107,9 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
       shown.push({ severity: 'warning', message: `invalid record: ${error}`, file: `runs/${file}` }),
     );
     const { model, warnings } = buildModel(bundle, records);
-    const more = warnings.map((message) => ({ severity: 'warning', message }));
+    // records the store has two bodies of (docs/spec/sync.md#merge-rules)
+    const conflicts = Object.values((await syncState?.load())?.conflicts ?? {});
+    const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
     return { model, problems: [...shown, ...more] };
   };
   const invalidate = () => delete cache.model;
@@ -133,16 +136,20 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     try {
       store = createResultStore(SN.openObjectStore(cfg, { bundleDir: dir }));
       const state = await fileStateStore(dir, cfg.url);
+      syncState = state;
       const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
         f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
       );
       const [writer, evidence] = [await writerId(dir), cfg.evidence ?? 'on-demand'];
       // Records the secret scan held back stay local; the UI shows why (docs/spec/security.md#secrets).
-      const onResult = (r: SyncResult) =>
+      // Warnings may be new conflicts, which the sync state holds: rebuild the model's problems.
+      const onResult = (r: SyncResult) => {
+        if (r.warnings?.length) invalidate();
         Object.assign(sync, {
           lastSyncAt: new Date().toISOString(),
           lastError: r.held?.length ? r.warnings?.find((w) => w.startsWith('held back')) : undefined,
         });
+      };
       const onError = (e: unknown) => Object.assign(sync, { lastError: message(e) });
       const o = {
         replica,
