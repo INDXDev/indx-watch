@@ -43,7 +43,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-201 | Agent execution mode via `BrowserProvider` (local Playwright, Cloudflare Browser Run) | An `agent` TC in `examples/shop` runs end to end and records evidence per step | ⏳ |
 | T-202 | LLM judge via `LlmClient` (Anthropic, optional AI gateway) | `llm` judgements with confidence; low confidence → `needs_review` | ⏳ |
 | T-203 | Report share links on the hosted app (frozen snapshots, expiry, audit records) | [reports.md](spec/reports.md#sharing-with-customers) | ⏳ |
-| T-204 | PR comment + check run from the GitHub Action | One comment per PR, updated in place | ⏳ |
+| T-204 | PR comment + check run from the GitHub Action | One comment per PR, updated in place | 🚧 |
 | T-205 | Streamable HTTP MCP endpoint on the hosted server | Same tools as `iw mcp` behind Access | ⏳ |
 | T-206 | Log compaction snapshots | New clone pulls 100k records in < 10 s from a snapshot | ⏳ |
 | T-207 | Visual judge with approved baselines | `visual` judgements; baseline approval is a human record | ⏳ |
