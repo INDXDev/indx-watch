@@ -46,6 +46,7 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/copy-assets.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
     "@hono/node-server": "^2.1.9",
     "@modelcontextprotocol/server": "^2.4.0",
     "aws4fetch": "^1.0.20",
@@ -68,10 +69,10 @@
   "devDependencies": {
     "@indx-watch/bundle": "workspace:*",
     "@indx-watch/core": "workspace:*",
+    "@indx-watch/playwright": "workspace:*",
     "@indx-watch/server": "workspace:*",
     "@indx-watch/store": "workspace:*",
     "@indx-watch/sync": "workspace:*",
-    "@indx-watch/playwright": "workspace:*",
     "@indx-watch/web": "workspace:*",
     "tsup": "^8.5.0"
   }

@@ -57,7 +57,7 @@ Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.t
 | `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
 | `BrowserProvider` | `open`, `act`, `observe`, `close` | interface only (v0.2: Playwright, Cloudflare Browser Run) |
-| `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }`, `complete` | interface only (v0.2: Anthropic, optional gateway) |
+| `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }` | `anthropic` (Node, `@indx-watch/store/node`; gateway via `ANTHROPIC_BASE_URL`) |
 
 `ResultStore` (in `store`) implements the [sync protocol](spec/sync.md) once on top of any `ObjectStore`.
 
@@ -99,19 +99,19 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
 ## Line budget
-Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600.
+Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202).
 
 | Package | Budget |
 |---|---|
 | bundle | 2,000 |
 | core | 1,000 |
-| store | 1,300 |
+| store | 1,380 |
 | sync | 450 |
 | server | 1,350 |
 | web | 2,800 |
 | cli (incl. MCP, deploy) | 2,200 |
 | playwright | 450 |
-| **Total** | **11,550** |
+| **Total** | **11,630** |
 
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.
@@ -127,6 +127,7 @@ Runtime dependencies of the published package. Each needs a reason; adding one n
 | `@modelcontextprotocol/server` | Official MCP server (SDK v2, runtime-neutral; stdio for `iw mcp`) |
 | `citty` | Tiny CLI argument parsing with subcommands |
 | `modern-tar` | Deterministic tar read/write (long paths, no dependencies, Workers-compatible) for archives and bundle snapshots |
+| `@anthropic-ai/sdk` | Official Claude API client for the `LlmClient` adapter (`iw judge`); loaded only when a judge runs |
 
 Build-time only: TypeScript, tsup (esbuild), Vite, React, Biome, Vitest, Playwright (peer of the reporter, optional).
 

@@ -405,6 +405,76 @@ describe('commands', () => {
     expect(iw(dir, ['list', 'nope']).code).toBe(2);
   });
 
+  it('judge: asks Claude (a fake Messages API) with the llm rubric and appends an llm judgement', async () => {
+    const dir = shop();
+    writeFileSync(
+      join(dir, '.indx-watch', TC3),
+      `${read(dir, TC3)}\n[[judges]]\nkind = "llm"\nrubric = ["The total drops by 10%"]\n`,
+    );
+    const log = join(dir, 'requests.jsonl');
+    // A Messages API stand-in in its own process: spawnSync below blocks this one.
+    const server = spawn(
+      process.execPath,
+      [
+        '-e',
+        `const http = require('node:http'), fs = require('node:fs');
+        http.createServer((req, res) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
+          fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ url: req.url, auth: req.headers.authorization, body: JSON.parse(b) }) + '\\n');
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: JSON.parse(b).model,
+            content: [{ type: 'text', text: '{"verdict":"fail","confidence":0.9,"reason":"The total did not change."}' }],
+            stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
+        }); }).listen(0, '127.0.0.1', function () { console.log(this.address().port); });`,
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit'] },
+    );
+    try {
+      const port = await new Promise<string>((ok) =>
+        server.stdout!.once('data', (d) => ok(String(d).trim())),
+      );
+      const env = { ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}`, ANTHROPIC_API_KEY: 'test-key' };
+      const run = iwJson(dir, 'record', ['record', 'TC-3', '--verdict', 'pass'], {
+        env: { IW_ACTOR_KIND: 'ci' },
+      }).json.data.run.id;
+      const r = iwJson(dir, 'judge', ['judge', run], { env });
+      expect(r.json.data).toMatchObject({
+        verdict: 'fail', // a confident llm fail outweighs the assert pass (decision policy rule 4)
+        recorded: true,
+        judgement: {
+          kind: 'llm',
+          verdict: 'fail',
+          confidence: 0.9,
+          by: { kind: 'agent', model: 'claude-opus-5-5' },
+        },
+      });
+      const [req] = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l));
+      expect(req).toMatchObject({
+        url: '/v1/messages',
+        auth: 'Bearer test-key',
+        body: { model: 'claude-opus-5-5' },
+      });
+      expect(JSON.stringify(req.body.messages)).toContain('1. The total drops by 10%');
+      expect(iwJson(dir, 'show', ['show', run]).json.data.decision.verdict).toBe('fail');
+      const dry = iwJson(dir, 'judge', ['judge', run, '--dry-run', '--model', 'claude-sonnet-5-5'], { env });
+      expect(dry.json.data).toMatchObject({
+        recorded: false,
+        judgement: { by: { model: 'claude-sonnet-5-5' } },
+      });
+      const none = iwJson(
+        dir,
+        'judge',
+        ['judge', iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']).json.data.run.id],
+        { env },
+      );
+      expect([none.code, none.json.error.code]).toEqual([2, 'USAGE']);
+    } finally {
+      server.kill();
+    }
+  });
+
   it('record as an agent: an llm judgement whose confidence decides', () => {
     const dir = shop();
     const env = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'm' };

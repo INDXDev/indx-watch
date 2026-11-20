@@ -1,4 +1,4 @@
-/** Commands that read status or append records: status, show, list, record, review, waive, retract, deployment add. */
+/** Commands that read status or append records: status, show, list, record, review, judge, waive, retract, deployment add. */
 import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import { type Build, newId, type Problem, StepStatus } from '@indx-watch/bundle';
@@ -356,6 +356,81 @@ export const resultCommands: Record<string, Spec> = {
       const rec = await cx.append(ctx, p, 'judgement', { run, judgement });
       const after = (await cx.loadModel(p)).runs.get(run)!.decision.verdict;
       return { data: { judgement: rec.judgement, verdict: after }, text: `${run}: ${after}` };
+    },
+  },
+
+  judge: {
+    description: "Ask Claude to judge a run against the test case's llm rubric (adds an llm judgement)",
+    args: {
+      run: P('Run ID or prefix'),
+      model: S('Claude model (default IW_LLM_MODEL or claude-opus-5-5)'),
+      'dry-run': B('Print the judgement without recording it'),
+    },
+    async run(ctx, a) {
+      const p = await cx.openProject(ctx, a);
+      const view = cx.resolveRun(await cx.loadModel(p), str(a.run)!);
+      const run = view.record;
+      const tc =
+        (await cx.loadModel(p)).testCases.get(run.test_case.key) ??
+        fail('NOT_FOUND', `${run.test_case.key} is not in the bundle`);
+      const rubric = tc.data.judges?.find((j) => j.kind === 'llm')?.rubric?.filter(Boolean);
+      if (!rubric?.length) return fail('USAGE', `${tc.data.key} declares no llm judge with a rubric`);
+      const results = new Map(run.steps.map((r) => [r.index, r]));
+      const expected = tc.data.steps
+        .map((st, i) => `${i + 1}. ${st.instruction} => ${st.expected}`)
+        .join('\n');
+      const observed = [
+        ...tc.data.steps.map((_, i) => {
+          const r = results.get(i + 1);
+          return `Step ${i + 1}: ${r?.status ?? 'not recorded'}${r?.note ? ` (note: ${r.note})` : ''}`;
+        }),
+        ...(run.note ? [`Run note: ${run.note}`] : []),
+        `Verdict so far: ${view.decision.verdict}`,
+      ].join('\n');
+      const shot = run.evidence.filter((e) => e.kind === 'screenshot' && e.media_type === 'image/png').at(-1);
+      const screenshot = shot ? ((await p.replica.getBlob(shot.sha256)) ?? undefined) : undefined;
+      const model = str(a.model) ?? ctx.env.IW_LLM_MODEL;
+      const { anthropicJudge } = await import('@indx-watch/store/llm');
+      let answer: Awaited<ReturnType<ReturnType<typeof anthropicJudge>['judge']>>;
+      try {
+        answer = await anthropicJudge(model ? { model } : {}).judge({
+          rubric,
+          expected,
+          observation: {
+            url: run.ci?.url ?? '',
+            title: `${tc.data.key} ${tc.data.title}`,
+            tree: observed,
+            screenshot,
+          },
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (/api ?key|auth|credential/i.test(msg))
+          fail('INVALID_CONFIG', `No usable Anthropic credential: ${msg}`);
+        throw e;
+      }
+      const by = {
+        kind: 'agent' as const,
+        id: `anthropic:${answer.model}`,
+        via: 'env' as const,
+        model: answer.model,
+      };
+      const judgement = {
+        id: newId('jdg'),
+        kind: 'llm' as const,
+        ...pick(answer, 'verdict confidence reason'),
+        by,
+        at: iso(),
+      };
+      if (a['dry-run'])
+        return {
+          data: { judgement, verdict: view.decision.verdict, recorded: false },
+          text: `${answer.verdict} (${answer.confidence}): ${answer.reason}`,
+        };
+      const rec = await cx.append(ctx, p, 'judgement', { run: run.id, judgement });
+      const after = (await cx.loadModel(p)).runs.get(run.id)!.decision.verdict;
+      const text = `${run.id}: llm ${answer.verdict} (${answer.confidence}) → ${after}: ${answer.reason}`;
+      return { data: { judgement: rec.judgement, verdict: after, recorded: true }, text };
     },
   },
 

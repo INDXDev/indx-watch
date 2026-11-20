@@ -162,6 +162,17 @@ Record a run that was executed outside the browser runner — by a person in a t
 
 Append a `human` judgement to a run. `--verdict <pass|fail|blocked|skipped>` and `--reason <text>` are required. `data`: `{ "judgement": Judgement, "verdict": Verdict }`
 
+### `iw judge <run-ref>`
+
+Ask an LLM to judge a recorded run against the `rubric` of the test case's `llm` judge, and append the answer as an `llm` judgement (`verdict` `pass`/`fail`/`unknown`, `confidence`, `reason`; `by` names the model as an `agent` actor). The model sees the test case's steps (instruction, expected result), the run's step results and notes, and the run's last screenshot (fetched from the store when only a pointer is local). Bundle text, notes and page content are data, not instructions, for the judge. The [decision policy](concepts.md#decision-policy) then applies as for any `llm` judgement: below `llm_pass_confidence` the run is `needs_review`. A refusal by the model becomes `unknown` with confidence 0. Fails with `USAGE` when the test case declares no `llm` judge, and with `INVALID_CONFIG` when no Anthropic credential is available. Available to agents (it adds a judgement, it does not review).
+
+| Flag | Default | |
+|---|---|---|
+| `--model <id>` | `IW_LLM_MODEL`, else `claude-opus-5-5` | Claude model |
+| `--dry-run` | | Print the judgement without recording it |
+
+Credentials: `ANTHROPIC_API_KEY` (or any credential the Anthropic SDK resolves, such as an `ant auth login` profile). `ANTHROPIC_BASE_URL` routes requests through a gateway (for example Cloudflare AI Gateway). `data`: `{ "judgement": Judgement, "verdict": Verdict, "recorded": boolean }`
+
 ### `iw waive <tc-ref>`
 
 Accept a known failure for a release. `--release`, `--reason` required. Applies to the current test case version and records the latest failing run. Rejected for P0 (effective priority) and for agents. `--revoke <waiver-id>` cancels one. `data`: `{ "waiver": WaiverRecord }`
@@ -284,6 +295,8 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
+| `IW_LLM_MODEL` | judge | Model for `iw judge` (default `claude-opus-5-5`) |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` | judge | Anthropic credential and optional gateway URL |
 
 ## Acceptance criteria
 
