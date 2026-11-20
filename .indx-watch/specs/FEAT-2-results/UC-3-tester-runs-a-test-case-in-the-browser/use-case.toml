@@ -13,7 +13,56 @@ id = "ac_01M7TF47B3Q74EGDP6H7WSMNF2"
 key = "AC-3.1"
 text = "The manual runner records a run with the tester's identity and verdict."
 
+[criteria.i18n.ja]
+text = "手動ランナーは、テスターの ID と判定つきで実行を記録する。"
+status = "machine"
+source_hash = "510a2b9a914b"
+
 [[criteria]]
 id = "ac_01M7TF47B3Q74EGDP6H7WSMNF3"
 key = "AC-3.2"
 text = "An uploaded screenshot is stored by its SHA-256 and shown on the run page."
+
+[criteria.i18n.ja]
+text = "アップロードしたスクリーンショットは SHA-256 で保存され、実行ページに表示される。"
+status = "machine"
+source_hash = "ba5584099724"
+
+[[criteria]]
+id = "ac_01M7VHH0XP82GS125Q10G30W2P"
+key = "AC-3.3"
+text = "Testers step through test cases one per screen with the arrow keys, and saving a result opens the next test of the session."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-code"
+created_at = 2026-11-20T03:55:41Z
+
+[criteria.i18n.ja]
+text = "テスターは矢印キーでテストケースを 1 件ずつ進められ、結果を保存するとセッションの次のテストが開く。"
+status = "machine"
+source_hash = "fcc612c71c1b"
+
+[[criteria]]
+id = "ac_01M7VHH1Q43JT4B3JHGK1H5EMG"
+key = "AC-3.4"
+text = "Every run shows who recorded it, and where no verified identity exists a tester can declare their name in the browser."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-code"
+created_at = 2026-11-20T03:55:42Z
+
+[criteria.i18n.ja]
+text = "すべての実行に記録した人が表示され、検証済みの ID がない場合はテスターがブラウザで名前を申告できる。"
+status = "machine"
+source_hash = "9d482f6cea32"
+
+[i18n.ja]
+title = "テスターがブラウザでテストケースを実行する"
+actor = "テスター"
+goal = "平易な手順に従い、証拠つきで結果を記録する。"
+status = "machine"
+source_hash = "d3939368c4fa"

@@ -156,3 +156,21 @@ test('AI drafts stay drafts until a human approves', { tag: ['@TC-10'] }, async 
     expect(text).toContain('approved_by = "e2e@indx.dev"');
   });
 });
+
+test('push and clone the test files', { tag: ['@TC-14'] }, async () => {
+  const dir = shopCopy();
+  const store = `file://${join(dir, 'store')}`;
+  await test.step('1. iw push publishes a snapshot', async () => {
+    const r = iw(['push', '--json'], { cwd: dir });
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.json.data.snapshot).toMatch(/^rec_/);
+  });
+  await test.step('2. iw clone makes a working copy that passes iw check', async () => {
+    const parent = tempDir('iw-clone-');
+    const r = iw(['clone', store, 'copy', '--json'], { cwd: parent });
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.json.data.pulled.records).toBeGreaterThan(0);
+    expect(existsSync(join(parent, 'copy/.indx-watch/project.toml'))).toBe(true);
+    expect(iw(['check'], { cwd: join(parent, 'copy') }).code).toBe(0);
+  });
+});

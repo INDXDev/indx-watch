@@ -13,7 +13,40 @@ id = "ac_01M7TF47BHHCM8J3G7KNTFDN18"
 key = "AC-4.1"
 text = "A run recorded in one clone appears in another clone after \"iw sync\"."
 
+[criteria.i18n.ja]
+text = "あるクローンで記録した実行が、「iw sync」の後で別のクローンに表示される。"
+status = "machine"
+source_hash = "499adcb706a7"
+
 [[criteria]]
 id = "ac_01M7TF47BHHCM8J3G7KNTFDN19"
 key = "AC-4.2"
 text = "Running \"iw sync\" twice in a row transfers nothing the second time."
+
+[criteria.i18n.ja]
+text = "「iw sync」を続けて 2 回実行すると、2 回目は何も転送しない。"
+status = "machine"
+source_hash = "795104083bef"
+
+[[criteria]]
+id = "ac_01M7VHH2ED6GK3X7VD29VXW1XK"
+key = "AC-4.3"
+text = "Test files published with \"iw push\" can be cloned with \"iw clone\" into a working copy that passes \"iw check\"."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-code"
+created_at = 2026-11-20T03:55:42Z
+
+[criteria.i18n.ja]
+text = "「iw push」で公開したテストファイルを「iw clone」で取得すると、「iw check」を通る作業コピーができる。"
+status = "machine"
+source_hash = "29445019cefc"
+
+[i18n.ja]
+title = "チームがストアで結果を共有する"
+actor = "チームメンバー"
+goal = "git にコミットせずにお互いの結果を見る。"
+status = "machine"
+source_hash = "52b8d2cd25ec"

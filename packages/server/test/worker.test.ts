@@ -2,7 +2,7 @@ import { type AnyRecord, newId, sha256Hex } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { createResultStore, memoryIndex, memoryObjectStore } from '@indx-watch/store';
 import { r2ObjectStore } from '@indx-watch/store/workers';
-import { snapshotBundle } from '@indx-watch/sync';
+import { definitionFiles, snapshotBundle } from '@indx-watch/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fakeD1, fakeR2 } from '../../store/test/helpers/fakes.js';
 import type { ProjectInfo, RunSummary, StatusResult } from '../src/index.js';
@@ -108,6 +108,44 @@ describe('worker', () => {
     expect((await call(full, '/api/project')).status).toBe(401);
     expect((await call(full, '/api/store/objects/indx-watch-store.json')).status).toBe(401);
     expect((await call(full, '/healthz')).status).toBe(200);
+  });
+
+  it('publishes a browser upload as a snapshot, also into an empty bucket', async () => {
+    const files = await definitionFiles(nodeFs(SHOP));
+    const tc3 = [...files.keys()].find((k) => k.endsWith('/TC-3-valid-coupon.toml'))!;
+    const text = new TextDecoder()
+      .decode(files.get(tc3))
+      .replace('Valid coupon reduces the total', 'Renamed');
+    const post = (env: object, body: object) =>
+      call(env, '/api/bundle', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: 'iw_tester=%7B%22id%22%3A%22sam%40shop.test%22%7D',
+        },
+        body: JSON.stringify(body),
+      });
+    const { r2 } = await bucket();
+    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const res = await post(env, {
+      files: [{ name: 'TC-3.toml', data: Buffer.from(text).toString('base64') }],
+    });
+    expect(res.status).toBe(201);
+    const p = (await (await call(env, '/api/project')).json()) as ProjectInfo;
+    expect(p.snapshot).toMatchObject({ source: 'manual', actor: { id: 'sam@shop.test', via: 'browser' } });
+    expect(p.share.clone).toBe('https://watch.example.com');
+    const tc = (await (await call(env, '/api/test-cases/TC-3')).json()) as { data: { title: string } };
+    expect(tc.data.title).toBe('Renamed');
+
+    // a fresh deploy: the whole folder is the first snapshot
+    const empty = { STORE: fakeR2(), DB: fakeD1(), ASSETS: assets, PUBLIC: 'true' };
+    const all = [...files].map(([path, d]) => ({
+      name: path,
+      path,
+      data: Buffer.from(d).toString('base64'),
+    }));
+    expect((await post(empty, { replace: true, files: all })).status).toBe(201);
+    expect((await call(empty, '/api/project')).status).toBe(200);
   });
 
   it('scheduled() ingests', async () => {

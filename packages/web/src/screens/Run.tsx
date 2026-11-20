@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, fmtBytes, Load, Meta, Section, Seg, useApi } from '../ui';
+import { Badge, Chip, fmtBytes, Load, Meta, Section, Seg, Tx, useApi, Who } from '../ui';
 
 type Evidence = RunDetail['record']['evidence'][number];
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
@@ -38,8 +38,12 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
           <p className="eyebrow">
             {t('run.eyebrow')} · <a href={href.testCase(r.testCase.key)}>{r.testCase.key}</a>
           </p>
-          <h1>{r.testCase.title}</h1>
-          <p className="muted mono small">{rec.id}</p>
+          <h1>
+            <Tx of={r.testCase} field="title" mark />
+          </h1>
+          <p className="muted last-run">
+            <Who who={rec.actor} /> · {date(rec.ended_at)} · <span className="mono small">{rec.id}</span>
+          </p>
         </div>
       </div>
 
@@ -204,7 +208,7 @@ function Shots({ items }: { items: { sha256: string; name: string; media_type?: 
 }
 
 function ReviewForm({ id, onDone, prominent }: { id: string; onDone: () => void; prominent?: boolean }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [verdict, setVerdict] = useState<ReviewInput['verdict']>();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -214,7 +218,7 @@ function ReviewForm({ id, onDone, prominent }: { id: string; onDone: () => void;
     setBusy(true);
     setError(undefined);
     try {
-      await api.review(id, { verdict, reason: reason.trim() });
+      await api.review(id, { verdict, reason: reason.trim(), locale });
       setVerdict(undefined);
       setReason('');
       onDone();

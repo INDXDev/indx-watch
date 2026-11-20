@@ -6,3 +6,8 @@ title = "Review photo"
 status = "ready"
 kind = "file"
 files = ["review-photo.png"]
+
+[i18n.ja]
+title = "レビュー用の写真"
+status = "machine"
+source_hash = "9940902bd6b6"

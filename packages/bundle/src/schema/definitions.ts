@@ -156,6 +156,7 @@ export const Release = z.strictObject({
   refs: z.array(z.string()).optional(),
   /** when set, the readiness gate only counts test cases in this plan */
   plan: keyOf('plan').optional(),
+  i18n: z.partialRecord(Locale, translation({ title: z.string().optional() })).optional(),
   ...tail,
 });
 export type Release = z.infer<typeof Release>;
@@ -350,6 +351,7 @@ export const Plan = z.strictObject({
   environment: z.string().optional(),
   due: LocalDate.optional(),
   items: z.array(PlanItem).optional(),
+  i18n: z.partialRecord(Locale, translation({ title: z.string().optional() })).optional(),
   ...tail,
 });
 export type Plan = z.infer<typeof Plan>;

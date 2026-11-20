@@ -12,3 +12,15 @@ priority = "P2"
 id = "ac_01M7TF47CNEW130FZHWSCN89D4"
 key = "AC-7.1"
 text = "Running \"iw export --full\" and then \"iw import\" into an empty folder gives an identical manifest hash."
+
+[criteria.i18n.ja]
+text = "「iw export --full」の後で空のフォルダに「iw import」すると、同じマニフェストハッシュになる。"
+status = "machine"
+source_hash = "bcc6116c0dcf"
+
+[i18n.ja]
+title = "チームがデータを別の場所に移す"
+actor = "メンテナー"
+goal = "何も失わずに移行または離脱する。"
+status = "machine"
+source_hash = "8f29c9d16646"

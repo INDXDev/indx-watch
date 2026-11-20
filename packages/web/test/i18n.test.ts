@@ -82,6 +82,7 @@ describe('pick()', () => {
       text: step.i18n.ja.instruction,
       translated: true,
       outdated: false,
+      machine: false, // reviewed
     });
   });
   it('shows the source for the source locale and for missing fields', () => {

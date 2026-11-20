@@ -2,41 +2,54 @@
 import { api, type FixtureDetail } from '../api';
 import { useI18n } from '../i18n';
 import { href } from '../router';
-import { Chip, fmtBytes, Load, Meta, Section, Tx, useApi } from '../ui';
+import { Chip, Focus, fmtBytes, Load, Meta, Section, Tx, useApi, ViewSwitch } from '../ui';
 
 export function Fixtures({ selected }: { selected?: string | undefined }) {
   const { t } = useI18n();
   const list = useApi(api.fixtures, []);
-  const key = selected ?? list.data?.[0]?.key;
+  const first = list.data?.[0]?.key;
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{t('fx.title')}</h1>
-          <p className="muted">{t('fx.subtitle')}</p>
-        </div>
+      <div className={`page-head${selected ? ' page-head-tight' : ''}`}>
+        {selected ? (
+          <p className="eyebrow">
+            <a href={href.fixtures()}>{t('fx.title')}</a>
+          </p>
+        ) : (
+          <div>
+            <h1>{t('fx.title')}</h1>
+            <p className="muted">{t('fx.subtitle')}</p>
+          </div>
+        )}
+        <ViewSwitch
+          view={selected ? 'focus' : 'list'}
+          list={href.fixtures()}
+          focus={first && href.fixtures(selected ?? first)}
+        />
       </div>
       <Load state={list}>
-        {(items) => (
-          <div className="split split-list">
-            <nav className="card fx-list" aria-label={t('fx.title')}>
-              <ul>
+        {(items) =>
+          selected ? (
+            <Focus items={items.map((f) => f.key)} at={selected} go={(k) => href.fixtures(k)}>
+              <FixturePanel fxKey={selected} />
+            </Focus>
+          ) : (
+            <section className="card">
+              <ul className="list">
                 {items.map((f) => (
                   <li key={f.key}>
-                    <a href={href.fixtures(f.key)} aria-current={f.key === key ? 'true' : undefined}>
-                      <span className="key">{f.key}</span>
-                      <span className="grow">
-                        <Tx of={f.data} field="title" />
-                      </span>
-                      <Chip>{f.data.kind}</Chip>
+                    <span className="key">{f.key}</span>
+                    <a className="grow" href={href.fixtures(f.key)}>
+                      <Tx of={f.data} field="title" />
                     </a>
+                    <Chip>{f.data.kind}</Chip>
+                    <span className="muted small">{f.usedBy.join(' ')}</span>
                   </li>
                 ))}
               </ul>
-            </nav>
-            {key && <FixturePanel fxKey={key} />}
-          </div>
-        )}
+            </section>
+          )
+        }
       </Load>
     </>
   );

@@ -126,6 +126,41 @@ export const CommandData = {
     /** secret-scan problems of records held back from the push */
     held: z.array(Problem).optional(),
   }),
+  push: z.object({
+    snapshot: z.string().nullable(),
+    files: z.number(),
+    unchanged: z.boolean(),
+    pushed: z.object({ records: z.number(), blobs: z.number() }),
+    url: z.string().nullable(),
+  }),
+  clone: z.object({
+    dir: z.string(),
+    snapshot: z.string(),
+    files: z.number(),
+    pulled: z.object({ records: z.number(), blobs: z.number() }),
+  }),
+  translate: z.union([
+    z.object({
+      ref: z.string().nullable(),
+      locale: z.string(),
+      fields: z.array(
+        z.object({
+          ref: z.string(),
+          path: z.string(),
+          source: z.string(),
+          text: z.string().optional(),
+          state: z.enum(['missing', 'machine', 'reviewed', 'stale']),
+        }),
+      ),
+    }),
+    z.object({
+      ref: z.string(),
+      locale: z.string(),
+      file: z.string(),
+      status: z.string(),
+      written: z.array(z.string()),
+    }),
+  ]),
   serve: z.object({ url: z.string() }),
   report: z.object({
     file: z.string().nullable(),

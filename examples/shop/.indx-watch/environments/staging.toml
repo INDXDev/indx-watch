@@ -17,3 +17,12 @@ method = "public"
 method = "POST"
 url = "/__test/seed"
 secret_ref = "env:SHOP_SEED_TOKEN"
+
+[i18n.ja]
+title = "ステージング"
+guide = """
+任意のブラウザでベース URL を開きます。VPN は不要です。
+手順で求められたら FX-3 のアカウントでサインインします。
+"""
+status = "machine"
+source_hash = "ca1b5aa0a961"

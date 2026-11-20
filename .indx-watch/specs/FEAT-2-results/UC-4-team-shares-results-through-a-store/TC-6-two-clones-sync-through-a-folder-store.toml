@@ -12,12 +12,29 @@ mode = "playwright"
 instruction = "Configure two copies of examples/shop with the same file:// store; record a run in the first and run \"iw sync\" in both."
 expected = "The second copy shows the run in \"iw list runs\"."
 
+[steps.i18n.ja]
+instruction = "examples/shop の 2 つのコピーに同じ file:// ストアを設定し、1 つ目で実行を記録して、両方で「iw sync」を実行する。"
+expected = "2 つ目のコピーの「iw list runs」にその実行が表示される。"
+status = "machine"
+source_hash = "5534974fe8b8"
+
 [[steps]]
 instruction = "Run \"iw sync\" again in the first copy."
 expected = "It pushes and pulls 0 records."
+
+[steps.i18n.ja]
+instruction = "1 つ目のコピーでもう一度「iw sync」を実行する。"
+expected = "送信も受信も 0 件になる。"
+status = "machine"
+source_hash = "0a8acaae67ad"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/sync.spec.ts"]
+
+[i18n.ja]
+title = "2 つのクローンがフォルダのストアで同期する"
+status = "machine"
+source_hash = "0eabe2da566e"

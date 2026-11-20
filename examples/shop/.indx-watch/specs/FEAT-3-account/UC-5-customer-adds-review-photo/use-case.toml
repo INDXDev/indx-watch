@@ -12,3 +12,15 @@ priority = "P2"
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA9"
 key = "AC-5.1"
 text = "An uploaded PNG appears as a thumbnail under the review."
+
+[criteria.i18n.ja]
+text = "アップロードした PNG がレビューの下にサムネイルで表示される。"
+status = "machine"
+source_hash = "87e00590f87d"
+
+[i18n.ja]
+title = "顧客がレビューに写真を追加する"
+actor = "登録済みの顧客"
+goal = "商品の見た目をほかの買い物客に見せる。"
+status = "machine"
+source_hash = "7a4356737b1d"

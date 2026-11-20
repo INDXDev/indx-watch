@@ -8,6 +8,7 @@ import { type ContextProvider, checkRecord, StoreError } from '@indx-watch/store
 import { type Context, Hono } from 'hono';
 import type { AppDeps, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { renderReport, reportTexts } from './report.js';
+import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
 
 /** Optional extras of AppDeps (change request: fold into AppDeps). */
@@ -18,6 +19,30 @@ export interface ServerDeps extends AppDeps {
   readFile?(path: string): Promise<Uint8Array | null>;
   /** clock for tests */
   now?(): Date;
+  /** honor the `iw_tester` cookie when no verified identity exists (docs/spec/web.md#identity) */
+  declaredIdentity?: boolean;
+  /** current definition files by bundle-relative path (uploads merge into them) */
+  bundleFiles?(): Promise<Map<string, Uint8Array>>;
+  /** write an upload: files on disk (Node) or a new snapshot (Workers); returns the bundle record ID if any */
+  publishBundle?(
+    files: Map<string, Uint8Array>,
+    info: { actor: B.Actor; message?: string; changed: string[]; removed: string[] },
+  ): Promise<string | undefined>;
+}
+
+/** The browser-declared tester from the `iw_tester` cookie, if valid. Pure; tested. */
+export function declaredTester(cookie: string | null | undefined): B.Actor | undefined {
+  const raw = /(?:^|;\s*)iw_tester=([^;]*)/.exec(cookie ?? '')?.[1];
+  try {
+    const v = raw ? (JSON.parse(decodeURIComponent(raw)) as { id?: unknown; name?: unknown } | null) : null;
+    const id = typeof v?.id === 'string' ? v.id.trim() : '';
+    const name = typeof v?.name === 'string' ? v.name.trim() : '';
+    if (!id || id.length > 80 || name.length > 80 || [...id, ...name].some((ch) => ch.charCodeAt(0) < 32))
+      return undefined;
+    return { kind: 'human', id, ...(name && { name }), via: 'browser' };
+  } catch {
+    return undefined; // not JSON
+  }
 }
 
 export const MAX_BLOB_BYTES = 25 * 1024 * 1024;
@@ -96,7 +121,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   const uploads = new Map<string, { name: string; type: string }>();
   const actors = new WeakMap<Request, Promise<B.Actor>>();
   const actor = (c: Context) => {
-    const a = actors.get(c.req.raw) ?? deps.identity.current(c.req.raw);
+    const declared = d.declaredIdentity ? declaredTester(c.req.header('cookie')) : undefined;
+    const a =
+      actors.get(c.req.raw) ?? (declared ? Promise.resolve(declared) : deps.identity.current(c.req.raw));
     actors.set(c.req.raw, a);
     return a;
   };
@@ -144,10 +171,20 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     };
     const info: ProjectInfo = {
       project: { key, name, source_locale, locales, default_environment, current_release },
-      releases: m.releases.map(({ version, title, state }) => ({ version, title, state })),
+      releases: await Promise.all(
+        m.releases.map(async (r) => {
+          const { version, title, state, i18n } = await V.markStale(r, 'release');
+          return { version, title, state, i18n };
+        }),
+      ),
       environments: await Promise.all(m.environments.map(env)),
       ...{ identity: await actor(c), mode: deps.mode, problems },
       sync: deps.syncInfo?.() ?? { configured: false },
+      share: {
+        clone: deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null),
+      },
+      can: { declare: !!d.declaredIdentity, upload: !!d.publishBundle },
+      snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0]),
     };
     return c.json(info);
   });
@@ -172,10 +209,27 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const fx = m.fixtures.get(m.keyOf(key) ?? key) ?? fail(notFound(`fixture ${key}`));
     return c.json(await V.fixtureDetail(fx, read));
   });
-  app.get('/api/plans', async (c) => c.json(V.planViews(await model())));
+  app.get('/api/plans', async (c) => c.json(await V.planViews(await model())));
+  app.get('/api/snapshots', async (c) => c.json((await model()).snapshots.map(V.snapshotSummary)));
+  app.post('/api/bundle', async (c) => {
+    const input = await json<UploadInput>(c);
+    const who = await actor(c);
+    if (!d.publishBundle || !d.bundleFiles) throw new HttpError(403, 'forbidden', 'this server cannot write');
+    if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
+    const base = await d.bundleFiles();
+    const { next, result } = await prepareUpload(base, input);
+    if (input.dryRun || !result.ok) return c.json(result, input.dryRun || result.ok ? 200 : 422);
+    const changed = result.changes.filter((x) => x.change === 'added' || x.change === 'changed');
+    const removed = result.changes.filter((x) => x.change === 'removed').map((x) => x.path);
+    const message = typeof input.message === 'string' ? input.message.trim().slice(0, 500) : '';
+    const info = { actor: who, changed: changed.map((x) => x.path), removed, ...(message && { message }) };
+    const snapshot = await d.publishBundle(next, info);
+    return c.json({ ...result, ...(snapshot && { snapshot }) }, 201);
+  });
   app.get('/api/plans/:key', async (c) => {
     const key = c.req.param('key');
-    return c.json(V.planViews(await model()).find((p) => p.key === key) ?? fail(notFound(`plan ${key}`)));
+    const plans = await V.planViews(await model());
+    return c.json(plans.find((p) => p.key === key) ?? fail(notFound(`plan ${key}`)));
   });
   app.get('/api/runs', async (c) => {
     const [m, tc] = [await model(), q(c, 'tc')];
@@ -189,7 +243,13 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const { record, judgements, decision, stale } = runOf(m, c.req.param('id'));
     const t = m.testCases.get(m.keyOf(record.test_case.id) ?? '');
     const { key = record.test_case.key, title = key } = t?.data ?? {};
-    const testCase = { key, title, currentVersion: t?.version ?? record.test_case.version };
+    const i18n = t?.data.i18n && (await V.markStale(t.data, 'test-case')).i18n;
+    const testCase = {
+      key,
+      title,
+      currentVersion: t?.version ?? record.test_case.version,
+      ...(i18n && { i18n }),
+    };
     return c.json({ record, judgements, decision, stale, testCase } satisfies RunDetail);
   });
 
@@ -250,7 +310,16 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     if (!reason) throw bad('a reason is required for a review');
     const [who, at] = [await actor(c), now()];
     if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents cannot review runs');
-    const judgement = { id: B.newId('jdg'), kind: 'human', verdict: input.verdict, reason, by: who, at };
+    const locale = ['en', 'ja'].includes(input.locale ?? '') ? input.locale : undefined;
+    const judgement = {
+      id: B.newId('jdg'),
+      kind: 'human',
+      verdict: input.verdict,
+      reason,
+      by: who,
+      at,
+      locale,
+    };
     const env = { kind: 'judgement', id: B.newId('rec'), v: 1, project: m.project.id, at, actor: who };
     const record = B.JudgementRecord.parse({ ...env, source: 'manual', run: v.record.id, judgement });
     await deps.writeRecord(record);

@@ -7,3 +7,8 @@ status = "ready"
 kind = "dataset"
 files = ["invalid-files.csv"]
 row_key = "case"
+
+[i18n.ja]
+title = "不正なバンドルファイル"
+status = "machine"
+source_hash = "c7a9e20c4f33"

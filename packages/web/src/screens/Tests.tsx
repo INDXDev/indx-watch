@@ -1,23 +1,73 @@
-/** Spec tree: features → use cases → acceptance criteria → test cases, each with its computed status. */
+/**
+ * Tests: the List view (features → use cases → criteria → test cases) and the Focus view (one test case per
+ * screen) of docs/spec/web.md#list-and-focus.
+ */
 import { useState } from 'react';
 import { useApp } from '../App';
 import { api, type SpecTree } from '../api';
 import { useI18n } from '../i18n';
-import { href } from '../router';
-import { Badge, Chip, Icon, Load, Priority, Seg, Tx, txt, useApi } from '../ui';
+import { href, navigate } from '../router';
+import { Badge, Chip, Focus, Icon, Load, Priority, Seg, Tx, txt, useApi, ViewSwitch } from '../ui';
+import { TestCaseView } from './TestCase';
 
 type Filter = 'all' | 'open';
+const OPEN = new Set(['fail', 'needs_review', 'blocked', 'stale', 'untested', 'uncovered']);
 
-export function SpecTreeView() {
-  const { scope } = useApp();
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
-  return <Load state={specs}>{(s) => <Tree tree={s} />}</Load>;
+/** Test case keys in tree order (each once), only open ones with `f=open`. Pure; tested. */
+export function testOrder(tree: SpecTree, filter?: string): string[] {
+  const out: string[] = [];
+  for (const f of tree.features)
+    for (const u of f.useCases)
+      for (const c of u.criteria)
+        for (const x of c.testCases)
+          if (!out.includes(x.key) && (filter !== 'open' || OPEN.has(x.status))) out.push(x.key);
+  return out;
 }
 
-function Tree({ tree }: { tree: SpecTree }) {
+export function Tests({ filter }: { filter?: string | undefined }) {
+  const { scope } = useApp();
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  return <Load state={specs}>{(s) => <Tree tree={s} filter={filter === 'open' ? 'open' : 'all'} />}</Load>;
+}
+
+/** #/tc/TC-3: the Focus card of a test case, with ← / → over the list it was opened from. */
+export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | undefined }) {
+  const { scope } = useApp();
+  const { t } = useI18n();
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const items = specs.data ? testOrder(specs.data, filter) : [];
+  const list = items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey];
+  const q = filter === 'open' ? { f: 'open' } : undefined;
+  return (
+    <>
+      <div className="page-head page-head-tight">
+        <p className="eyebrow">
+          <a href={href.tests(q)}>{t('nav.tests')}</a>
+          {filter === 'open' && ` · ${t('specs.filter.open')}`}
+        </p>
+        <ViewSwitch view="focus" list={href.tests(q)} />
+      </div>
+      <Focus
+        items={list}
+        at={tcKey}
+        go={(k) => href.testCase(k, q)}
+        actions={
+          <a className="btn btn-primary" href={href.runner(tcKey, list.slice(list.indexOf(tcKey)))}>
+            ▶ {t('tc.runManually')}
+          </a>
+        }
+      >
+        <TestCaseView tcKey={tcKey} />
+      </Focus>
+    </>
+  );
+}
+
+function Tree({ tree, filter }: { tree: SpecTree; filter: Filter }) {
   const { t, locale } = useI18n();
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const setFilter = (f: Filter) => navigate(href.tests(f === 'open' ? { f } : undefined));
+  const first = testOrder(tree, filter)[0];
   const needle = q.trim().toLowerCase();
   const ucs = tree.features.flatMap((f) => f.useCases);
   const acs = ucs.flatMap((u) => u.criteria);
@@ -36,7 +86,7 @@ function Tree({ tree }: { tree: SpecTree }) {
             ...u.criteria.flatMap((c) => [
               c.key,
               txt(c, 'text', locale),
-              ...c.testCases.flatMap((x) => [x.key, x.title]),
+              ...c.testCases.flatMap((x) => [x.key, x.title, txt(x, 'title', locale)]),
             ]),
           ),
       ),
@@ -57,6 +107,11 @@ function Tree({ tree }: { tree: SpecTree }) {
           </p>
         </div>
         <div className="filters">
+          <ViewSwitch
+            view="list"
+            list={href.tests(filter === 'open' ? { f: 'open' } : undefined)}
+            focus={first ? href.testCase(first, filter === 'open' ? { f: 'open' } : undefined) : undefined}
+          />
           <label>
             <span className="sr">{t('specs.search')}</span>
             <input
@@ -111,9 +166,14 @@ function Tree({ tree }: { tree: SpecTree }) {
                     <div className="tc-chips">
                       {c.testCases.length === 0 && <span className="muted">{t('specs.noTests')}</span>}
                       {c.testCases.map((x) => (
-                        <a key={x.key} className={`tc-chip s-${x.status}`} href={href.testCase(x.key)}>
+                        <a
+                          key={x.key}
+                          className={`tc-chip s-${x.status}`}
+                          href={href.testCase(x.key, filter === 'open' ? { f: 'open' } : undefined)}
+                        >
                           <Icon status={x.status} />
-                          <span className="key">{x.key}</span> {x.title} <Chip>{x.mode}</Chip>
+                          <span className="key">{x.key}</span> <Tx of={x} field="title" />{' '}
+                          <Chip>{x.mode}</Chip>
                           <span className="sr">{t(`status.${x.status}`)}</span>
                         </a>
                       ))}

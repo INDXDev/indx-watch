@@ -170,6 +170,15 @@ method = "public"
 method = "POST"
 url = "/__test/seed"
 secret_ref = "env:SHOP_SEED_TOKEN"
+
+[i18n.ja]
+title = "ステージング"
+guide = """
+任意のブラウザでベース URL を開きます。VPN は不要です。
+手順で求められたら FX-3 のアカウントでサインインします。
+"""
+status = "machine"
+source_hash = "ca1b5aa0a961"
 ```
 
 - `name` matches `^[a-z0-9][a-z0-9-]*$` and the file name.
@@ -187,10 +196,16 @@ title = "Coupons and sign-in"
 state = "testing"
 target_date = 2026-12-01
 refs = ["v1.2.0", "release/1.2"]
+
+[i18n.ja]
+title = "クーポンとサインイン"
+status = "machine"
+source_hash = "12a2e2d62f5e"
 ```
 
 - `state`: `planning`, `testing`, `ready`, `released`.
 - `refs`: git tags or branches whose builds belong to this release.
+- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](i18n.md#content-translations)).
 - `plan`: optional plan key. When set, the readiness gate counts only the test cases in that plan, so a release does not need fresh results for features it did not touch.
 - A run's release is resolved in this order: explicit `--release` / `IW_RELEASE` → a release whose `refs` contains the build's tag or branch → `project.current_release`, but only when the build's branch is `default_branch` or the run is not in CI. Otherwise the run has no release and a warning is printed: results from unmerged branches do not count towards a release.
 
@@ -229,6 +244,11 @@ links = ["https://github.com/INDXDev/indx-watch/issues/2"]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y22"
 key = "AC-2.1"
 text = "A valid coupon reduces the order total by its discount."
+
+[criteria.i18n.ja]
+text = "有効なクーポンを使うと、注文合計が割引額だけ下がる。"
+status = "machine"
+source_hash = "61de09adc3af"
 
 [[criteria]]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y23"
@@ -279,15 +299,33 @@ instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then p
 expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
+expected = "割引行に「-4.00」と表示され、合計が「36.00」になる。"
+status = "machine"
+source_hash = "2419bce9941f"
+
 [[steps]]
 instruction = "Press \"Place order\"."
 expected = "The confirmation page shows an order number."
+
+[steps.i18n.ja]
+instruction = "「Place order」を押す。"
+expected = "確認ページに注文番号が表示される。"
+status = "machine"
+source_hash = "f52f16d20298"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/coupon.spec.ts"]
+
+[i18n.ja]
+title = "有効なクーポンで合計が下がる"
+preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+status = "machine"
+source_hash = "21a0e3b40174"
 ```
 
 | Field | Required | Notes |
@@ -320,6 +358,11 @@ status = "ready"
 kind = "dataset"
 files = ["coupons.csv"]
 row_key = "code"
+
+[i18n.ja]
+title = "クーポンコード"
+status = "machine"
+source_hash = "1faf026eaabe"
 ```
 
 ```csv
@@ -347,6 +390,11 @@ kind = "account"
 [account]
 username = "casey@shop.test"
 secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
+
+[i18n.ja]
+title = "ステージングの顧客アカウント"
+status = "machine"
+source_hash = "dda545a9a99b"
 ```
 
 **Large files** become pointer files. A file listed as `review-photo.png` may be stored as `review-photo.png.blob.toml`:
@@ -403,8 +451,14 @@ assignee = "ci"
 [[items]]
 test_case = "TC-7"
 assignee = "ci"
+
+[i18n.ja]
+title = "v1.2.0 リグレッション"
+status = "machine"
+source_hash = "862ca86fb166"
 ```
 
+- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](i18n.md#content-translations)).
 - `assignee`: an email, `ci`, or `agent:<name>`.
 - An item may override `environment` and `due`. Item status is computed ([concepts](concepts.md#plan-item-computed)).
 

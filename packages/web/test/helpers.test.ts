@@ -1,10 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { SpecTree } from '../src/api';
 import { api, query, reportPath, safeName, setTransport } from '../src/api';
-import { parseRoute } from '../src/router';
+import { pick } from '../src/i18n';
+import { href, parseRoute } from '../src/router';
+import { queue } from '../src/screens/Home';
 import { ciLinks } from '../src/screens/Run';
 import { needsReason, suggestVerdict } from '../src/screens/Runner';
 import { placeholderValues } from '../src/screens/TestCase';
+import { testOrder } from '../src/screens/Tests';
+import { cliCommands } from '../src/shell';
+import { avatarOf, neighbours } from '../src/ui';
+import { plan } from '../src/upload';
 
 describe('design tokens', () => {
   it('the web UI and docs/design use the same tokens and component styles', () => {
@@ -15,22 +22,148 @@ describe('design tokens', () => {
 });
 
 describe('parseRoute()', () => {
-  it('parses every screen', () => {
-    expect(parseRoute('')).toEqual({ name: 'dashboard' });
-    expect(parseRoute('#/')).toEqual({ name: 'dashboard' });
-    expect(parseRoute('#/specs')).toEqual({ name: 'specs' });
-    expect(parseRoute('#/tc/TC-4')).toEqual({ name: 'testCase', key: 'TC-4' });
-    expect(parseRoute('#/tc/TC-4/run/')).toEqual({ name: 'runner', key: 'TC-4' });
+  it('parses every screen and the query', () => {
+    const q = {};
+    expect(parseRoute('')).toEqual({ name: 'home', query: q });
+    expect(parseRoute('#/')).toEqual({ name: 'home', query: q });
+    expect(parseRoute('#/specs')).toEqual({ name: 'tests', query: q });
+    expect(parseRoute('#/tests?f=open')).toEqual({ name: 'tests', query: { f: 'open' } });
+    expect(parseRoute('#/tc/TC-4')).toEqual({ name: 'testCase', key: 'TC-4', query: q });
+    expect(parseRoute('#/tc/TC-4/run/?session=TC-4,TC-6')).toEqual({
+      name: 'runner',
+      key: 'TC-4',
+      query: { session: 'TC-4,TC-6' },
+    });
     expect(parseRoute('#/runs/run_01JFB2Q8M5X2V7K9D4R6T1W004')).toEqual({
       name: 'run',
       id: 'run_01JFB2Q8M5X2V7K9D4R6T1W004',
+      query: q,
     });
-    expect(parseRoute('#/fixtures')).toEqual({ name: 'fixtures', key: undefined });
-    expect(parseRoute('#/fixtures/FX-1?x=1')).toEqual({ name: 'fixtures', key: 'FX-1' });
-    expect(parseRoute('#/report')).toEqual({ name: 'report' });
+    expect(parseRoute('#/fixtures')).toEqual({ name: 'fixtures', key: undefined, query: q });
+    expect(parseRoute('#/fixtures/FX-1?x=1')).toEqual({ name: 'fixtures', key: 'FX-1', query: { x: '1' } });
+    expect(parseRoute('#/activity')).toEqual({ name: 'activity', query: q });
+    expect(parseRoute('#/uploads')).toEqual({ name: 'uploads', query: q });
+    expect(parseRoute('#/report')).toEqual({ name: 'report', query: q });
   });
   it('reports unknown paths', () => {
-    expect(parseRoute('#/tc/UC-2')).toEqual({ name: 'notFound', path: '/tc/UC-2' });
+    expect(parseRoute('#/tc/UC-2')).toEqual({ name: 'notFound', path: '/tc/UC-2', query: {} });
+  });
+  it('builds links with a session and filters', () => {
+    expect(href.runner('TC-6', ['TC-6', 'TC-8'])).toBe('#/tc/TC-6/run?session=TC-6%2CTC-8');
+    expect(href.runner('TC-6', ['TC-6'])).toBe('#/tc/TC-6/run');
+    expect(href.testCase('TC-3', { f: 'open' })).toBe('#/tc/TC-3?f=open');
+  });
+});
+
+describe('List and Focus', () => {
+  const tc = (key: string, status: string) => ({
+    key,
+    title: key,
+    mode: 'manual',
+    status,
+    lifecycle: 'ready',
+  });
+  const tree = {
+    scope: {},
+    features: [
+      {
+        key: 'FEAT-1',
+        title: 'f',
+        useCases: [
+          {
+            key: 'UC-1',
+            title: 'u',
+            priority: 'P0',
+            status: 'fail',
+            done: false,
+            criteria: [
+              {
+                key: 'AC-1.1',
+                text: 'a',
+                status: 'pass',
+                testCases: [tc('TC-1', 'pass'), tc('TC-2', 'fail')],
+              },
+              {
+                key: 'AC-1.2',
+                text: 'b',
+                status: 'fail',
+                testCases: [tc('TC-2', 'fail'), tc('TC-3', 'untested')],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  } as unknown as SpecTree;
+  it('orders test cases like the tree, each once; f=open keeps the open ones', () => {
+    expect(testOrder(tree)).toEqual(['TC-1', 'TC-2', 'TC-3']);
+    expect(testOrder(tree, 'open')).toEqual(['TC-2', 'TC-3']);
+  });
+  it('finds neighbours', () => {
+    expect(neighbours(['a', 'b', 'c'], 'b')).toEqual({ index: 1, prev: 'a', next: 'c' });
+    expect(neighbours(['a'], 'a')).toEqual({ index: 0, prev: undefined, next: undefined });
+    expect(neighbours(['a'], 'x').index).toBe(-1);
+  });
+  it('queues your items first, then unassigned, by priority and status', () => {
+    const status = {
+      testCases: ['TC-1:pass', 'TC-2:fail', 'TC-3:untested', 'TC-4:untested', 'TC-5:needs_review'].map(
+        (s) => {
+          const [key, st] = s.split(':');
+          return { key, status: st } as never;
+        },
+      ),
+    };
+    const prio = new Map([
+      ['TC-2', 'P1'],
+      ['TC-3', 'P0'],
+      ['TC-4', 'P0'],
+      ['TC-5', 'P0'],
+    ]);
+    const plan = {
+      key: 'PLAN-1',
+      title: 'p',
+      items: [
+        { test_case: 'TC-4', assignee: 'alex@shop.test' },
+        { test_case: 'TC-5', assignee: 'sam@shop.test' },
+      ],
+    };
+    expect(queue(status, prio, plan, 'alex@shop.test')).toEqual(['TC-4', 'TC-3', 'TC-2', 'TC-5']);
+  });
+});
+
+describe('people, uploads and the CLI panel', () => {
+  it('derives initials and a stable hue', () => {
+    expect(avatarOf({ kind: 'human', id: 'alex@shop.test', name: 'Alex Kim', via: 'git' }).initials).toBe(
+      'AK',
+    );
+    expect(avatarOf({ kind: 'human', id: 'sam@shop.test', via: 'browser' }).initials).toBe('SA');
+    const a = avatarOf({ kind: 'ci', id: 'github:octocat', via: 'github' });
+    expect(a).toEqual(avatarOf({ kind: 'ci', id: 'github:octocat', via: 'github' }));
+  });
+  it('treats a folder with project.toml as a whole bundle', () => {
+    expect(plan(['.indx-watch/project.toml', '.indx-watch/specs/a.toml'])).toEqual({
+      replace: true,
+      root: '.indx-watch/',
+    });
+    expect(plan(['project.toml'])).toEqual({ replace: true, root: '' });
+    expect(plan(['TC-3.toml'])).toEqual({ replace: false, root: '' });
+  });
+  it('shows clone with this server URL, and test commands on a test case', () => {
+    const info = { share: { clone: 'https://watch.shop.test' } } as never;
+    const cmds = cliCommands(info, { name: 'testCase', key: 'TC-3', query: {} }, 'v1.2.0').map((c) => c.cmd);
+    expect(cmds[0]).toBe('npx indx-watch clone https://watch.shop.test');
+    expect(cmds).toContain('IW_REPORTER=1 npx playwright test --grep @TC-3');
+    const local = cliCommands({ share: { clone: null } } as never, { name: 'home', query: {} }, 'v1.2.0');
+    expect(local.map((c) => c.key)).toEqual(['cloneGit', 'push', 'report', 'sync', 'serve']);
+  });
+  it('flags machine translations', () => {
+    const e = { title: 'Valid coupon', i18n: { ja: { title: '有効なクーポン', status: 'machine' } } };
+    expect(pick(e, 'title', 'ja')).toEqual({
+      text: '有効なクーポン',
+      translated: true,
+      outdated: false,
+      machine: true,
+    });
   });
 });
 

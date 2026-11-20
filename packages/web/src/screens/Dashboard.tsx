@@ -1,10 +1,10 @@
-/** Release readiness: gate verdict and checks, counts, coverage, open items, P0/P1 use cases and the plan. */
+/** Release details on Home: gate checks, counts, coverage, P0/P1 use cases and the plan (docs/spec/web.md#home). */
 import { useState } from 'react';
 import { useApp } from '../App';
-import { api, type PlanView, type SpecTree, type StatusResult } from '../api';
+import type { PlanView, SpecTree, StatusResult } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, Icon, Load, Priority, Section, Tx, useApi } from '../ui';
+import { Badge, Chip, Icon, Priority, Section, Tx, txt } from '../ui';
 
 const COUNT_KEYS = [
   'pass',
@@ -16,19 +16,8 @@ const COUNT_KEYS = [
   'waived',
   'uncovered',
 ] as const;
-const OPEN = new Set(['fail', 'needs_review', 'stale', 'blocked', 'untested']);
 
-export function Dashboard() {
-  const { scope } = useApp();
-  const status = useApi(() => api.status(scope), [scope.release, scope.env]);
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
-  const plans = useApi(api.plans, []);
-  return (
-    <Load state={status}>{(s) => <Readiness status={s} specs={specs.data} plans={plans.data ?? []} />}</Load>
-  );
-}
-
-function Readiness({
+export function ReleaseDetails({
   status,
   specs,
   plans,
@@ -37,88 +26,19 @@ function Readiness({
   specs?: SpecTree | undefined;
   plans: PlanView[];
 }) {
-  const { t } = useI18n();
-  const { project, scope } = useApp();
+  const { t, locale } = useI18n();
+  const { scope } = useApp();
   const [all, setAll] = useState(false);
-  const release = project.releases.find((r) => r.version === scope.release);
-  const env = project.environments.find((e) => e.name === scope.env);
-  const failing = status.gate.checks.filter((c) => !c.passed);
-  // nothing gated (no P0/P1 test case in scope): neutral, not "ready" (docs/spec/concepts.md#gate)
-  const ungated = failing.some((c) => c.key === 'has_gated_tests');
-  const tone = ungated ? 'untested' : status.gate.passed ? 'pass' : 'fail';
   const titles = new Map<string, string>();
   for (const f of specs?.features ?? [])
     for (const uc of f.useCases)
-      for (const ac of uc.criteria) for (const tc of ac.testCases) titles.set(tc.key, tc.title);
-  const tcStatus = new Map(status.testCases.map((x) => [x.key, x]));
-  const open = [...new Set(failing.flatMap((c) => c.items ?? []))]
-    .map((k) => tcStatus.get(k))
-    .filter((x): x is NonNullable<typeof x> => x !== undefined && OPEN.has(x.status));
-  const next = open[0];
+      for (const ac of uc.criteria)
+        for (const tc of ac.testCases) titles.set(tc.key, txt(tc, 'title', locale));
   const useCases = status.useCases.filter((u) => all || u.priority === 'P0' || u.priority === 'P1');
   const plan = plans.find((p) => p.release === scope.release);
-  const action = (key: string, st: string, run?: string) =>
-    run && (st === 'fail' || st === 'needs_review') ? (
-      <a className="btn btn-sm" href={href.run(run)}>
-        {t(st === 'fail' ? 'dash.action.inspect' : 'dash.action.review')}
-      </a>
-    ) : (
-      <a className="btn btn-sm" href={href.runner(key)}>
-        {t('dash.action.run')}
-      </a>
-    );
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">{t('dash.eyebrow')}</p>
-          <h1>
-            {scope.release ?? t('scope.noRelease')}{' '}
-            {release?.title && <span className="muted">{release.title}</span>}
-          </h1>
-          <p className="muted">
-            {release && <Chip>{release.state}</Chip>}{' '}
-            <strong>{t('dash.scope', { env: env ? env.title : t('scope.allEnvironments') })}</strong> ·{' '}
-            {t('dash.coverage', { covered: status.coverage.covered, total: status.coverage.total })}
-          </p>
-        </div>
-        <a className="btn" href={href.report()}>
-          {t('dash.openReport')}
-        </a>
-      </div>
-
-      <div className={`verdict s-${tone}`} role="status">
-        <Icon status={tone} />
-        <div>
-          <strong>
-            {ungated
-              ? t('dash.ungated')
-              : status.gate.passed
-                ? t('dash.ready')
-                : t('dash.notReady', { failed: failing.length, total: status.gate.checks.length })}
-          </strong>
-          {ungated && <p>{t('dash.ungated.detail')}</p>}
-          {next ? (
-            <p>
-              {t('dash.next')}{' '}
-              <a
-                href={
-                  next.latestRun && next.status !== 'stale' ? href.run(next.latestRun) : href.runner(next.key)
-                }
-              >
-                {t(`dash.next.${next.status}` as MsgKey, {
-                  key: next.key,
-                  title: titles.get(next.key) ?? '',
-                })}
-              </a>
-            </p>
-          ) : (
-            status.gate.passed && <p>{t('dash.next.share')}</p>
-          )}
-        </div>
-      </div>
-
       <div className="grid-2">
         <Section title={t('dash.gate')} id="gate">
           <div className="table-wrap">
@@ -179,23 +99,6 @@ function Readiness({
           </div>
         </Section>
       </div>
-
-      {open.length > 0 && (
-        <Section title={t('dash.open', { count: open.length })} id="open">
-          <ul className="list">
-            {open.map((x) => (
-              <li key={x.key}>
-                <Badge status={x.status} />
-                <a href={href.testCase(x.key)} className="key">
-                  {x.key}
-                </a>
-                <span className="grow">{titles.get(x.key)}</span>
-                {action(x.key, x.status, x.latestRun)}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
 
       <Section
         title={t(all ? 'dash.useCasesAll' : 'dash.useCases')}
@@ -274,14 +177,14 @@ function Readiness({
 }
 
 function PlanPanel({ plan, titles }: { plan: PlanView; titles: Map<string, string> }) {
-  const { t, day } = useI18n();
+  const { t, day, locale } = useI18n();
   const { project } = useApp();
   const me = project.identity.id;
   return (
     <Section
       title={
         <>
-          <span className="key">{plan.key}</span> {plan.title}
+          <span className="key">{plan.key}</span> {txt(plan, 'title', locale)}
         </>
       }
       id="plan"

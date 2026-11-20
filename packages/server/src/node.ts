@@ -12,7 +12,7 @@ import { nodeFs } from '@indx-watch/bundle/node';
 import { buildModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
-import { type SyncResult, watch as syncWatch } from '@indx-watch/sync';
+import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { createApp, type ServerDeps } from './app.js';
 import type { ProjectInfo } from './contract.js';
@@ -180,6 +180,15 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     assets: staticAssets(webRoot),
     context: SN.processContext({ cwd: dir }),
     readFile: (path) => fs.read(path),
+    declaredIdentity: !opts.identityHeader,
+    bundleFiles: () => definitionFiles(fs),
+    // local uploads are file edits: review and commit them with git (docs/spec/web.md#upload)
+    async publishBundle(files, { changed, removed }) {
+      for (const path of changed) await fs.write(path, files.get(path)!);
+      for (const path of removed) await fs.remove(path);
+      invalidate();
+      return undefined;
+    },
   };
   const app = createApp(deps);
 

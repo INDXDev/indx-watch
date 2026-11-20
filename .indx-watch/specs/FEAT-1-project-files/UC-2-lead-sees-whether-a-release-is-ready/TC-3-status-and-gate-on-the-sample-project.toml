@@ -12,12 +12,29 @@ mode = "playwright"
 instruction = "Copy examples/shop and run \"iw status --release v1.2.0 --json\"."
 expected = "The output lists UC-1 to UC-5 and the gate checks."
 
+[steps.i18n.ja]
+instruction = "examples/shop をコピーして「iw status --release v1.2.0 --json」を実行する。"
+expected = "出力に UC-1 から UC-5 と判定項目が並ぶ。"
+status = "machine"
+source_hash = "c79547f5290d"
+
 [[steps]]
 instruction = "Run \"iw status --release v1.2.0 --gate\"."
 expected = "The command exits 1 because P0 test cases are untested."
+
+[steps.i18n.ja]
+instruction = "「iw status --release v1.2.0 --gate」を実行する。"
+expected = "P0 のテストケースが未実施なので、コマンドは 1 で終わる。"
+status = "machine"
+source_hash = "deced2d2bf2b"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "サンプルプロジェクトの状態と判定"
+status = "machine"
+source_hash = "89ee9ad968d4"

@@ -36,5 +36,6 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 
 [i18n.ja]
 title = "期限切れのクーポンは使えない"
-status = "reviewed"
+preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+status = "machine"
 source_hash = "1842223e763f"

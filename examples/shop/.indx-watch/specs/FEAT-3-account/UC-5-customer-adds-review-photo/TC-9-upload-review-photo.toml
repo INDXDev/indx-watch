@@ -19,13 +19,30 @@ ref = "FX-4"
 instruction = "Sign in with {{FX-3.username}} and open \"Canvas Tote\"."
 expected = "The product page shows a \"Write a review\" form."
 
+[steps.i18n.ja]
+instruction = "{{FX-3.username}} でサインインし、「Canvas Tote」を開く。"
+expected = "商品ページに「Write a review」フォームが表示される。"
+status = "machine"
+source_hash = "aaa8dcc77464"
+
 [[steps]]
 instruction = "Attach the file from FX-4 and press \"Post review\"."
 expected = "The review appears with a thumbnail of the photo."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "FX-4 のファイルを添付して「Post review」を押す。"
+expected = "写真のサムネイルつきでレビューが表示される。"
+status = "machine"
+source_hash = "5021d7a7b95c"
+
 [[judges]]
 kind = "human"
+
+[i18n.ja]
+title = "アップロードしたレビュー写真がサムネイルで表示される"
+status = "machine"
+source_hash = "efaab31b731c"
 
 [ai]
 model = "claude-opus-5-5"

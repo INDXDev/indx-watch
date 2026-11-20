@@ -13,7 +13,24 @@ id = "ac_01M7TF47C93XHJEW104AH9EQVX"
 key = "AC-6.1"
 text = "Running \"iw report --format html\" writes one self-contained file."
 
+[criteria.i18n.ja]
+text = "「iw report --format html」を実行すると、自己完結した 1 つのファイルができる。"
+status = "machine"
+source_hash = "5273ab6df185"
+
 [[criteria]]
 id = "ac_01M7TF47C93XHJEW104AH9EQVY"
 key = "AC-6.2"
 text = "A report with \"--audience customer\" contains no email addresses."
+
+[criteria.i18n.ja]
+text = "「--audience customer」のレポートにはメールアドレスが含まれない。"
+status = "machine"
+source_hash = "0a7e8d6bd3f1"
+
+[i18n.ja]
+title = "関係者がリリースレポートを読む"
+actor = "顧客"
+goal = "社内ツールを使わずに準備状況と証拠を理解する。"
+status = "machine"
+source_hash = "bb923894719e"

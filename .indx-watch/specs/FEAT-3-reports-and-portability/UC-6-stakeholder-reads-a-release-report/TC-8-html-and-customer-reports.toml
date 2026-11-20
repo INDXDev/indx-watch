@@ -12,12 +12,29 @@ mode = "playwright"
 instruction = "Run \"iw report --release v1.2.0 --format html\" on examples/shop."
 expected = "One HTML file is written and opens with the network disabled."
 
+[steps.i18n.ja]
+instruction = "examples/shop で「iw report --release v1.2.0 --format html」を実行する。"
+expected = "HTML ファイルが 1 つ書き出され、ネットワークを切っても開ける。"
+status = "machine"
+source_hash = "14b098f7fe7e"
+
 [[steps]]
 instruction = "Run it again with \"--audience customer --format md\"."
 expected = "The output contains no email address."
+
+[steps.i18n.ja]
+instruction = "「--audience customer --format md」でもう一度実行する。"
+expected = "出力にメールアドレスが含まれない。"
+status = "machine"
+source_hash = "c9049195db0a"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "HTML と顧客向けのレポート"
+status = "machine"
+source_hash = "9cb3c27892e9"

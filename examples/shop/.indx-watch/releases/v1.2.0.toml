@@ -6,3 +6,8 @@ title = "Coupons and sign-in"
 state = "testing"
 target_date = 2026-12-01
 refs = ["v1.2.0", "release/1.2"]
+
+[i18n.ja]
+title = "クーポンとサインイン"
+status = "machine"
+source_hash = "12a2e2d62f5e"

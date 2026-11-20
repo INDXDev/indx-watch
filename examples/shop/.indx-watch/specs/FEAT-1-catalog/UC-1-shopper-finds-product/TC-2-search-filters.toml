@@ -17,8 +17,19 @@ instruction = "Type \"mug\" in the search box."
 expected = "Only \"Enamel Mug\" is listed."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "検索ボックスに「mug」と入力する。"
+expected = "「Enamel Mug」だけが表示される。"
+status = "machine"
+source_hash = "7c56359e415c"
+
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/catalog.spec.ts"]
+
+[i18n.ja]
+title = "名前で商品を絞り込める"
+status = "machine"
+source_hash = "4b3bfd21986d"

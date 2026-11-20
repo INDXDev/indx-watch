@@ -36,6 +36,40 @@
       "type": "string",
       "pattern": "^PLAN-[1-9][0-9]*$"
     },
+    "i18n": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ja"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "machine",
+              "reviewed"
+            ]
+          },
+          "source_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "status",
+          "source_hash"
+        ],
+        "additionalProperties": false
+      }
+    },
     "notes": {
       "type": "string"
     },

@@ -13,12 +13,34 @@ id = "ac_01M7TF47A9YGB8N75ZMHCWCW15"
 key = "AC-1.1"
 text = "Running \"iw init\" creates a bundle that passes \"iw check\"."
 
+[criteria.i18n.ja]
+text = "「iw init」を実行すると、「iw check」を通るバンドルができる。"
+status = "machine"
+source_hash = "6e96378c3ef7"
+
 [[criteria]]
 id = "ac_01M7TF47A9YGB8N75ZMHCWCW16"
 key = "AC-1.2"
 text = "Running \"iw new uc\" and \"iw new tc\" creates files that pass \"iw check\"."
 
+[criteria.i18n.ja]
+text = "「iw new uc」と「iw new tc」を実行すると、「iw check」を通るファイルができる。"
+status = "machine"
+source_hash = "e1f86734c86c"
+
 [[criteria]]
 id = "ac_01M7TF47A9YGB8N75ZMHCWCW17"
 key = "AC-1.3"
 text = "Running \"iw check\" on an invalid bundle names each invalid file and exits with code 1."
+
+[criteria.i18n.ja]
+text = "不正なバンドルで「iw check」を実行すると、不正なファイルをそれぞれ示して終了コード 1 で終わる。"
+status = "machine"
+source_hash = "9bce9530aa8b"
+
+[i18n.ja]
+title = "開発者がプロジェクトを始めてテストケースを書く"
+actor = "開発者"
+goal = "テスト内容をコードの隣のファイルとして書く。"
+status = "machine"
+source_hash = "f546891fc023"

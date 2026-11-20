@@ -37,30 +37,30 @@ _テストレポート · 顧客向け_
 
 | テストケース | 環境 | 期限 | 状態 |
 | --- | --- | --- | --- |
-| TC-6 Confirmation page is readable on a phone _(en)_ | staging | 2026-11-26 | ? 要確認 |
+| TC-6 確認ページがスマートフォンで読める | staging | 2026-11-26 | ? 要確認 |
 | TC-8 誤ったパスワードではサインインできない | staging | 2026-11-28 | ? 要確認 |
 
 ### agent:claude
 
 | テストケース | 環境 | 期限 | 状態 |
 | --- | --- | --- | --- |
-| TC-9 Uploaded review photo appears as a thumbnail _(en)_ | staging | 2026-11-28 | ○ 未着手 |
+| TC-9 アップロードしたレビュー写真がサムネイルで表示される | staging | 2026-11-28 | ○ 未着手 |
 
 ### ci
 
 | テストケース | 環境 | 期限 | 状態 |
 | --- | --- | --- | --- |
-| TC-3 Valid coupon reduces the total _(en)_ | staging | 2026-11-28 | ✓ 完了 |
+| TC-3 有効なクーポンで合計が下がる | staging | 2026-11-28 | ✓ 完了 |
 | TC-4 期限切れのクーポンは使えない | staging | 2026-11-28 | ✓ 完了 |
-| TC-5 Placing an order shows a confirmation and empties the cart _(en)_ | staging | 2026-11-28 | ✓ 完了 |
-| TC-7 Sign in with valid credentials _(en)_ | staging | 2026-11-28 | ✓ 完了 |
+| TC-5 注文すると確認が表示され、カートが空になる | staging | 2026-11-28 | ✓ 完了 |
+| TC-7 正しい認証情報でサインインできる | staging | 2026-11-28 | ✓ 完了 |
 
 ## 不合格と未解決の項目
 
 | テストケース | 優先度 | 状態 | 実行 | ステップ | 証拠 |
 | --- | --- | --- | --- | ---: | --- |
 | TC-4 期限切れのクーポンは使えない | P0 | ✕ 不合格 | `run_01JF7Z3K…0007` | 1 | `sha256:8760bc67a01b` |
-| TC-6 Confirmation page is readable on a phone _(en)_ | P0 | ? 確認待ち | `run_01JF7Z3K…0011` | — | `sha256:8760bc67a01b` |
+| TC-6 確認ページがスマートフォンで読める | P0 | ? 確認待ち | `run_01JF7Z3K…0011` | — | `sha256:8760bc67a01b` |
 | TC-8 誤ったパスワードではサインインできない | P0 | ↻ 古い結果 | `run_01JF7Z3K…0015` | — | — |
 
 ## 許容した不合格

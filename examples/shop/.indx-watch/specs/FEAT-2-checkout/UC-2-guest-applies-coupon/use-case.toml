@@ -14,6 +14,11 @@ id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y22"
 key = "AC-2.1"
 text = "A valid coupon reduces the order total by its discount."
 
+[criteria.i18n.ja]
+text = "有効なクーポンを使うと、注文合計が割引額だけ下がる。"
+status = "machine"
+source_hash = "61de09adc3af"
+
 [[criteria]]
 id = "ac_01JF3Q8M5X2V7K9D4R6T1W0Y23"
 key = "AC-2.2"

@@ -50,6 +50,7 @@ You turn a use case (or a PRD, issue or diff) into acceptance criteria (ACs) and
 
 - **ACs are observable and binary**: one outcome a tester can see, with the exact on-screen text in double quotes. Good: `An expired coupon shows "This coupon has expired" and the total does not change.` Bad: `Coupons work correctly.`
 - **One step = one action + one observable result.** `instruction` says what to do, `expected` what must be visible. No selectors, no code.
+- **Both languages.** When `project.locales` has a second language, translate what you wrote with `iw translate <ref> --locale ja --set title=… --set steps.1.instruction=…` (it stamps `source_hash`; `iw translate --missing --locale ja` lists what is left). Agent translations are `machine`; a person marks them reviewed.
 - **Literal strings stay literal.** Copy labels and messages exactly as the app shows them (check the code or a screenshot). Never translate or paraphrase quoted text.
 - **Data through fixtures**: `{{FX-1.code}}` inserts a column of the selected row; `{{env.base_url}}` an environment field. Never put passwords in steps; say "the account password" and reference an `account` fixture.
 - **Mode**: `playwright` when an automated test exists or you write one (tag it `@TC-n`, list it in `automation.files`); `manual` otherwise. `agent` and `hybrid` are for later releases of INDX Watch.

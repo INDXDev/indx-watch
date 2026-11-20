@@ -4,6 +4,7 @@
 import {
   type AnyRecord,
   type Bundle,
+  type BundleRecord,
   DECISION_POLICY_DEFAULTS,
   type DeploymentRecord,
   type Judgement,
@@ -24,6 +25,8 @@ import type {
 } from './types.js';
 
 export const PRIORITY_RANK: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+/** Snapshot order: by commit_time, then at, then id (docs/spec/sync.md#snapshots-from-people-v02). */
+const snapOrder = (r: BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 const KINDS = new Set(['run', 'judgement', 'waiver', 'deployment', 'bundle', 'file', 'retraction']);
 const keyNum = (k: string) => Number(/(\d+)(?:\.(\d+))?$/.exec(k)?.[1] ?? 0);
 export const byKey = (a: string, b: string) => keyNum(a) - keyNum(b) || (a < b ? -1 : a > b ? 1 : 0);
@@ -179,6 +182,7 @@ export function buildModel(
     runs,
     waivers: live('waiver') as WaiverRecord[],
     deployments: live('deployment') as DeploymentRecord[],
+    snapshots: (live('bundle') as BundleRecord[]).sort((a, b) => (snapOrder(a) < snapOrder(b) ? 1 : -1)),
     keyOf(ref: string) {
       const bare = ref.startsWith(`${p.key}:`) ? ref.slice(p.key.length + 1) : ref;
       if (keys.has(bare)) return bare;

@@ -1,0 +1,254 @@
+/** Home: verdict hero, summary cards, your queue, recent activity, release details (docs/spec/web.md#home). */
+import type { ReactNode } from 'react';
+import { useApp } from '../App';
+import {
+  api,
+  type PlanView,
+  type RunSummary,
+  type SnapshotSummary,
+  type SpecTree,
+  type StatusResult,
+} from '../api';
+import { type MsgKey, useI18n } from '../i18n';
+import { href } from '../router';
+import { Badge, FeedItem, Icon, Load, Priority, txt, useAgo, useApi, Who } from '../ui';
+import { ReleaseDetails } from './Dashboard';
+
+export const OPEN = ['fail', 'needs_review', 'blocked', 'stale', 'untested'];
+const PRIO: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
+/**
+ * Open test cases in the order a tester should take them: assigned to you, unassigned, the rest;
+ * then by priority and status. Pure; tested.
+ */
+export function queue(
+  status: Pick<StatusResult, 'testCases'>,
+  prio: Map<string, string>,
+  plan: PlanView | undefined,
+  me: string,
+): string[] {
+  const assignee = new Map((plan?.items ?? []).map((i) => [i.test_case, i.assignee]));
+  const group = (k: string) => (assignee.get(k) === me ? 0 : assignee.get(k) ? 2 : 1);
+  return status.testCases
+    .filter((x) => OPEN.includes(x.status))
+    .sort(
+      (a, b) =>
+        group(a.key) - group(b.key) ||
+        (PRIO[prio.get(a.key) ?? 'P3'] ?? 3) - (PRIO[prio.get(b.key) ?? 'P3'] ?? 3) ||
+        OPEN.indexOf(a.status) - OPEN.indexOf(b.status) ||
+        a.key.localeCompare(b.key, undefined, { numeric: true }),
+    )
+    .map((x) => x.key);
+}
+
+export function Home() {
+  const { scope } = useApp();
+  const deps = [scope.release, scope.env];
+  const status = useApi(() => api.status(scope), deps);
+  const specs = useApi(() => api.specs(scope), deps);
+  const plans = useApi(api.plans, []);
+  const runs = useApi(() => api.runs({ release: scope.release, env: scope.env, limit: 6 }), deps);
+  return (
+    <Load state={status}>
+      {(s) => <Ready status={s} specs={specs.data} plans={plans.data ?? []} runs={runs.data ?? []} />}
+    </Load>
+  );
+}
+
+function Ready({
+  status,
+  specs,
+  plans,
+  runs,
+}: {
+  status: StatusResult;
+  specs?: SpecTree | undefined;
+  plans: PlanView[];
+  runs: RunSummary[];
+}) {
+  const { t, locale } = useI18n();
+  const { project, scope } = useApp();
+  const ago = useAgo();
+  const release = project.releases.find((r) => r.version === scope.release);
+  const failing = status.gate.checks.filter((c) => !c.passed);
+  const ungated = failing.some((c) => c.key === 'has_gated_tests');
+  const tone = ungated ? 'untested' : status.gate.passed ? 'pass' : 'fail';
+  const tcs = (specs?.features ?? []).flatMap((f) =>
+    f.useCases.flatMap((u) => u.criteria.flatMap((c) => c.testCases.map((tc) => ({ tc, prio: u.priority })))),
+  );
+  const title = new Map(tcs.map(({ tc }) => [tc.key, txt(tc, 'title', locale)]));
+  const prio = new Map(tcs.map(({ tc, prio }) => [tc.key, prio]));
+  const plan = plans.find((p) => p.release === scope.release);
+  const me = project.identity.id;
+  const todo = queue(status, prio, plan, me);
+  const byKey = new Map(status.testCases.map((x) => [x.key, x]));
+  const c = status.counts;
+  const total = status.testCases.length;
+  const passing = c.pass + c.waived;
+  const attention = c.fail + c.needs_review + c.blocked + c.stale;
+  const action = (key: string) => {
+    const x = byKey.get(key);
+    if (x?.latestRun && (x.status === 'fail' || x.status === 'needs_review'))
+      return {
+        to: href.run(x.latestRun),
+        label: t(x.status === 'fail' ? 'dash.action.inspect' : 'dash.action.review'),
+      };
+    return { to: href.runner(key, todo.slice(todo.indexOf(key))), label: t('dash.action.run') };
+  };
+  const snap = project.snapshot;
+  const activity: { at: string; node: ReactNode }[] = runs.slice(0, 5).map((r) => ({
+    at: r.at,
+    node: (
+      <FeedItem key={r.id} who={r.actor} at={r.at}>
+        {t(`home.did.${r.verdict}` as MsgKey)}{' '}
+        <a href={href.run(r.id)}>
+          <span className="key">{r.testCase}</span> {title.get(r.testCase)}
+        </a>
+      </FeedItem>
+    ),
+  }));
+  if (snap) activity.push({ at: snap.at, node: <UploadRow key={snap.id} s={snap} /> });
+  activity.sort((a, b) => (a.at < b.at ? 1 : -1));
+
+  return (
+    <div className="home">
+      <section className={`hero hero-${tone}`} aria-labelledby="hero-h">
+        <div className="hero-text">
+          <p className="eyebrow">{t('dash.eyebrow')}</p>
+          <h1 id="hero-h">
+            {scope.release ?? t('scope.noRelease')}{' '}
+            {release?.title && <span className="muted">{txt(release, 'title', locale)}</span>}
+          </h1>
+          <p className="hero-verdict" role="status">
+            <Icon status={tone} />{' '}
+            {ungated
+              ? t('dash.ungated')
+              : status.gate.passed
+                ? t('dash.ready')
+                : t('dash.notReady', { failed: failing.length, total: status.gate.checks.length })}
+          </p>
+          <div className="progress" role="img" aria-label={t('home.progress', { passing, total })}>
+            <span style={{ width: `${total ? Math.round((passing / total) * 100) : 0}%` }} />
+          </div>
+          <p className="muted small">{t('home.progress', { passing, total })}</p>
+        </div>
+        <div className="hero-actions">
+          {todo.length > 0 ? (
+            <a className="btn btn-primary btn-lg" href={href.runner(todo[0]!, todo)}>
+              ▶ {t('home.start', { count: todo.length })}
+            </a>
+          ) : (
+            <a className="btn btn-primary btn-lg" href={href.report()}>
+              {t('home.share')}
+            </a>
+          )}
+          {todo.length > 0 && (
+            <a className="btn btn-lg" href={href.report()}>
+              {t('home.share')}
+            </a>
+          )}
+        </div>
+      </section>
+
+      <div className="cards">
+        <a className="stat" href={href.tests()}>
+          <span className="stat-label">{t('home.card.passing')}</span>
+          <span className="stat-n">
+            {passing}
+            <small> / {total}</small>
+          </span>
+        </a>
+        <a className={`stat${attention ? ' stat-warn' : ''}`} href={href.tests({ f: 'open' })}>
+          <span className="stat-label">{t('home.card.attention')}</span>
+          <span className="stat-n">{attention}</span>
+        </a>
+        <a className="stat" href={href.tests()}>
+          <span className="stat-label">{t('home.card.coverage')}</span>
+          <span className="stat-n">
+            {status.coverage.covered}
+            <small> / {status.coverage.total}</small>
+          </span>
+        </a>
+        <a className="stat" href={href.uploads()}>
+          <span className="stat-label">{t('home.card.upload')}</span>
+          {snap ? (
+            <span className="stat-who">
+              <Who who={snap.actor} /> <span className="muted small">{ago(snap.at)}</span>
+            </span>
+          ) : (
+            <span className="muted small">{t('home.card.noUpload')}</span>
+          )}
+        </a>
+      </div>
+
+      <div className="grid-2">
+        <section className="card" aria-labelledby="queue-h">
+          <header className="card-head">
+            <h2 id="queue-h">{t('home.queue')}</h2>
+            {todo.length > 5 && (
+              <a className="btn btn-sm btn-ghost" href={href.testCase(todo[0]!, { f: 'open' })}>
+                {t('home.seeAll', { count: todo.length })}
+              </a>
+            )}
+          </header>
+          {todo.length === 0 ? (
+            <p className="muted">{t('home.queue.empty')}</p>
+          ) : (
+            <ul className="list">
+              {todo.slice(0, 5).map((k) => {
+                const a = action(k);
+                const mine = plan?.items?.find((i) => i.test_case === k)?.assignee === me;
+                return (
+                  <li key={k} className="queue-item">
+                    <Badge status={byKey.get(k)!.status} />
+                    <a href={href.testCase(k, { f: 'open' })}>
+                      <span className="key">{k}</span> {title.get(k)}
+                    </a>
+                    <span className="queue-actions">
+                      {prio.get(k) && <Priority p={prio.get(k)!} />}
+                      {mine && <span className="chip chip-accent">{t('plan.you')}</span>}
+                      <a className="btn btn-sm" href={a.to}>
+                        {a.label}
+                      </a>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <section className="card" aria-labelledby="act-h">
+          <header className="card-head">
+            <h2 id="act-h">{t('home.activity')}</h2>
+            <a className="btn btn-sm btn-ghost" href={href.activity()}>
+              {t('home.seeActivity')}
+            </a>
+          </header>
+          {activity.length === 0 ? (
+            <p className="muted">{t('home.activity.empty')}</p>
+          ) : (
+            <ul className="list feed">{activity.slice(0, 5).map((a) => a.node)}</ul>
+          )}
+        </section>
+      </div>
+
+      <details className="details-card">
+        <summary>
+          <span>{t('home.details')}</span>
+          <span className="muted small">{t('home.detailsHint')}</span>
+        </summary>
+        <ReleaseDetails status={status} specs={specs} plans={plans} />
+      </details>
+    </div>
+  );
+}
+
+export function UploadRow({ s }: { s: SnapshotSummary }) {
+  const { t } = useI18n();
+  return (
+    <FeedItem who={s.actor} at={s.at}>
+      <a href={href.uploads()}>{t('home.uploaded', { count: s.files })}</a>
+      {s.message && <span className="muted"> — {s.message}</span>}
+    </FeedItem>
+  );
+}

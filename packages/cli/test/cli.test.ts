@@ -607,6 +607,49 @@ describe('commands', () => {
     expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // nothing leaves the machine
   });
 
+  it('push uploads a snapshot once; clone makes a working copy with results from it', () => {
+    const dir = shop();
+    iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']);
+    const push = iwJson(dir, 'push', ['push', '--message', 'first upload']);
+    expect(push.json.data).toMatchObject({ unchanged: false, url: null });
+    expect(push.json.data.snapshot).toMatch(/^rec_/);
+    expect(iwJson(dir, 'push', ['push']).json.data).toMatchObject({ unchanged: true, snapshot: null });
+    const source = `file://${join(dir, 'store')}`;
+    const parent = mkdtempSync(join(tmpdir(), 'iw-clone-'));
+    const clone = iwJson(parent, 'clone', ['clone', source]);
+    const target = join(parent, 'shop');
+    expect(clone.json.data).toMatchObject({ dir: target, snapshot: push.json.data.snapshot });
+    expect(clone.json.data.pulled.records).toBeGreaterThan(0);
+    expect(read(target, 'project.toml')).toContain(`url = "${source}"`);
+    expect(read(target, '.gitignore')).toBe('cache/\nruns/\n');
+    expect(iwJson(target, 'check', ['check']).code).toBe(0);
+    expect(iwJson(parent, 'clone', ['clone', source]).json.error.code).toBe('CONFLICT');
+    const empty = mkdtempSync(join(tmpdir(), 'iw-empty-store-'));
+    expect(iwJson(parent, 'clone', ['clone', `file://${empty}`, 'x']).code).toBe(4);
+  });
+
+  it('translate lists, writes with source_hash, refuses --reviewed for agents and stale leftovers', () => {
+    for (const d of [join(ROOT, 'examples/shop/.indx-watch'), join(ROOT, '.indx-watch')]) {
+      const missing = iwJson(ROOT, 'translate', ['translate', '--missing', '--locale', 'ja', '--dir', d]);
+      expect(missing.json.data.fields, d).toEqual([]); // docs/spec/i18n.md: the examples stay bilingual
+    }
+    const dir = shop();
+    const set = ['translate', 'TC-3', '--locale', 'ja', '--set', 'title=有効なクーポンで合計が安くなる'];
+    expect(iwJson(dir, 'translate', set).json.data).toMatchObject({ status: 'machine', written: ['title'] });
+    expect(read(dir, TC3)).toContain('title = "有効なクーポンで合計が安くなる"');
+    const problems = iwJson(dir, 'check', ['check']).json.data.problems as { code: string }[];
+    expect(problems.filter((x) => x.code.includes('translation') || x.code.includes('literal'))).toEqual([]);
+    const listed = iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja']).json.data.fields;
+    expect(listed.find((f: { path: string }) => f.path === 'title')).toMatchObject({ state: 'machine' });
+    const agent = iwJson(dir, 'translate', [...set, '--reviewed'], { env: { IW_ACTOR_KIND: 'agent' } });
+    expect(agent.code).toBe(2);
+    writeFileSync(join(dir, '.indx-watch', TC3), read(dir, TC3).replace('(price 40.00)', '(price 40)'));
+    const stale = iwJson(dir, 'translate', set);
+    expect(stale.json.error.message).toContain('preconditions');
+    expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'en']).code).toBe(2);
+    expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja', '--set', 'nope=x']).code).toBe(2);
+  });
+
   it('sync holds back unpushed records that fail the secret scan; pulled records never block', () => {
     const dir = shop();
     const key = `AKIA${'ABCDEFGHIJKLMNOP'}`;

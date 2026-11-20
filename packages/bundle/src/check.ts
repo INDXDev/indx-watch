@@ -293,6 +293,8 @@ async function semanticChecks(b: Bundle, deps: CheckDeps): Promise<Problem[]> {
   for (const x of b.features) await i18n(x.file, x.data, TF.feature);
   for (const x of b.environments) await i18n(x.file, x.data, TF.environment);
   for (const x of b.fixtures) await i18n(x.file, x.data, TF.fixture);
+  for (const x of b.releases) await i18n(x.file, x.data, TF.release);
+  for (const x of b.plans) await i18n(x.file, x.data, TF.plan);
   for (const x of b.useCases) {
     await i18n(x.file, x.data, TF['use-case']);
     for (const [i, c] of x.data.criteria.entries()) await i18n(x.file, c, TF.criterion, `criteria[${i}].`);

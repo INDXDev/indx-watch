@@ -17,12 +17,29 @@ instruction = "Add \"Enamel Mug\" to the cart, open the cart and press \"Place o
 expected = "The page shows \"Thank you for your order\" and an order number like \"SHOP-1001\"."
 evidence = ["screenshot"]
 
+[steps.i18n.ja]
+instruction = "「Enamel Mug」をカートに入れ、カートを開いて「Place order」を押す。"
+expected = "「Thank you for your order」と「SHOP-1001」のような注文番号が表示される。"
+status = "machine"
+source_hash = "3369b147343c"
+
 [[steps]]
 instruction = "Open the cart again."
 expected = "The cart shows \"Your cart is empty\"."
+
+[steps.i18n.ja]
+instruction = "もう一度カートを開く。"
+expected = "カートに「Your cart is empty」と表示される。"
+status = "machine"
+source_hash = "6b54c2e6ce2a"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["examples/shop/tests/checkout.spec.ts"]
+
+[i18n.ja]
+title = "注文すると確認が表示され、カートが空になる"
+status = "machine"
+source_hash = "3e1b33955389"

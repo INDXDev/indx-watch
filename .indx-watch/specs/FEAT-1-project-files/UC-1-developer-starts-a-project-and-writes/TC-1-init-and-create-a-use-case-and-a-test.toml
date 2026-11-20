@@ -12,12 +12,29 @@ mode = "playwright"
 instruction = "In an empty directory, run \"iw init demo\"."
 expected = "The command exits 0 and \"iw check\" passes."
 
+[steps.i18n.ja]
+instruction = "空のディレクトリで「iw init demo」を実行する。"
+expected = "コマンドは 0 で終わり、「iw check」が通る。"
+status = "machine"
+source_hash = "99b3310c8dba"
+
 [[steps]]
 instruction = "Run \"iw new uc\" with one acceptance criterion and \"iw new tc\" with one step, both with --ready."
 expected = "Both files exist and \"iw check --json\" reports 0 errors."
+
+[steps.i18n.ja]
+instruction = "完了条件 1 つで「iw new uc」を、手順 1 つで「iw new tc」を、どちらも --ready つきで実行する。"
+expected = "両方のファイルがあり、「iw check --json」のエラーが 0 件になる。"
+status = "machine"
+source_hash = "ef5bf229ac22"
 
 [[judges]]
 kind = "assert"
 
 [automation]
 files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "初期化してユースケースとテストケースを作る"
+status = "machine"
+source_hash = "db1d5ad1028f"

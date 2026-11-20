@@ -35,13 +35,20 @@ export function suggestVerdict(statuses: (StepStatus | undefined)[]): Verdict | 
 export const needsReason = (v: Verdict | undefined) => v !== undefined && v !== 'pass';
 const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 
-export function Runner({ tcKey }: { tcKey: string }) {
+const KEYS: Record<string, StepStatus> = { p: 'pass', f: 'fail', b: 'blocked', s: 'skipped' };
+const typing = (e: KeyboardEvent) =>
+  /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? '');
+
+/** The manual runner; `session` is the queue of test cases this run belongs to (docs/spec/web.md#list-and-focus). */
+export function Runner({ tcKey, session }: { tcKey: string; session?: string[] | undefined }) {
   const { scope } = useApp();
   const tc = useApi(() => api.testCase(tcKey, scope), [tcKey, scope.release, scope.env]);
-  return <Load state={tc}>{(d) => <Run d={d} />}</Load>;
+  return (
+    <Load state={tc}>{(d) => <Run d={d} session={session?.includes(tcKey) ? session : undefined} />}</Load>
+  );
 }
 
-function Run({ d }: { d: TestCaseDetail }) {
+function Run({ d, session }: { d: TestCaseDetail; session?: string[] | undefined }) {
   const { t, locale } = useI18n();
   const { project, scope } = useApp();
   // a run happens in one environment: the chosen one, else the project default (as the server records it)
@@ -55,6 +62,9 @@ function Run({ d }: { d: TestCaseDetail }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const verdict = chosen ?? suggestVerdict(steps.map((s) => s.status));
+  const at = session ? session.indexOf(d.key) : -1;
+  const next = session?.[at + 1];
+  const prev = at > 0 ? session?.[at - 1] : undefined;
   const recorded = steps.filter((s) => s.status).length;
   const uploading = steps.some((s) => s.shots.some((x) => !x.sha256 && !x.error));
   const dirty = recorded > 0 || steps.some((s) => s.note || s.shots.length);
@@ -91,6 +101,25 @@ function Run({ d }: { d: TestCaseDetail }) {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, [active]);
+  const setStep = useRef<(i: number, v: StepStatus) => void>(() => {});
+  setStep.current = (i, v) => {
+    patch(i, { status: v });
+    if (v === 'pass' && i < steps.length - 1) setActive(i + 1);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (typing(e) || e.altKey || e.ctrlKey || e.metaKey) return;
+      const k = e.key.toLowerCase();
+      if (KEYS[k]) setStep.current(active, KEYS[k]);
+      else if (k === 'n') {
+        e.preventDefault();
+        document.querySelectorAll<HTMLTextAreaElement>('.run-step textarea')[active]?.focus();
+      } else if ((e.key === 'ArrowRight' && next) || (e.key === 'ArrowLeft' && prev))
+        navigate(href.runner((e.key === 'ArrowRight' ? next : prev)!, session));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, next, prev, session]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (dirty && !busy) e.preventDefault();
@@ -127,7 +156,7 @@ function Run({ d }: { d: TestCaseDetail }) {
     };
     try {
       const res = await api.createRun(input);
-      navigate(href.run(res.run.id));
+      navigate(next ? href.runner(next, session) : href.run(res.run.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -136,13 +165,28 @@ function Run({ d }: { d: TestCaseDetail }) {
 
   return (
     <>
+      {session && (
+        <div className="session" role="status">
+          <span>
+            <strong>{t('runner.session', { n: at + 1, total: session.length })}</strong>
+          </span>
+          <span className="session-bar" aria-hidden="true">
+            <span style={{ width: `${Math.round((at / session.length) * 100)}%` }} />
+          </span>
+          {next && (
+            <a className="btn btn-sm btn-ghost" href={href.runner(next, session)}>
+              {t('runner.skip')} →
+            </a>
+          )}
+        </div>
+      )}
       <div className="page-head">
         <div>
           <p className="eyebrow">
             {t('runner.eyebrow')} · <a href={href.testCase(d.key)}>{d.key}</a>
           </p>
           <h1>
-            <Tx of={d.data} field="title" />
+            <Tx of={d.data} field="title" mark />
           </h1>
           <p className="chips">
             <Chip>{scope.release ?? t('scope.noRelease')}</Chip>
@@ -180,7 +224,7 @@ function Run({ d }: { d: TestCaseDetail }) {
               <ul className="list small">
                 {d.fixtures.map((fx) => (
                   <li key={fx.key}>
-                    <span className="key">{fx.key}</span> {fx.title}
+                    <span className="key">{fx.key}</span> <Tx of={fx} field="title" />
                     {fx.values?.[0] &&
                       Object.entries(fx.values[0]).map(([k, v]) => (
                         <span key={k}>
@@ -312,13 +356,14 @@ function Run({ d }: { d: TestCaseDetail }) {
         )}
         <div className="actions">
           <button type="button" className="btn btn-primary" disabled={!canSave} onClick={save}>
-            {busy ? t('runner.saving') : t('runner.save')}
+            {busy ? t('runner.saving') : next ? t('runner.saveNext') : t('runner.save')}
           </button>
           <a className="btn btn-ghost" href={href.testCase(d.key)}>
             {t('common.cancel')}
           </a>
           {uploading && <span className="muted small">{t('runner.waitUploads')}</span>}
         </div>
+        <p className="muted small kbd-hint">{t('runner.keys')}</p>
       </Section>
     </>
   );

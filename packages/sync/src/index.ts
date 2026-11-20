@@ -1,7 +1,7 @@
 /**
  * Sync (docs/spec/sync.md). CONTRACT: signatures frozen.
  */
-import type { Bundle, BundleFs } from '@indx-watch/bundle';
+import type { Bundle, BundleFs, BundleRecord } from '@indx-watch/bundle';
 import {
   type AnyRecord,
   AnyRecord as AnyRecordSchema,
@@ -50,6 +50,9 @@ export interface SyncOptions {
     clean: boolean;
     commitTime?: string;
     actor: import('@indx-watch/bundle').Actor;
+    /** `iw push`: publish even when not clean, unless the newest snapshot has the same definitions */
+    manual?: boolean;
+    message?: string;
   };
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
@@ -72,7 +75,7 @@ export interface SyncResult {
   held?: Problem[];
 }
 
-export { definitionsHash, snapshotBundle } from './snapshot.js';
+export { definitionFiles, definitionsHash, snapshotBundle } from './snapshot.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const LOOKBACK = 15 * 60 * 1000;
@@ -103,6 +106,9 @@ const maxKey = (a: string | null, b: string | null) => (a === null ? b : b === n
 export const pointerBlobs = (b: Bundle): string[] =>
   b.fixtures.flatMap((f) => f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])));
 export const isoSeconds = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+/** Snapshot order: by commit_time, then at, then id. */
+const snapOrder = (r: BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 
 export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   const now = opts.now ?? Date.now;
@@ -217,30 +223,37 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     await save();
     if (opts.bundle) {
       const snap = await snapshotBundle(opts.bundle.fs);
-      const exists = local.some(
-        (r) => r.kind === 'bundle' && r.definitions_hash === snap.hash && r.ref === opts.bundle?.ref,
-      );
-      if (opts.bundle.clean && snap.hash !== state.lastSnapshotHash && !exists) {
+      const b = opts.bundle;
+      const snaps = local.filter((r): r is BundleRecord => r.kind === 'bundle');
+      const exists = snaps.some((r) => r.definitions_hash === snap.hash && r.ref === b.ref);
+      const newest = snaps.sort((x, y) => (snapOrder(x) < snapOrder(y) ? 1 : -1))[0];
+      const wanted = b.manual
+        ? newest?.definitions_hash !== snap.hash
+        : b.clean && snap.hash !== state.lastSnapshotHash && !exists;
+      if (wanted) {
         const sha = await opts.replica.putBlob(snap.tar, 'application/x-tar');
         if (!(await opts.store.hasBlob(sha))) {
           await opts.store.putBlob(sha, snap.tar, 'application/x-tar');
           result.pushed.blobs++;
         }
-        const b = opts.bundle;
+        const at = isoSeconds(now());
         const record = AnyRecordSchema.parse({
           kind: 'bundle',
           id: newId('rec', now()),
           v: 1,
           project: opts.projectId,
-          at: isoSeconds(now()),
+          at,
           actor: b.actor,
           source: b.actor.kind === 'ci' ? 'ci' : 'cli',
           commit: b.commit,
-          commit_time: b.commitTime,
+          // an upload without a clean commit is ordered by its upload time (docs/spec/sync.md#snapshots-from-people-v02)
+          commit_time: b.clean ? b.commitTime : at,
           ref: b.ref,
           sha256: sha,
           definitions_hash: snap.hash,
           files: snap.files,
+          ...(b.manual && !b.clean && { dirty: true }),
+          ...(b.message && { message: b.message }),
         });
         await opts.replica.putRecord(record);
         for (const key of await opts.store.appendLog(opts.writer, [record], now())) seen.add(key);
