@@ -11,6 +11,9 @@ import {
 } from 'react';
 import { type MsgKey, pick, segments, useI18n } from './i18n';
 
+export * from './focus';
+export * from './people';
+
 export interface Loadable<T> {
   data?: T | undefined;
   error?: string | undefined;
@@ -137,17 +140,8 @@ export const OriginalContext = createContext<{ original: boolean; toggle(): void
  * A translatable content field: picks the translation for the UI locale and flags outdated ones.
  * `mark` shows the "Machine translation" switch (use it once per item, on its title).
  */
-export function Tx({
-  of,
-  field,
-  values,
-  mark,
-}: {
-  of: unknown;
-  field: string;
-  values?: Record<string, string> | undefined;
-  mark?: boolean;
-}) {
+type TxProps = { of: unknown; field: string; values?: Record<string, string> | undefined; mark?: boolean };
+export function Tx({ of, field, values, mark }: TxProps) {
   const { locale, t } = useI18n();
   const { original, toggle } = useContext(OriginalContext);
   const l = pick(of, field, locale);
@@ -181,17 +175,9 @@ export function Tx({
 }
 export const txt = (of: unknown, field: string, locale: 'en' | 'ja') => pick(of, field, locale).text;
 
-export function Section({
-  title,
-  actions,
-  children,
-  id,
-}: {
-  title: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
-  id?: string;
-}) {
+type SectionProps = { title: ReactNode; actions?: ReactNode; children: ReactNode; id?: string };
+/** A card with a heading, optional header actions and an id-linked label. */
+export function Section({ title, actions, children, id }: SectionProps) {
   return (
     <section className="card" id={id} aria-labelledby={id ? `${id}-h` : undefined}>
       <header className="card-head">
@@ -216,7 +202,24 @@ export function Meta({ items }: { items: [string, ReactNode][] }) {
   );
 }
 
-export const shortId = (id: string) => `${id.slice(0, 12)}…`;
+/** A table head row: each column is a message key, or [key, className]. */
+export function THead({ cols }: { cols: (MsgKey | [MsgKey, string])[] }) {
+  const { t } = useI18n();
+  return (
+    <thead>
+      <tr>
+        {cols.map((c) => {
+          const [key, className] = typeof c === 'string' ? [c] : c;
+          return (
+            <th key={key} className={className}>
+              {t(key)}
+            </th>
+          );
+        })}
+      </tr>
+    </thead>
+  );
+}
 export const fmtBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
@@ -246,107 +249,20 @@ export function Seg<T extends string>(props: {
   );
 }
 
-// ---------- people (docs/spec/web.md#identity) ----------
-type Person = { kind: string; id: string; name?: string | undefined; via: string };
-const VERIFIED = new Set(['cloudflare-access', 'github-oidc', 'github']);
-export const isVerified = (a: Person) => VERIFIED.has(a.via);
-export const personName = (a: Person) => a.name ?? a.id;
-/** Initials and a stable hue from the ID. Pure; tested. */
-export function avatarOf(a: Person): { initials: string; hue: number } {
-  const base = personName(a)
-    .replace(/@.*/, '')
-    .replace(/^[a-z]+:/i, '');
-  const words = base.split(/[\s._-]+/).filter(Boolean);
-  const initials = (words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : base.slice(0, 2)).toUpperCase();
-  let h = 0;
-  for (const c of a.id) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return { initials: initials || '?', hue: h };
-}
-export function Avatar({ who, size }: { who: Person; size?: 'sm' | 'lg' }) {
-  const { initials, hue } = avatarOf(who);
-  const kind = who.kind === 'agent' ? ' avatar-agent' : who.kind === 'ci' ? ' avatar-ci' : '';
-  return (
-    <span
-      className={`avatar${size ? ` avatar-${size}` : ''}${kind}`}
-      style={{ '--hue': hue } as object}
-      aria-hidden="true"
-    >
-      {who.kind === 'ci' ? '⚙' : who.kind === 'agent' ? '✦' : initials}
-    </span>
-  );
-}
-/** ✓ for a verified identity; "unverified" when a record claims one without a valid signature (docs/spec/web.md#identity). */
-export function Mark({ who, unverified }: { who: Person; unverified?: boolean | undefined }) {
-  const { t } = useI18n();
-  if (!isVerified(who)) return null;
-  return unverified ? (
-    <span className="chip chip-warn" title={t('who.unsignedHint', { via: who.via })}>
-      {t('who.unsigned')}
-    </span>
-  ) : (
-    <span className="verified" title={t('who.verified', { via: who.via })}>
-      ✓
-    </span>
-  );
-}
-type WhoProps = { who: Person; unverified?: boolean | undefined };
-/** Avatar, name and a verified mark. */
-export function Who({ who, unverified }: WhoProps) {
-  return (
-    <span className="who">
-      <Avatar who={who} size="sm" />
-      <span>{personName(who)}</span>
-      <Mark who={who} unverified={unverified} />
-    </span>
-  );
-}
-
-/** One line of a feed: avatar, "<name> <verb> <link>", and when. */
-export function FeedItem({ who, at, unverified, children }: WhoProps & { at: string; children: ReactNode }) {
-  const ago = useAgo();
-  return (
-    <li className="feed-item">
-      <Avatar who={who} />
-      <div className="feed-main">
-        <p>
-          <strong>{personName(who)}</strong> <Mark who={who} unverified={unverified} /> {children}
-        </p>
-        <p className="muted small">{ago(at)}</p>
-      </div>
-    </li>
-  );
-}
-
-/** "5 min ago" in the UI locale. */
-export function useAgo() {
-  const { locale, date } = useI18n();
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  return (iso: string) => {
-    const s = (Date.now() - Date.parse(iso)) / 1000;
-    if (!(s >= 0) || s > 7 * 86400) return date(iso);
-    const [n, u]: [number, Intl.RelativeTimeFormatUnit] =
-      s < 60
-        ? [s, 'second']
-        : s < 3600
-          ? [s / 60, 'minute']
-          : s < 86400
-            ? [s / 3600, 'hour']
-            : [s / 86400, 'day'];
-    return rtf.format(-Math.floor(n), u);
-  };
-}
-
 // ---------- copy, menus, dialogs ----------
+/** A command or value with a copy button. */
 export function Copy({ text, label }: { text: string; label?: string }) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
-  const copy = async () => {
+  const copy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    const shown = e.currentTarget.previousElementSibling;
     try {
       await navigator.clipboard.writeText(text);
       setDone(true);
       setTimeout(() => setDone(false), 1500);
     } catch {
-      // clipboard blocked: the text stays selectable
+      // clipboard blocked or unavailable (insecure context, denied permission): select the text to copy by hand
+      if (shown) window.getSelection()?.selectAllChildren(shown);
     }
   };
   return (
@@ -379,12 +295,10 @@ export function Popover({
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     const onDown = (e: PointerEvent) =>
       !(e.target as Element).closest?.(`[data-pop="${CSS.escape(id)}"]`) && setOpen(false);
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onDown);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown);
-    };
+    const off = new AbortController();
+    window.addEventListener('keydown', onKey, off);
+    window.addEventListener('pointerdown', onDown, off);
+    return () => off.abort();
   }, [open, id]);
   return (
     <div className="pop" data-pop={id}>
@@ -444,109 +358,5 @@ export function Dialog({
       </header>
       {open && children}
     </dialog>
-  );
-}
-
-// ---------- List and Focus (docs/spec/web.md#list-and-focus) ----------
-export function ViewSwitch({ view, list, focus }: { view: 'list' | 'focus'; list: string; focus?: string }) {
-  const { t } = useI18n();
-  return (
-    <nav className="viewswitch" aria-label={t('view.label')}>
-      <a href={list} aria-current={view === 'list' ? 'page' : undefined}>
-        <span aria-hidden="true">☰</span> {t('view.list')}
-      </a>
-      <a href={focus ?? '#'} aria-current={view === 'focus' ? 'page' : undefined} aria-disabled={!focus}>
-        <span aria-hidden="true">▢</span> {t('view.focus')}
-      </a>
-    </nav>
-  );
-}
-
-const typing = (e: Event) => {
-  const el = e.target as HTMLElement | null;
-  return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
-};
-/** Previous/next of `at` in `items`. Pure; tested. */
-export function neighbours(items: readonly string[], at: string) {
-  const i = items.indexOf(at);
-  return { index: i, prev: i > 0 ? items[i - 1] : undefined, next: i >= 0 ? items[i + 1] : undefined };
-}
-
-/** One item per screen with ← / → keys, swipes and footer buttons. `go` turns a key into a URL. */
-export function Focus({
-  items,
-  at,
-  go,
-  actions,
-  children,
-}: {
-  items: readonly string[];
-  at: string;
-  go: (key: string) => string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  const { t } = useI18n();
-  const { index, prev, next } = neighbours(items, at);
-  const start = useRef<{ x: number; y: number } | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (typing(e) || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-      const to = e.key === 'ArrowLeft' ? prev : e.key === 'ArrowRight' ? next : undefined;
-      if (to) window.location.hash = go(to).replace(/^#/, '');
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [prev, next, go]);
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const s = start.current;
-    const p = e.changedTouches[0];
-    start.current = null;
-    if (!s || !p) return;
-    const [dx, dy] = [p.clientX - s.x, p.clientY - s.y];
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const to = dx < 0 ? next : prev;
-    if (to) window.location.hash = go(to).replace(/^#/, '');
-  };
-  return (
-    <div
-      className="focus"
-      onTouchStart={(e) => {
-        const p = e.touches[0];
-        start.current = p ? { x: p.clientX, y: p.clientY } : null;
-      }}
-      onTouchEnd={onTouchEnd}
-    >
-      {index >= 0 && (
-        <div className="focus-pos" aria-live="polite">
-          {t('view.position', { n: index + 1, total: items.length })}
-          <span className="dots" aria-hidden="true">
-            {items.length <= 24 &&
-              items.map((k, i) => <span key={k} className={i === index ? 'dot dot-on' : 'dot'} />)}
-          </span>
-        </div>
-      )}
-      <div className="focus-body" key={at}>
-        {children}
-      </div>
-      <nav className="focus-nav" aria-label={t('view.nav')}>
-        {prev ? (
-          <a className="btn" href={go(prev)} rel="prev">
-            ← {t('view.prev')}
-          </a>
-        ) : (
-          <span />
-        )}
-        <div className="focus-actions">{actions}</div>
-        {next ? (
-          <a className="btn" href={go(next)} rel="next">
-            {t('view.next')} →
-          </a>
-        ) : (
-          <span />
-        )}
-      </nav>
-      <p className="muted small focus-hint">{t('view.hint')}</p>
-    </div>
   );
 }

@@ -2,7 +2,7 @@
 import { api, type FixtureDetail } from '../api';
 import { useI18n } from '../i18n';
 import { href } from '../router';
-import { Chip, Focus, fmtBytes, Load, Meta, Section, Tx, useApi, ViewSwitch } from '../ui';
+import { Chip, Focus, fmtBytes, Load, Meta, Section, THead, Tx, useApi, ViewSwitch } from '../ui';
 
 export function Fixtures({ selected }: { selected?: string | undefined }) {
   const { t } = useI18n();
@@ -109,14 +109,7 @@ function Detail({ f }: { f: FixtureDetail }) {
         <Section title={t('fx.files')}>
           <div className="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>{t('fx.name')}</th>
-                  <th className="num">{t('fx.size')}</th>
-                  <th>SHA-256</th>
-                  <th>{t('fx.stored')}</th>
-                </tr>
-              </thead>
+              <THead cols={['fx.name', ['fx.size', 'num'], 'fx.sha', 'fx.stored']} />
               <tbody>
                 {f.files.map((x) => (
                   <tr key={x.name}>

@@ -199,6 +199,7 @@
   "fx.files": "ファイル",
   "fx.name": "名前",
   "fx.size": "サイズ",
+  "fx.sha": "SHA-256",
   "fx.stored": "保存先",
   "fx.pointer": "結果ストア",
   "fx.inGit": "git",
