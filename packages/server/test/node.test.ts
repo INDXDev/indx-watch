@@ -18,7 +18,11 @@ import type { ProjectInfo, RunSummary, TestCaseDetail } from '../src/index.js';
 import { hostGuard, requestIdentity, startNodeServer, writeGuard } from '../src/node.js';
 import { ROOT, SHOT, sampleRecords, shop } from './helpers.js';
 
-const env = { IW_ACTOR: 'alex@shop.test', IW_ACTOR_NAME: 'Alex' };
+/** The store `[store]` in examples/shop points at, relative to the bundle. */
+const STORE_URL = 'file://../store';
+const LAN_IP = '10.0.0.7';
+const ALEX_ID = 'alex@shop.test';
+const env = { IW_ACTOR: ALEX_ID, IW_ACTOR_NAME: 'Alex' };
 /** the runner's agent and CI context must not leak into the server (a PR build has no release for manual runs) */
 const UNSET = ['CLAUDECODE', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'IW_ACTOR_KIND', 'IW_RELEASE', 'CI'];
 UNSET.push('GITHUB_ACTIONS', 'GITHUB_REF', 'GITHUB_HEAD_REF', 'GITHUB_EVENT_PATH', 'GITHUB_SHA');
@@ -28,17 +32,23 @@ let web: string;
 let server: { url: string; close(): Promise<void> };
 const saved: Record<string, string | undefined> = {};
 
+/** Copies examples/shop (bundle without runs/cache, plus the sample store) into `to`; returns the bundle dir. */
+function copyShop(to: string): string {
+  const at = join(to, '.indx-watch');
+  cpSync(join(ROOT, 'examples/shop/.indx-watch'), at, {
+    recursive: true,
+    filter: (p) => !/[/\\](runs|cache)$/.test(p),
+  });
+  cpSync(join(ROOT, 'examples/shop/store'), join(to, 'store'), { recursive: true });
+  return at;
+}
+
 beforeAll(async () => {
   for (const k of [...Object.keys(env), ...UNSET]) saved[k] = process.env[k];
   Object.assign(process.env, env);
   for (const k of UNSET) delete process.env[k];
   tmp = mkdtempSync(join(tmpdir(), 'iw-server-'));
-  dir = join(tmp, '.indx-watch');
-  cpSync(join(ROOT, 'examples/shop/.indx-watch'), dir, {
-    recursive: true,
-    filter: (p) => !/[/\\](runs|cache)$/.test(p),
-  });
-  cpSync(join(ROOT, 'examples/shop/store'), join(tmp, 'store'), { recursive: true });
+  dir = copyShop(tmp);
   web = join(tmp, 'web');
   mkdirSync(join(web, 'assets'), { recursive: true });
   writeFileSync(join(web, 'index.html'), '<!doctype html><title>INDX Watch</title>');
@@ -67,13 +77,13 @@ const until = async (check: () => Promise<boolean>) => {
   throw new Error('timed out');
 };
 
-describe('startNodeServer', () => {
+describe('startNodeServer: API and SPA', () => {
   it('serves the API with the process identity and the store configuration', async () => {
     expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     const p = await api<ProjectInfo>('/api/project');
-    expect(p.identity).toMatchObject({ kind: 'human', id: 'alex@shop.test', name: 'Alex', via: 'env' });
+    expect(p.identity).toMatchObject({ kind: 'human', id: ALEX_ID, name: 'Alex', via: 'env' });
     expect(p.mode).toBe('local');
-    expect(p.sync).toMatchObject({ configured: false, store: 'file://../store' }); // sync: false
+    expect(p.sync).toMatchObject({ configured: false, store: STORE_URL }); // sync: false
   });
 
   it('serves the SPA with fallback and a CSP, but not underscore files', async () => {
@@ -84,7 +94,9 @@ describe('startNodeServer', () => {
     expect(await (await fetch(`${server.url}/_headers`)).text()).not.toBe('secret');
     expect((await fetch(`${server.url}/api/nothing`)).status).toBe(404);
   });
+});
 
+describe('startNodeServer: records and bundle edits', () => {
   it('writes runs to the local replica and refreshes the model', async () => {
     const up = await api<{ sha256: string }>('/api/blobs', {
       method: 'POST',
@@ -100,7 +112,7 @@ describe('startNodeServer', () => {
         verdict: 'pass',
       }),
     });
-    expect(res.run.actor.id).toBe('alex@shop.test');
+    expect(res.run.actor.id).toBe(ALEX_ID);
     const month = new Date().toISOString().slice(0, 7);
     expect(readFileSync(join(dir, 'runs/records', month, `${res.run.id}.json`), 'utf8')).toContain(
       '"source":"manual"',
@@ -128,18 +140,15 @@ describe('startNodeServer', () => {
       async () => (await api<TestCaseDetail>('/api/test-cases/TC-1')).data.title === 'Product list',
     );
   });
+});
 
+describe('startNodeServer: sync state', () => {
   it('shows record conflicts that an earlier sync saved, right after a start', async () => {
     const copy = mkdtempSync(join(tmpdir(), 'iw-server-conflict-'));
-    const at = join(copy, '.indx-watch');
-    cpSync(join(ROOT, 'examples/shop/.indx-watch'), at, {
-      recursive: true,
-      filter: (p) => !/[/\\](runs|cache)$/.test(p),
-    });
-    cpSync(join(ROOT, 'examples/shop/store'), join(copy, 'store'), { recursive: true });
+    const at = copyShop(copy);
     const id = 'run_01JF7Z3K0W8N2Q4R6S8T0V0001';
     const note = `record ${id} in v1/log/01JF7Z3K0W8N2Q4R6S8T0V0000.json differs from the local copy; kept the local copy`;
-    await (await fileStateStore(at, 'file://../store')).save({ ...emptyState(), conflicts: { [id]: note } });
+    await (await fileStateStore(at, STORE_URL)).save({ ...emptyState(), conflicts: { [id]: note } });
     const started = await startNodeServer({ dir: at, port: 0, sync: false, webRoot: web });
     try {
       const p = (await (await fetch(`${started.url}/api/project`)).json()) as ProjectInfo;
@@ -163,12 +172,14 @@ describe('startNodeServer', () => {
       // The log object is written inside syncOnce; lastSyncAt is set after it returns, so wait for that too.
       const project = async () => (await (await fetch(`${synced.url}/api/project`)).json()) as ProjectInfo;
       await until(async () => !!(await project()).sync.lastSyncAt);
-      expect((await project()).sync).toMatchObject({ configured: true, store: 'file://../store' });
+      expect((await project()).sync).toMatchObject({ configured: true, store: STORE_URL });
     } finally {
       await synced.close();
     }
   });
+});
 
+describe('startNodeServer: write, host and port guards', () => {
   it('rejects writes from other machines without an identity header (403)', async () => {
     const ip = Object.values(networkInterfaces())
       .flat()
@@ -185,11 +196,11 @@ describe('startNodeServer', () => {
         await lan.close();
       }
     }
-    expect(writeGuard('POST', '10.0.0.7')?.status).toBe(403);
-    expect(writeGuard('GET', '10.0.0.7')).toBeUndefined();
+    expect(writeGuard('POST', LAN_IP)?.status).toBe(403);
+    expect(writeGuard('GET', LAN_IP)).toBeUndefined();
     expect(writeGuard('POST', '::1')).toBeUndefined();
     expect(writeGuard('POST', '::ffff:127.0.0.1')).toBeUndefined();
-    expect(writeGuard('POST', '10.0.0.7', 'X-Forwarded-Email')).toBeUndefined();
+    expect(writeGuard('POST', LAN_IP, 'X-Forwarded-Email')).toBeUndefined();
   });
 
   it('answers only requests addressed to a loopback name (DNS rebinding)', async () => {
@@ -218,7 +229,9 @@ describe('startNodeServer', () => {
     expect(err).toMatchObject({ code: 'CONFLICT', message: expect.stringMatching(/already in use.*--port/) });
     expect(Date.now() - t0).toBeLessThan(2000);
   });
+});
 
+describe('requestIdentity', () => {
   it('resolves identities: header, loopback process identity, read-only guests', async () => {
     const remote = new WeakMap<Request, string>();
     const local = {
@@ -231,15 +244,13 @@ describe('startNodeServer', () => {
       return r;
     };
     const hdr = { 'x-forwarded-email': 'kim@shop.test' };
-    expect(await id.current(mk('10.0.0.7', { headers: hdr }))).toEqual({
+    expect(await id.current(mk(LAN_IP, { headers: hdr }))).toEqual({
       kind: 'human',
       id: 'kim@shop.test',
       via: 'env',
     });
     expect((await id.current(mk('127.0.0.1'))).id).toBe('op@shop.test');
-    expect((await id.current(mk('10.0.0.7'))).id).toBe('guest');
-    await expect(id.current(mk('10.0.0.7', { method: 'POST', body: '{}' }))).rejects.toThrow(
-      /X-Forwarded-Email/,
-    );
+    expect((await id.current(mk(LAN_IP))).id).toBe('guest');
+    await expect(id.current(mk(LAN_IP, { method: 'POST', body: '{}' }))).rejects.toThrow(/X-Forwarded-Email/);
   });
 });

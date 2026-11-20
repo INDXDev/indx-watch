@@ -11,6 +11,10 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { buildVerifiedModel, evaluateGate, reportData, verifyRecords } from '../src/index.js';
 import { run, shop } from './fixtures.js';
 
+/** The test case every signed-record scenario runs, and the release its gate checks. */
+const TC = 'TC-6';
+const RELEASE = { release: 'v1.2.0' };
+
 // docs/spec/security.md#signed-records; keys are generated per test run, never stored
 let b: Bundle;
 let key: SigningKey;
@@ -40,9 +44,9 @@ beforeAll(async () => {
   [key, sign] = [k.key, recordSigner(k.secret)];
 });
 
-describe('signed records', () => {
+describe('signed records: forged and unsigned', () => {
   it('a forged cloudflare-access record without a valid signature is unverified', async () => {
-    const forged = human('TC-6');
+    const forged = human(TC);
     const bundle = withKeys([key]);
     expect(await verifyRecord(forged, [key])).toBe(false);
     const ids = await verifyRecords(bundle, [forged]);
@@ -54,12 +58,14 @@ describe('signed records', () => {
     );
     // a signature by an unknown key is no better
     const other = await generateSigningKey('attacker');
-    const byOther = await recordSigner(other.secret)(human('TC-6'));
+    const byOther = await recordSigner(other.secret)(human(TC));
     expect((await verifyRecords(bundle, [byOther])).has(byOther.id)).toBe(true);
   });
+});
 
+describe('signed records: signatures', () => {
   it('a record signed by a trusted key is verified; tampering breaks it', async () => {
-    const signed = await sign(human('TC-6'));
+    const signed = await sign(human(TC));
     expect(signed.sig).toMatchObject({ alg: 'Ed25519', kid: 'hosted-test' });
     expect(await verifyRecord(signed, [key])).toBe(true);
     expect((await verifyRecords(withKeys([key]), [signed])).size).toBe(0);
@@ -70,7 +76,7 @@ describe('signed records', () => {
   });
 
   it('a signature has one spelling: re-encoding its spare bits does not verify', async () => {
-    const signed = await sign(human('TC-6'));
+    const signed = await sign(human(TC));
     const v = signed.sig!.value;
     // the last character carries 2 bits and 4 zero bits (A, Q, g or w); the next one only sets a spare bit
     const next = { A: 'B', Q: 'R', g: 'h', w: 'x' }[v.at(-1) as 'A'];
@@ -80,7 +86,7 @@ describe('signed records', () => {
   });
 
   it('verification results are cached by the exact record bytes', async () => {
-    const signed = await sign(human('TC-6'));
+    const signed = await sign(human(TC));
     const bundle = withKeys([key]);
     expect((await verifyRecords(bundle, [signed])).size).toBe(0);
     // a forged body that copies id and sig misses the cache and is checked again
@@ -95,13 +101,15 @@ describe('signed records', () => {
       await generateSigningKey('iw-2026-11-20'),
       await generateSigningKey('iw-2026-11-20'),
     ];
-    const signed = await recordSigner(hosted.secret)(human('TC-6'));
+    const signed = await recordSigner(hosted.secret)(human(TC));
     expect(await verifyRecord(signed, [{ ...ci.key, via: ['github'] }, hosted.key])).toBe(true);
     expect(await verifyRecord(signed, [ci.key])).toBe(false);
   });
+});
 
+describe('signed records: identity and leniency', () => {
   it('a signer vouches only for its own identity: a verified `by` of someone else stays unsigned', async () => {
-    const r = human('TC-6');
+    const r = human(TC);
     const lead = { kind: 'human' as const, id: 'lead@shop.test', via: 'cloudflare-access' as const };
     const ci = { kind: 'ci' as const, id: 'github:octocat', via: 'github' as const };
     const copied: RunRecord = { ...r, actor: ci, judgements: [{ ...r.judgements[0]!, by: lead }] };
@@ -110,15 +118,15 @@ describe('signed records', () => {
   });
 
   it('a record read leniently without `judgements` does not break verification', async () => {
-    const { judgements: _, ...raw } = human('TC-6');
+    const { judgements: _, ...raw } = human(TC);
     const lenient = { ...raw, x_newer_field: 1 } as unknown as AnyRecord; // checkRecord keeps such a record as is
     expect(await verifyRecords(withKeys([key]), [lenient])).toEqual(new Set([lenient.id]));
     expect((await buildVerifiedModel(withKeys([key]), [lenient])).model.runs.has(lenient.id)).toBe(true);
   });
 
   it('a forged record that copies a genuine judgement ID does not mark the genuine one unverified', async () => {
-    const genuine = await sign(human('TC-6'));
-    const copy = { ...human('TC-6'), judgements: genuine.judgements };
+    const genuine = await sign(human(TC));
+    const copy = { ...human(TC), judgements: genuine.judgements };
     const { model } = await buildVerifiedModel(withKeys([key]), [genuine, copy]);
     const jid = genuine.judgements[0]!.id;
     expect([
@@ -129,37 +137,32 @@ describe('signed records', () => {
 
   it('self-asserted via values never count as unverified', async () => {
     const git = {
-      ...run(b, 'TC-6'),
+      ...run(b, TC),
       actor: { kind: 'human' as const, id: 'a@shop.test', via: 'git' as const },
     };
     expect((await verifyRecords(withKeys([]), [git])).size).toBe(0);
   });
+});
 
+describe('signed records: the gate and reports', () => {
   it('the gate ignores unverified records only with gate.ignore_unverified', async () => {
-    const forged = human('TC-6');
+    const forged = human(TC);
     const p0 = (bundle: Bundle) =>
       buildVerifiedModel(bundle, [forged]).then(
-        ({ model }) =>
-          evaluateGate(model, { release: 'v1.2.0' }).checks.find((c) => c.key === 'p0_all_pass')!,
+        ({ model }) => evaluateGate(model, RELEASE).checks.find((c) => c.key === 'p0_all_pass')!,
       );
     const shown = await p0(withKeys([key]));
     const ignored = await p0(withKeys([key], true));
     expect(shown.actual).toMatch(/^1\//);
     expect(ignored.actual).toMatch(/^0\//);
     // a signed record still counts when unverified ones are ignored
-    const signed = await sign(human('TC-6'));
+    const signed = await sign(human(TC));
     const { model } = await buildVerifiedModel(withKeys([key], true), [signed]);
-    expect(
-      evaluateGate(model, { release: 'v1.2.0' }).checks.find((c) => c.key === 'p0_all_pass')?.actual,
-    ).toMatch(/^1\//);
+    expect(evaluateGate(model, RELEASE).checks.find((c) => c.key === 'p0_all_pass')?.actual).toMatch(/^1\//);
     // the UI and reports still show the forged run, marked unverified
     const m = (await buildVerifiedModel(withKeys([key], true), [forged])).model;
     expect(m.runs.has(forged.id)).toBe(true);
-    const data = reportData(
-      m,
-      { release: 'v1.2.0' },
-      { audience: 'internal', generatedBy: 'qa', now: new Date(0) },
-    );
+    const data = reportData(m, RELEASE, { audience: 'internal', generatedBy: 'qa', now: new Date(0) });
     expect(data.runs.find((r) => r.id === forged.id)?.unverified).toBe(true);
   });
 });
