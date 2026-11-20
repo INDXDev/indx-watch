@@ -89,12 +89,15 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 | `gate` | `false` | Fail the step if the readiness gate fails |
 | `deployment` | — | Environment name: record a `deployment` record for this commit (use in deploy workflows) |
 | `upload-artifact` | `true` when no store | Upload `.indx-watch/runs/` as a workflow artifact, so results are never lost |
+| `comment` | `false` | On pull requests, post the gate line and the report as **one PR comment per bundle and release**, updated in place on every run (needs `pull-requests: write`) |
+| `check` | `false` | Create a check run named `INDX Watch` (plus ` (<release>)` when set) on the head commit: `success` when the gate passes, `failure` otherwise, with the report as its summary (needs `checks: write`) |
+| `token` | `github.token` | Token for `comment` and `check` |
 
 Outputs: `gate` (`pass`/`fail`), `report` (path of the Markdown report), `pass`, `fail`, `untested` counts.
 
-Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sync pushes it) → `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
+Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sync pushes it) → `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional PR comment and check run (`gh api`; a missing permission is a warning, never a failure) → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
 
-PR comments and check runs are *v0.2* (they need `pull-requests: write` / `checks: write`); the job summary needs no permissions.
+The job summary needs no permissions; `comment` needs `pull-requests: write` and `check` needs `checks: write`. The comment starts with a hidden marker `<!-- indx-watch:<dir>:<release> -->`, which is how the next run finds and edits it instead of adding another. Comment and check-run bodies are cut at a line boundary below GitHub's 65,536-character limit. On pull requests from forks the token is read-only, so both are skipped with a warning.
 
 ## Acceptance criteria
 

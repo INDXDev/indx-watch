@@ -59,7 +59,27 @@ What happens:
 2. `if: ${{ !cancelled() }}` runs the action even when tests failed — that is when you need the report most.
 3. The action runs `indx-watch sync`, `status` and `report --format md`, appends the report to the job summary, and with `gate: true` fails the step when the [readiness gate](../spec/concepts.md#readiness-gate) fails. On the default branch it also publishes a bundle snapshot for hosted viewers.
 
-The job summary needs no extra permissions; `contents: read` is enough. PR comments and check runs are planned for v0.2.
+The job summary needs no extra permissions; `contents: read` is enough.
+
+### PR comment and check run
+
+To see the gate on the pull request itself, turn on `comment` and/or `check` and grant the permissions they need:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write # comment: true
+  checks: write # check: true
+# …
+      - uses: INDXDev/indx-watch@v0
+        if: ${{ !cancelled() }}
+        with:
+          release: v1.2.0
+          comment: true
+          check: true
+```
+
+The action keeps **one comment per pull request** (per bundle and release) and edits it on every push, so the conversation does not fill up with reports. The check run `INDX Watch (v1.2.0)` is green when the gate passes and red otherwise; make it a required check in branch protection to block merging an unready release. Pull requests from forks get a read-only token, so the comment and check are skipped with a warning; the job summary still works.
 
 ## Choosing when to gate
 

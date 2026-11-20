@@ -57,6 +57,18 @@ inputs:
     description: Upload the bundle's runs/ folder as a workflow artifact ("true", "false"; default when no store).
     required: false
     default: ""
+  comment:
+    description: On pull requests, keep one PR comment with the gate and the report, updated in place (needs pull-requests write).
+    required: false
+    default: "false"
+  check:
+    description: Create an "INDX Watch" check run on the head commit, green when the gate passes (needs checks write).
+    required: false
+    default: "false"
+  token:
+    description: Token for comment and check.
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   gate:
@@ -177,6 +189,66 @@ runs:
           fi
         else
           echo "::warning::indx-watch report failed"
+        fi
+
+    - if: ${{ !cancelled() && (inputs.comment == 'true' || inputs.check == 'true') && steps.iw.outputs.gate != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        IW_IN_DIR: ${{ inputs.dir }}
+        IW_IN_RELEASE: ${{ inputs.release }}
+        IW_IN_COMMENT: ${{ inputs.comment }}
+        IW_IN_CHECK: ${{ inputs.check }}
+        IW_GATE: ${{ steps.iw.outputs.gate }}
+        IW_PASS: ${{ steps.iw.outputs.pass }}
+        IW_FAIL: ${{ steps.iw.outputs.fail }}
+        IW_UNTESTED: ${{ steps.iw.outputs.untested }}
+        IW_REPORT: ${{ steps.iw.outputs.report }}
+        IW_PR: ${{ github.event.pull_request.number }}
+        IW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        IW_CHECK_RUN_ID: ${{ job.check_run_id }}
+      run: |
+        # PR comment and check run through the GitHub API (docs/spec/integrations.md#github-action).
+        # A missing permission (or a fork's read-only token) is a warning, never a failure.
+        set -o pipefail
+        repo="$GITHUB_REPOSITORY"
+        marker="<!-- indx-watch:${IW_IN_DIR:-.indx-watch}:${IW_IN_RELEASE} -->"
+        name="INDX Watch${IW_IN_RELEASE:+ ($IW_IN_RELEASE)}"
+        job="${GITHUB_SERVER_URL:-https://github.com}/$repo/actions/runs/$GITHUB_RUN_ID${IW_CHECK_RUN_ID:+/job/$IW_CHECK_RUN_ID}"
+        body="$(mktemp "${RUNNER_TEMP:-/tmp}/iw-comment-XXXXXX")"
+        # Gate line + report, cut at a line boundary below GitHub's 65,536-character limit.
+        node -e '
+          const fs = require("node:fs");
+          const [marker, file, job, name] = process.argv.slice(1);
+          const e = process.env, ok = e.IW_GATE === "pass";
+          const head = `${marker}\n**${ok ? "✅" : "❌"} ${name}: gate ${ok ? "passed" : "failed"}** · ` +
+            `pass ${e.IW_PASS || 0} · fail ${e.IW_FAIL || 0} · untested ${e.IW_UNTESTED || 0} · [job](${job})\n\n`;
+          let report = file && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+          const max = 65000 - head.length, note = "\n\n_Report truncated; see the job summary._\n";
+          if (report.length > max) report = report.slice(0, report.lastIndexOf("\n", max - note.length)) + note;
+          process.stdout.write(head + report);
+        ' "$marker" "$IW_REPORT" "$job" "$name" > "$body"
+        if [ "$IW_IN_COMMENT" = true ]; then
+          if [ -z "$IW_PR" ]; then
+            echo "Not a pull request: no INDX Watch comment."
+          else
+            id="$(gh api "repos/$repo/issues/$IW_PR/comments" --paginate \
+              --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)" || id=""
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$id" -F "body=@$body" > /dev/null \
+                || echo "::warning::indx-watch could not update the PR comment (needs pull-requests: write)"
+            else
+              gh api "repos/$repo/issues/$IW_PR/comments" -F "body=@$body" > /dev/null \
+                || echo "::warning::indx-watch could not comment on the PR (needs pull-requests: write)"
+            fi
+          fi
+        fi
+        if [ "$IW_IN_CHECK" = true ]; then
+          conclusion=failure; [ "$IW_GATE" = pass ] && conclusion=success
+          gh api "repos/$repo/check-runs" -f "name=$name" -f "head_sha=$IW_HEAD_SHA" -f status=completed \
+            -f "conclusion=$conclusion" -f "details_url=$job" -f "output[title]=Readiness gate: $IW_GATE" \
+            -F "output[summary]=@$body" > /dev/null \
+            || echo "::warning::indx-watch could not create the check run (needs checks: write)"
         fi
 
     - if: ${{ !cancelled() && steps.iw.outputs.upload == 'true' }}

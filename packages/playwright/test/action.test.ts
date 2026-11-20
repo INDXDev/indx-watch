@@ -4,7 +4,7 @@
  * runs the main shell step against a fake CLI. Full schema validation: `npx --yes @action-validator/cli action.yml`.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -19,9 +19,10 @@ function keysOf(section: string): string[] {
   return lines.slice(start + 1, end).flatMap((l) => /^ {2}([a-z-]+):$/.exec(l)?.[1] ?? []);
 }
 
-/** The block scalar of the main step's `run: |`, dedented. */
-function mainScript(): string {
-  const start = lines.indexOf('      run: |');
+/** The block scalar of the first step's `run: |` (or of the step whose script contains `marker`), dedented. */
+function mainScript(marker?: string): string {
+  const starts = lines.flatMap((l, i) => (l === '      run: |' ? [i] : []));
+  const start = marker ? starts.find((i) => lines[i + 1]?.includes(marker))! : starts[0]!;
   const body = [];
   for (const l of lines.slice(start + 1)) {
     if (l.trim() && !l.startsWith('        ')) break;
@@ -44,6 +45,9 @@ describe('action.yml structure', () => {
       'gate',
       'deployment',
       'upload-artifact',
+      'comment',
+      'check',
+      'token',
     ]);
     expect(keysOf('outputs')).toEqual(['gate', 'report', 'pass', 'fail', 'untested']);
     expect(ACTION).toMatch(/^ {2}using: composite$/m);
@@ -64,6 +68,7 @@ describe('action.yml structure', () => {
     expect(upload).toMatch(/uses: actions\/upload-artifact@v7\n/);
     expect(upload).toMatch(/include-hidden-files: true/);
     expect(spawnSync('bash', ['-n', '-c', mainScript()]).status).toBe(0);
+    expect(spawnSync('bash', ['-n', '-c', mainScript('PR comment and check run')]).status).toBe(0);
   });
 });
 
@@ -180,5 +185,113 @@ else console.log('{"ok":true}');
     const local = run({ IW_IN_CLI: 'local' });
     expect(local.res.status).toBe(1);
     expect(local.res.stdout).toContain('::error::cli: local needs');
+  });
+});
+
+describe('action.yml PR comment and check run with a fake gh', () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'iw-action-gh-'));
+    mkdirSync(join(tmp, 'bin'));
+    // Logs each call (and the file behind -F x=@file); `existing` makes the comment list return comment 42.
+    writeFileSync(
+      join(tmp, 'bin/gh'),
+      `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+const files = Object.fromEntries(args.filter((a) => /^[a-z\\[\\]_]+=@/.test(a)).map((a) => {
+  const [k, f] = a.split('=@');
+  return [k, fs.readFileSync(f, 'utf8')];
+}));
+fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify({ args, files }) + '\\n');
+if (process.env.FAKE_GH_FAIL) process.exit(1);
+if (args.includes('--paginate') && process.env.FAKE_EXISTING) console.log('42');
+`,
+    );
+    chmodSync(join(tmp, 'bin/gh'), 0o755);
+    writeFileSync(join(tmp, 'report.md'), '# Readiness\n\n| TC-1 | pass |\n');
+  });
+  afterEach(() => rmSync(tmp, { recursive: true, force: true }));
+
+  function run(env: Record<string, string>) {
+    writeFileSync(join(tmp, 'log'), '');
+    const res = spawnSync(
+      'bash',
+      ['--noprofile', '--norc', '-eo', 'pipefail', '-c', mainScript('PR comment')],
+      {
+        encoding: 'utf8',
+        env: {
+          PATH: `${join(tmp, 'bin')}:${process.env.PATH}`,
+          FAKE_LOG: join(tmp, 'log'),
+          RUNNER_TEMP: tmp,
+          GITHUB_REPOSITORY: 'acme/shop',
+          GITHUB_RUN_ID: '9',
+          IW_CHECK_RUN_ID: '777',
+          IW_IN_RELEASE: 'v1.2.0',
+          IW_GATE: 'fail',
+          IW_PASS: '4',
+          IW_FAIL: '1',
+          IW_UNTESTED: '2',
+          IW_REPORT: join(tmp, 'report.md'),
+          IW_HEAD_SHA: 'a'.repeat(40),
+          ...env,
+        },
+      },
+    );
+    const calls = readFileSync(join(tmp, 'log'), 'utf8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { args: string[]; files: Record<string, string> });
+    return { res, calls };
+  }
+
+  it('creates one PR comment with a marker, then edits it in place', () => {
+    const first = run({ IW_IN_COMMENT: 'true', IW_PR: '12' });
+    expect(first.res.status, first.res.stderr).toBe(0);
+    expect(first.calls.map((c) => c.args[0] === 'api' && c.args.slice(1, 3))).toEqual([
+      ['repos/acme/shop/issues/12/comments', '--paginate'],
+      ['repos/acme/shop/issues/12/comments', '-F'],
+    ]);
+    const body = first.calls[1]!.files.body!;
+    expect(body.split('\n')[0]).toBe('<!-- indx-watch:.indx-watch:v1.2.0 -->');
+    expect(body).toContain('❌ INDX Watch (v1.2.0): gate failed** · pass 4 · fail 1 · untested 2');
+    expect(body).toContain('[job](https://github.com/acme/shop/actions/runs/9/job/777)');
+    expect(body).toContain('| TC-1 | pass |');
+    const again = run({ IW_IN_COMMENT: 'true', IW_PR: '12', FAKE_EXISTING: '1' });
+    expect(again.calls[1]!.args.slice(0, 4)).toEqual([
+      'api',
+      '-X',
+      'PATCH',
+      'repos/acme/shop/issues/comments/42',
+    ]);
+    expect(run({ IW_IN_COMMENT: 'true', IW_PR: '' }).calls).toEqual([]); // not a pull request
+  });
+
+  it('creates a check run whose conclusion follows the gate; API errors only warn', () => {
+    const pass = run({ IW_IN_CHECK: 'true', IW_GATE: 'pass' });
+    const args = pass.calls[0]!.args;
+    expect(args.slice(0, 2)).toEqual(['api', 'repos/acme/shop/check-runs']);
+    for (const f of ['name=INDX Watch (v1.2.0)', `head_sha=${'a'.repeat(40)}`, 'conclusion=success'])
+      expect(args).toContain(f);
+    expect(pass.calls[0]!.files['output[summary]']).toContain('✅ INDX Watch (v1.2.0): gate passed');
+    expect(run({ IW_IN_CHECK: 'true' }).calls[0]!.args).toContain('conclusion=failure');
+    const denied = run({ IW_IN_CHECK: 'true', IW_IN_COMMENT: 'true', IW_PR: '12', FAKE_GH_FAIL: '1' });
+    expect(denied.res.status).toBe(0);
+    expect(denied.res.stdout).toContain('::warning::indx-watch could not comment on the PR');
+    expect(denied.res.stdout).toContain('::warning::indx-watch could not create the check run');
+  });
+
+  it('cuts a huge report below the comment limit at a line boundary', () => {
+    writeFileSync(join(tmp, 'report.md'), '| TC-1 | pass | ok |\n'.repeat(10_000));
+    const body = run({ IW_IN_COMMENT: 'true', IW_PR: '12' }).calls[1]!.files.body!;
+    expect(body.length).toBeLessThan(65_536);
+    expect(body).toContain('Report truncated');
+    expect(
+      body
+        .split('\n')
+        .filter((l) => l.startsWith('|'))
+        .every((l) => l === '| TC-1 | pass | ok |'),
+    ).toBe(true);
   });
 });
