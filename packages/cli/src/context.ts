@@ -3,9 +3,9 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { Actor, Bundle, BundleFs, Problem } from '@indx-watch/bundle';
-import { AnyRecord, loadBundle, newId, parseRef, parseToml } from '@indx-watch/bundle';
+import { AnyRecord, loadBundle, newId, parseRef, parseToml, recordSigner } from '@indx-watch/bundle';
 import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
-import { buildModel, type Model, type RunView } from '@indx-watch/core';
+import { buildVerifiedModel, type Model, type RunView } from '@indx-watch/core';
 import type { LocalReplica } from '@indx-watch/store';
 import { openReplica, processContext, processIdentity } from '@indx-watch/store/node';
 import { type Args, type Ctx, fail, git, iso, str } from './util.js';
@@ -34,9 +34,17 @@ export async function openProject(ctx: Ctx, a: Args): Promise<Project> {
 }
 
 export const loadModel = async (p: Project): Promise<Model> =>
-  buildModel(p.bundle, await p.replica.records()).model;
+  (await buildVerifiedModel(p.bundle, await p.replica.records())).model;
 export const actorOf = (ctx: Ctx): Promise<Actor> =>
   processIdentity({ env: ctx.env, cwd: ctx.cwd }).current();
+/** Signs written records with IW_SIGNING_KEY (docs/spec/security.md#signed-records); a no-op without it. */
+export const signerOf = (ctx: Ctx) => {
+  try {
+    return recordSigner(ctx.env.IW_SIGNING_KEY);
+  } catch (e) {
+    return fail('INVALID_CONFIG', (e as Error).message);
+  }
+};
 export const contextOf = (ctx: Ctx) => processContext({ env: ctx.env, cwd: ctx.cwd });
 
 /** Refuse agents for approve / review / waive (exit 2). */
@@ -52,7 +60,7 @@ export async function append<K extends AnyRecord['kind']>(ctx: Ctx, p: Project, 
   const source = actor.kind === 'agent' ? 'agent' : actor.kind === 'ci' ? 'ci' : 'cli';
   const prefix = ({ run: 'run', waiver: 'wvr', deployment: 'dep' } as const)[kind as 'run'] ?? 'rec';
   const envelope = { v: 1, project: p.bundle.project.data.id, at: iso(), actor, source };
-  const r = AnyRecord.parse({ kind, id: newId(prefix), ...envelope, ...fields });
+  const r = await signerOf(ctx)(AnyRecord.parse({ kind, id: newId(prefix), ...envelope, ...fields }));
   await p.replica.putRecord(r);
   return r as Extract<AnyRecord, { kind: K }>;
 }

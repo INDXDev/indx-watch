@@ -99,19 +99,19 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
 ## Line budget
-Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216).
+Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216). Signed records (T-211) raised `bundle` by 40 (Ed25519 signing and verification over WebCrypto, no new dependency) and `cli` by 30 (`iw keygen`).
 
 | Package | Budget |
 |---|---|
-| bundle | 2,000 |
+| bundle | 2,040 |
 | core | 1,000 |
 | store | 1,380 |
 | sync | 450 |
 | server | 1,600 |
 | web | 3,800 |
-| cli (incl. MCP, deploy) | 2,450 |
+| cli (incl. MCP, deploy) | 2,480 |
 | playwright | 450 |
-| **Total** | **13,080** |
+| **Total** | **13,150** |
 
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.

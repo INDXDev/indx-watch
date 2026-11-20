@@ -56,7 +56,7 @@ export function Uploads() {
                     {list.map((s, i) => (
                       <tr key={s.id}>
                         <td>
-                          <Who who={s.actor} />{' '}
+                          <Who who={s.actor} unverified={s.unverified} />{' '}
                           {i === 0 && <span className="chip chip-accent">{t('uploads.current')}</span>}
                           {s.message && <div className="muted small">{s.message}</div>}
                         </td>

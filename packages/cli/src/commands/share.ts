@@ -108,6 +108,7 @@ export const shareCommands: Record<string, Spec> = {
         clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
         commitTime: time ? iso(new Date(time)) : undefined,
         actor: await cx.actorOf(ctx),
+        sign: cx.signerOf(ctx),
         manual: true,
         ...(str(a.message) && { message: str(a.message) }),
       };

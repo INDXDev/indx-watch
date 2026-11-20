@@ -93,6 +93,8 @@ The Focus **runner** turns a series of tests into a session. After you save a re
 
 Every record carries an `actor` ([security](security.md#identity)). The app shows that actor everywhere a result appears: an avatar (initials, with a color derived from the ID), the name, and a small "verified" mark for identities that come from Cloudflare Access, a trusted proxy header or GitHub OIDC.
 
+**Unverified** *(v0.2)*: when a record claims a verified `via` but has no valid signature ([signed records](security.md#signed-records)), the ✓ is replaced by an amber "unverified" chip whose tooltip says the record may have been written directly to the store. This applies to runs (lists, Activity, Home, the run viewer), judgements in the run viewer, and uploads. The server computes the flag; the app never verifies signatures itself.
+
 **"Who's testing?"** A local server runs as the machine's git user. In a shared or cloud workspace that may not be the person at the browser. A hosted app with `--public` has no identity at all. In these modes the avatar menu offers "Not you?". It opens a dialog asking for a name and email, stored in the `iw_tester` cookie (one year, `SameSite=Strict`, `Path=/`). The server then records writes as:
 
 ```json
@@ -163,4 +165,5 @@ You can upload definitions in three ways:
 - [x] The CLI panel shows `npx indx-watch clone <url>` with this server's clone source, and the copy button copies it (e2e `@TC-12`).
 - [x] Dropping a changed `TC-3` file previews "1 changed" with the check result. On a hosted app the upload publishes a `bundle` record, and the app serves the new title at once (server and Worker tests).
 - [x] An upload with a secret finding is refused, and nothing is written (server test).
+- [x] A run that claims `via = "github"` without a valid signature comes from the API with `unverified: true` and is shown with the "unverified" chip instead of ✓ (server and Worker tests; the chip itself is not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).

@@ -275,39 +275,41 @@ export function Avatar({ who, size }: { who: Person; size?: 'sm' | 'lg' }) {
     </span>
   );
 }
-/** Avatar, name and a verified mark. */
-export function Who({ who }: { who: Person }) {
+/** ✓ for a verified identity; "unverified" when a record claims one without a valid signature (docs/spec/web.md#identity). */
+export function Mark({ who, unverified }: { who: Person; unverified?: boolean | undefined }) {
   const { t } = useI18n();
+  if (!isVerified(who)) return null;
+  return unverified ? (
+    <span className="chip chip-warn" title={t('who.unsignedHint', { via: who.via })}>
+      {t('who.unsigned')}
+    </span>
+  ) : (
+    <span className="verified" title={t('who.verified', { via: who.via })}>
+      ✓
+    </span>
+  );
+}
+type WhoProps = { who: Person; unverified?: boolean | undefined };
+/** Avatar, name and a verified mark. */
+export function Who({ who, unverified }: WhoProps) {
   return (
     <span className="who">
       <Avatar who={who} size="sm" />
       <span>{personName(who)}</span>
-      {isVerified(who) && (
-        <span className="verified" title={t('who.verified', { via: who.via })}>
-          ✓
-        </span>
-      )}
+      <Mark who={who} unverified={unverified} />
     </span>
   );
 }
 
 /** One line of a feed: avatar, "<name> <verb> <link>", and when. */
-export function FeedItem({ who, at, children }: { who: Person; at: string; children: ReactNode }) {
+export function FeedItem({ who, at, unverified, children }: WhoProps & { at: string; children: ReactNode }) {
   const ago = useAgo();
-  const { t } = useI18n();
   return (
     <li className="feed-item">
       <Avatar who={who} />
       <div className="feed-main">
         <p>
-          <strong>{personName(who)}</strong>
-          {isVerified(who) && (
-            <span className="verified" title={t('who.verified', { via: who.via })}>
-              {' '}
-              ✓
-            </span>
-          )}{' '}
-          {children}
+          <strong>{personName(who)}</strong> <Mark who={who} unverified={unverified} /> {children}
         </p>
         <p className="muted small">{ago(at)}</p>
       </div>

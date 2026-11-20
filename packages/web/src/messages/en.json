@@ -329,6 +329,8 @@
   "who.reset": "Forget me",
   "who.notYou": "Not you? Set your name",
   "who.verified": "Verified identity ({via})",
+  "who.unsigned": "unverified",
+  "who.unsignedHint": "Claims {via}, but the record has no valid signature: it may have been written directly to the store",
   "who.via.git": "From git config (self-declared)",
   "who.via.env": "From the environment (self-declared)",
   "who.via.browser": "Declared in this browser (unverified)",

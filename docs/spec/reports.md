@@ -32,6 +32,7 @@ The HTML report is a single file with inline CSS, no JavaScript required, readab
 ## Rendering rules
 
 - The run log shows a CI link and, for pull requests, a `PR #n` link (internal audience only).
+- *(v0.2)* A run whose record claims a verified `via` without a valid signature shows "· unverified" after its actor ([signed records](security.md#signed-records)). The appendix lists `ignore_unverified` with the other gate thresholds.
 - HTML reports carry a Content-Security-Policy `meta` tag; links are only rendered for `http(s)` and relative URLs; in Markdown, `&`, `<` and `>` in user-written text are escaped.
 - When nothing is gated yet (the `has_gated_tests` check fails), the verdict is shown as a neutral "nothing to judge yet" state rather than a failure banner.
 

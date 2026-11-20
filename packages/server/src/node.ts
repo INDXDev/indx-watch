@@ -7,9 +7,9 @@ import type { AddressInfo } from 'node:net';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
-import { BundleError, loadBundle } from '@indx-watch/bundle';
+import { BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { buildModel } from '@indx-watch/core';
+import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
 import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watch/sync';
@@ -96,6 +96,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const dir = resolve(opts.dir);
   const fs = nodeFs(dir);
   const replica = SN.openReplica(dir);
+  const sign = recordSigner(process.env.IW_SIGNING_KEY);
   const sync: ProjectInfo['sync'] = { configured: false };
   const cache: { model?: ReturnType<ServerDeps['loadModel']> } = {};
   let syncState: Awaited<ReturnType<typeof fileStateStore>> | undefined;
@@ -106,7 +107,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     const records = await replica.records((file, error) =>
       shown.push({ severity: 'warning', message: `invalid record: ${error}`, file: `runs/${file}` }),
     );
-    const { model, warnings } = buildModel(bundle, records);
+    const { model, warnings } = await buildVerifiedModel(bundle, records);
     // records the store has two bodies of (docs/spec/sync.md#merge-rules)
     const conflicts = Object.values((await syncState?.load())?.conflicts ?? {});
     const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
@@ -173,7 +174,7 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
   const deps: ServerDeps = {
     mode: 'local',
     loadModel,
-    writeRecord: (record) => replica.putRecord(record).then(() => void invalidate()),
+    writeRecord: (record) => sign(record).then((r) => replica.putRecord(r).then(() => void invalidate())),
     putBlob: (data, contentType) => replica.putBlob(data, contentType),
     async getBlob(sha) {
       // read-through from the store for evidence = 'on-demand'

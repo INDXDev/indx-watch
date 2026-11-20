@@ -69,7 +69,7 @@ export function Activity({ filter }: { filter?: string | undefined }) {
                 {list.map((r) => {
                   const tc = tcs.get(r.testCase);
                   return (
-                    <FeedItem key={r.id} who={r.actor} at={r.at}>
+                    <FeedItem key={r.id} who={r.actor} at={r.at} unverified={r.unverified}>
                       <Badge status={r.verdict} />{' '}
                       <a href={href.run(r.id, q)}>
                         <span className="key">{r.testCase}</span> {tc ? <Tx of={tc} field="title" /> : null}

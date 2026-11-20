@@ -1,4 +1,5 @@
 import type { AnyRecord, JudgementRecord, RunRecord } from '@indx-watch/bundle';
+import { buildVerifiedModel } from '@indx-watch/core';
 import { createResultStore, httpObjectStore, memoryObjectStore } from '@indx-watch/store';
 import { accessIdentity } from '@indx-watch/store/workers';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -161,6 +162,23 @@ describe('read routes', () => {
     expect(d.testCase.currentVersion).not.toBe(d.record.test_case.version);
     expect((await a.fetch(req(`/api/runs/${tc8[0]!.id.slice(0, 26)}`))).status).toBe(404); // ambiguous prefix
     expect((await a.fetch(req('/api/runs/run_01JF7Z3K0W8N2Q4R6S8T0V9999'))).status).toBe(404);
+  });
+
+  it('marks records that claim a verified via without a signature as unverified (runs, run, report)', async () => {
+    const f = await fakeDeps();
+    const records = sampleRecords(f.bundle);
+    f.deps.loadModel = async () => ({
+      model: (await buildVerifiedModel(f.bundle, records)).model,
+      problems: [],
+    });
+    const a = createApp(f.deps);
+    const runs = await get<RunSummary[]>(a, '/api/runs?release=v1.2.0');
+    const tc1 = runs.find((r) => r.testCase === 'TC-1')!;
+    expect(tc1).toMatchObject({ actor: { via: 'github' }, unverified: true });
+    expect(runs.find((r) => r.testCase === 'TC-7')).not.toHaveProperty('unverified'); // via = "git" is self-asserted
+    expect((await get<RunDetail>(a, `/api/runs/${tc1.id}`)).unverified).toContain(tc1.id);
+    const md = await (await a.fetch(req('/api/report?format=md'))).text();
+    expect(md).toContain('octocat (ci) · unverified');
   });
 });
 

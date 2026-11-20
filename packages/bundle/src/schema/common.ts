@@ -45,9 +45,34 @@ export const DefStatus = z.enum(['draft', 'ready', 'deprecated']);
 export type DefStatus = z.infer<typeof DefStatus>;
 export const Origin = z.enum(['human', 'ai', 'import']);
 export type Origin = z.infer<typeof Origin>;
+/** How an actor was identified (docs/spec/security.md#identity). */
+export const Via = z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env', 'browser']);
+export type Via = z.infer<typeof Via>;
+/** `via` values that claim a verified source; such records need a valid signature (docs/spec/security.md#signed-records). */
+export const VERIFIED_VIA: readonly Via[] = ['cloudflare-access', 'github-oidc', 'github'];
 export const Tag = z.string().regex(/^[a-z0-9][a-z0-9-]*$/);
 /** Secret references only, never values (docs/spec/security.md#secrets). */
 export const SecretRef = z.string().regex(/^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$/);
+/** base64url without padding */
+const b64u = (bytes: number) =>
+  z.string().regex(new RegExp(`^[A-Za-z0-9_-]{${Math.ceil((bytes * 4) / 3)}}$`));
+/** A trusted record-signing public key (project.toml [[signing_keys]]). */
+export const SigningKey = z.strictObject({
+  kid: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+  /** raw Ed25519 public key */
+  public_key: b64u(32),
+  /** verified `via` values this key may vouch for (default: all) */
+  via: z.array(Via).optional(),
+  note: z.string().optional(),
+});
+export type SigningKey = z.infer<typeof SigningKey>;
+/** Record signature: Ed25519 over the canonical record without `sig` (docs/spec/sync.md#signed-records). */
+export const RecordSig = z.strictObject({
+  alg: z.literal('Ed25519'),
+  kid: SigningKey.shape.kid,
+  value: b64u(64),
+});
+export type RecordSig = z.infer<typeof RecordSig>;
 export const Sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 /** 12 hex chars: versions and translation source hashes. */
 export const ShortHash = z.string().regex(/^[0-9a-f]{12}$/);

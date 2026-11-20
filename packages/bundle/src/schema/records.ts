@@ -3,7 +3,7 @@
  * FROZEN CONTRACT for v0.1: additive changes only.
  */
 import { z } from 'zod';
-import { FxVersion, idOf, Locale, Sha256, TcVersion } from './common.js';
+import { FxVersion, idOf, Locale, RecordSig, Sha256, TcVersion, Via } from './common.js';
 import { DateTime, EvidenceKind, JudgeKind } from './definitions.js';
 
 /** http(s) URLs only: other schemes (javascript:, file:) are never rendered as links. */
@@ -15,7 +15,7 @@ export const Actor = z.strictObject({
   kind: ActorKind,
   id: z.string().min(1),
   name: z.string().optional(),
-  via: z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env', 'browser']),
+  via: Via,
   model: z.string().optional(),
 });
 export type Actor = z.infer<typeof Actor>;
@@ -95,6 +95,8 @@ const envelope = {
   at: DateTime,
   actor: Actor,
   source: Source,
+  /** signature of a trusted writer (v0.2, docs/spec/sync.md#signed-records) */
+  sig: RecordSig.optional(),
 };
 const TcRef = z.strictObject({ id: idOf('tc'), key: z.string(), version: TcVersion });
 

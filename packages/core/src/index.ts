@@ -7,7 +7,7 @@ import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 /** decide(judgements, policy, ctx): the decision policy (docs/spec/concepts.md#decision-policy). */
 export { decide } from './decide.js';
 /** buildModel(bundle, records): unknown/invalid records are skipped and reported. */
-export { buildModel } from './model.js';
+export { buildModel, buildVerifiedModel, verifyRecords } from './model.js';
 export { reportData } from './report.js';
 /**
  * testCaseStatus(model, key, scope): latest relevant result of one test case in a scope.
@@ -85,6 +85,8 @@ export interface ReportData {
     verdict: string;
     actor: string;
     actorKind: string;
+    /** claims a verified `via` without a valid signature (docs/spec/security.md#signed-records) */
+    unverified?: true;
     source: string;
     commit?: string | undefined;
     environment?: string | undefined;

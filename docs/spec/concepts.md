@@ -233,6 +233,7 @@ A test case may appear in a plan more than once only with different environments
 | `allow_stale` | `false` | Whether a stale result counts as its underlying verdict; when `false`, stale P0–P1 results fail this check | `"0"` / `"≤ 0"` |
 | `require_evidence` | `true` | Passing P0 results carry evidence or an `assert` judgement | `"4/4"` / `"4/4"` |
 
+- `ignore_unverified` (default `false`, *v0.2*) is not a check: when `true`, every check is computed as if records that claim a verified `via` without a valid signature, and the judgements in them, did not exist ([signed records](security.md#signed-records)). Status, the UI and reports still show those records, marked unverified.
 - A check with an empty denominator passes with `actual = "n/a"`. `has_gated_tests` comes first and fails when nothing is gated, so an empty project, or one with only P2–P3 or draft test cases, is never "ready to ship".
 - Each failing check lists the offending keys in `items`.
 - The gate passes only when every check passes. `iw status --release v1.2.0 --gate` exits 1 when it does not, so CI can block a release.

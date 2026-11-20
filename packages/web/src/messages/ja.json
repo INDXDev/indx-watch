@@ -329,6 +329,8 @@
   "who.reset": "リセット",
   "who.notYou": "別の人ですか？名前を設定",
   "who.verified": "検証済みの ID（{via}）",
+  "who.unsigned": "未検証",
+  "who.unsignedHint": "{via} を名乗っていますが、有効な署名がありません。ストアに直接書き込まれた可能性があります",
   "who.via.git": "git の設定から（自己申告）",
   "who.via.env": "環境変数から（自己申告）",
   "who.via.browser": "このブラウザで申告（未検証）",

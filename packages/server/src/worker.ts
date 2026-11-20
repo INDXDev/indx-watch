@@ -1,6 +1,6 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
- * Vars: ACCESS_TEAM, ACCESS_AUD, PROJECT_ID, STORE_PREFIX. CONTRACT; implementation T-107.
+ * Vars: ACCESS_TEAM, ACCESS_AUD, PROJECT_ID, STORE_PREFIX; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
  * Definitions: the latest bundle snapshot record (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
  */
@@ -10,9 +10,10 @@ import {
   loadBundle,
   newId,
   newUlid,
+  recordSigner,
   sha256Hex,
 } from '@indx-watch/bundle';
-import { buildModel } from '@indx-watch/core';
+import { buildVerifiedModel } from '@indx-watch/core';
 import * as S from '@indx-watch/store';
 import { accessIdentity, d1Index, r2ObjectStore } from '@indx-watch/store/workers';
 import { isoSeconds, snapshotBundle, ulidFloor } from '@indx-watch/sync';
@@ -31,6 +32,8 @@ export interface Env {
   STORE_PREFIX?: string;
   /** 'true' only for deploys made with --public */
   PUBLIC?: string;
+  /** signs every record this server writes (docs/spec/security.md#signed-records) */
+  IW_SIGNING_KEY?: string;
 }
 
 const LOOKBACK = 15 * 60 * 1000;
@@ -76,7 +79,11 @@ export async function catchUp(store: S.ResultStore, index: S.Index, owner: strin
 /** Latest snapshot: by commit_time, then at, then id. */
 const order = (r: BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 type Loaded = Awaited<ReturnType<ServerDeps['loadModel']>>;
-type Snapshot = { id: string; bundle: Parameters<typeof buildModel>[0]; problems: Loaded['problems'] };
+type Snapshot = {
+  id: string;
+  bundle: Parameters<typeof buildVerifiedModel>[0];
+  problems: Loaded['problems'];
+};
 type State = ReturnType<typeof create>;
 /** per isolate, by R2 binding */
 const states = new WeakMap<object, State>();
@@ -92,7 +99,7 @@ async function openSnapshot(store: S.ResultStore, snap: BundleRecord, files: Map
 }
 
 function setup(env: Env): State {
-  const key = [env.STORE_PREFIX, env.ACCESS_TEAM, env.ACCESS_AUD, env.PUBLIC].join('|');
+  const key = [env.STORE_PREFIX, env.ACCESS_TEAM, env.ACCESS_AUD, env.PUBLIC, env.IW_SIGNING_KEY].join('|');
   const existing = states.get(env.STORE as object);
   const s = existing?.key === key ? existing : create(env, key);
   states.set(env.STORE as object, s);
@@ -105,6 +112,7 @@ function create(env: Env, key: string) {
   const access = env.ACCESS_TEAM && env.ACCESS_AUD ? { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD } : null;
   const identity = env.PUBLIC === 'true' ? anon : access && accessIdentity(access);
   const ingested = { at: 0 };
+  const sign = recordSigner(env.IW_SIGNING_KEY);
   const files = new Map<string, Uint8Array>();
   let snapshot: Snapshot | undefined;
   let cache: { rev: string; value: Loaded } | undefined;
@@ -124,7 +132,7 @@ function create(env: Env, key: string) {
     const latest = bundles.sort((a, b) => (order(a) < order(b) ? 1 : -1))[0];
     if (!latest) fail('No bundle snapshot yet: run `iw sync --snapshot` on the default branch.');
     if (snapshot?.id !== latest.id) snapshot = await openSnapshot(store, latest, files);
-    const { model, warnings } = buildModel(snapshot.bundle, records);
+    const { model, warnings } = await buildVerifiedModel(snapshot.bundle, records);
     const conflicts = Object.values(JSON.parse((await index.getMeta(S.CONFLICTS_META)) ?? '{}')) as string[];
     const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
     const problems = [...snapshot.problems, ...more];
@@ -135,7 +143,11 @@ function create(env: Env, key: string) {
   const deps: ServerDeps = {
     mode: 'hosted',
     loadModel,
-    writeRecord: (record) => store.appendLog('hosted', [record]).then(([key]) => ingest([record], key)),
+    writeRecord: async (record) => {
+      const signed = await sign(record);
+      const [key] = await store.appendLog('hosted', [signed]);
+      await ingest([signed], key);
+    },
     putBlob: (data, type) => sha256Hex(data).then((sha) => store.putBlob(sha, data, type).then(() => sha)),
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
