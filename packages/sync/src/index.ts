@@ -53,6 +53,8 @@ export interface SyncOptions {
     /** `iw push`: publish even when not clean, unless the newest snapshot has the same definitions */
     manual?: boolean;
     message?: string;
+    /** signs the bundle record (IW_SIGNING_KEY, docs/spec/security.md#signed-records) */
+    sign?: <R extends AnyRecord>(record: R) => Promise<R>;
   };
   direction?: 'both' | 'push' | 'pull';
   evidence?: 'on-demand' | 'all' | 'none';
@@ -237,24 +239,26 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
           result.pushed.blobs++;
         }
         const at = isoSeconds(now());
-        const record = AnyRecordSchema.parse({
-          kind: 'bundle',
-          id: newId('rec', now()),
-          v: 1,
-          project: opts.projectId,
-          at,
-          actor: b.actor,
-          source: b.actor.kind === 'ci' ? 'ci' : 'cli',
-          commit: b.commit,
-          // an upload without a clean commit is ordered by its upload time (docs/spec/sync.md#snapshots-from-people-v02)
-          commit_time: b.clean ? b.commitTime : at,
-          ref: b.ref,
-          sha256: sha,
-          definitions_hash: snap.hash,
-          files: snap.files,
-          ...(b.manual && !b.clean && { dirty: true }),
-          ...(b.message && { message: b.message }),
-        });
+        const record = await (b.sign ?? (async (r) => r))(
+          AnyRecordSchema.parse({
+            kind: 'bundle',
+            id: newId('rec', now()),
+            v: 1,
+            project: opts.projectId,
+            at,
+            actor: b.actor,
+            source: b.actor.kind === 'ci' ? 'ci' : 'cli',
+            commit: b.commit,
+            // an upload without a clean commit is ordered by its upload time (docs/spec/sync.md#snapshots-from-people-v02)
+            commit_time: b.clean ? b.commitTime : at,
+            ref: b.ref,
+            sha256: sha,
+            definitions_hash: snap.hash,
+            files: snap.files,
+            ...(b.manual && !b.clean && { dirty: true }),
+            ...(b.message && { message: b.message }),
+          }),
+        );
         await opts.replica.putRecord(record);
         for (const key of await opts.store.appendLog(opts.writer, [record], now())) seen.add(key);
         pushed.add(record.id);

@@ -50,7 +50,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-208 | Other CI providers' context (GitLab, CircleCI, Buildkite) | Context detected from standard variables | ⏳ |
 | T-209 | Workspace mode: definitions synced through the store, edited in the hosted UI | [sync.md](spec/sync.md#workspace-mode-v02) design notes hold | ⏳ |
 | T-210 | `node:sqlite` index for large local projects | Same SQL schema file as D1 (`packages/store/src/index-schema.sql`) | ⏳ |
-| T-211 | Signed records (server and OIDC) so direct bucket writes cannot claim verified identities | Forged `via` is shown as unverified | ⏳ |
+| T-211 | Signed records (server and OIDC) so direct bucket writes cannot claim verified identities | Forged `via` is shown as unverified | ✅ Ed25519 `sig` on records, keys pinned in `project.toml` `[[signing_keys]]`, `iw keygen`, signing by the hosted server, `iw serve`, the CLI and the reporter (`IW_SIGNING_KEY`), "unverified" in the UI, API and reports, `gate.ignore_unverified`. CI signs with a secret key; GitHub OIDC-based signing is not built yet |
 | T-212 | Interoperate with Playwright Test Agents' `specs/*.md` plans (import as draft test cases) | A planner spec imports into drafts that pass `iw check` | ⏳ |
 | T-213 | Web app v2: calm Home, List and Focus views on every collection, Focus runner sessions, Activity, CLI panel | [web.md](spec/web.md#acceptance-criteria) | ✅ Home, Tests, Activity and Test data with List / Focus, runner sessions with keyboard shortcuts, CLI panel |
 | T-214 | "Who's testing?": browser-declared tester identity (`via = "browser"`) where no verified identity exists | [web.md](spec/web.md#identity) | ✅ `iw_tester` cookie, honored only without a verified identity |

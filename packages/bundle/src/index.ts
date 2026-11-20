@@ -7,6 +7,7 @@ export * from './record-io.js';
 export * from './schema/common.js';
 export * from './schema/definitions.js';
 export * from './schema/records.js';
+export * from './sign.js';
 export * from './toml.js';
 export type * from './types.js';
 export * from './versions.js';

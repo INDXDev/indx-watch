@@ -798,3 +798,28 @@ describe('commands', () => {
     expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.0');
   });
 });
+
+describe('signed records (docs/spec/security.md#signed-records)', () => {
+  it('iw keygen prints a key; writes with IW_SIGNING_KEY are signed and verify against project.toml', async () => {
+    const dir = shop();
+    const k = iwJson(dir, 'keygen', ['keygen', '--kid', 'ci-test', '--via', 'github']).json.data;
+    expect(k).toMatchObject({ kid: 'ci-test', via: ['github'] });
+    expect(k.secret).toMatch(/^iwsk1:ci-test:/);
+    expect(k.toml).not.toContain(k.secret.split(':')[2]);
+    expect(iw(dir, ['keygen', '--via', 'git']).code).toBe(2);
+    const project = join(dir, '.indx-watch/project.toml');
+    writeFileSync(project, `${readFileSync(project, 'utf8')}\n${k.toml}`);
+    expect(iwJson(dir, 'check', ['check']).code).toBe(0); // a public key is not a secret
+    const env = { IW_SIGNING_KEY: k.secret };
+    const run = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], { env }).json.data.run;
+    expect(run.sig).toMatchObject({ alg: 'Ed25519', kid: 'ci-test' });
+    const [file] = records(dir);
+    const stored = JSON.parse(readFileSync(join(dir, '.indx-watch/runs/records', String(file)), 'utf8'));
+    const { verifyRecord } = await import('@indx-watch/bundle');
+    expect(await verifyRecord(stored, [k])).toBe(true);
+    expect(await verifyRecord({ ...stored, note: 'edited' }, [k])).toBe(false);
+    expect(iw(dir, ['record', 'TC-1', '--verdict', 'pass'], { env: { IW_SIGNING_KEY: 'nope' } }).code).toBe(
+      3,
+    );
+  });
+});

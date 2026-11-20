@@ -312,6 +312,17 @@ Start the MCP server on stdio. See [agents.md](agents.md#mcp-server).
 
 Copy the shipped agent skills into the repository: `--claude` → `.claude/skills/`, `--codex` → `.agents/skills/` (see [agents.md](agents.md#skills)). Default: both. `data`: `{ "installed": string[] }`
 
+### `iw keygen`
+
+*(v0.2)* Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it.
+
+| Flag | Default | |
+|---|---|---|
+| `--kid <id>` | `iw-<date>` | Key ID (letters, digits, `.`, `_`, `-`; at most 64) |
+| `--via <list>` | all | Comma-separated verified `via` values the key may vouch for: `cloudflare-access`, `github-oidc`, `github` |
+
+`data`: `{ "kid": string, "public_key": string, "via"?: string[], "secret": string, "toml": string }`
+
 ### `iw login <url>` *(thin wrapper)*
 
 Runs `cloudflared access login <url>` so later commands can obtain a token with `cloudflared access token -app=<url>`. INDX Watch stores nothing itself. `data`: `{ "url": string }`
@@ -333,6 +344,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
+| `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](security.md#signed-records)) |
 | `IW_LLM_MODEL` | judge | Model for `iw judge` (default `claude-opus-5-5`) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` | judge | Anthropic credential and optional gateway URL |
 

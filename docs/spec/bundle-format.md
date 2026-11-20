@@ -109,6 +109,7 @@ max_needs_review = 0
 max_untested = 0
 allow_stale = false
 require_evidence = true
+ignore_unverified = false
 
 [decision_policy]
 llm_pass_confidence = 0.8
@@ -147,6 +148,7 @@ definition = "A code that reduces the order total."
 | `[decision_policy]` | no | Project defaults; a test case may override. |
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default; `workspace` is reserved for v0.2). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). |
+| `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](security.md#signed-records). |
 
 ## `environments/<name>.toml`
 

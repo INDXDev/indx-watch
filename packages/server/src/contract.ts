@@ -115,6 +115,8 @@ export interface SnapshotSummary {
   dirty?: boolean;
   message?: string;
   sha256: string;
+  /** the actor claims a verified `via` but the record has no valid signature (docs/spec/security.md#signed-records) */
+  unverified?: true;
 }
 
 export interface SpecTree {
@@ -162,6 +164,8 @@ export interface RunSummary {
   commit?: string;
   at: string;
   evidence: number;
+  /** the record claims a verified `via` without a valid signature (docs/spec/security.md#signed-records) */
+  unverified?: true;
 }
 
 export interface TestCaseDetail {
@@ -202,6 +206,8 @@ export interface RunDetail {
   decision: Decision;
   stale: boolean;
   testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
+  /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
+  unverified?: string[];
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */

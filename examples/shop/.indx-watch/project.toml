@@ -17,6 +17,7 @@ max_needs_review = 0
 max_untested = 0
 allow_stale = false
 require_evidence = true
+ignore_unverified = false
 
 [decision_policy]
 llm_pass_confidence = 0.8

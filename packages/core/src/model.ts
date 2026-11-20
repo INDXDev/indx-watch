@@ -11,6 +11,8 @@ import {
   type JudgementRecord,
   type Priority,
   type RunRecord,
+  verifiedClaims,
+  verifyRecord,
   type WaiverRecord,
 } from '@indx-watch/bundle';
 import { byAtThenId, decide } from './decide.js';
@@ -34,6 +36,8 @@ export const byKey = (a: string, b: string) => keyNum(a) - keyNum(b) || (a < b ?
 export function buildModel(
   bundle: Bundle,
   records: Iterable<AnyRecord>,
+  /** unverified: record and judgement IDs from verifyRecords() */
+  opts: { unverified?: ReadonlySet<string> } = {},
 ): { model: Model; warnings: string[] } {
   const warnings: string[] = [];
   const p = bundle.project.data;
@@ -189,5 +193,37 @@ export function buildModel(
       return ids.get(bare) ?? (runs.has(bare) ? bare : undefined);
     },
   };
+  const unverified = opts.unverified;
+  if (unverified?.size) {
+    model.unverified = unverified;
+    if (p.gate?.ignore_unverified)
+      model.verifiedOnly = buildModel(
+        bundle,
+        all.filter((r) => !unverified.has(r.id)),
+      ).model;
+  }
   return { model, warnings };
+}
+
+/**
+ * IDs of records — and of the judgements inside them — that claim a verified `via` without a valid signature
+ * by a key in project.toml [[signing_keys]] (docs/spec/security.md#signed-records).
+ */
+export async function verifyRecords(bundle: Bundle, records: Iterable<AnyRecord>): Promise<Set<string>> {
+  const keys = bundle.project.data.signing_keys ?? [];
+  const out = new Set<string>();
+  const check = async (r: AnyRecord) => {
+    if (!verifiedClaims(r).length || (await verifyRecord(r, keys))) return;
+    out.add(r.id);
+    for (const j of r.kind === 'run' ? r.judgements : r.kind === 'judgement' ? [r.judgement] : [])
+      out.add(j.id);
+  };
+  await Promise.all([...records].map(check));
+  return out;
+}
+
+/** buildModel() with signatures checked: what the CLI and the server show. */
+export async function buildVerifiedModel(bundle: Bundle, records: Iterable<AnyRecord>) {
+  const list = [...records];
+  return buildModel(bundle, list, { unverified: await verifyRecords(bundle, list) });
 }

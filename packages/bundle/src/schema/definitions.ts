@@ -16,6 +16,7 @@ import {
   Priority,
   SecretRef,
   Sha256,
+  SigningKey,
   Tag,
   translation,
 } from './common.js';
@@ -44,6 +45,8 @@ export const Gate = z.strictObject({
   max_untested: z.number().int().min(0).optional(),
   allow_stale: z.boolean().optional(),
   require_evidence: z.boolean().optional(),
+  /** evaluate the gate without records that claim a verified `via` but carry no valid signature (v0.2) */
+  ignore_unverified: z.boolean().optional(),
 });
 export type Gate = z.infer<typeof Gate>;
 export const GATE_DEFAULTS: Required<Gate> = {
@@ -54,6 +57,7 @@ export const GATE_DEFAULTS: Required<Gate> = {
   max_untested: 0,
   allow_stale: false,
   require_evidence: true,
+  ignore_unverified: false,
 };
 
 export const DecisionPolicy = z.strictObject({
@@ -113,6 +117,8 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
+  signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
   notes: z.string().optional(),
   x: Extra.optional(),

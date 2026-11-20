@@ -1,4 +1,4 @@
-import { type AnyRecord, newId, sha256Hex } from '@indx-watch/bundle';
+import { type AnyRecord, generateSigningKey, newId, sha256Hex, verifyRecord } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { createResultStore, memoryIndex, memoryObjectStore } from '@indx-watch/store';
 import { r2ObjectStore } from '@indx-watch/store/workers';
@@ -81,6 +81,27 @@ describe('worker', () => {
     // /api/store/* is the bucket
     expect((await call(env, '/api/store/objects/indx-watch-store.json')).status).toBe(200);
     vi.restoreAllMocks();
+  });
+
+  it('signs the records it writes with IW_SIGNING_KEY; unsigned verified claims from the bucket are unverified', async () => {
+    const { r2, b } = await bucket();
+    const k = await generateSigningKey('hosted-test');
+    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const signed = { ...env, IW_SIGNING_KEY: k.secret };
+    const store = createResultStore(r2ObjectStore(r2, 'shop'));
+    await store.appendLog('ci', sampleRecords(b)); // CI records (via = "github") written without a signature
+    const res = await call(signed, '/api/runs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ test_case: 'TC-9', steps: [], verdict: 'pass' }),
+    });
+    expect(res.status).toBe(201);
+    const logs = await store.listLog({});
+    const written = (await store.readLog(logs.keys.at(-1)!)).records[0] as AnyRecord;
+    expect(written.sig?.kid).toBe('hosted-test');
+    expect(await verifyRecord(written, [k.key])).toBe(true);
+    const runs = (await (await call(signed, '/api/runs?tc=TC-1')).json()) as RunSummary[];
+    expect(runs[0]).toMatchObject({ actor: { via: 'github' }, unverified: true });
   });
 
   it('answers 503 until a snapshot exists', async () => {

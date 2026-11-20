@@ -184,7 +184,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
         clone: deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null),
       },
       can: { declare: !!d.declaredIdentity, upload: !!d.publishBundle },
-      snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0]),
+      snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
     };
     return c.json(info);
   });
@@ -210,7 +210,10 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     return c.json(await V.fixtureDetail(fx, read));
   });
   app.get('/api/plans', async (c) => c.json(await V.planViews(await model())));
-  app.get('/api/snapshots', async (c) => c.json((await model()).snapshots.map(V.snapshotSummary)));
+  app.get('/api/snapshots', async (c) => {
+    const m = await model();
+    return c.json(m.snapshots.map((r) => V.snapshotSummary(r, m)));
+  });
   app.post('/api/bundle', async (c) => {
     const input = await json<UploadInput>(c);
     const who = await actor(c);
@@ -250,7 +253,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
       currentVersion: t?.version ?? record.test_case.version,
       ...(i18n && { i18n }),
     };
-    return c.json({ record, judgements, decision, stale, testCase } satisfies RunDetail);
+    const ids = [record.id, ...judgements.map((j) => j.id)].filter((id) => m.unverified?.has(id));
+    const unverified = ids.length ? { unverified: ids } : {};
+    return c.json({ record, judgements, decision, stale, testCase, ...unverified } satisfies RunDetail);
   });
 
   app.post('/api/runs', async (c) => {

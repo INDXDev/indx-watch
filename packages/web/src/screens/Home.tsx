@@ -99,7 +99,7 @@ function Ready({
   const activity: { at: string; node: ReactNode }[] = runs.slice(0, 5).map((r) => ({
     at: r.at,
     node: (
-      <FeedItem key={r.id} who={r.actor} at={r.at}>
+      <FeedItem key={r.id} who={r.actor} at={r.at} unverified={r.unverified}>
         {t(`home.did.${r.verdict}` as MsgKey)}{' '}
         <a href={href.run(r.id)}>
           <span className="key">{r.testCase}</span> {title.get(r.testCase)}
@@ -173,7 +173,8 @@ function Ready({
           <span className="stat-label">{t('home.card.upload')}</span>
           {snap ? (
             <span className="stat-who">
-              <Who who={snap.actor} /> <span className="muted small">{ago(snap.at)}</span>
+              <Who who={snap.actor} unverified={snap.unverified} />{' '}
+              <span className="muted small">{ago(snap.at)}</span>
             </span>
           ) : (
             <span className="muted small">{t('home.card.noUpload')}</span>
@@ -246,7 +247,7 @@ function Ready({
 export function UploadRow({ s }: { s: SnapshotSummary }) {
   const { t } = useI18n();
   return (
-    <FeedItem who={s.actor} at={s.at}>
+    <FeedItem who={s.actor} at={s.at} unverified={s.unverified}>
       <a href={href.uploads()}>{t('home.uploaded', { count: s.files })}</a>
       {s.message && <span className="muted"> — {s.message}</span>}
     </FeedItem>

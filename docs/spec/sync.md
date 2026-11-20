@@ -75,8 +75,13 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `project` | project machine ID |
 | `at` | creation time (RFC 3339) |
 | `actor`, `source` | [security.md](security.md#identity) |
+| `sig` | optional, *v0.2*: the writer's signature ([signed records](#signed-records)) |
 
 **Canonical record JSON.** Writers validate a record with its strict schema and store `JSON.stringify` of the parsed result (keys in schema order, defaults materialized, no whitespace). Those exact bytes go into the replica, log objects and archives. Readers accept unknown extra fields (from newer tools) and keep the bytes they received; two records with the same ID are compared by these bytes.
+
+### Signed records
+
+*(v0.2)* A writer with `IW_SIGNING_KEY` adds `sig = { "alg": "Ed25519", "kid", "value" }` to every record it writes: an Ed25519 signature (base64url) over `indx-watch/record/v1\n` + the canonical record JSON without `sig`. Readers recompute those bytes from the record they decoded, so a reader whose schema lacks a field a newer writer signed sees the record as unverified until it is upgraded. Signing never changes merge rules: a signed and an unsigned body with the same ID are two different bodies. Which keys are trusted, and what "unverified" means for the UI, reports and the gate: [security.md](security.md#signed-records).
 
 ### Run record
 
@@ -181,7 +186,7 @@ The server keeps an index (SQLite on Node, D1 on Cloudflare) of records and the 
 - uploads through `/api/store/*`, on receipt;
 - writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger. Each ingest handles at most 50 log objects, saves its cursor in the index, and holds a lease row so only one runs at a time; a fresh deploy on a large bucket catches up over several invocations.
 
-Records written by the hosted server itself carry an Access-verified actor. Records written directly to the bucket are trusted as written; see the [threat model](security.md#threat-model).
+Records written by the hosted server itself carry an Access-verified actor and, when the Worker has `IW_SIGNING_KEY`, a signature. Records written directly to the bucket are ingested as written; those claiming a verified `via` without a valid signature are shown as unverified ([signed records](security.md#signed-records), [threat model](security.md#threat-model)).
 
 `iw reindex` (or deleting the index) rebuilds it from the store; nothing is lost.
 

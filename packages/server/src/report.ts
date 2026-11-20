@@ -307,7 +307,8 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
     const links = ciLinks(r);
     const ciCell: Inline[] = ci ? [links.length ? spaced(links) : '—'] : [];
     const build = r.commit ? code(r.commit.slice(0, 7)) : '—';
-    const cells = [key(r.testCase), code(r.version), verdict, `${r.actor} (${r.actorKind})`, r.source, build];
+    const who = `${r.actor} (${r.actorKind})${r.unverified ? ` · ${t('unverified')}` : ''}`;
+    const cells = [key(r.testCase), code(r.version), verdict, who, r.source, build];
     return [...cells, r.environment ?? '—', when(r.at), String(r.evidence), ...ciCell];
   };
   const runHead = T(`testCase version verdict who source build env ended evidence${ci ? ' ci' : ''}`);
