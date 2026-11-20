@@ -137,9 +137,10 @@ describe('startNodeServer', () => {
         async () =>
           existsSync(join(tmp, 'store/v1/log')) && readdirSync(join(tmp, 'store/v1/log')).length > 0,
       );
-      const info = (await (await fetch(`${synced.url}/api/project`)).json()) as ProjectInfo;
-      expect(info.sync).toMatchObject({ configured: true, store: 'file://../store' });
-      expect(info.sync.lastSyncAt).toBeTruthy();
+      // The log object is written inside syncOnce; lastSyncAt is set after it returns, so wait for that too.
+      const project = async () => (await (await fetch(`${synced.url}/api/project`)).json()) as ProjectInfo;
+      await until(async () => !!(await project()).sync.lastSyncAt);
+      expect((await project()).sync).toMatchObject({ configured: true, store: 'file://../store' });
     } finally {
       await synced.close();
     }
