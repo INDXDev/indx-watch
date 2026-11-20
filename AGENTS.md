@@ -17,6 +17,7 @@ Each fact has one home. Read the home before changing behavior; update it in the
 | Records, store layout, sync | [docs/spec/sync.md](docs/spec/sync.md) + `packages/bundle/src/schema/records.ts` |
 | CLI commands and JSON output | [docs/spec/cli.md](docs/spec/cli.md) + `packages/cli/src/json.ts` |
 | Ports, packages, line budget, dependencies | [docs/architecture.md](docs/architecture.md) + `packages/store/src/ports.ts` |
+| Web app screens and interaction patterns | [docs/spec/web.md](docs/spec/web.md) |
 | Plan and task IDs | [docs/roadmap.md](docs/roadmap.md) |
 | Platform facts (Cloudflare, Playwright, agent tooling) | [docs/research/platform-notes.md](docs/research/platform-notes.md) — verify on the web before relying on anything older than 90 days |
 | Sample data | [examples/shop](examples/shop) — the only sample project and the only sample result set (`store/`); docs and skills use only it |

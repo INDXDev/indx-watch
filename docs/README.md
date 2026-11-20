@@ -25,6 +25,7 @@ INDX Watch keeps test cases, fixtures and results as typed files, syncs results 
 | Report contents, formats, customer sharing | [spec/reports.md](spec/reports.md) |
 | Identity, secrets, access, threat model | [spec/security.md](spec/security.md) |
 | UI locales, content translations, literal strings | [spec/i18n.md](spec/i18n.md) |
+| Web app screens, List/Focus views, upload, CLI panel | [spec/web.md](spec/web.md) |
 | Packages, ports, runtime targets, line budget, dependencies | [architecture.md](architecture.md) |
 | Decisions and their reasons | [adr/](adr/README.md) |
 | Milestones and task IDs | [roadmap.md](roadmap.md) |

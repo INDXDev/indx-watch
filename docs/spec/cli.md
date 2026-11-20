@@ -206,6 +206,44 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 
 `data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[] }`. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
+### `iw push`
+
+Upload everything in one step: sync results (like `iw sync`), then publish a bundle snapshot of the current definitions so hosted viewers and `iw clone` get them. This is the terminal side of the web app's [Upload](web.md#upload). Unlike `iw sync --snapshot`, it publishes even from a dirty working tree or a branch other than the default, because a person asked for it. The snapshot records `dirty: true` and the commit, if there is one. Refused while `iw check` has errors (exit 1, `CHECK_FAILED`). It skips the upload when the definitions are unchanged since the newest snapshot in the store.
+
+| Flag | |
+|---|---|
+| `--store <url>` | Override `[store].url` |
+| `--message <text>` | Free text shown on the Uploads screen |
+
+`data`: `{ "snapshot": string | null, "files": number, "unchanged": boolean, "pushed": { "records": number, "blobs": number }, "url": string | null }`. `url` is the hosted app's Uploads screen when the store is a hosted app.
+
+### `iw clone <source> [dir]`
+
+Create a working copy from a hosted app or a store. `<source>` is either a hosted app URL (`https://watch.shop.test`, read through its `/api/store` endpoints, with an Access token as for any `https://` store) or a store URL (`s3://…`, `file://…`). The command:
+
+1. finds the newest `bundle` record;
+2. downloads its tarball;
+3. writes it to `<dir>/.indx-watch/` (`dir` defaults to the project key in lower case; it must be empty or missing);
+4. sets `[store].url` to `<source>` when the snapshot's `project.toml` names a different store or none;
+5. pulls results;
+6. prints `cd <dir> && npx indx-watch serve`.
+
+`data`: `{ "dir": string, "snapshot": string, "files": number, "pulled": { "records": number, "blobs": number } }`. With no snapshot in the store it exits 4 (`STORE_ERROR`); a non-empty target directory exits 1 (`CONFLICT`).
+
+### `iw translate [ref]`
+
+Read and write content translations ([i18n](i18n.md#content-translations)) with the right `source_hash`, so nobody computes hashes by hand.
+
+| Usage | |
+|---|---|
+| `iw translate TC-3 --locale ja` | List every translatable field of `TC-3` with its source text, its current translation and that translation's state (`missing`, `machine`, `reviewed`, `stale`) |
+| `iw translate TC-3 --locale ja --set title="有効なクーポンで合計が下がる" --set steps.1.expected="…"` | Write those fields into `[i18n.ja]` (or into `[steps.i18n.ja]` / `[criteria.i18n.ja]`) and stamp the current `source_hash` |
+| `iw translate --missing --locale ja` | List the entities whose translation for `ja` is missing or stale (all kinds) |
+
+Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `guide`, `steps.<n>.instruction`, `steps.<n>.expected` (1-based), `criteria.<AC-key>.text`. With `--from <file.json|->`, it reads `{ "<path>": "<text>" }` instead of `--set`. New translations are written with `status = "machine"`; `--reviewed` writes `status = "reviewed"`, and agents may not pass it, because a person reviews. A write refreshes `source_hash` for the whole table, so the fields not passed must already be current. Otherwise it fails and lists them. `iw check` warns when a translation drops a literal from the source.
+
+`data` (list): `{ "ref": string | null, "locale": string, "fields": { "ref": string, "path": string, "source": string, "text"?: string, "state": "missing" | "machine" | "reviewed" | "stale" }[] }`. `data` (write): `{ "ref", "locale", "file", "status", "written": string[] }`.
+
 ### `iw serve`
 
 If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`.

@@ -16,7 +16,7 @@ Every record (run, judgement, waiver, deployment, snapshot) carries an `actor` a
 |---|---|
 | `actor.kind` | `human`, `ci`, `agent` |
 | `actor.id` | email, `github:<login>`, or `ci:<provider>` |
-| `actor.via` | `git`, `github`, `github-oidc`, `cloudflare-access`, `env` |
+| `actor.via` | `git`, `github`, `github-oidc`, `cloudflare-access`, `env`, `browser` |
 | `actor.model` | model ID, when `kind = "agent"` |
 | `source` | `manual`, `playwright`, `agent`, `cli`, `ci`, `import` |
 
@@ -29,13 +29,15 @@ Resolution order, implemented once in the `IdentityProvider` port:
 4. **Local** — `git config user.email` / `user.name`; `via = "git"`.
 5. **Fallback** — OS user name with `via = "env"` and a warning.
 
+**Browser-declared tester** *(v0.2)*: when the server has no verified identity for a web request (`iw serve` without `--identity-header`, or hosted `--public`), a valid `iw_tester` cookie set through the app's "Who's testing?" dialog replaces steps 4–5 for that request, with `kind = "human"` and `via = "browser"`. Behind Cloudflare Access or a trusted identity header the cookie is ignored. See [web.md](web.md#identity).
+
 Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors.
 
 ## Shared servers
 
 `iw serve` binds to `127.0.0.1` by default and attributes writes to the local identity. On a shared host (`--host 0.0.0.0`, Docker), the server must not attribute other people's work to the operator: write requests from non-loopback addresses are **rejected** unless the server runs behind a proxy that authenticates users and `--identity-header <name>` names the header carrying the user's email (e.g. `X-Forwarded-Email` from an SSO proxy, or Cloudflare Access with JWT verification). Reads are allowed.
 
-**Trust levels.** `git` and `env` identities are self-asserted, like git commit authors. Reports show `via` so readers can tell an Access-verified approval from a self-asserted one. The gate can require verified identities for human judgements on P0 (`gate.require_verified_human`, *v0.2*).
+**Trust levels.** `git`, `env` and `browser` identities are self-asserted, like git commit authors. Reports show `via` so readers can tell an Access-verified approval from a self-asserted one. The gate can require verified identities for human judgements on P0 (`gate.require_verified_human`, *v0.2*).
 
 ## Browser requests
 

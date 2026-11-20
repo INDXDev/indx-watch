@@ -52,6 +52,10 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-210 | `node:sqlite` index for large local projects | Same SQL schema file as D1 (`packages/store/src/index-schema.sql`) | ⏳ |
 | T-211 | Signed records (server and OIDC) so direct bucket writes cannot claim verified identities | Forged `via` is shown as unverified | ⏳ |
 | T-212 | Interoperate with Playwright Test Agents' `specs/*.md` plans (import as draft test cases) | A planner spec imports into drafts that pass `iw check` | ⏳ |
+| T-213 | Web app v2: calm Home, List and Focus views on every collection, Focus runner sessions, Activity, CLI panel | [web.md](spec/web.md#acceptance-criteria) | ✅ Home, Tests, Activity and Test data with List / Focus, runner sessions with keyboard shortcuts, CLI panel |
+| T-214 | "Who's testing?": browser-declared tester identity (`via = "browser"`) where no verified identity exists | [web.md](spec/web.md#identity) | ✅ `iw_tester` cookie, honored only without a verified identity |
+| T-215 | Upload and clone: `iw push`, `iw clone`, drag-and-drop upload with preview, Uploads screen | [web.md](spec/web.md#upload), [cli.md](spec/cli.md#iw-push) | ✅ `iw push`, `iw clone`, browser upload with preview (Node writes files; Workers publish a snapshot), Uploads screen. Worker upload tested against fake R2/D1; not yet on a real deploy |
+| T-216 | Bilingual content everywhere: `iw translate`, release and plan titles, `judgement.locale`, complete `ja` in the examples | [i18n.md](spec/i18n.md#acceptance-criteria) | ✅ `iw translate`, release/plan titles, `judgement.locale`; both example bundles are complete in `ja` (machine translations, awaiting review) |
 
 ## v0.3 — teams and customers
 
