@@ -1,0 +1,375 @@
+/**
+ * The API routes of createApp (docs/architecture.md#http-api), in three groups: reads, writes (bundle upload,
+ * manual runs, reviews, blob uploads) and the store endpoints (docs/spec/sync.md#store-http-endpoints).
+ */
+import * as B from '@indx-watch/bundle';
+import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
+import { checkRecord, ulidTime } from '@indx-watch/store';
+import type { Context, Hono } from 'hono';
+import type { Ctx } from './app.js';
+import type { ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
+import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
+import { renderReport, reportTexts } from './report.js';
+import { prepareUpload, type UploadInput } from './upload.js';
+import * as V from './views.js';
+
+const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
+/** A non-empty query parameter. */
+const q = (c: Context, k: string) => c.req.query(k) || undefined;
+/** Scope from `?release=` and `?env=`. */
+const scopeOf = (c: Context, m: Model, r = m.project.current_release): Scope =>
+  Object.assign({ release: q(c, 'release') ?? r, environment: q(c, 'env') });
+/** A test case by key or ID, else 404. */
+const tcOf = (m: Model, k: string) => m.testCases.get(m.keyOf(k) ?? k) ?? fail(notFound(`test case ${k}`));
+/** A run by ID, else 404. */
+const runOf = (m: Model, id: string) => m.runs.get(id) ?? fail(notFound(`run ${id}`));
+/** The JSON request body, else 400. */
+const readJson = <T>(c: Context) => c.req.json<T>().catch(() => fail(bad('request body must be JSON')));
+
+/** The raw request body, refused with 413 over MAX_BLOB_BYTES. */
+async function readBody(c: Context) {
+  const big = () => new HttpError(413, 'too-large', 'over 25 MB');
+  if (Number(c.req.header('content-length') ?? 0) > MAX_BLOB_BYTES) throw big();
+  // count while reading: a chunked body has no Content-Length
+  const [reader, chunks] = [c.req.raw.body?.getReader(), [] as Uint8Array<ArrayBuffer>[]];
+  for (let r = await reader?.read(), n = 0; r && !r.done; r = await reader!.read()) {
+    n += r.value.byteLength;
+    if (n > MAX_BLOB_BYTES) await reader!.cancel().then(() => fail(big()));
+    chunks.push(r.value);
+  }
+  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}
+
+const CSP_BLOB = "default-src 'none'; sandbox";
+const CSP_REPORT = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'";
+/** raster images are shown inline; everything else (SVG and HTML included) is downloaded */
+const INLINE_MEDIA = /^image\/(png|jpeg|gif|webp|avif)$/;
+
+/** Register the read-only routes. */
+export function registerReadRoutes(app: Hono, x: Ctx) {
+  const { model, read } = x;
+  /** a JSON response computed from the current model */
+  const get = (path: string, view: (m: Model, c: Context) => unknown) =>
+    app.get(path, async (c) => c.json(await view(await model(), c)));
+  app.get('/api/project', (c) => projectInfo(c, x));
+  get('/api/status', (m, c) => computeStatus(m, scopeOf(c, m)));
+  get('/api/specs', (m, c) => V.specTree(m, scopeOf(c, m)));
+  get('/api/test-cases/:key', (m, c) =>
+    V.testCaseDetail(m, tcOf(m, c.req.param('key')!).data.key, scopeOf(c, m), read),
+  );
+  get('/api/fixtures', (m) => Promise.all([...m.fixtures.values()].map((f) => V.fixtureDetail(f, read))));
+  get('/api/fixtures/:key', (m, c) => {
+    const key = c.req.param('key')!;
+    return V.fixtureDetail(m.fixtures.get(m.keyOf(key) ?? key) ?? fail(notFound(`fixture ${key}`)), read);
+  });
+  get('/api/plans', (m) => V.planViews(m));
+  get('/api/snapshots', (m) => m.snapshots.map((r) => V.snapshotSummary(r, m)));
+  get('/api/plans/:key', async (m, c) => {
+    const key = c.req.param('key');
+    return (await V.planViews(m)).find((p) => p.key === key) ?? fail(notFound(`plan ${key}`));
+  });
+  app.get('/api/runs', async (c) => {
+    const [m, tc] = [await model(), q(c, 'tc')];
+    const f = { release: q(c, 'release'), environment: q(c, 'env'), tcId: tc && tcOf(m, tc).data.id };
+    const limit = Math.min(Math.max(Number(q(c, 'limit')) || 100, 1), 1000);
+    const runs = V.listRuns(m, f).slice(0, limit);
+    return c.json(runs.map((v) => V.runSummary(v, m)));
+  });
+  get('/api/runs/:id', (m, c) => runDetail(m, c.req.param('id')!));
+  app.get('/api/blobs/:sha', (c) => blob(c, x));
+  app.get('/api/report', (c) => report(c, x));
+}
+
+async function projectInfo(c: Context, { deps, actor }: Ctx) {
+  const { model: m, problems } = await deps.loadModel();
+  const { key, name, source_locale, locales, default_environment, current_release } = m.project;
+  const env = async (e: Model['environments'][number]) => {
+    const { name, title, base_url, guide, i18n } = await V.markStale(e, 'environment');
+    return { name, title, base_url, guide, access: e.access?.method, i18n };
+  };
+  const release = async (r: Model['releases'][number]) => {
+    const { version, title, state, i18n } = await V.markStale(r, 'release');
+    return { version, title, state, i18n };
+  };
+  const clone = deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null);
+  const info: ProjectInfo = {
+    project: { key, name, source_locale, locales, default_environment, current_release },
+    releases: await Promise.all(m.releases.map(release)),
+    environments: await Promise.all(m.environments.map(env)),
+    ...{ identity: await actor(c), mode: deps.mode, problems },
+    sync: deps.syncInfo?.() ?? { configured: false },
+    share: { clone },
+    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle },
+    snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
+  };
+  return c.json(info);
+}
+
+async function runDetail(m: Model, id: string): Promise<RunDetail> {
+  const { record, judgements, decision, stale } = runOf(m, id);
+  const t = m.testCases.get(m.keyOf(record.test_case.id) ?? '');
+  const { key = record.test_case.key, title = key } = t?.data ?? {};
+  const i18n = t?.data.i18n && (await V.markStale(t.data, 'test-case')).i18n;
+  const currentVersion = t?.version ?? record.test_case.version;
+  const testCase = { key, title, currentVersion, ...(i18n && { i18n }) };
+  // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
+  const flagged = (jid: string, i: number) => m.unverified?.has(i ? `${record.id}#${jid}` : jid);
+  const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
+  return { record, judgements, decision, stale, testCase, ...(ids.length ? { unverified: ids } : {}) };
+}
+
+async function blob(c: Context, { deps, uploads }: Ctx) {
+  const sha = c.req.param('sha')!;
+  const data = /^[0-9a-f]{64}$/.test(sha) ? await deps.getBlob(sha) : fail(bad('invalid sha256'));
+  if (!data) throw notFound(`blob ${sha}`);
+  const { type = sniff(data), name = sha.slice(0, 12) } = uploads.get(sha) ?? {};
+  const headers = new Headers({ 'Content-Type': type, 'Content-Security-Policy': CSP_BLOB });
+  if (!INLINE_MEDIA.test(type)) headers.set('Content-Disposition', `attachment; filename="${name}"`);
+  return new Response(data as Uint8Array<ArrayBuffer>, { headers });
+}
+
+/** Validated `?format=&audience=&locale=&evidence=` of a report. */
+function reportOptions(c: Context, m: Model) {
+  const format = q(c, 'format') ?? 'md';
+  const audience = q(c, 'audience') ?? 'internal';
+  const locale = q(c, 'locale') ?? m.project.source_locale;
+  if (format !== 'md' && format !== 'html') throw bad('format must be md or html');
+  if (audience !== 'internal' && audience !== 'customer') throw bad('audience: internal or customer');
+  if (locale !== 'en' && locale !== 'ja') throw bad('locale must be en or ja');
+  const fallback = audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links';
+  return { format, audience, locale, evidence: (q(c, 'evidence') ?? fallback) as 'none' } as const;
+}
+
+async function report(c: Context, { deps, actor, model }: Ctx) {
+  const [m, a, plan] = [await model(), await actor(c), q(c, 'plan')];
+  const { format, audience, locale, evidence } = reportOptions(c, m);
+  const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
+  const [commit, cursor] = [(await deps.context?.build())?.commit, [...m.runs.keys()].sort().at(-1)];
+  const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
+  const now = deps.now?.() ?? new Date();
+  const by = { audience: audience as 'customer', generatedBy: a.name ?? a.id, now };
+  const extra = { ...(plan && { plan }), ...(commit && { commit }), ...(cursor && { cursor }) };
+  const data = reportData(m, scope, { ...by, ...extra });
+  const texts = await reportTexts(m, locale);
+  const ro = { format, locale, evidence, getBlob: deps.getBlob } as const;
+  const text = await renderReport(Object.assign(data, { texts }), ro);
+  const html = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP_REPORT };
+  return c.body(text, 200, format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : html);
+}
+
+// ---------- writes ----------
+
+type TestCase = ReturnType<typeof tcOf>;
+const localeOf = <L extends string>(l?: L) => (['en', 'ja'].includes(l ?? '') ? l : undefined);
+
+/** Register the write routes. */
+export function registerWriteRoutes(app: Hono, x: Ctx) {
+  app.post('/api/bundle', (c) => uploadBundle(c, x));
+  app.post('/api/runs', (c) => createRun(c, x));
+  app.post('/api/runs/:id/judgements', (c) => review(c, x));
+  app.post('/api/blobs', (c) => uploadBlob(c, x));
+}
+
+/** Release of a manual run (docs/spec/bundle-format.md#releasesversiontoml). */
+export function resolveRelease(m: Model, explicit: string | undefined, build: B.Build, ci?: B.CiContext) {
+  if (explicit && !m.releases.some((r) => r.version === explicit)) throw bad(`unknown release ${explicit}`);
+  const name = build.ref?.replace(/^refs\/(heads|tags)\//, '');
+  const byRef = m.releases.find((r) => r.refs?.some((x) => x === build.ref || x === name));
+  const onMain = build.ref === `refs/heads/${m.project.default_branch ?? 'main'}`;
+  return explicit ?? byRef?.version ?? (!ci || onMain ? m.project.current_release : undefined);
+}
+
+async function uploadBundle(c: Context, { deps: d, actor }: Ctx) {
+  const input = await readJson<UploadInput>(c);
+  const who = await actor(c);
+  if (!d.publishBundle || !d.bundleFiles) throw new HttpError(403, 'forbidden', 'this server cannot write');
+  if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
+  const { next, result } = await prepareUpload(await d.bundleFiles(), input);
+  if (input.dryRun || !result.ok) return c.json(result, input.dryRun || result.ok ? 200 : 422);
+  const changed = result.changes.filter((x) => x.change === 'added' || x.change === 'changed');
+  const removed = result.changes.filter((x) => x.change === 'removed').map((x) => x.path);
+  const message = typeof input.message === 'string' ? input.message.trim().slice(0, 500) : '';
+  const info = { actor: who, changed: changed.map((x) => x.path), removed, ...(message && { message }) };
+  const snapshot = await d.publishBundle(next, info);
+  return c.json({ ...result, ...(snapshot && { snapshot }) }, 201);
+}
+
+/** The note of a manual run, after checking its verdict, note and environment. */
+function checkManualRun(input: ManualRunInput, m: Model) {
+  if (!VERDICTS.includes(input.verdict)) throw bad('verdict must be pass, fail, blocked or skipped');
+  const note = input.note?.trim() || undefined;
+  if (input.verdict !== 'pass' && !note) throw bad(`a reason (note) is required for ${input.verdict}`);
+  if (input.environment && !m.environments.some((e) => e.name === input.environment))
+    throw bad(`unknown environment ${input.environment}`);
+  return note;
+}
+
+/** Evidence of one step: a blob uploaded before, named and typed by its upload. */
+async function evidenceOf({ deps, uploads }: Ctx, sha: string, i: number): Promise<B.Evidence> {
+  const data = /^[0-9a-f]{64}$/.test(sha) ? await deps.getBlob(sha) : null;
+  if (!data) throw bad(`step ${i}: evidence ${sha} was not uploaded`);
+  const { type = sniff(data), name = `step-${i}.${type.split('/')[1]}` } = uploads.get(sha) ?? {};
+  const kind = type.startsWith('image/') ? 'screenshot' : 'file';
+  return { sha256: sha, name, media_type: type, size: data.byteLength, kind, step: i };
+}
+
+/** Evidence of all steps (each blob once), after checking step indexes and statuses. */
+async function stepEvidence(x: Ctx, t: TestCase, steps: ManualRunInput['steps']) {
+  const evidence: B.Evidence[] = [];
+  for (const { index: i, status, evidence: shas = [] } of steps) {
+    if (!(Number.isInteger(i) && i >= 1 && i <= t.data.steps.length)) throw bad(`no step ${i}`);
+    if (!B.StepStatus.safeParse(status).success) throw bad(`step ${i}: invalid status`);
+    for (const sha of shas.filter((s) => !evidence.some((e) => e.sha256 === s)))
+      evidence.push(await evidenceOf(x, sha, i));
+  }
+  return evidence;
+}
+
+/** Fixtures the test case uses, limited to the rows the tester ran. */
+function runFixtures(m: Model, t: TestCase, input: unknown) {
+  const rows = Array.isArray(input) ? (input as string[]) : undefined;
+  return (t.data.fixtures ?? []).flatMap(({ ref, rows: wanted }) => {
+    const fx = m.fixtures.get(ref);
+    const used = wanted?.filter((r) => !rows || rows.includes(r));
+    const ok = used?.length ? used : undefined;
+    return fx ? [{ id: fx.data.id, key: ref, version: fx.version, rows: ok }] : [];
+  });
+}
+
+async function createRun(c: Context, x: Ctx) {
+  const [input, m] = [await readJson<ManualRunInput>(c), await x.model()];
+  const t = tcOf(m, String(input.test_case ?? ''));
+  const note = checkManualRun(input, m);
+  const steps = Array.isArray(input.steps) ? input.steps : [];
+  const evidence = await stepEvidence(x, t, steps);
+  const [who, at, ci] = [await x.actor(c), x.now(), await x.deps.context?.ci()];
+  const build = (await x.deps.context?.build()) ?? {};
+  const fixtures = runFixtures(m, t, input.rows);
+  const reported = input.verdict === 'blocked' || input.verdict === 'skipped' ? input.verdict : null;
+  const judgement = { id: B.newId('jdg'), kind: 'human', verdict: input.verdict, reason: note, by: who };
+  const release = resolveRelease(m, input.release, build, ci);
+  const environment = input.environment || m.project.default_environment;
+  const started = new Date(input.started_at ?? '');
+  const started_at = Number.isNaN(started.getTime()) ? undefined : iso(started);
+  const locale = localeOf(input.locale);
+  const results = steps.map(({ index, status, note, evidence }) => ({ index, status, evidence, note }));
+  const run = B.RunRecord.parse({
+    ...{ kind: 'run', id: B.newId('run'), v: 1, project: m.project.id, at, actor: who, source: 'manual' },
+    ...{ test_case: { id: t.data.id, key: t.data.key, version: t.version }, fixtures, release },
+    ...{ environment, build, ci, started_at, ended_at: at, reported, locale, note, steps: results },
+    ...{ evidence, judgements: [{ ...judgement, at }] },
+  });
+  await x.deps.writeRecord(run);
+  const decision = decide(run.judgements, t.policy, { priority: t.priority, mode: t.data.mode, reported });
+  return c.json({ run, decision }, 201);
+}
+
+async function review(c: Context, x: Ctx) {
+  const [input, m] = [await readJson<ReviewInput>(c), await x.model()];
+  const v = runOf(m, c.req.param('id')!);
+  if (!VERDICTS.includes(input.verdict)) throw bad('verdict must be pass, fail, blocked or skipped');
+  const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+  if (!reason) throw bad('a reason is required for a review');
+  const [who, at] = [await x.actor(c), x.now()];
+  if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents cannot review runs');
+  const signed = { by: who, at, locale: localeOf(input.locale) };
+  const judgement = { id: B.newId('jdg'), kind: 'human', verdict: input.verdict, reason, ...signed };
+  const env = { kind: 'judgement', id: B.newId('rec'), v: 1, project: m.project.id, at, actor: who };
+  const record = B.JudgementRecord.parse({ ...env, source: 'manual', run: v.record.id, judgement });
+  await x.deps.writeRecord(record);
+  const t = tcOf(m, v.record.test_case.id);
+  const ctx = { priority: t.priority, mode: t.data.mode, reported: v.record.reported ?? null };
+  const decision = decide([...v.judgements, record.judgement], t.policy, ctx);
+  return c.json({ judgement: record.judgement, decision }, 201);
+}
+
+async function uploadBlob(c: Context, { deps, uploads }: Ctx) {
+  const data = await readBody(c);
+  if (!data.byteLength) throw bad('empty upload');
+  const declared = c.req.header('content-type')?.split(';')[0]?.trim().toLowerCase();
+  const type = declared && declared !== 'application/octet-stream' ? declared : sniff(data);
+  const sha256 = await deps.putBlob(data, type);
+  if (uploads.size >= 5000) uploads.delete(uploads.keys().next().value!);
+  const name = (c.req.header('x-filename') ?? '').replace(/[^\w.-]+/g, '_').slice(-120);
+  uploads.set(sha256, { name: name || 'file', type });
+  return c.json({ sha256, size: data.byteLength, media_type: type }, 201);
+}
+
+// ---------- /api/store/* ----------
+
+const MANIFEST = 'indx-watch-store.json';
+const LOG_KEY = /^v1\/log\/[0-9A-HJKMNP-TV-Z]{26}\.json$/;
+const BLOB_KEY = /^v1\/blobs\/sha256\/([0-9a-f]{2})\/\1[0-9a-f]{62}$/;
+const storeKey = (c: Context) => decodeURIComponent(c.req.path.slice('/api/store/objects/'.length));
+const parsed = (d: Uint8Array | null) => new Response(d as BodyInit).json().catch(() => undefined);
+const objects = (x: Ctx) => x.deps.objects ?? fail(notFound('store endpoint'));
+
+/** Register the store endpoints; they answer 404 when deps.objects is not set. */
+export function registerStoreRoutes(app: Hono, x: Ctx) {
+  const store = () => objects(x);
+  app.on(['GET', 'HEAD'], '/api/store/objects/*', async (c) => {
+    if (c.req.method === 'HEAD') {
+      const h = await store().head(storeKey(c));
+      const headers = h ? { 'Content-Length': `${h.size}`, ...(h.etag && { ETag: h.etag }) } : {};
+      return c.body(null, h ? 200 : 404, headers);
+    }
+    const data = (await store().get(storeKey(c))) ?? fail(notFound(storeKey(c)));
+    return c.body(data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'application/octet-stream' });
+  });
+  app.put('/api/store/objects/*', (c) => putObject(c, x));
+  app.get('/api/store/list', async (c) => {
+    const limit = Math.min(Number(q(c, 'limit')) || 1000, 1000);
+    const [prefix, startAfter] = [c.req.query('prefix') ?? '', q(c, 'startAfter')];
+    const r = await store().list({ prefix, startAfter, limit });
+    const keys = r.keys.map(({ key, size, etag }) => ({ key, size, ...(etag && { etag }) }));
+    return c.json({ keys, truncated: r.truncated });
+  });
+}
+
+/** project of the served model (none before the first snapshot), else of the store manifest */
+async function storeProject(x: Ctx, manifest: boolean) {
+  const id = (await x.model().catch(() => undefined))?.project.id;
+  const m = !id && manifest && B.StoreManifest.safeParse(await parsed(await objects(x).get(MANIFEST)));
+  return id ?? (m ? m.data?.project : undefined);
+}
+
+/** Refuse a log object that is far from now, malformed, or holds records of another project. */
+async function checkLog(key: string, data: Uint8Array, project: string | undefined) {
+  // the earliest log key wins a merge, so a writer may not pick one far from now (docs/spec/sync.md#merge-rules)
+  if (Math.abs(ulidTime(key.slice(7, 33)) - Date.now()) > 3600_000)
+    throw bad(`${key}: not within an hour of now`);
+  const log = B.LogObject.safeParse(await parsed(data));
+  if (!log.success) throw bad(`${key} is not a log object`);
+  for (const raw of log.data.records) {
+    const r = checkRecord(raw);
+    if ('error' in r) throw bad(`${key}: ${r.error}`);
+    if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
+  }
+}
+
+/** Refuse anything but the manifest, valid log objects and matching blobs. */
+async function checkObject(x: Ctx, key: string, data: Uint8Array) {
+  if (BLOB_KEY.test(key)) {
+    if (!key.endsWith(`/${await B.sha256Hex(data)}`)) throw bad('blob does not match its key');
+    return;
+  }
+  const project = await storeProject(x, key !== MANIFEST);
+  if (LOG_KEY.test(key)) return checkLog(key, data, project);
+  if (key !== MANIFEST) throw bad(`${key}: only the manifest, log objects and blobs can be written`);
+  const m = B.StoreManifest.safeParse(await parsed(data));
+  if (!m.success) throw bad(`${key} is not a store manifest`);
+  if (project && m.data.project !== project) throw bad(`this store belongs to ${project}`);
+}
+
+/** Create-only writes of the manifest, valid log objects and matching blobs (docs/spec/sync.md#store-layout). */
+async function putObject(c: Context, x: Ctx) {
+  const [key, data] = [storeKey(c), await readBody(c)];
+  const store = objects(x);
+  const exists = () => errorResponse(new HttpError(412, 'conflict', `${key} exists`));
+  if (await store.head(key)) return exists();
+  await checkObject(x, key, data);
+  const opts = { ifNoneMatch: true, contentType: c.req.header('content-type') };
+  if (!(await store.put(key, data, opts))) return exists();
+  if (key.startsWith('v1/log/')) await x.deps.onLogObject?.(key);
+  return c.body(null, 201);
+}

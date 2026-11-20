@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
 import { type AnyRecord, BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { buildVerifiedModel } from '@indx-watch/core';
+import { buildVerifiedModel, type Model } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
 import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watch/sync';
@@ -92,102 +92,125 @@ export function requestIdentity(remote: WeakMap<Request, string>, local: Identit
 }
 
 type Server = { url: string; close(): Promise<void> };
+/** Per-directory state of a local server; `state` and `store` exist once sync is configured. */
+interface Local {
+  dir: string;
+  fs: ReturnType<typeof nodeFs>;
+  replica: ReturnType<typeof SN.openReplica>;
+  sync: ProjectInfo['sync'];
+  remote: WeakMap<Request, string>;
+  state?: Awaited<ReturnType<typeof fileStateStore>>;
+  store?: ResultStore;
+}
+type Models = ReturnType<typeof modelCache>;
+type App = ReturnType<typeof createApp>;
+
+/** Serve a bundle directory: the web UI, the API and, when [store] is configured, background sync. */
 export async function startNodeServer(opts: NodeServerOptions): Promise<Server> {
   const dir = resolve(opts.dir);
-  const fs = nodeFs(dir);
-  const replica = SN.openReplica(dir);
-  // read on each write: a malformed key fails the write, it does not stop the server from starting
-  const sign = (r: AnyRecord) => recordSigner(process.env.IW_SIGNING_KEY)(r);
-  const sync: ProjectInfo['sync'] = { configured: false };
+  const [sync, remote] = [{ configured: false }, new WeakMap<Request, string>()];
+  const l: Local = { dir, fs: nodeFs(dir), replica: SN.openReplica(dir), sync, remote };
+  const models = modelCache(l);
+  const { model: m0 } = await models.loadModel();
+  const stopSync = await startSync(l, m0, opts.sync !== false, models.invalidate);
+  const app = createApp(nodeDeps(l, models, opts, m0.project.store?.evidence));
+  return listen(l, app, opts, () => Promise.all([models.close(), stopSync?.()]));
+}
+
+/** The cached model, rebuilt after bundle edits (debounced) and replica writes. */
+function modelCache(l: Local) {
   const cache: { model?: ReturnType<ServerDeps['loadModel']> } = {};
-  let syncState: Awaited<ReturnType<typeof fileStateStore>> | undefined;
+  // the model of the bundle and the replica; invalid records and sync conflicts become warnings
   const build = async () => {
-    const { bundle, problems } = await loadBundle(fs);
+    const { bundle, problems } = await loadBundle(l.fs);
     const shown: ProjectInfo['problems'] = problems.map((p) => ({ ...p, path: undefined, code: undefined }));
-    if (!bundle) throw new StoreError('invalid', shown[0]?.message ?? `no bundle in ${dir}`);
-    const records = await replica.records((file, error) =>
+    if (!bundle) throw new StoreError('invalid', shown[0]?.message ?? `no bundle in ${l.dir}`);
+    const records = await l.replica.records((file, error) =>
       shown.push({ severity: 'warning', message: `invalid record: ${error}`, file: `runs/${file}` }),
     );
     const { model, warnings } = await buildVerifiedModel(bundle, records);
     // records the store has two bodies of (docs/spec/sync.md#merge-rules)
-    const conflicts = Object.values((await syncState?.load())?.conflicts ?? {});
+    const conflicts = Object.values((await l.state?.load())?.conflicts ?? {});
     const more = [...warnings, ...conflicts].map((message) => ({ severity: 'warning', message }));
     return { model, problems: [...shown, ...more] };
   };
   const invalidate = () => delete cache.model;
   const loadModel = () => (cache.model ??= build().catch((e) => rethrow(e, invalidate())));
-
-  // the model is rebuilt after bundle edits (debounced) and replica writes
   let timer: ReturnType<typeof setTimeout> | undefined;
   const changed = (_e: unknown, name: unknown) => {
     if (/^(runs|cache)([/\\]|$)/.test(String(name ?? ''))) return;
     clearTimeout(timer);
     timer = setTimeout(invalidate, 150);
   };
-  const watcher = fsWatch(dir, { recursive: true }, changed).on('error', () => {});
-  const unsubscribe = replica.onChange(invalidate);
+  const watcher = fsWatch(l.dir, { recursive: true }, changed).on('error', () => {});
+  const unsubscribe = l.replica.onChange(invalidate);
+  const close = () => [clearTimeout(timer), watcher.close(), unsubscribe()];
+  return { loadModel, invalidate, close };
+}
 
-  // background sync when [store] is configured
-  let stopSync: (() => Promise<void>) | undefined;
-  let store: ResultStore | undefined;
-  const { model: m0 } = await loadModel();
+/** Background sync when [store] is configured; returns its stop function. Setup errors land in sync.lastError. */
+async function startSync(l: Local, m0: Model, enabled: boolean, invalidate: () => void) {
   const project = m0.project;
   const cfg = project.store && { ...project.store, url: process.env.IW_STORE ?? project.store.url };
-  if (cfg) {
-    Object.assign(sync, { configured: opts.sync !== false, store: cfg.url });
-    try {
-      store = createResultStore(SN.openObjectStore(cfg, { bundleDir: dir }));
-      const state = await fileStateStore(dir, cfg.url);
-      syncState = state;
-      invalidate(); // the first model was built before the sync state, so without its conflicts
-      const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
-        f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
-      );
-      const [writer, evidence] = [await writerId(dir), cfg.evidence ?? 'on-demand'];
-      // Records the secret scan held back stay local; the UI shows why (docs/spec/security.md#secrets).
-      // Warnings may be new conflicts, which the sync state holds: rebuild the model's problems.
-      const onResult = (r: SyncResult) => {
-        if (r.warnings?.length) invalidate();
-        Object.assign(sync, {
-          lastSyncAt: new Date().toISOString(),
-          lastError: r.held?.length ? r.warnings?.find((w) => w.startsWith('held back')) : undefined,
-        });
-      };
-      const onError = (e: unknown) => Object.assign(sync, { lastError: message(e) });
-      const o = {
-        replica,
-        store,
-        state,
-        projectId: project.id,
-        keys: project.signing_keys,
-        writer,
-        evidence,
-        extraBlobs,
-        onResult,
-        onError,
-      };
-      if (opts.sync !== false) stopSync = syncWatch(o);
-    } catch (e) {
-      sync.lastError = message(e);
-    }
+  if (!cfg) return undefined;
+  Object.assign(l.sync, { configured: enabled, store: cfg.url });
+  try {
+    const store = createResultStore(SN.openObjectStore(cfg, { bundleDir: l.dir }));
+    l.store = store;
+    const state = await fileStateStore(l.dir, cfg.url);
+    l.state = state;
+    invalidate(); // the first model was built before the sync state, so without its conflicts
+    const extraBlobs = [...m0.fixtures.values()].flatMap((f) =>
+      f.dataFiles.flatMap((d) => (d.pointer ? [d.sha256] : [])),
+    );
+    const [writer, evidence, keys] = [
+      await writerId(l.dir),
+      cfg.evidence ?? 'on-demand',
+      project.signing_keys,
+    ];
+    const o = { replica: l.replica, store, state, projectId: project.id, keys, writer, evidence, extraBlobs };
+    return enabled ? syncWatch({ ...o, ...syncReporter(l.sync, invalidate) }) : undefined;
+  } catch (e) {
+    l.sync.lastError = message(e);
+    return undefined;
   }
+}
 
-  const remote = new WeakMap<Request, string>();
+/** Sync callbacks that keep the sync info of /api/project current. */
+function syncReporter(sync: ProjectInfo['sync'], invalidate: () => void) {
+  // Records the secret scan held back stay local; the UI shows why (docs/spec/security.md#secrets).
+  // Warnings may be new conflicts, which the sync state holds: rebuild the model's problems.
+  const onResult = (r: SyncResult) => {
+    if (r.warnings?.length) invalidate();
+    Object.assign(sync, {
+      lastSyncAt: new Date().toISOString(),
+      lastError: r.held?.length ? r.warnings?.find((w) => w.startsWith('held back')) : undefined,
+    });
+  };
+  return { onResult, onError: (e: unknown) => Object.assign(sync, { lastError: message(e) }) };
+}
+
+/** App dependencies of a local server: signed writes to the replica, blobs read through from the store. */
+function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: string): ServerDeps {
+  const { dir, fs, replica } = l;
+  // read on each write: a malformed key fails the write, it does not stop the server from starting
+  const sign = (r: AnyRecord) => recordSigner(process.env.IW_SIGNING_KEY)(r);
   const webRoot = opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
-  const deps: ServerDeps = {
+  return {
     mode: 'local',
-    loadModel,
-    writeRecord: (record) => sign(record).then((r) => replica.putRecord(r).then(() => void invalidate())),
+    loadModel: models.loadModel,
+    writeRecord: (record) =>
+      sign(record).then((r) => replica.putRecord(r).then(() => void models.invalidate())),
     putBlob: (data, contentType) => replica.putBlob(data, contentType),
     async getBlob(sha) {
       // read-through from the store for evidence = 'on-demand'
       const local = await replica.getBlob(sha);
-      if (local || !store || project.store?.evidence === 'none') return local;
-      const data = await store.getBlob(sha).catch(() => null);
+      if (local || !l.store || evidence === 'none') return local;
+      const data = await l.store.getBlob(sha).catch(() => null);
       return data && (await replica.putBlob(data)) ? data : null;
     },
-    identity: requestIdentity(remote, SN.processIdentity({ cwd: dir }), opts.identityHeader),
-    syncInfo: () => ({ ...sync }),
+    identity: requestIdentity(l.remote, SN.processIdentity({ cwd: dir }), opts.identityHeader),
+    syncInfo: () => ({ ...l.sync }),
     assets: staticAssets(webRoot),
     context: SN.processContext({ cwd: dir }),
     readFile: (path) => fs.read(path),
@@ -197,26 +220,27 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
     async publishBundle(files, { changed, removed }) {
       for (const path of changed) await fs.write(path, files.get(path)!);
       for (const path of removed) await fs.remove(path);
-      invalidate();
+      models.invalidate();
       return undefined;
     },
   };
-  const app = createApp(deps);
+}
 
+/** Listen behind the Host and write guards; a busy or forbidden port becomes a CONFLICT error. */
+async function listen(
+  l: Local,
+  app: App,
+  opts: NodeServerOptions,
+  stop: () => Promise<unknown>,
+): Promise<Server> {
   const hostname = opts.host ?? '127.0.0.1';
   const local = hostname === 'localhost' || LOOPBACK.test(hostname);
   let port = 0;
   const fetch = (request: Request, env: unknown) => {
     const address = (env as HttpBindings).incoming?.socket?.remoteAddress ?? '';
-    remote.set(request, address);
+    l.remote.set(request, address);
     const host = local ? hostGuard(request.headers.get('host'), port) : undefined;
     return host ?? writeGuard(request.method, address, opts.identityHeader) ?? app.fetch(request);
-  };
-  const stop = async () => {
-    clearTimeout(timer);
-    watcher.close();
-    unsubscribe();
-    await stopSync?.();
   };
   const server = serve({ hostname, port: opts.port ?? 4321, fetch });
   try {
