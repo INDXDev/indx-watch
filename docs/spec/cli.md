@@ -281,6 +281,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_ACCESS_TOKEN` | http store | Pre-obtained Cloudflare Access token |
 | `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | http store | Access service token (CI) |
 | `IW_COMMIT` | writes | Build commit when git is unavailable |
+| `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 

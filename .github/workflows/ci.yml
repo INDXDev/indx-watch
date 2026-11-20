@@ -73,10 +73,12 @@ jobs:
         run: pnpm --filter shop test
         env:
           IW_RELEASE: v1.2.0
+          IW_CHECK_RUN_ID: ${{ job.check_run_id }}
       - name: Dogfood end-to-end (this repository's test cases)
         run: pnpm e2e
         env:
           IW_RELEASE: v0.1.0
+          IW_CHECK_RUN_ID: ${{ job.check_run_id }}
       - name: INDX Watch summary (this repository)
         if: ${{ !cancelled() }}
         uses: ./

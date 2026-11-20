@@ -130,6 +130,12 @@ describe('processContext', () => {
       repository: 'INDXDev/indx-watch',
       pr: 12,
     });
+    // with `IW_CHECK_RUN_ID: ${{ job.check_run_id }}` the link opens the job; a non-number is ignored
+    const job = (id: string) => processContext({ env: { ...env, IW_CHECK_RUN_ID: id } }).ci();
+    expect((await job('135996031339'))?.url).toBe(
+      'https://github.com/INDXDev/indx-watch/actions/runs/1/job/135996031339',
+    );
+    expect((await job('x'))?.url).toBe('https://github.com/INDXDev/indx-watch/actions/runs/1/attempts/2');
     const push = processContext({
       env: {
         ...env,
