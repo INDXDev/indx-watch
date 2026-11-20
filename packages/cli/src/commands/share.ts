@@ -10,8 +10,8 @@ import { pointerBlobs, syncOnce } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { B, fail, git, iso, many, P, S, str } from '../util.js';
-import { openStore } from './data.js';
+import { type Args, B, type Ctx, fail, many, P, S, str } from '../util.js';
+import { logWarnings, openStore, snapshotOf } from './data.js';
 
 /** relative, no `..` or hidden segments, outside cache/ and runs/ */
 const SAFE_PATH = /^(?!(?:cache|runs)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
@@ -43,29 +43,32 @@ type Owner = {
   data: Record<string, unknown>;
   targets: Target[];
 };
+type Def = { file: string; data: object };
+type Into = { locale: string; status: string; owner: string };
 const TF = iwb.TRANSLATABLE_FIELDS;
 
 /** Every translatable entity with its sub-targets (steps, criteria). */
 function owners(b: iwb.Bundle): Owner[] {
-  const one = (ref: string, file: string, type: iwb.FileType, data: object, kind: Target['kind']): Owner => {
-    const d = data as Record<string, unknown>;
-    return { ref, file, type, data: d, targets: [{ ref, prefix: '', source: d, kind }] };
+  // the file type doubles as the translation kind of the entity itself
+  const one = (ref: string, x: Def, type: iwb.FileType & Target['kind']): Owner => {
+    const d = x.data as Record<string, unknown>;
+    return { ref, file: x.file, type, data: d, targets: [{ ref, prefix: '', source: d, kind: type }] };
   };
   const out = [
-    ...b.features.map((x) => one(x.data.key, x.file, 'feature', x.data, 'feature')),
-    ...b.environments.map((x) => one(x.data.name, x.file, 'environment', x.data, 'environment')),
-    ...b.releases.map((x) => one(x.data.version, x.file, 'release', x.data, 'release')),
-    ...b.plans.map((x) => one(x.data.key, x.file, 'plan', x.data, 'plan')),
-    ...b.fixtures.map((x) => one(x.data.key, x.file, 'fixture', x.data, 'fixture')),
+    ...b.features.map((x) => one(x.data.key, x, 'feature')),
+    ...b.environments.map((x) => one(x.data.name, x, 'environment')),
+    ...b.releases.map((x) => one(x.data.version, x, 'release')),
+    ...b.plans.map((x) => one(x.data.key, x, 'plan')),
+    ...b.fixtures.map((x) => one(x.data.key, x, 'fixture')),
   ];
   for (const x of b.useCases) {
-    const o = one(x.data.key, x.file, 'use-case', x.data, 'use-case');
+    const o = one(x.data.key, x, 'use-case');
     for (const c of x.data.criteria)
       o.targets.push({ ref: x.data.key, prefix: `criteria.${c.key}.`, source: c, kind: 'criterion' });
     out.push(o);
   }
   for (const x of b.testCases) {
-    const o = one(x.data.key, x.file, 'test-case', x.data, 'test-case');
+    const o = one(x.data.key, x, 'test-case');
     x.data.steps.forEach((s, i) => {
       o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
     });
@@ -90,6 +93,56 @@ async function fieldsOf(t: Target, locale: string) {
   });
 }
 
+/** Fields of every target of the owners, in order. */
+const fieldsOfAll = async (targets: Target[], locale: string) =>
+  (await Promise.all(targets.map((t) => fieldsOf(t, locale)))).flat();
+
+/** The translations given by --from (a JSON file or - for stdin) and --set <path>=<text>. */
+async function givenOf(ctx: Ctx, a: Args) {
+  const raw =
+    str(a.from) === '-'
+      ? await new Response(process.stdin as never).text()
+      : str(a.from) && (await readFile(resolve(ctx.cwd, str(a.from)!), 'utf8'));
+  const given: Record<string, string> = raw ? JSON.parse(raw) : {};
+  for (const kv of many(a.set)) {
+    const at = kv.indexOf('=');
+    if (at < 1) fail('USAGE', `--set ${kv}: use <path>=<text>`);
+    given[kv.slice(0, at)] = kv.slice(at + 1);
+  }
+  return given;
+}
+
+/**
+ * Write the given fields that belong to one target into its i18n table (status, fresh source_hash) and return their
+ * paths. Refuses unknown fields and a partial update of a table whose source changed.
+ */
+async function translateTarget(t: Target, given: Record<string, string>, to: Into) {
+  const mine = Object.entries(given).filter(
+    ([k]) => k.startsWith(t.prefix) && !k.slice(t.prefix.length).includes('.'),
+  );
+  if (!mine.length) return [];
+  const names = TF[t.kind] as readonly string[];
+  for (const [k] of mine)
+    if (!names.includes(k.slice(t.prefix.length)))
+      fail('USAGE', `${k} is not a translatable field of ${to.owner}`);
+  const hash = await iwb.translationSourceHash(t.source, TF[t.kind]);
+  const old = tableOf(t, to.locale) ?? {};
+  const outdated =
+    old.source_hash && old.source_hash !== hash
+      ? names.filter((f) => typeof old[f] === 'string' && !mine.some(([k]) => k === `${t.prefix}${f}`))
+      : [];
+  if (outdated.length)
+    fail('USAGE', `Also translate ${outdated.map((f) => `${t.prefix}${f}`).join(', ')}: the source changed`);
+  const fields = Object.fromEntries(mine.map(([k, v]) => [k.slice(t.prefix.length), v]));
+  const i18n = {
+    ...(t.source.i18n as object),
+    [to.locale]: { ...old, ...fields, status: to.status, source_hash: hash },
+  };
+  Object.assign(t.source, { i18n }); // targets alias owner.data (or its steps / criteria)
+  return mine.map(([k]) => k);
+}
+
+/** iw sharing commands: push, clone, translate. */
 export const shareCommands: Record<string, Spec> = {
   push: {
     description: 'Upload the definitions (a bundle snapshot) and results to the store',
@@ -100,15 +153,8 @@ export const shareCommands: Record<string, Spec> = {
       if (checked.errors)
         fail('CHECK_FAILED', `Refusing to push: iw check found ${checked.errors} error(s)`, checked.problems);
       const store = await openStore(ctx, p, a);
-      const time = git(p.dir, 'log', '-1', '--format=%cI');
       const bundle = {
-        fs: p.fs,
-        commit: git(p.dir, 'rev-parse', 'HEAD') ?? undefined,
-        ref: git(p.dir, 'symbolic-ref', '-q', 'HEAD') ?? undefined,
-        clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
-        commitTime: time ? iso(new Date(time)) : undefined,
-        actor: await cx.actorOf(ctx),
-        sign: cx.signerOf(ctx),
+        ...(await snapshotOf(ctx, p)),
         manual: true,
         ...(str(a.message) && { message: str(a.message) }),
       };
@@ -116,7 +162,7 @@ export const shareCommands: Record<string, Spec> = {
         ...{ ...store, replica: p.replica, projectId: p.bundle.project.data.id },
         ...{ bundle, extraBlobs: pointerBlobs(p.bundle) },
       });
-      for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
+      logWarnings(ctx, r);
       if (r.held?.length) fail('SECRETS_FOUND', `Held back ${r.held.length} record(s): retract them`, r.held);
       const url = store.store.objects.url;
       const hosted = /^https?:\/\//.test(url) ? `${url.replace(/\/+$/, '')}/#/uploads` : null;
@@ -196,27 +242,19 @@ export const shareCommands: Record<string, Spec> = {
       const ref = str(a.ref);
       if (!ref) {
         if (!a.missing) fail('USAGE', 'Pass a ref, or --missing');
-        const fields = [];
-        for (const o of all) for (const t of o.targets) fields.push(...(await fieldsOf(t, locale)));
+        const fields = await fieldsOfAll(
+          all.flatMap((o) => o.targets),
+          locale,
+        );
         const open = fields.filter((f) => f.state === 'missing' || f.state === 'stale');
         const text = open.map((f) => `${f.ref} ${f.path}: ${f.state}`).join('\n') || 'Nothing missing';
         return { data: { ref: null, locale, fields: open }, text };
       }
       const owner =
         all.find((o) => o.ref === ref.replace(/^[A-Z0-9]+:/, '')) ?? fail('NOT_FOUND', `${ref} not found`);
-      const raw =
-        str(a.from) === '-'
-          ? await new Response(process.stdin as never).text()
-          : str(a.from) && (await readFile(resolve(ctx.cwd, str(a.from)!), 'utf8'));
-      const given: Record<string, string> = raw ? JSON.parse(raw) : {};
-      for (const kv of many(a.set)) {
-        const at = kv.indexOf('=');
-        if (at < 1) fail('USAGE', `--set ${kv}: use <path>=<text>`);
-        given[kv.slice(0, at)] = kv.slice(at + 1);
-      }
+      const given = await givenOf(ctx, a);
       if (!Object.keys(given).length) {
-        const fields = [];
-        for (const t of owner.targets) fields.push(...(await fieldsOf(t, locale)));
+        const fields = await fieldsOfAll(owner.targets, locale);
         const text = fields
           .map((f) => `${f.path} [${f.state}]\n  ${f.source}\n  ${f.text ?? '—'}`)
           .join('\n');
@@ -225,34 +263,8 @@ export const shareCommands: Record<string, Spec> = {
       if (a.reviewed) await cx.humanOnly(ctx, 'mark translations as reviewed');
       const status = a.reviewed ? 'reviewed' : 'machine';
       const written: string[] = [];
-      for (const t of owner.targets) {
-        const mine = Object.entries(given).filter(
-          ([k]) => k.startsWith(t.prefix) && !k.slice(t.prefix.length).includes('.'),
-        );
-        if (!mine.length) continue;
-        const names = TF[t.kind] as readonly string[];
-        for (const [k] of mine)
-          if (!names.includes(k.slice(t.prefix.length)))
-            fail('USAGE', `${k} is not a translatable field of ${owner.ref}`);
-        const hash = await iwb.translationSourceHash(t.source, TF[t.kind]);
-        const old = tableOf(t, locale) ?? {};
-        const outdated =
-          old.source_hash && old.source_hash !== hash
-            ? names.filter((f) => typeof old[f] === 'string' && !mine.some(([k]) => k === `${t.prefix}${f}`))
-            : [];
-        if (outdated.length)
-          fail(
-            'USAGE',
-            `Also translate ${outdated.map((f) => `${t.prefix}${f}`).join(', ')}: the source changed`,
-          );
-        const fields = Object.fromEntries(mine.map(([k, v]) => [k.slice(t.prefix.length), v]));
-        const i18n = {
-          ...(t.source.i18n as object),
-          [locale]: { ...old, ...fields, status, source_hash: hash },
-        };
-        Object.assign(t.source, { i18n }); // targets alias owner.data (or its steps / criteria)
-        written.push(...mine.map(([k]) => k));
-      }
+      for (const t of owner.targets)
+        written.push(...(await translateTarget(t, given, { locale, status, owner: owner.ref })));
       const unknown = Object.keys(given).filter((k) => !written.includes(k));
       if (unknown.length) fail('USAGE', `Unknown field path(s): ${unknown.join(', ')}`);
       await iwb.writeDefinition(p.fs, owner.file, owner.type, owner.data);

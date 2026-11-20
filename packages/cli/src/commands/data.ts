@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import * as zlib from 'node:zlib';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { blobRefs, checkRecord, createResultStore } from '@indx-watch/store';
+import { blobRefs, checkRecord, createResultStore, type LocalReplica } from '@indx-watch/store';
 import { openObjectStore, openReplica } from '@indx-watch/store/node';
 import { pointerBlobs, type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
@@ -16,11 +16,9 @@ import { mediaType } from './results.js';
 import { cacheBlob } from './specs.js';
 
 const dec = new TextDecoder();
-const secrets = (files: { path: string; text: string }[]) =>
-  files.flatMap((f) => iwb.scanSecrets(f.path, f.text)).filter((x) => x.severity === 'error');
-/** Refuse when the secret scan finds errors in any of the files (exit 1). */
-function scan(files: { path: string; text: string }[], what: string) {
-  const found = secrets(files);
+/** Refuse when the secret scan problems include errors (exit 1). */
+function refuse(problems: iwb.Problem[], what: string) {
+  const found = problems.filter((x) => x.severity === 'error');
   if (found.length)
     fail('SECRETS_FOUND', `Refusing to ${what}: the secret scan found ${found.length} problem(s)`, found);
 }
@@ -37,6 +35,92 @@ export async function openStore(ctx: Ctx, p: cx.Project, a: Args) {
     writer: await writerId(p.dir),
     keys: p.bundle.project.data.signing_keys,
   };
+}
+
+/** Git facts, actor and signer for publishing a bundle snapshot of the project (iw sync --snapshot, iw push). */
+export async function snapshotOf(ctx: Ctx, p: cx.Project) {
+  const time = git(p.dir, 'log', '-1', '--format=%cI');
+  return {
+    fs: p.fs,
+    commit: git(p.dir, 'rev-parse', 'HEAD') ?? undefined,
+    ref: git(p.dir, 'symbolic-ref', '-q', 'HEAD') ?? undefined,
+    clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
+    commitTime: time ? iso(new Date(time)) : undefined,
+    actor: await cx.actorOf(ctx),
+    sign: cx.signerOf(ctx),
+  };
+}
+/** Log the warnings of a sync pass. */
+export const logWarnings = (ctx: Ctx, r: SyncResult) => {
+  for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
+};
+
+/** Make sure cache/blobs/ holds a verified copy of a pointer blob, from the replica or else the store. */
+async function cachePointer(ctx: Ctx, p: cx.Project, a: Args, f: { name: string; sha256: string }) {
+  const path = cacheBlob(p, f.sha256);
+  if (existsSync(path) && (await iwb.sha256Hex(await readFile(path))) === f.sha256) return;
+  const local = await p.replica.getBlob(f.sha256);
+  const data = local ?? (await (await openStore(ctx, p, a)).store.getBlob(f.sha256));
+  if (!data) fail('NOT_FOUND', `The blob of ${f.name} (${f.sha256}) is not in the store`);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, data!);
+}
+
+const held = (n: number) => `Held back records: the secret scan found ${n} problem(s); retract them`;
+/** iw sync --watch: sync every intervalMs until SIGINT / SIGTERM and return the last result. */
+async function watchSync(ctx: Ctx, opts: SyncOptions, intervalMs: number) {
+  const none = { records: 0, blobs: 0 };
+  let last: SyncResult = { pushed: none, pulled: { ...none }, snapshot: null, cursor: null };
+  const stop = watch({
+    ...{ ...opts, intervalMs },
+    onResult: (r) => {
+      last = r;
+      if (r.pushed.records + r.pulled.records) ctx.log(syncText(r));
+      logWarnings(ctx, r);
+      if (r.held?.length) ctx.log([held(r.held.length), ...r.held.map(problemLine)].join('\n  '));
+    },
+    onError: (e) => ctx.log(`sync error: ${(e as Error).message}`),
+  });
+  ctx.log('Watching the store (Ctrl+C to stop)');
+  await new Promise((res) => process.once('SIGINT', res).once('SIGTERM', res));
+  await stop();
+  return { data: last, text: syncText(last) };
+}
+
+/** The tar inside an archive file: zstd, gzip or plain. */
+async function readTar(archive: string, name: unknown) {
+  const raw = new Uint8Array(await readFile(archive).catch(() => fail('NOT_FOUND', `${name} not found`)));
+  if (!isZstd(raw)) return raw[0] === 0x1f && raw[1] === 0x8b ? zlib.gunzipSync(raw) : raw;
+  if (!z.zstdDecompressSync) fail('INVALID_INPUT', 'This Node.js cannot read zstd; use Node ≥ 22.15');
+  return z.zstdDecompressSync!(raw);
+}
+/** Never write outside the bundle ("zip slip"): plain relative paths only. */
+const unsafePath = (path: string) =>
+  /^[/\\]|[\\:]/.test(path) || path.split('/').some((s) => ['', '.', '..'].includes(s));
+const manifestOf = ({ sha256, files, records, blobs }: iwb.ArchiveManifest) => ({
+  sha256,
+  files: files.length,
+  records,
+  blobs,
+});
+type Archive = Awaited<ReturnType<typeof iwb.readArchive>>;
+
+/** What an import changes: bundle files added or updated, files that conflict, and records the replica lacks. */
+async function importPlan(fs: iwb.BundleFs, replica: LocalReplica, x: Archive) {
+  const [changes, conflicts]: [string[], string[]] = [[], []];
+  for (const f of x.bundleFiles) {
+    const cur = await fs.read(f.path);
+    if (cur && !Buffer.from(cur).equals(Buffer.from(f.data))) conflicts.push(f.path);
+    if (!cur || conflicts.includes(f.path)) changes.push(`${cur ? 'update' : 'add'} bundle/${f.path}`);
+  }
+  const fresh = [];
+  for (const r of x.records) {
+    const c = checkRecord(r);
+    if ('error' in c) fail('INVALID_INPUT', `Invalid record in the archive: ${c.error}`);
+    else if (!(await replica.getRecord(c.record.id))) fresh.push(c.record);
+  }
+  changes.push(`add ${fresh.length} records`, `add ${x.blobs.length} blobs`);
+  return { changes, conflicts, fresh };
 }
 
 const fixtureOf = (p: cx.Project, ref: string) =>
@@ -62,7 +146,7 @@ export const dataCommands: Record<string, Spec> = {
       const abs = resolve(ctx.cwd, str(a.path)!);
       const bytes = new Uint8Array(await readFile(abs).catch(() => fail('NOT_FOUND', `${a.path} not found`)));
       const name = basename(abs);
-      scan([{ path: name, text: dec.decode(bytes) }], `add ${name}`);
+      refuse(iwb.scanSecrets(name, dec.decode(bytes)), `add ${name}`);
       const project = p.bundle.project.data;
       const pointer = !!a.blob || bytes.length > (project.fixtures?.inline_max_bytes ?? 1048576);
       if (pointer && !project.store && !a['local-only'])
@@ -101,15 +185,7 @@ export const dataCommands: Record<string, Spec> = {
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
       const fx = fixtureOf(p, str(a.fixture)!);
-      for (const f of fx.dataFiles.filter((d) => d.pointer)) {
-        const path = cacheBlob(p, f.sha256);
-        if (existsSync(path) && (await iwb.sha256Hex(await readFile(path))) === f.sha256) continue;
-        const local = await p.replica.getBlob(f.sha256);
-        const data = local ?? (await (await openStore(ctx, p, a)).store.getBlob(f.sha256));
-        if (!data) fail('NOT_FOUND', `The blob of ${f.name} (${f.sha256}) is not in the store`);
-        await mkdir(dirname(path), { recursive: true });
-        await writeFile(path, data!);
-      }
+      for (const f of fx.dataFiles.filter((d) => d.pointer)) await cachePointer(ctx, p, a, f);
       const out = str(a.out) ? resolve(ctx.cwd, str(a.out)!) : undefined;
       if (out) await mkdir(out, { recursive: true });
       const files = [];
@@ -137,26 +213,12 @@ export const dataCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
-      if (!a['pull-only']) {
-        const leaks = (await iwb.scanBundleSecrets(p.fs)).filter((x) => x.severity === 'error');
-        if (leaks.length)
-          fail('SECRETS_FOUND', `Refusing to sync: the secret scan found ${leaks.length} problem(s)`, leaks);
-      }
+      if (!a['pull-only']) refuse(await iwb.scanBundleSecrets(p.fs), 'sync');
       const evidence = str(a.evidence) ?? p.bundle.project.data.store?.evidence;
       if (evidence && !['on-demand', 'all', 'none'].includes(evidence))
         fail('USAGE', '--evidence: on-demand, all or none');
-      const time = git(p.dir, 'log', '-1', '--format=%cI');
-      const snapshot = {
-        fs: p.fs,
-        commit: git(p.dir, 'rev-parse', 'HEAD') ?? undefined,
-        ref: git(p.dir, 'symbolic-ref', '-q', 'HEAD') ?? undefined,
-        clean: git(p.dir, 'status', '--porcelain', '--', '.') === '',
-        commitTime: time ? iso(new Date(time)) : undefined,
-        actor: await cx.actorOf(ctx),
-        sign: cx.signerOf(ctx),
-      };
+      const snapshot = await snapshotOf(ctx, p);
       const store = await openStore(ctx, p, a);
-      const held = (n: number) => `Held back records: the secret scan found ${n} problem(s); retract them`;
       const opts: SyncOptions = {
         ...{ ...store, replica: p.replica, projectId: p.bundle.project.data.id },
         direction: a['pull-only'] ? 'pull' : a['push-only'] ? 'push' : 'both',
@@ -167,32 +229,11 @@ export const dataCommands: Record<string, Spec> = {
           extraBlobs: pointerBlobs(p.bundle),
         },
       };
-      if (!a.watch) {
-        const r = await syncOnce(opts);
-        for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
-        if (r.held?.length) fail('SECRETS_FOUND', held(r.held.length), r.held, r, syncText(r));
-        return { data: r, text: syncText(r) };
-      }
-      let last: SyncResult = {
-        pushed: { records: 0, blobs: 0 },
-        pulled: { records: 0, blobs: 0 },
-        snapshot: null,
-        cursor: null,
-      };
-      const stop = watch({
-        ...{ ...opts, intervalMs: Number(str(a.interval) ?? 3) * 1000 },
-        onResult: (r) => {
-          last = r;
-          if (r.pushed.records + r.pulled.records) ctx.log(syncText(r));
-          for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
-          if (r.held?.length) ctx.log([held(r.held.length), ...r.held.map(problemLine)].join('\n  '));
-        },
-        onError: (e) => ctx.log(`sync error: ${(e as Error).message}`),
-      });
-      ctx.log('Watching the store (Ctrl+C to stop)');
-      await new Promise((res) => process.once('SIGINT', res).once('SIGTERM', res));
-      await stop();
-      return { data: last, text: syncText(last) };
+      if (a.watch) return watchSync(ctx, opts, Number(str(a.interval) ?? 3) * 1000);
+      const r = await syncOnce(opts);
+      logWarnings(ctx, r);
+      if (r.held?.length) fail('SECRETS_FOUND', held(r.held.length), r.held, r, syncText(r));
+      return { data: r, text: syncText(r) };
     },
   },
 
@@ -209,8 +250,8 @@ export const dataCommands: Record<string, Spec> = {
       const bundleFiles = await Promise.all(
         paths.map(async (path) => ({ path, data: (await p.fs.read(path))! })),
       );
-      scan(
-        bundleFiles.map((f) => ({ path: f.path, text: dec.decode(f.data) })),
+      refuse(
+        bundleFiles.flatMap((f) => iwb.scanSecrets(f.path, dec.decode(f.data))),
         'export',
       );
       const records = await p.replica.records();
@@ -219,7 +260,7 @@ export const dataCommands: Record<string, Spec> = {
       );
       const [blobs, warnings]: [{ path: string; data: Uint8Array }[], iwb.Problem[]] = [[], []];
       for (const sha of new Set([...records.flatMap(blobRefs), ...pointers])) {
-        const data = (await p.replica.getBlob(sha)) ?? (await readFile(cacheBlob(p, sha)).catch(() => null));
+        const data = (await p.replica.getBlob(sha)) ?? (await readFile(cacheBlob(p, sha)).catch(() => null)); // not cached: warned below
         if (data) blobs.push({ path: sha, data: new Uint8Array(data) });
         else
           warnings.push({
@@ -244,9 +285,8 @@ export const dataCommands: Record<string, Spec> = {
         str(a.out) ?? `${key.toLowerCase()}-${iso(now).slice(0, 10)}.tar.${ext}`,
       );
       await writeFile(archive, a.zstd ? z.zstdCompressSync!(tar) : zlib.gzipSync(tar));
-      const manifest = { sha256: m.sha256, files: m.files.length, records: m.records, blobs: m.blobs };
       return {
-        data: { archive, manifest },
+        data: { archive, manifest: manifestOf(m) },
         warnings,
         text: `Wrote ${archive} (${m.records} records, ${m.blobs} blobs)`,
       };
@@ -262,44 +302,17 @@ export const dataCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const archive = resolve(ctx.cwd, str(a.archive)!);
-      const raw = new Uint8Array(
-        await readFile(archive).catch(() => fail('NOT_FOUND', `${a.archive} not found`)),
-      );
-      if (isZstd(raw) && !z.zstdDecompressSync)
-        fail('INVALID_INPUT', 'This Node.js cannot read zstd; use Node ≥ 22.15');
-      const tar = isZstd(raw)
-        ? z.zstdDecompressSync!(raw)
-        : raw[0] === 0x1f && raw[1] === 0x8b
-          ? zlib.gunzipSync(raw)
-          : raw;
       const x = await iwb
-        .readArchive(new Uint8Array(tar))
+        .readArchive(new Uint8Array(await readTar(archive, a.archive)))
         .catch((e: Error) => fail('INVALID_INPUT', e.message));
-      // never write outside the bundle ("zip slip"): plain relative paths only
-      const unsafe = x.bundleFiles.find(
-        (f) => /^[/\\]|[\\:]/.test(f.path) || f.path.split('/').some((s) => ['', '.', '..'].includes(s)),
-      );
+      const unsafe = x.bundleFiles.find((f) => unsafePath(f.path));
       if (unsafe) fail('INVALID_INPUT', `Unsafe path in the archive: bundle/${unsafe.path}`);
       const dir = str(a.dir) ? resolve(ctx.cwd, str(a.dir)!) : join(ctx.cwd, '.indx-watch');
       if (existsSync(join(dir, 'project.toml')) && !a.merge)
         fail('CONFLICT', `${dir} already has a bundle; pass --merge`);
       const [fs, replica] = [nodeFs(dir), openReplica(dir)];
-      const [changes, conflicts]: [string[], string[]] = [[], []];
-      for (const f of x.bundleFiles) {
-        const cur = await fs.read(f.path);
-        if (cur && !Buffer.from(cur).equals(Buffer.from(f.data))) conflicts.push(f.path);
-        if (!cur || conflicts.includes(f.path)) changes.push(`${cur ? 'update' : 'add'} bundle/${f.path}`);
-      }
-      const fresh = [];
-      for (const r of x.records) {
-        const c = checkRecord(r);
-        if ('error' in c) fail('INVALID_INPUT', `Invalid record in the archive: ${c.error}`);
-        else if (!(await replica.getRecord(c.record.id))) fresh.push(c.record);
-      }
-      changes.push(`add ${fresh.length} records`, `add ${x.blobs.length} blobs`);
-      const m = x.manifest;
-      const manifest = { sha256: m.sha256, files: m.files.length, records: m.records, blobs: m.blobs };
-      const data = { archive, manifest, dryRun: !!a['dry-run'], changes };
+      const { changes, conflicts, fresh } = await importPlan(fs, replica, x);
+      const data = { archive, manifest: manifestOf(x.manifest), dryRun: !!a['dry-run'], changes };
       if (conflicts.length)
         fail('CONFLICT', `${conflicts.length} files differ from the archive`, conflicts, data);
       if (!a['dry-run']) {

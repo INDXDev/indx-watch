@@ -70,17 +70,17 @@ export function DropOverlay({ onFiles }: { onFiles(p: Picked[]): void }) {
   useEffect(() => {
     let depth = 0;
     const files = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
-    const enter = (e: DragEvent) => {
+    const dragenter = (e: DragEvent) => {
       if (!files(e)) return;
       depth++;
       setOver(true);
     };
-    const leave = (e: DragEvent) => {
+    const dragleave = (e: DragEvent) => {
       if (!files(e) || --depth > 0) return;
       depth = 0;
       setOver(false);
     };
-    const over = (e: DragEvent) => {
+    const dragover = (e: DragEvent) => {
       if (files(e)) e.preventDefault();
     };
     const drop = (e: DragEvent) => {
@@ -90,15 +90,10 @@ export function DropOverlay({ onFiles }: { onFiles(p: Picked[]): void }) {
       setOver(false);
       fromDrop(e.dataTransfer).then(onFiles);
     };
-    window.addEventListener('dragenter', enter);
-    window.addEventListener('dragleave', leave);
-    window.addEventListener('dragover', over);
-    window.addEventListener('drop', drop);
+    const on = Object.entries({ dragenter, dragleave, dragover, drop }) as [string, EventListener][];
+    for (const [type, f] of on) window.addEventListener(type, f);
     return () => {
-      window.removeEventListener('dragenter', enter);
-      window.removeEventListener('dragleave', leave);
-      window.removeEventListener('dragover', over);
-      window.removeEventListener('drop', drop);
+      for (const [type, f] of on) window.removeEventListener(type, f);
     };
   }, [onFiles]);
   if (!over) return null;
@@ -141,22 +136,10 @@ export function Pickers({ onFiles }: { onFiles(p: Picked[]): void }) {
   );
 }
 
-export function UploadDialog({
-  open,
-  picked,
-  hosted,
-  onClose,
-  onDone,
-  onFiles,
-}: {
-  open: boolean;
-  picked: Picked[] | null;
-  hosted: boolean;
-  onClose(): void;
-  onDone(): void;
-  onFiles(p: Picked[]): void;
-}) {
-  const { t } = useI18n();
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Upload state machine: a dry-run preview whenever the picked files change, then the real upload. */
+function useUpload(picked: Picked[] | null, onDone: () => void) {
   const [input, setInput] = useState<UploadInput>();
   const [preview, setPreview] = useState<UploadResult>();
   const [done, setDone] = useState<UploadResult>();
@@ -174,12 +157,9 @@ export function UploadDialog({
         setInput(i);
         setPreview(await api.uploadBundle({ ...i, dryRun: true }));
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => setError(errorText(e)))
       .finally(() => setBusy(false));
   }, [picked]);
-  const changed = preview?.changes.filter((c) => c.change !== 'unchanged') ?? [];
-  const errors = preview?.problems.filter((p) => p.severity === 'error') ?? [];
-  const warnings = preview?.problems.filter((p) => p.severity !== 'error') ?? [];
   const upload = async () => {
     if (!input) return;
     setBusy(true);
@@ -190,28 +170,32 @@ export function UploadDialog({
         onDone();
       } else setPreview(r);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
   };
+  const changed = preview?.changes.filter((c) => c.change !== 'unchanged') ?? [];
+  return { input, preview, done, message, setMessage, busy, error, upload, changed };
+}
+type Upload = ReturnType<typeof useUpload>;
+type Shared = { hosted: boolean; onClose(): void };
+
+type DialogProps = Shared & {
+  open: boolean;
+  picked: Picked[] | null;
+  onDone(): void;
+  onFiles(p: Picked[]): void;
+};
+
+/** Pick, preview and upload definition files. */
+export function UploadDialog({ open, picked, hosted, onClose, onDone, onFiles }: DialogProps) {
+  const { t } = useI18n();
+  const u = useUpload(picked, onDone);
   return (
     <Dialog open={open} title={t('upload.title')} onClose={onClose} wide>
-      {done ? (
-        <div className="stack-sm">
-          <div className="callout s-pass" role="status">
-            <Icon status="pass" />{' '}
-            {t(hosted ? 'upload.doneHosted' : 'upload.doneLocal', { count: changed.length })}
-          </div>
-          <div className="actions">
-            <a className="btn btn-primary" href={href.uploads()} onClick={onClose}>
-              {t('upload.viewUploads')}
-            </a>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>
-              {t('common.close')}
-            </button>
-          </div>
-        </div>
+      {u.done ? (
+        <UploadDone count={u.changed.length} hosted={hosted} onClose={onClose} />
       ) : !picked?.length ? (
         <div className="stack-sm">
           <div className="dropzone">
@@ -225,76 +209,108 @@ export function UploadDialog({
         </div>
       ) : (
         <div className="stack-sm">
-          {busy && !preview && <p className="muted">{t('upload.checking')}</p>}
-          {error && (
+          {u.busy && !u.preview && <p className="muted">{t('upload.checking')}</p>}
+          {u.error && (
             <div className="callout s-fail" role="alert">
-              {t('common.error', { message: error })}
+              {t('common.error', { message: u.error })}
             </div>
           )}
-          {preview && (
-            <>
-              <p>
-                <strong>{t(input?.replace ? 'upload.wholeFolder' : 'upload.someFiles')}</strong>{' '}
-                <span className="muted">
-                  {t('upload.summary', {
-                    added: changed.filter((c) => c.change === 'added').length,
-                    changed: changed.filter((c) => c.change === 'changed').length,
-                    removed: changed.filter((c) => c.change === 'removed').length,
-                  })}
-                </span>
-              </p>
-              <ul className="list small changes">
-                {changed.map((c) => (
-                  <li key={c.path}>
-                    <span className={`chip change-${c.change}`}>
-                      {t(`upload.change.${c.change}` as 'upload.change.added')}
-                    </span>
-                    <code className="grow">{c.path}</code>
-                  </li>
-                ))}
-                {preview.unplaced.map((u) => (
-                  <li key={u.name}>
-                    <span className="chip chip-warn">{t('upload.unplaced')}</span>
-                    <code>{u.name}</code> <span className="muted">{u.reason}</span>
-                  </li>
-                ))}
-                {changed.length === 0 && <li className="muted">{t('upload.nothing')}</li>}
-              </ul>
-              <div className={`callout ${errors.length ? 's-fail' : 's-pass'}`} role="status">
-                <Icon status={errors.length ? 'fail' : 'pass'} />{' '}
-                {errors.length
-                  ? t('upload.checkFailed', { count: errors.length })
-                  : t('upload.checkPassed', { warnings: warnings.length })}
-                {[...errors, ...warnings].slice(0, 8).map((p) => (
-                  <div key={`${p.file}:${p.message}`} className="small">
-                    {p.file && <code>{p.file}</code>} {p.message}
-                  </div>
-                ))}
-              </div>
-              {hosted && (
-                <label className="field">
-                  <span>{t('upload.message')}</span>
-                  <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} />
-                </label>
-              )}
-              <p className="muted small">{t(hosted ? 'upload.explainHosted' : 'upload.explainLocal')}</p>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!preview.ok || busy}
-                  onClick={upload}
-                >
-                  {busy ? t('upload.uploading') : t('upload.go', { count: changed.length })}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={onClose}>
-                  {t('common.cancel')}
-                </button>
-              </div>
-            </>
-          )}
+          {u.preview && <UploadPreview u={u} hosted={hosted} onClose={onClose} />}
         </div>
       )}
     </Dialog>
+  );
+}
+
+function UploadDone({ count, hosted, onClose }: Shared & { count: number }) {
+  const { t } = useI18n();
+  return (
+    <div className="stack-sm">
+      <div className="callout s-pass" role="status">
+        <Icon status="pass" /> {t(hosted ? 'upload.doneHosted' : 'upload.doneLocal', { count })}
+      </div>
+      <div className="actions">
+        <a className="btn btn-primary" href={href.uploads()} onClick={onClose}>
+          {t('upload.viewUploads')}
+        </a>
+        <button type="button" className="btn btn-ghost" onClick={onClose}>
+          {t('common.close')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The dry-run result: what changes, what the check found, and the upload button. */
+function UploadPreview({ u, hosted, onClose }: Shared & { u: Upload }) {
+  const { t } = useI18n();
+  const { changed, busy } = u;
+  const preview = u.preview!;
+  const count = (change: string) => changed.filter((c) => c.change === change).length;
+  return (
+    <>
+      <p>
+        <strong>{t(u.input?.replace ? 'upload.wholeFolder' : 'upload.someFiles')}</strong>{' '}
+        <span className="muted">
+          {t('upload.summary', {
+            added: count('added'),
+            changed: count('changed'),
+            removed: count('removed'),
+          })}
+        </span>
+      </p>
+      <ul className="list small changes">
+        {changed.map((c) => (
+          <li key={c.path}>
+            <span className={`chip change-${c.change}`}>
+              {t(`upload.change.${c.change}` as 'upload.change.added')}
+            </span>
+            <code className="grow">{c.path}</code>
+          </li>
+        ))}
+        {preview.unplaced.map((x) => (
+          <li key={x.name}>
+            <span className="chip chip-warn">{t('upload.unplaced')}</span>
+            <code>{x.name}</code> <span className="muted">{x.reason}</span>
+          </li>
+        ))}
+        {changed.length === 0 && <li className="muted">{t('upload.nothing')}</li>}
+      </ul>
+      <CheckResult problems={preview.problems} />
+      {hosted && (
+        <label className="field">
+          <span>{t('upload.message')}</span>
+          <input value={u.message} onChange={(e) => u.setMessage(e.target.value)} maxLength={500} />
+        </label>
+      )}
+      <p className="muted small">{t(hosted ? 'upload.explainHosted' : 'upload.explainLocal')}</p>
+      <div className="actions">
+        <button type="button" className="btn btn-primary" disabled={!preview.ok || busy} onClick={u.upload}>
+          {busy ? t('upload.uploading') : t('upload.go', { count: changed.length })}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onClose}>
+          {t('common.cancel')}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function CheckResult({ problems }: { problems: UploadResult['problems'] }) {
+  const { t } = useI18n();
+  const errors = problems.filter((p) => p.severity === 'error');
+  const warnings = problems.filter((p) => p.severity !== 'error');
+  return (
+    <div className={`callout ${errors.length ? 's-fail' : 's-pass'}`} role="status">
+      <Icon status={errors.length ? 'fail' : 'pass'} />{' '}
+      {errors.length
+        ? t('upload.checkFailed', { count: errors.length })
+        : t('upload.checkPassed', { warnings: warnings.length })}
+      {[...errors, ...warnings].slice(0, 8).map((p) => (
+        <div key={`${p.file}:${p.message}`} className="small">
+          {p.file && <code>{p.file}</code>} {p.message}
+        </div>
+      ))}
+    </div>
   );
 }

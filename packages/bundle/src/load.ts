@@ -5,16 +5,8 @@
 import type { z } from 'zod';
 import { sha256Hex } from './hash.js';
 import { SCHEMA_VERSION } from './schema/common.js';
-import type {
-  BlobPointer,
-  Feature,
-  FileType,
-  Fixture,
-  Project,
-  TestCase,
-  UseCase,
-} from './schema/definitions.js';
-import { FILE_TYPES } from './schema/definitions.js';
+import type { BlobPointer, Feature, FileType, Fixture } from './schema/definitions.js';
+import { FILE_TYPES, type Project, type TestCase, type UseCase } from './schema/definitions.js';
 import { parseToml } from './toml.js';
 import type { Bundle, BundleFs, Loaded, LoadedTemplate, Problem } from './types.js';
 import { fixtureVersion, testCaseVersion } from './versions.js';
@@ -70,15 +62,14 @@ export async function walk(fs: BundleFs, dir: string): Promise<string[]> {
   return out;
 }
 
-/** loadBundle plus every file seen, for check and fmt. */
-export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: SeenFile[] }> {
+/** Shared state of one load: every path, the problems found and the files seen so far. */
+function loader(fs: BundleFs, paths: string[]) {
   const problems: Problem[] = [];
   const files: SeenFile[] = [];
   const add = (severity: Problem['severity'], code: string, file: string, message: string) =>
     problems.push({ severity, code, file, message });
-  const paths = await walk(fs, '');
-  const all = new Set(paths);
 
+  /** Read, parse and validate one file; null when it is not TOML. */
   async function parse(path: string, type: FileType | 'template'): Promise<SeenFile | null> {
     const text = dec.decode((await fs.read(path)) ?? new Uint8Array());
     const seen: SeenFile = { path, type, text, valid: false };
@@ -90,54 +81,95 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
       return null;
     }
     const kind = type === 'template' ? (path.split('/')[1]!.split('.')[0] as FileType) : type;
-    const schema = type === 'template' ? FILE_TYPES[kind].partial() : FILE_TYPES[kind];
-    const res = (schema as z.ZodType).safeParse(seen.raw);
-    if (!res.success) problems.push(...zodProblems(path, schema as z.ZodType, res.error));
+    const schema = (type === 'template' ? FILE_TYPES[kind].partial() : FILE_TYPES[kind]) as z.ZodType;
+    const res = schema.safeParse(seen.raw);
+    if (!res.success) problems.push(...zodProblems(path, schema, res.error));
     else seen.valid = true;
     return seen;
   }
+  return { fs, paths, all: new Set(paths), problems, files, add, parse };
+}
+type Loader = ReturnType<typeof loader>;
 
+/** Parse every path by its layout rule; collect templates, valid definitions by type and stray files. */
+async function classify(l: Loader) {
   const byType = new Map<string, Loaded<never>[]>();
   const templates: LoadedTemplate[] = [];
   const unknownFiles: string[] = [];
   const fixtureFiles = new Set<string>();
-  for (const path of paths) {
-    const rule = RULES.find(([re]) => re.test(path));
-    if (!rule) {
-      if (/^fixtures\/[^/]+\/[^/]+$/.test(path)) fixtureFiles.add(path);
-      else unknownFiles.push(path);
-      continue;
-    }
-    if (!rule[1]) continue;
-    const seen = await parse(path, rule[1]);
+  for (const path of l.paths) {
+    const type = RULES.find(([re]) => re.test(path))?.[1];
+    if (type === undefined && /^fixtures\/[^/]+\/[^/]+$/.test(path)) fixtureFiles.add(path);
+    else if (type === undefined) unknownFiles.push(path);
+    if (!type) continue;
+    const seen = await l.parse(path, type);
     if (!seen?.valid) continue;
-    if (rule[1] === 'template') {
+    if (type === 'template') {
       const [, kind, name] = /^templates\/([a-z-]+)\.(.+)\.toml$/.exec(path)!;
       templates.push({ file: path, kind: kind as LoadedTemplate['kind'], name: name!, data: seen.raw! });
     } else {
-      const data = FILE_TYPES[rule[1]].parse(seen.raw) as never;
-      byType.set(rule[1], [...(byType.get(rule[1]) ?? []), { file: path, data }]);
+      const data = FILE_TYPES[type].parse(seen.raw) as never;
+      byType.set(type, [...(byType.get(type) ?? []), { file: path, data }]);
     }
   }
   const of = <T>(type: FileType) => (byType.get(type) ?? []) as Loaded<T>[];
+  return { of, templates, unknownFiles, fixtureFiles };
+}
 
-  const project = of<Project>('project')[0];
-  const newer = `schema_version ${project?.data.schema_version} is newer than supported; upgrade`;
-  if (project && project.data.schema_version > SCHEMA_VERSION)
-    add('error', 'unsupported-schema-version', 'project.toml', newer);
-  if (!project && !all.has('project.toml'))
-    add('error', 'missing-file', 'project.toml', 'project.toml not found');
-  if (!project || project.data.schema_version > SCHEMA_VERSION) return { bundle: null, problems, files };
+/** The project when present and supported; also reports spec folders missing feature.toml or use-case.toml. */
+function checkProject(l: Loader, project: Loaded<Project> | undefined) {
+  const newer = project && project.data.schema_version > SCHEMA_VERSION;
+  const message = `schema_version ${project?.data.schema_version} is newer than supported; upgrade`;
+  if (newer) l.add('error', 'unsupported-schema-version', 'project.toml', message);
+  if (!project && !l.all.has('project.toml'))
+    l.add('error', 'missing-file', 'project.toml', 'project.toml not found');
+  if (!project || newer) return undefined;
   const need = (dir: string | undefined, f: string) =>
     dir &&
-    !all.has(dir + f) &&
-    !problems.some((x) => x.file === dir + f) &&
-    add('error', 'missing-file', dir + f, f);
-  for (const p of paths) {
+    !l.all.has(dir + f) &&
+    !l.problems.some((x) => x.file === dir + f) &&
+    l.add('error', 'missing-file', dir + f, f);
+  for (const p of l.paths) {
     need(/^specs\/[^/]+\/(?=.)/.exec(p)?.[0], 'feature.toml');
     need(/^specs\/[^/]+\/[^/]+\/(?=.)/.exec(p)?.[0], 'use-case.toml');
   }
+  return project;
+}
 
+/** One fixture data file (inline or behind a blob pointer) and, for text, its CRLF → LF hash. */
+async function dataFile(l: Loader, name: string, file: string) {
+  const bytes = l.all.has(file) ? await l.fs.read(file) : null;
+  if (bytes) {
+    l.files.push({ path: file, type: 'data', text: dec.decode(bytes), valid: true });
+    const d = { name, file, sha256: await sha256Hex(bytes), size: bytes.length };
+    // text data files hash with CRLF → LF (same version on Windows)
+    const lf = TEXT.test(name) ? bytes.filter((x, i) => x !== 13 || bytes[i + 1] !== 10) : null;
+    return { d, lf: lf && (await sha256Hex(lf)) };
+  }
+  if (!l.all.has(`${file}.blob.toml`))
+    return void l.add('error', 'missing-file', file, `Data file ${name} not found`);
+  const seen = await l.parse(`${file}.blob.toml`, 'blob-pointer');
+  const pointer = seen?.valid ? (seen.raw as BlobPointer) : undefined;
+  return pointer && { d: { name, file: seen!.path, sha256: pointer.sha256, size: pointer.size, pointer } };
+}
+
+/** A fixture with its data files and version; claimed files are removed from `stray`. */
+async function loadFixture(l: Loader, fx: Loaded<Fixture>, stray: Set<string>) {
+  const loaded: NonNullable<Awaited<ReturnType<typeof dataFile>>>[] = [];
+  for (const name of fx.data.files ?? []) {
+    const file = `${dirOf(fx.file)}/${name}`;
+    const one = await dataFile(l, name, file);
+    if (one) loaded.push(one);
+    stray.delete(file);
+    stray.delete(`${file}.blob.toml`);
+  }
+  const forVersion = loaded.map(({ d, lf }) => ({ ...d, sha256: lf ?? d.sha256 }));
+  const dataFiles = loaded.map((x) => x.d);
+  return { ...fx, dataFiles, version: await fixtureVersion(fx.data, forVersion) };
+}
+
+/** Use cases with their feature key and test cases with their use case key and version. */
+async function specs(of: Awaited<ReturnType<typeof classify>>['of']) {
   const featureKey = new Map(of<Feature>('feature').map((f) => [dirOf(f.file), f.data.key]));
   const useCases = of<UseCase>('use-case').map((u) => {
     const dir = dirOf(dirOf(u.file));
@@ -147,44 +179,29 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
   const criterionText = new Map(
     useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)),
   );
-
-  const fixtures: Bundle['fixtures'] = [];
-  const lfHash = new Map<string, string>(); // text data files hash with CRLF → LF (same version on Windows)
-  for (const fx of of<Fixture>('fixture')) {
-    const dir = dirOf(fx.file);
-    const dataFiles: Bundle['fixtures'][0]['dataFiles'] = [];
-    for (const name of fx.data.files ?? []) {
-      const file = `${dir}/${name}`;
-      const bytes = all.has(file) ? await fs.read(file) : null;
-      if (bytes) {
-        files.push({ path: file, type: 'data', text: dec.decode(bytes), valid: true });
-        dataFiles.push({ name, file, sha256: await sha256Hex(bytes), size: bytes.length });
-        if (TEXT.test(name))
-          lfHash.set(file, await sha256Hex(bytes.filter((x, i) => x !== 13 || bytes[i + 1] !== 10)));
-      } else if (all.has(`${file}.blob.toml`)) {
-        const seen = await parse(`${file}.blob.toml`, 'blob-pointer');
-        const pointer = seen?.valid ? (seen.raw as BlobPointer) : undefined;
-        if (pointer)
-          dataFiles.push({ name, file: seen!.path, sha256: pointer.sha256, size: pointer.size, pointer });
-      } else add('error', 'missing-file', file, `Data file ${name} not found`);
-      fixtureFiles.delete(file);
-      fixtureFiles.delete(`${file}.blob.toml`);
-    }
-    const forVersion = dataFiles.map((d) => ({ ...d, sha256: lfHash.get(d.file) ?? d.sha256 }));
-    fixtures.push({ ...fx, dataFiles, version: await fixtureVersion(fx.data, forVersion) });
-  }
-  unknownFiles.push(...fixtureFiles);
-  for (const f of unknownFiles.sort()) add('warning', 'unknown-file', f, 'File is not part of the format');
-
   const testCases: Bundle['testCases'] = [];
   for (const t of of<TestCase>('test-case')) {
     const useCase = ucKey.get(dirOf(t.file)) ?? /UC-\d+/.exec(dirOf(t.file))?.[0] ?? '';
     testCases.push({ ...t, useCase, version: await testCaseVersion(t.data, criterionText) });
   }
+  return { useCases, testCases };
+}
+
+/** loadBundle plus every file seen, for check and fmt. */
+export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: SeenFile[] }> {
+  const l = loader(fs, await walk(fs, ''));
+  const { of, templates, unknownFiles, fixtureFiles } = await classify(l);
+  const project = checkProject(l, of<Project>('project')[0]);
+  if (!project) return { bundle: null, problems: l.problems, files: l.files };
+  const fixtures: Bundle['fixtures'] = [];
+  for (const fx of of<Fixture>('fixture')) fixtures.push(await loadFixture(l, fx, fixtureFiles));
+  unknownFiles.push(...fixtureFiles);
+  for (const f of unknownFiles.sort()) l.add('warning', 'unknown-file', f, 'File is not part of the format');
+  const { useCases, testCases } = await specs(of);
   const bundle = { project, useCases, testCases, fixtures, templates, unknownFiles } as Bundle;
   for (const k of ['environment', 'release', 'feature', 'plan'])
     (bundle as never as Record<string, unknown>)[`${k}s`] = of(k as FileType);
-  return { bundle, problems, files };
+  return { bundle, problems: l.problems, files: l.files };
 }
 
 function distance(a: string, b: string): number {

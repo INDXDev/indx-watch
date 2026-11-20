@@ -10,8 +10,14 @@ import { retraction, runRecord, TC3 } from './helpers/records.js';
 
 const T = Date.parse('2026-11-19T04:00:00Z');
 
-function indexContract(name: string, make: () => Index) {
-  describe(`Index: ${name}`, () => {
+/** The same record ID with a different body. */
+const forgedOf = (run: ReturnType<typeof runRecord>) => ({
+  ...run,
+  steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }],
+});
+
+function filterContract(make: () => Index) {
+  describe('ingest and filter', () => {
     it('ingests idempotently and filters by kind, test case, release, since and limit', async () => {
       const idx = make();
       const r1 = runRecord({ at: T });
@@ -30,11 +36,15 @@ function indexContract(name: string, make: () => Index) {
       expect(await ids({ kinds: ['run'], limit: 2 })).toEqual([r2.id, r3.id]);
       expect((await idx.records({ kinds: ['run'] }))[0]).toEqual(r1);
     });
+  });
+}
 
+function mergeContract(make: () => Index) {
+  describe('merge of differing bodies', () => {
     it('keeps the body whose log key sorts first and notes the conflict', async () => {
       const idx = make();
       const run = runRecord({ at: T });
-      const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+      const forged = forgedOf(run);
       const conflicts = async () => JSON.parse((await idx.getMeta(CONFLICTS_META)) ?? '{}');
       expect(await idx.ingest([run], 'v1/log/B.json')).toBe(1);
       expect(await idx.ingest([forged], 'v1/log/C.json')).toBe(1); // a later key: kept, noted
@@ -53,7 +63,7 @@ function indexContract(name: string, make: () => Index) {
     it('a body the trust check accepts (signed by a pinned key) beats one it does not, whatever the log keys', async () => {
       const idx = make();
       const run = runRecord({ at: T });
-      const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+      const forged = forgedOf(run);
       const trust = async (r: AnyRecord) => JSON.stringify(r) === JSON.stringify(run);
       expect(await idx.ingest([run], 'v1/log/B.json', trust)).toBe(1);
       expect(await idx.ingest([forged], 'v1/log/A.json', trust)).toBe(1); // earlier key, but unsigned: kept
@@ -73,7 +83,7 @@ function indexContract(name: string, make: () => Index) {
       ]) {
         const idx = make();
         const run = runRecord({ at: T });
-        const forged = { ...run, steps: [{ ...run.steps[0]!, note: 'FORGED BODY' }] };
+        const forged = forgedOf(run);
         await Promise.all([idx.ingest([run], first), idx.ingest([forged], second)]);
         const winner = first === 'v1/log/A.json' ? run : forged;
         expect(await idx.records()).toEqual([winner]);
@@ -83,7 +93,11 @@ function indexContract(name: string, make: () => Index) {
         expect(await idx.records()).toEqual([winner]);
       }
     });
+  });
+}
 
+function storageContract(make: () => Index) {
+  describe('definitions and meta', () => {
     it('stores definitions and meta, and resets', async () => {
       const idx = make();
       expect(await idx.definitions()).toBeNull();
@@ -111,6 +125,14 @@ function indexContract(name: string, make: () => Index) {
       expect(await idx.definitions()).toBeNull();
       expect(await idx.getMeta('cursor')).toBeNull();
     });
+  });
+}
+
+function indexContract(name: string, make: () => Index) {
+  describe(`Index: ${name}`, () => {
+    filterContract(make);
+    mergeContract(make);
+    storageContract(make);
   });
 }
 

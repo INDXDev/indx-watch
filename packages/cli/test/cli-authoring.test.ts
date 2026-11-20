@@ -29,82 +29,85 @@ describe('commands: init, check and fmt', () => {
   });
 });
 
+/** Arguments of the `iw new` calls the authoring tests repeat. */
+const NEW_AC = [
+  'new',
+  'ac',
+  '--uc',
+  'UC-5',
+  '--text',
+  'Shows "Photos must be PNG or JPEG"',
+  '--origin',
+  'ai',
+  '--model',
+  'm',
+];
+const NEW_FIXTURE = ['new', 'fixture', '--kind', 'dataset', '--title', 'Codes', '--from', '-'];
+const NEW_TC = [
+  'new',
+  'tc',
+  '--uc',
+  'UC-5',
+  '--title',
+  'Rejects text',
+  '--covers',
+  'AC-5.2',
+  '--from',
+  'tc.toml',
+];
+const TC_DRAFT = 'tags = ["reviews"]\n[[steps]]\ninstruction = "Open it"\nexpected = "It opens"\n';
+const AGENT_MODEL = 'claude-test';
+const AGENT = { IW_ACTOR_KIND: 'agent' };
+const AGENT_WITH_MODEL = { ...AGENT, IW_AGENT_MODEL: AGENT_MODEL };
+
 describe('commands: new', () => {
   it('new: ac, fixture --from -, tc --from file, template, --ready refused for agents', () => {
     const dir = shop();
-    const ac = iwJson(dir, 'new', [
-      'new',
-      'ac',
-      '--uc',
-      'UC-5',
-      '--text',
-      'Shows "Photos must be PNG or JPEG"',
-      '--origin',
-      'ai',
-      '--model',
-      'm',
-    ]);
-    expect(ac.json.data.key).toBe('AC-5.2');
-    const fx = iwJson(
-      dir,
-      'new',
-      ['new', 'fixture', '--kind', 'dataset', '--title', 'Codes', '--from', '-'],
-      {
-        input: '{ "row_key": "code" }',
-      },
-    );
+    expect(iwJson(dir, 'new', NEW_AC).json.data.key).toBe('AC-5.2');
+    const fx = iwJson(dir, 'new', NEW_FIXTURE, { input: '{ "row_key": "code" }' });
     expect(parseToml(read(dir, fx.json.data.file))).toMatchObject({ kind: 'dataset', row_key: 'code' });
     writeFileSync(join(dir, 'codes.csv'), 'code,percent\nSPRING5,5\n');
-    expect(iwJson(dir, 'fixture add', ['fixture', 'add', 'codes.csv', '--to', fx.json.data.key]).code).toBe(
-      0,
-    );
-    writeFileSync(
-      join(dir, 'tc.toml'),
-      'tags = ["reviews"]\n[[steps]]\ninstruction = "Open it"\nexpected = "It opens"\n',
-    );
-    const tc = iwJson(dir, 'new', [
-      'new',
-      'tc',
-      '--uc',
-      'UC-5',
-      '--title',
-      'Rejects text',
-      '--covers',
-      'AC-5.2',
-      '--from',
-      'tc.toml',
-    ]);
+    const add = iwJson(dir, 'fixture add', ['fixture', 'add', 'codes.csv', '--to', fx.json.data.key]);
+    expect(add.code).toBe(0);
+    writeFileSync(join(dir, 'tc.toml'), TC_DRAFT);
+    const tc = iwJson(dir, 'new', NEW_TC);
     expect(parseToml(read(dir, tc.json.data.file))).toMatchObject({ covers: ['AC-5.2'], tags: ['reviews'] });
-    expect(
-      iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-2', '--title', 'web', '--template', 'web']).code,
-    ).toBe(0);
-    const agent = { IW_ACTOR_KIND: 'agent' };
-    expect(iw(dir, ['new', 'uc', '--title', 'y', '--ac', 'z', '--ready'], { env: agent }).code).toBe(2);
+    const web = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-2', '--title', 'web', '--template', 'web']);
+    expect(web.code).toBe(0);
+    expect(iw(dir, ['new', 'uc', '--title', 'y', '--ac', 'z', '--ready'], { env: AGENT }).code).toBe(2);
     expect(iw(dir, ['check']).code).toBe(0);
   });
 
+  it('new never reuses a fixture key that recorded runs used', () => {
+    const dir = shop();
+    expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // sample runs use FX-1..FX-3
+    for (const d of readdirSync(join(dir, '.indx-watch/fixtures')).filter((d) => /^FX-[34]-/.test(d)))
+      rmSync(join(dir, '.indx-watch/fixtures', d), { recursive: true });
+    const fx = iwJson(dir, 'new', ['new', 'fixture', '--title', 'Another account']).json.data.key;
+    expect(fx).toBe('FX-4'); // FX-4 was never used by a run; FX-3 was
+  });
+});
+
+describe('commands: new by an agent', () => {
   it('new by an agent always writes an AI draft with its model', () => {
     const dir = shop();
-    const agent = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'claude-test' };
-    const tc = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-5', '--title', 'No origin flag'], { env: agent });
+    const env = AGENT_WITH_MODEL;
+    const tc = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-5', '--title', 'No origin flag'], { env });
     expect(parseToml(read(dir, tc.json.data.file))).toMatchObject({
       status: 'draft',
       origin: 'ai',
-      ai: { model: 'claude-test' },
+      ai: { model: AGENT_MODEL },
     });
-    const ac = iwJson(dir, 'new', ['new', 'ac', '--uc', 'UC-5', '--text', 'Agent criterion'], { env: agent });
+    const ac = iwJson(dir, 'new', ['new', 'ac', '--uc', 'UC-5', '--text', 'Agent criterion'], { env });
     const uc = parseToml(read(dir, ac.json.data.file)) as { criteria: { key: string; status?: string }[] };
     expect(uc.criteria.find((c) => c.key === ac.json.data.key)).toMatchObject({
       status: 'draft',
       origin: 'ai',
     });
-    const human = iwJson(dir, 'new', ['new', 'tc', '--uc', 'UC-5', '--title', 'x', '--origin', 'human'], {
-      env: agent,
-    });
+    const humanArgs = ['new', 'tc', '--uc', 'UC-5', '--title', 'x', '--origin', 'human'];
+    const human = iwJson(dir, 'new', humanArgs, { env });
     expect([human.code, human.json.error.code]).toEqual([2, 'USAGE']);
-    const noModel = iwJson(dir, 'new', ['new', 'fixture', '--title', 'x'], {
-      env: { IW_ACTOR_KIND: 'agent' },
-    });
+    const noModel = iwJson(dir, 'new', ['new', 'fixture', '--title', 'x'], { env: AGENT });
     expect([noModel.code, noModel.json.error.message]).toEqual([
       2,
       expect.stringContaining('IW_AGENT_MODEL'),
@@ -114,18 +117,17 @@ describe('commands: new', () => {
 
   it('new feature|env|release|plan by an agent carries origin "ai"; check warns until a human approves', () => {
     const dir = shop();
-    const agent = { IW_ACTOR_KIND: 'agent', IW_AGENT_MODEL: 'claude-test' };
     const made = [
       ['feature', '--title', 'Agent feature'],
       ['env', '--title', 'Preview'],
       ['release', '--title', 'v9.0.0'],
       ['plan', '--title', 'Agent plan'],
     ].map((args) => {
-      const r = iwJson(dir, 'new', ['new', ...args], { env: agent });
+      const r = iwJson(dir, 'new', ['new', ...args], { env: AGENT_WITH_MODEL });
       expect(r.code).toBe(0);
       expect(parseToml(read(dir, r.json.data.file))).toMatchObject({
         origin: 'ai',
-        ai: { model: 'claude-test' },
+        ai: { model: AGENT_MODEL },
       });
       return r.json.data;
     });
@@ -142,15 +144,6 @@ describe('commands: new', () => {
     }
     const after = iwJson(dir, 'check', ['check']).json.data.problems;
     expect(after.filter((p: { code: string }) => p.code === 'ai-not-approved')).toEqual([]);
-  });
-
-  it('new never reuses a fixture key that recorded runs used', () => {
-    const dir = shop();
-    expect(iwJson(dir, 'sync', ['sync', '--pull-only']).code).toBe(0); // sample runs use FX-1..FX-3
-    for (const d of readdirSync(join(dir, '.indx-watch/fixtures')).filter((d) => /^FX-[34]-/.test(d)))
-      rmSync(join(dir, '.indx-watch/fixtures', d), { recursive: true });
-    const fx = iwJson(dir, 'new', ['new', 'fixture', '--title', 'Another account']).json.data.key;
-    expect(fx).toBe('FX-4'); // FX-4 was never used by a run; FX-3 was
   });
 });
 
@@ -175,7 +168,7 @@ describe('commands: approve and translate', () => {
     expect(problems.filter((x) => x.code.includes('translation') || x.code.includes('literal'))).toEqual([]);
     const listed = iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja']).json.data.fields;
     expect(listed.find((f: { path: string }) => f.path === 'title')).toMatchObject({ state: 'machine' });
-    const agent = iwJson(dir, 'translate', [...set, '--reviewed'], { env: { IW_ACTOR_KIND: 'agent' } });
+    const agent = iwJson(dir, 'translate', [...set, '--reviewed'], { env: AGENT });
     expect(agent.code).toBe(2);
     writeFileSync(join(dir, '.indx-watch', TC3), read(dir, TC3).replace('(price 40.00)', '(price 40)'));
     const stale = iwJson(dir, 'translate', set);

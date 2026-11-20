@@ -52,32 +52,57 @@ async function bucket(records: AnyRecord[] = []) {
 const call = (env: object, path: string, init?: RequestInit) =>
   worker.fetch(new Request(`https://watch.example.com${path}`, init), env as never);
 
-describe('worker', () => {
+/** GET a JSON API path. */
+const getJson = async <T>(env: object, path: string) => (await (await call(env, path)).json()) as T;
+
+/** POST a JSON body. */
+const postJson = (env: object, path: string, body: unknown, headers: Record<string, string> = {}) =>
+  call(env, path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+
+/** The public hosted env over a bucket with the `shop` prefix. */
+const publicEnv = (r2: unknown) => ({
+  STORE: r2,
+  DB: fakeD1(),
+  ASSETS: assets,
+  STORE_PREFIX: 'shop',
+  PUBLIC: 'true',
+});
+
+/** The result store the worker reads, opened again from the test. */
+const bucketStore = (r2: Parameters<typeof r2ObjectStore>[0]) => createResultStore(r2ObjectStore(r2, 'shop'));
+
+/** A passing run of TC-9 as the web UI posts it. */
+const RUN_TC9 = { test_case: 'TC-9', steps: [], verdict: 'pass' };
+/** Past the 5 s ingest throttle, so the next request catches up again. */
+const AFTER_THROTTLE_MS = 6000;
+const STORE_MANIFEST = '/api/store/objects/indx-watch-store.json';
+
+describe('worker: model, writes and assets', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('serves the model from the latest snapshot plus records ingested from the bucket', async () => {
     const { r2, b } = await bucket();
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
-    const p = (await (await call(env, '/api/project')).json()) as ProjectInfo;
+    const env = publicEnv(r2);
+    const p = await getJson<ProjectInfo>(env, '/api/project');
     expect(p).toMatchObject({ mode: 'hosted', project: { key: 'SHOP' }, identity: { id: 'anonymous' } });
     expect(p.sync).toMatchObject({ configured: true, store: 'r2://shop' });
 
     // a CI run written straight to the bucket appears after the next catch-up
-    const store = createResultStore(r2ObjectStore(r2, 'shop'));
+    const store = bucketStore(r2);
     await store.appendLog('ci', sampleRecords(b));
     const t0 = Date.now();
-    vi.spyOn(Date, 'now').mockReturnValue(t0 + 6000); // the next request may ingest again (at most every 5 s)
-    const s = (await (await call(env, '/api/status')).json()) as StatusResult;
+    vi.spyOn(Date, 'now').mockReturnValue(t0 + AFTER_THROTTLE_MS); // the next request may ingest again (at most every 5 s)
+    const s = await getJson<StatusResult>(env, '/api/status');
     expect(s.testCases.find((t) => t.key === 'TC-4')!.status).toBe('fail');
 
     // the hosted UI writes to the bucket (a log object) and the index at once
-    const res = await call(env, '/api/runs', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ test_case: 'TC-9', steps: [], verdict: 'pass' }),
-    });
+    const res = await postJson(env, '/api/runs', RUN_TC9);
     expect(res.status).toBe(201);
-    const runs = (await (await call(env, '/api/runs?tc=TC-9')).json()) as RunSummary[];
+    const runs = await getJson<RunSummary[]>(env, '/api/runs?tc=TC-9');
     expect(runs).toHaveLength(1);
     const logs = await store.listLog({});
     const last = await store.readLog(logs.keys.at(-1)!);
@@ -86,35 +111,46 @@ describe('worker', () => {
     // the SPA comes from the assets binding
     expect(await (await call(env, '/tc/TC-1')).text()).toContain('spa');
     // /api/store/* is the bucket
-    expect((await call(env, '/api/store/objects/indx-watch-store.json')).status).toBe(200);
+    expect((await call(env, STORE_MANIFEST)).status).toBe(200);
     vi.restoreAllMocks();
   });
+
+  it('scheduled() ingests', async () => {
+    const { r2, b } = await bucket();
+    const env = publicEnv(r2);
+    await worker.scheduled({}, env as never);
+    await call(env, '/api/project');
+    const store = bucketStore(r2);
+    await store.appendLog('ci', sampleRecords(b).slice(0, 1));
+    await worker.scheduled({}, env as never);
+    const runs = await getJson<RunSummary[]>(env, '/api/runs');
+    expect(runs).toHaveLength(1);
+  });
+});
+
+describe('worker: signing', () => {
+  afterEach(() => vi.unstubAllGlobals());
 
   it('signs the records it writes with IW_SIGNING_KEY; unsigned verified claims from the bucket are unverified', async () => {
     const { r2, b } = await bucket();
     const k = await generateSigningKey('hosted-test');
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
-    const signed = { ...env, IW_SIGNING_KEY: k.secret };
-    const store = createResultStore(r2ObjectStore(r2, 'shop'));
+    const signed = { ...publicEnv(r2), IW_SIGNING_KEY: k.secret };
+    const store = bucketStore(r2);
     await store.appendLog('ci', sampleRecords(b)); // CI records (via = "github") written without a signature
-    const res = await call(signed, '/api/runs', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ test_case: 'TC-9', steps: [], verdict: 'pass' }),
-    });
+    const res = await postJson(signed, '/api/runs', RUN_TC9);
     expect(res.status).toBe(201);
     const logs = await store.listLog({});
     const written = (await store.readLog(logs.keys.at(-1)!)).records[0] as AnyRecord;
     expect(written.sig?.kid).toBe('hosted-test');
     expect(await verifyRecord(written, [k.key])).toBe(true);
-    const runs = (await (await call(signed, '/api/runs?tc=TC-1')).json()) as RunSummary[];
+    const runs = await getJson<RunSummary[]>(signed, '/api/runs?tc=TC-1');
     expect(runs[0]).toMatchObject({ actor: { via: 'github' }, unverified: true });
   });
 
   it('trusts only the keys pinned at deploy (SIGNING_KEYS), never keys from a snapshot', async () => {
     const { r2, b } = await bucket();
     const [team, attacker] = [await generateSigningKey('hosted'), await generateSigningKey('hosted-2')];
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const env = publicEnv(r2);
     const pinned = { ...env, SIGNING_KEYS: JSON.stringify([team.key]) };
     // anyone who can write the store publishes a snapshot that pins their own key
     const files = await definitionFiles(nodeFs(SHOP));
@@ -123,43 +159,42 @@ describe('worker', () => {
 kid = "hosted-2"
 public_key = "${attacker.key.public_key}"
 `;
-    const upload = await call(pinned, '/api/bundle', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ files: [{ name: 'project.toml', data: Buffer.from(toml).toString('base64') }] }),
+    const upload = await postJson(pinned, '/api/bundle', {
+      files: [{ name: 'project.toml', data: Buffer.from(toml).toString('base64') }],
     });
     expect(upload.status).toBe(201);
     const lead = { kind: 'human', id: 'lead@shop.test', via: 'cloudflare-access' } as const;
     const [r1, r2b] = sampleRecords(b).filter((r) => r.kind === 'run');
     const forged = await recordSigner(attacker.secret)({ ...r1!, actor: lead } as AnyRecord);
     const genuine = await recordSigner(team.secret)({ ...r2b!, actor: lead } as AnyRecord);
-    await createResultStore(r2ObjectStore(r2, 'shop')).appendLog('x', [forged, genuine]);
-    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 6000);
-    const runs = (await (await call(pinned, '/api/runs')).json()) as RunSummary[];
+    await bucketStore(r2).appendLog('x', [forged, genuine]);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + AFTER_THROTTLE_MS);
+    const runs = await getJson<RunSummary[]>(pinned, '/api/runs');
     expect(runs.find((r) => r.id === forged.id)?.unverified).toBe(true);
     expect(runs.find((r) => r.id === genuine.id)?.unverified).toBeFalsy();
-    const p = (await (await call(pinned, '/api/project')).json()) as ProjectInfo;
+    const p = await getJson<ProjectInfo>(pinned, '/api/project');
     expect(p.problems.map((x) => x.message)).toContainEqual(expect.stringContaining('iw deploy'));
     // without SIGNING_KEYS nothing is trusted
-    const none = (await (await call(env, '/api/runs')).json()) as RunSummary[];
+    const none = await getJson<RunSummary[]>(env, '/api/runs');
     expect(none.find((r) => r.id === genuine.id)?.unverified).toBe(true);
     vi.restoreAllMocks();
   });
+});
 
+describe('worker: a malformed signing key', () => {
   it('a malformed IW_SIGNING_KEY fails the writes, not the reads, /healthz or the catch-up', async () => {
     const { r2 } = await bucket();
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
-    const bad = { ...env, IW_SIGNING_KEY: 'pasted the TOML entry by mistake' };
+    const bad = { ...publicEnv(r2), IW_SIGNING_KEY: 'pasted the TOML entry by mistake' };
     expect((await call(bad, '/healthz')).status).toBe(200);
     expect((await call(bad, '/api/project')).status).toBe(200);
     await worker.scheduled({}, bad as never);
-    const res = await call(bad, '/api/runs', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ test_case: 'TC-9', steps: [], verdict: 'pass' }),
-    });
+    const res = await postJson(bad, '/api/runs', RUN_TC9);
     expect(res.status).toBe(500);
   });
+});
+
+describe('worker: access and snapshots', () => {
+  afterEach(() => vi.unstubAllGlobals());
 
   it('answers 503 until a snapshot exists', async () => {
     const env = { STORE: fakeR2(), DB: fakeD1(), ASSETS: assets, PUBLIC: 'true' };
@@ -175,16 +210,10 @@ public_key = "${attacker.key.public_key}"
     expect((await call(half, '/api/store/list?prefix=')).status).toBe(401);
     vi.stubGlobal('fetch', async () => Response.json({ keys: [] }));
     const { r2 } = await bucket();
-    const full = {
-      STORE: r2,
-      DB: fakeD1(),
-      ASSETS: assets,
-      STORE_PREFIX: 'shop',
-      ACCESS_TEAM: 'shop',
-      ACCESS_AUD: 'aud',
-    };
+    const { PUBLIC: _, ...hosted } = publicEnv(r2);
+    const full = { ...hosted, ACCESS_TEAM: 'shop', ACCESS_AUD: 'aud' };
     expect((await call(full, '/api/project')).status).toBe(401);
-    expect((await call(full, '/api/store/objects/indx-watch-store.json')).status).toBe(401);
+    expect((await call(full, STORE_MANIFEST)).status).toBe(401);
     expect((await call(full, '/healthz')).status).toBe(200);
   });
 
@@ -195,24 +224,17 @@ public_key = "${attacker.key.public_key}"
       .decode(files.get(tc3))
       .replace('Valid coupon reduces the total', 'Renamed');
     const post = (env: object, body: object) =>
-      call(env, '/api/bundle', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: 'iw_tester=%7B%22id%22%3A%22sam%40shop.test%22%7D',
-        },
-        body: JSON.stringify(body),
-      });
+      postJson(env, '/api/bundle', body, { cookie: 'iw_tester=%7B%22id%22%3A%22sam%40shop.test%22%7D' });
     const { r2 } = await bucket();
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
+    const env = publicEnv(r2);
     const res = await post(env, {
       files: [{ name: 'TC-3.toml', data: Buffer.from(text).toString('base64') }],
     });
     expect(res.status).toBe(201);
-    const p = (await (await call(env, '/api/project')).json()) as ProjectInfo;
+    const p = await getJson<ProjectInfo>(env, '/api/project');
     expect(p.snapshot).toMatchObject({ source: 'manual', actor: { id: 'sam@shop.test', via: 'browser' } });
     expect(p.share.clone).toBe('https://watch.example.com');
-    const tc = (await (await call(env, '/api/test-cases/TC-3')).json()) as { data: { title: string } };
+    const tc = await getJson<{ data: { title: string } }>(env, '/api/test-cases/TC-3');
     expect(tc.data.title).toBe('Renamed');
 
     // a fresh deploy: the whole folder is the first snapshot
@@ -225,76 +247,32 @@ public_key = "${attacker.key.public_key}"
     expect((await post(empty, { replace: true, files: all })).status).toBe(201);
     expect((await call(empty, '/api/project')).status).toBe(200);
   });
-
-  it('scheduled() ingests', async () => {
-    const { r2, b } = await bucket();
-    const env = { STORE: r2, DB: fakeD1(), ASSETS: assets, STORE_PREFIX: 'shop', PUBLIC: 'true' };
-    await worker.scheduled({}, env as never);
-    await call(env, '/api/project');
-    const store = createResultStore(r2ObjectStore(r2, 'shop'));
-    await store.appendLog('ci', sampleRecords(b).slice(0, 1));
-    await worker.scheduled({}, env as never);
-    const runs = (await (await call(env, '/api/runs')).json()) as RunSummary[];
-    expect(runs).toHaveLength(1);
-  });
 });
 
-describe('catchUp', () => {
+const BASE = Date.parse('2026-11-19T00:00:00Z');
+const HOUR = 3600_000;
+const DAY = 86_400_000;
+
+/** An in-memory store and index for catchUp, with examples/shop loaded. */
+async function ingestFixture() {
+  const objects = memoryObjectStore();
+  return { objects, store: createResultStore(objects), index: memoryIndex(), b: await shop() };
+}
+
+describe('catchUp: incremental reads', () => {
   it('reads at most 50 log objects per call and resumes from its cursor', async () => {
-    const store = createResultStore(memoryObjectStore());
-    const index = memoryIndex();
-    const b = await shop();
-    const base = Date.parse('2026-11-19T00:00:00Z');
-    for (let i = 0; i < 60; i++)
-      await store.appendLog(
-        'w',
-        [{ ...sampleRecords(b)[0]!, id: newId('run', base + i) } as AnyRecord],
-        base + i * 60_000,
-      );
-    const now = base + 2 * 3600_000;
-    expect(await catchUp(store, index, 'a', now)).toBe(50);
-    expect(await catchUp(store, index, 'a', now)).toBe(10);
-    expect(await catchUp(store, index, 'a', now)).toBe(0);
+    const { store, index, b } = await ingestFixture();
+    const append = (i: number, at: number) =>
+      store.appendLog('w', [{ ...sampleRecords(b)[0]!, id: newId('run', BASE + i) } as AnyRecord], at);
+    for (let i = 0; i < 60; i++) await append(i, BASE + i * 60_000);
+    const now = BASE + 2 * HOUR;
+    expect(await catchUp(store, index, 'a', { now })).toBe(50);
+    expect(await catchUp(store, index, 'a', { now })).toBe(10);
+    expect(await catchUp(store, index, 'a', { now })).toBe(0);
     expect(await index.records()).toHaveLength(60);
     // a late upload with an older key inside the lookback window is still read
-    await store.appendLog(
-      'w',
-      [{ ...sampleRecords(b)[0]!, id: newId('run', base + 99) } as AnyRecord],
-      base + 59 * 60_000 - 5 * 60_000,
-    );
-    expect(await catchUp(store, index, 'a', now)).toBe(1);
-  });
-
-  it('a daily full listing, resumed across calls, ingests another body under an older key', async () => {
-    const objects = memoryObjectStore();
-    const store = createResultStore(objects);
-    const index = memoryIndex();
-    const b = await shop();
-    const base = Date.parse('2026-11-19T00:00:00Z');
-    // hand-made keys: newUlid() is monotonic, so it cannot write under a time before one it already used
-    const put = (t: number, r: AnyRecord) =>
-      objects.put(`v1/log/${ulidFloor(t)}.json`, JSON.stringify({ v: 1, writer: 'w', records: [r] }));
-    const run = sampleRecords(b).find((r) => r.kind === 'run')!;
-    await put(base, run);
-    for (let i = 0; i < 120; i++)
-      await put(base + 3600_000 + i * 60_000, { ...run, id: newId('run', base + i) } as AnyRecord);
-    const now = base + 3 * 3600_000;
-    while (await catchUp(store, index, 'a', now));
-    const forged = { ...run, at: '2026-11-18T23:00:00Z' } as AnyRecord;
-    await put(base - 3600_000, forged); // written straight to the bucket under an older key, far behind the cursor
-    expect(await catchUp(store, index, 'a', now + 60_000)).toBe(0);
-    const held = async () => (await index.records()).find((r) => r.id === run.id);
-    expect(await held()).toEqual(run);
-    // a day later: the oldest key comes first; 50 reads per call, so the listing resumes over three calls
-    // replaced and noted, then the original body under its later key: kept and noted
-    expect(await catchUp(store, index, 'a', now + 86_400_000)).toBe(3);
-    expect(await held()).toEqual(forged);
-    const full = async () => JSON.parse((await index.getMeta('ingest.state'))!).full;
-    expect((await full()).after).toMatch(/^v1\/log\//);
-    await catchUp(store, index, 'a', now + 86_400_000 + 60_000);
-    expect((await full()).after).toMatch(/^v1\/log\//);
-    await catchUp(store, index, 'a', now + 86_400_000 + 120_000);
-    expect(await full()).toEqual({ at: now + 86_400_000 + 120_000 });
+    await append(99, BASE + 59 * 60_000 - 5 * 60_000);
+    expect(await catchUp(store, index, 'a', { now })).toBe(1);
   });
 
   it('respects another invocation’s lease', async () => {
@@ -303,6 +281,36 @@ describe('catchUp', () => {
     await index.setMeta('ingest.lease', `other ${Date.now() + 10_000}`);
     expect(await catchUp(store, index, 'me')).toBe(0);
     expect(await index.getMeta('ingest.lease')).toMatch(/^other /);
+  });
+});
+
+describe('catchUp: daily full listing', () => {
+  it('a daily full listing, resumed across calls, ingests another body under an older key', async () => {
+    const { objects, store, index, b } = await ingestFixture();
+    // hand-made keys: newUlid() is monotonic, so it cannot write under a time before one it already used
+    const put = (t: number, r: AnyRecord) =>
+      objects.put(`v1/log/${ulidFloor(t)}.json`, JSON.stringify({ v: 1, writer: 'w', records: [r] }));
+    const run = sampleRecords(b).find((r) => r.kind === 'run')!;
+    await put(BASE, run);
+    for (let i = 0; i < 120; i++)
+      await put(BASE + HOUR + i * 60_000, { ...run, id: newId('run', BASE + i) } as AnyRecord);
+    const now = BASE + 3 * HOUR;
+    while (await catchUp(store, index, 'a', { now }));
+    const forged = { ...run, at: '2026-11-18T23:00:00Z' } as AnyRecord;
+    await put(BASE - HOUR, forged); // written straight to the bucket under an older key, far behind the cursor
+    expect(await catchUp(store, index, 'a', { now: now + 60_000 })).toBe(0);
+    const held = async () => (await index.records()).find((r) => r.id === run.id);
+    expect(await held()).toEqual(run);
+    // a day later: the oldest key comes first; 50 reads per call, so the listing resumes over three calls
+    // replaced and noted, then the original body under its later key: kept and noted
+    expect(await catchUp(store, index, 'a', { now: now + DAY })).toBe(3);
+    expect(await held()).toEqual(forged);
+    const full = async () => JSON.parse((await index.getMeta('ingest.state'))!).full;
+    expect((await full()).after).toMatch(/^v1\/log\//);
+    await catchUp(store, index, 'a', { now: now + DAY + 60_000 });
+    expect((await full()).after).toMatch(/^v1\/log\//);
+    await catchUp(store, index, 'a', { now: now + DAY + 120_000 });
+    expect(await full()).toEqual({ at: now + DAY + 120_000 });
   });
 });
 

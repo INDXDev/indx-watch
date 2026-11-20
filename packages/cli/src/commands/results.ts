@@ -1,17 +1,12 @@
 /** Commands that read status or append records: status, show, list, record, review, judge, waive, retract, deployment add. */
-import { readFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
-import { type Build, newId, type Problem, StepStatus } from '@indx-watch/bundle';
+import { newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { type Args, B, type Ctx, csv, fail, git, iso, many, P, pick, S, str } from '../util.js';
+import { B, fail, git, iso, P, pick, S, str } from '../util.js';
+import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
 
-const VERDICT = S('pass | fail | blocked | skipped');
-const verdictOf = (v: unknown) =>
-  StepStatus.safeParse(v).success
-    ? (v as StepStatus)
-    : fail('USAGE', '--verdict: pass, fail, blocked or skipped');
+export { mediaType } from './results-run.js';
 
 const runSummary = (v: core.RunView) => ({
   ...pick(v.record, 'id at source release environment'),
@@ -31,59 +26,6 @@ const runsOf = (m: core.Model, tcs: string[], limit = 10) =>
     .sort(newest)
     .slice(0, limit)
     .map(runSummary);
-
-const MEDIA = Object.fromEntries(
-  'png:image/png jpg:image/jpeg jpeg:image/jpeg gif:image/gif webp:image/webp svg:image/svg+xml mp4:video/mp4 webm:video/webm zip:application/zip json:application/json txt:text/plain log:text/plain html:text/html pdf:application/pdf csv:text/csv'
-    .split(' ')
-    .map((x) => [`.${x.split(':')[0]}`, x.split(':')[1]]),
-);
-export const mediaType = (path: string) => MEDIA[extname(path).toLowerCase()] ?? 'application/octet-stream';
-const KIND_OF: [RegExp, string][] = [
-  [/^image\//, 'screenshot'],
-  [/^video\//, 'video'],
-  [/^text\/plain/, 'log'],
-];
-const evidenceKind = (path: string, media: string) =>
-  media === 'application/zip' && /trace/i.test(path)
-    ? 'trace'
-    : (KIND_OF.find(([re]) => re.test(media))?.[1] ?? 'file');
-
-/** Release of a new run (docs/spec/bundle-format.md#releasesversiontoml). */
-function runRelease(ctx: Ctx, a: Args, m: core.Model, build: Build, ci: boolean) {
-  const ref = build.ref?.replace(/^refs\/(heads|tags)\//, '');
-  const byRef = ref ? m.releases.find((r) => r.refs?.includes(ref))?.version : undefined;
-  const main = !ci || ref === (m.project.default_branch ?? 'main');
-  return str(a.release) ?? ctx.env.IW_RELEASE ?? byRef ?? (main ? m.project.current_release : undefined);
-}
-
-async function buildOf(ctx: Ctx, a: Args): Promise<Build> {
-  const build = await cx.contextOf(ctx).build();
-  const commit = str(a.commit);
-  if (commit && !/^[0-9a-f]{7,64}$/.test(commit)) fail('USAGE', '--commit must be a hex commit SHA');
-  return commit ? { ...build, commit } : build;
-}
-
-/** Evidence files (<path>[@step]) → blobs in the local replica. */
-async function storeEvidence(ctx: Ctx, p: cx.Project, specs: string[]) {
-  const evidence = [];
-  for (const e of specs) {
-    const [, path = e, step] = /^(.*?)(?:@(\d+))?$/.exec(e) ?? [];
-    const abs = resolve(ctx.cwd, path);
-    const bytes = await readFile(abs).catch(() => fail('NOT_FOUND', `Evidence file ${path} not found`));
-    const media_type = mediaType(abs);
-    const sha256 = await p.replica.putBlob(new Uint8Array(bytes), media_type);
-    const kind = evidenceKind(abs, media_type);
-    evidence.push({
-      sha256,
-      name: basename(abs),
-      media_type,
-      size: bytes.length,
-      kind,
-      step: step ? +step : undefined,
-    });
-  }
-  return evidence;
-}
 
 function statusText(s: ReturnType<typeof core.computeStatus>, release?: string, env?: string) {
   const counts = Object.entries(s.counts).map(([k, n]) => `${k} ${n}`);
@@ -200,14 +142,9 @@ export const resultCommands: Record<string, Spec> = {
       const lists: Record<string, () => Record<string, unknown>[]> = {
         tc: () =>
           [...m.testCases.values()].filter(inUc).map((t) => {
-            const st = core.testCaseStatus(m, t.data.key, scope);
+            const { status: result, latestRun } = core.testCaseStatus(m, t.data.key, scope);
             const def = { status: 'draft', ...pick(t.data, 'key id title status mode covers tags') };
-            return {
-              ...def,
-              ...pick(t, 'priority useCase file version'),
-              result: st.status,
-              latestRun: st.latestRun,
-            };
+            return { ...def, ...pick(t, 'priority useCase file version'), result, latestRun };
           }),
         uc: () => {
           const st = core.computeStatus(m, scope).useCases;
@@ -260,89 +197,7 @@ export const resultCommands: Record<string, Spec> = {
     },
   },
 
-  record: {
-    description: 'Record a run executed outside the browser runner',
-    repeat: ['step', 'evidence'],
-    args: {
-      tc: P('Test case (TC-n)'),
-      verdict: VERDICT,
-      step: S('<n>=<status>[:note] (repeatable)'),
-      evidence: S('<path>[@step] (repeatable)'),
-      ...{ note: S(), confidence: S('0-1 (agents)'), release: S(), env: S(), commit: S() },
-      rows: S('Dataset rows used, comma-separated'),
-      from: S('Run input as JSON (file or -)'),
-    },
-    async run(ctx, a) {
-      const p = await cx.openProject(ctx, a);
-      const m = await cx.loadModel(p);
-      const tc =
-        m.testCases.get(cx.resolveKey(m, str(a.tc)!)) ?? fail('NOT_FOUND', `${a.tc} is not a test case`);
-      const input = await cx.fromInput(ctx, a);
-      const verdict = str(a.verdict) ? verdictOf(a.verdict) : undefined;
-      if (!verdict && !input.judgements) fail('USAGE', '--verdict is required');
-      const conf = str(a.confidence) === undefined ? undefined : Number(a.confidence);
-      if (conf !== undefined && !(conf >= 0 && conf <= 1))
-        fail('USAGE', '--confidence must be between 0 and 1');
-      const stepRe = /^(\d+)=(pass|fail|blocked|skipped)(?::([\s\S]*))?$/;
-      const parsed = many(a.step).map(
-        (s) => stepRe.exec(s) ?? fail('USAGE', `--step ${s}: use <n>=<status>[:note]`),
-      );
-      const evidence = await storeEvidence(ctx, p, many(a.evidence));
-      const steps = parsed.map(([, n, status, note]) => {
-        const shas = evidence.filter((e) => e.step === Number(n)).map((e) => e.sha256);
-        return { index: Number(n), status, note, evidence: shas.length ? shas : undefined };
-      });
-      const actor = await cx.actorOf(ctx);
-      const kind = actor.kind === 'agent' ? 'llm' : actor.kind === 'ci' ? 'assert' : 'human';
-      const warnings: Problem[] = [];
-      const warn = (code: string, message: string) => warnings.push({ severity: 'warning', code, message });
-      if (kind === 'llm' && conf === undefined) warn('no-confidence', 'Agent verdicts need --confidence');
-      if (kind === 'llm' && verdict === 'pass' && !evidence.length)
-        warn('no-evidence', 'An agent pass needs evidence');
-      const [build, ci] = [await buildOf(ctx, a), await cx.contextOf(ctx).ci()];
-      const release = runRelease(ctx, a, m, build, !!ci);
-      if (!release) warn('no-release', 'No release for this build; the run does not count towards one');
-      const rows = csv(a.rows);
-      const fixtures = (tc.data.fixtures ?? []).flatMap((f) => {
-        const fx = m.fixtures.get(f.ref);
-        const used = fx?.data.kind === 'dataset' && rows.length ? rows : f.rows;
-        return fx ? [{ id: fx.data.id, key: fx.data.key, version: fx.version, rows: used }] : [];
-      });
-      const confidence = kind === 'llm' ? conf : kind === 'assert' ? 1 : undefined;
-      const at = iso();
-      const judgement = verdict
-        ? [{ id: newId('jdg'), kind, verdict, confidence, reason: str(a.note), by: actor, at }]
-        : [];
-      const run = await cx.append(ctx, p, 'run', {
-        test_case: { id: tc.data.id, key: tc.data.key, version: tc.version },
-        ...{
-          fixtures,
-          build,
-          ci,
-          ended_at: at,
-          reported: verdict === 'blocked' || verdict === 'skipped' ? verdict : null,
-        },
-        ...JSON.parse(
-          JSON.stringify(
-            pick(input, 'fixtures build started_at ended_at reported locale note steps automation'),
-          ),
-        ),
-        release: release ?? input.release,
-        environment: str(a.env) ?? ctx.env.IW_ENV ?? input.environment ?? m.project.default_environment,
-        ...(str(a.note) ? { note: str(a.note) } : {}),
-        ...(steps.length ? { steps } : {}),
-        evidence: [...((input.evidence as unknown[]) ?? []), ...evidence],
-        judgements: [...((input.judgements as unknown[]) ?? []), ...judgement],
-      });
-      const d = core.decide(run.judgements, tc.policy, {
-        priority: tc.priority,
-        mode: tc.data.mode,
-        reported: run.reported,
-      });
-      const text = `Recorded ${run.id} for ${tc.data.key}: ${d.verdict} (rule ${d.rule}: ${d.reason})`;
-      return { data: { run, verdict: d.verdict, rule: d.rule }, warnings, text };
-    },
-  },
+  record: runCommands.record,
 
   review: {
     description: 'Add a human judgement to a run (humans only)',
@@ -359,80 +214,7 @@ export const resultCommands: Record<string, Spec> = {
     },
   },
 
-  judge: {
-    description: "Ask Claude to judge a run against the test case's llm rubric (adds an llm judgement)",
-    args: {
-      run: P('Run ID or prefix'),
-      model: S('Claude model (default IW_LLM_MODEL or claude-opus-5-5)'),
-      'dry-run': B('Print the judgement without recording it'),
-    },
-    async run(ctx, a) {
-      const p = await cx.openProject(ctx, a);
-      const view = cx.resolveRun(await cx.loadModel(p), str(a.run)!);
-      const run = view.record;
-      const tc =
-        (await cx.loadModel(p)).testCases.get(run.test_case.key) ??
-        fail('NOT_FOUND', `${run.test_case.key} is not in the bundle`);
-      const rubric = tc.data.judges?.find((j) => j.kind === 'llm')?.rubric?.filter(Boolean);
-      if (!rubric?.length) return fail('USAGE', `${tc.data.key} declares no llm judge with a rubric`);
-      const results = new Map(run.steps.map((r) => [r.index, r]));
-      const expected = tc.data.steps
-        .map((st, i) => `${i + 1}. ${st.instruction} => ${st.expected}`)
-        .join('\n');
-      const observed = [
-        ...tc.data.steps.map((_, i) => {
-          const r = results.get(i + 1);
-          return `Step ${i + 1}: ${r?.status ?? 'not recorded'}${r?.note ? ` (note: ${r.note})` : ''}`;
-        }),
-        ...(run.note ? [`Run note: ${run.note}`] : []),
-        `Verdict so far: ${view.decision.verdict}`,
-      ].join('\n');
-      const shot = run.evidence.filter((e) => e.kind === 'screenshot' && e.media_type === 'image/png').at(-1);
-      const screenshot = shot ? ((await p.replica.getBlob(shot.sha256)) ?? undefined) : undefined;
-      const model = str(a.model) ?? ctx.env.IW_LLM_MODEL;
-      const { anthropicJudge } = await import('@indx-watch/store/llm');
-      let answer: Awaited<ReturnType<ReturnType<typeof anthropicJudge>['judge']>>;
-      try {
-        answer = await anthropicJudge(model ? { model } : {}).judge({
-          rubric,
-          expected,
-          observation: {
-            url: run.ci?.url ?? '',
-            title: `${tc.data.key} ${tc.data.title}`,
-            tree: observed,
-            screenshot,
-          },
-        });
-      } catch (e) {
-        const msg = (e as Error).message;
-        if (/api ?key|auth|credential/i.test(msg))
-          fail('INVALID_CONFIG', `No usable Anthropic credential: ${msg}`);
-        throw e;
-      }
-      const by = {
-        kind: 'agent' as const,
-        id: `anthropic:${answer.model}`,
-        via: 'env' as const,
-        model: answer.model,
-      };
-      const judgement = {
-        id: newId('jdg'),
-        kind: 'llm' as const,
-        ...pick(answer, 'verdict confidence reason'),
-        by,
-        at: iso(),
-      };
-      if (a['dry-run'])
-        return {
-          data: { judgement, verdict: view.decision.verdict, recorded: false },
-          text: `${answer.verdict} (${answer.confidence}): ${answer.reason}`,
-        };
-      const rec = await cx.append(ctx, p, 'judgement', { run: run.id, judgement });
-      const after = (await cx.loadModel(p)).runs.get(run.id)!.decision.verdict;
-      const text = `${run.id}: llm ${answer.verdict} (${answer.confidence}) → ${after}: ${answer.reason}`;
-      return { data: { judgement: rec.judgement, verdict: after, recorded: true }, text };
-    },
-  },
+  judge: runCommands.judge,
 
   waive: {
     description: 'Accept a known failure of a test case for a release (humans only; not P0)',

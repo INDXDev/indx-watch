@@ -18,15 +18,8 @@ export function slugify(title: string): string {
   return cut || 'untitled';
 }
 
-export type NewKind =
-  | 'feature'
-  | 'use-case'
-  | 'criterion'
-  | 'test-case'
-  | 'fixture'
-  | 'environment'
-  | 'release'
-  | 'plan';
+/** Kinds `iw new` creates: every definition file type plus criteria (written into their use case). */
+export type NewKind = keyof typeof KINDS | 'criterion';
 
 export interface CreateInput {
   kind: NewKind;
@@ -59,7 +52,7 @@ export const PLACEHOLDER_STEP = {
 };
 
 /** File type, ID prefix, key kind and path ({d} parent dir, {k} key, {s} slug) of each kind with its own file. */
-const KINDS: Record<Exclude<NewKind, 'criterion'>, [FileType, IdPrefix, KeyKind | null, string]> = {
+const KINDS = {
   feature: ['feature', 'fea', 'feature', 'specs/{k}-{s}/feature.toml'],
   'use-case': ['use-case', 'uc', 'useCase', '{d}/{k}-{s}/use-case.toml'],
   'test-case': ['test-case', 'tc', 'testCase', '{d}/{k}-{s}.toml'],
@@ -67,7 +60,7 @@ const KINDS: Record<Exclude<NewKind, 'criterion'>, [FileType, IdPrefix, KeyKind 
   environment: ['environment', 'env', null, 'environments/{k}.toml'],
   release: ['release', 'rel', null, 'releases/{k}.toml'],
   plan: ['plan', 'pln', 'plan', 'plans/{k}-{s}.toml'],
-};
+} satisfies Record<string, [FileType, IdPrefix, KeyKind | null, string]>;
 const DEFAULTS: Partial<Record<NewKind, object>> = {
   'use-case': { actor: 'User', priority: 'P1' }, // P1 is gated: a new use case is never silently out of scope
   'test-case': { mode: 'manual' },
@@ -83,70 +76,81 @@ type Ref = { data: { id: string; key: string } };
 const find = <T extends Ref>(xs: T[], ref: string | undefined, what = 'Use case') =>
   xs.find((x) => x.data.key === ref || x.data.id === ref) ?? fail('NOT_FOUND', `${what} ${ref} not found`);
 
+/** Validated provenance and the values every created kind shares: keys in use, lifecycle and AI fields. */
+function context(fs: BundleFs, bundle: Bundle, input: CreateInput) {
+  const now = input.now ?? new Date();
+  const origin = input.origin ?? 'human';
+  if (origin === 'ai' && input.ready)
+    fail('INVALID_INPUT', 'AI-written items start as draft; humans approve');
+  if (origin === 'ai' && !input.ai?.model) fail('INVALID_INPUT', 'origin "ai" needs the model ID');
+  const { features, useCases, testCases, fixtures, plans } = bundle;
+  const items = [...features, ...useCases, ...testCases, ...fixtures, ...plans].map((x) => x.data);
+  const keys = [...items, ...useCases.flatMap((u) => u.data.criteria)].map((x) => x.key);
+  keys.push(...(input.knownKeys ?? []));
+  // only `iw approve` (a human) records an approval: AI-written input never arrives approved
+  const life = origin === 'human' ? {} : { origin, ...(origin === 'ai' && { approved_by: undefined }) };
+  const created_at = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const ai = input.ai && origin === 'ai' ? { ai: { ...input.ai, created_at } } : {};
+  const given = (k: string) => input.fields[k] as string | undefined;
+  return { fs, bundle, input, now, origin, keys, life, ai, given, title: String(input.fields.title ?? '') };
+}
+type Ctx = ReturnType<typeof context>;
+
+/** Append an acceptance criterion to its use case. */
+async function createCriterion(c: Ctx): Promise<CreateResult> {
+  const uc = find(c.bundle.useCases, c.input.parent);
+  const key = c.given('key') ?? nextCriterionKey(uc.data.key, c.keys);
+  const id = c.given('id') ?? newId('ac', +c.now);
+  const draft = c.origin === 'ai' && { status: 'draft' };
+  const ac = { id, key, ...c.input.fields, ...c.life, ...c.ai, ...draft };
+  await writeDefinition(c.fs, uc.file, 'use-case', { ...uc.data, criteria: [...uc.data.criteria, ac] });
+  return { kind: 'criterion', id, key, file: uc.file };
+}
+
+/** A use case goes under its feature; goal defaults to the title and criteria get IDs and keys. Returns the dir. */
+function placeUseCase(c: Ctx, base: Record<string, unknown>, key: string): string {
+  const feats = c.bundle.features;
+  const parent = c.input.parent ?? (feats.length === 1 ? feats[0]!.data.key : 'FEAT-1');
+  const feature = find(feats, parent, 'Feature');
+  base.goal ??= c.title;
+  const ac = (i: number) => ({ id: newId('ac', +c.now), key: `AC-${key.slice(3)}.${i + 1}` });
+  const text = (x: unknown) => (typeof x === 'string' ? { text: x } : (x as object));
+  const given = (base.criteria as unknown[] | undefined) ?? [];
+  base.criteria = given.map((x, i) => ({ ...ac(i), ...text(x), ...c.life }));
+  return dirOf(feature.file);
+}
+
+/** A test case goes under its use case and covers its live criteria; without steps it gets a placeholder. */
+function placeTestCase(c: Ctx, base: Record<string, unknown>): string {
+  const uc = find(c.bundle.useCases, c.input.parent);
+  base.covers ??= uc.data.criteria.filter((x) => x.status !== 'retired').map((x) => x.key);
+  if (!(base.steps as unknown[] | undefined)?.length)
+    Object.assign(base, { steps: [PLACEHOLDER_STEP], status: 'draft' });
+  return dirOf(uc.file);
+}
+
 /** Create a definition with a fresh ID and the next free key, write it canonically. Throws a BundleError on invalid input. */
 export async function createDefinition(
   fs: BundleFs,
   bundle: Bundle,
   input: CreateInput,
 ): Promise<CreateResult> {
+  const c = context(fs, bundle, input);
   const { kind, fields } = input;
-  const now = input.now ?? new Date();
-  const origin = input.origin ?? 'human';
-  if (origin === 'ai' && input.ready)
-    fail('INVALID_INPUT', 'AI-written items start as draft; humans approve');
-  if (origin === 'ai' && !input.ai?.model) fail('INVALID_INPUT', 'origin "ai" needs the model ID');
-  const keys = [
-    ...bundle.useCases.flatMap((u) => u.data.criteria.map((c) => c.key)),
-    ...[...bundle.features, ...bundle.useCases, ...bundle.testCases, ...bundle.fixtures, ...bundle.plans].map(
-      (x) => x.data.key,
-    ),
-    ...(input.knownKeys ?? []),
-  ];
-  // only `iw approve` (a human) records an approval: AI-written input never arrives approved
-  const life = origin === 'human' ? {} : { origin, ...(origin === 'ai' && { approved_by: undefined }) };
-  const created_at = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const ai = input.ai && origin === 'ai' ? { ai: { ...input.ai, created_at } } : {};
-  const title = String(fields.title ?? '');
-  const given = (k: string) => fields[k] as string | undefined;
-
-  if (kind === 'criterion') {
-    const uc = find(bundle.useCases, input.parent);
-    const [key, id] = [given('key') ?? nextCriterionKey(uc.data.key, keys), given('id') ?? newId('ac', +now)];
-    const c = { id, key, ...fields, ...life, ...ai, ...(origin === 'ai' ? { status: 'draft' } : {}) };
-    await writeDefinition(fs, uc.file, 'use-case', { ...uc.data, criteria: [...uc.data.criteria, c] });
-    return { kind, id, key, file: uc.file };
-  }
+  if (kind === 'criterion') return createCriterion(c);
   const [type, prefix, keyKind, path] = KINDS[kind] ?? fail('USAGE', `Unknown kind ${String(kind)}`);
   const tpl = bundle.templates.find((t) => t.name === input.template && t.kind === kind);
   if (input.template && !tpl) fail('NOT_FOUND', `Template ${kind}.${input.template} not found`);
-  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl?.data, ...fields, ...life, ...ai };
+  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl?.data, ...fields, ...c.life, ...c.ai };
   if (['use-case', 'test-case', 'fixture'].includes(kind)) base.status = input.ready ? 'ready' : 'draft';
-  const named = given('name') ?? given('version') ?? (kind === 'release' ? title : slugify(title));
-  const key = given('key') ?? (keyKind ? nextKey(keyKind, keys) : named);
-  let dir = '';
-  if (kind === 'use-case') {
-    const feats = bundle.features;
-    dir = dirOf(
-      find(feats, input.parent ?? (feats.length === 1 ? feats[0]!.data.key : 'FEAT-1'), 'Feature').file,
-    );
-    base.goal ??= title;
-    base.criteria = ((base.criteria as unknown[] | undefined) ?? []).map((c, i) => ({
-      id: newId('ac', +now),
-      key: `AC-${key.slice(3)}.${i + 1}`,
-      ...(typeof c === 'string' ? { text: c } : (c as object)),
-      ...life,
-    }));
-  } else if (kind === 'test-case') {
-    const uc = find(bundle.useCases, input.parent);
-    dir = dirOf(uc.file);
-    base.covers ??= uc.data.criteria.filter((c) => c.status !== 'retired').map((c) => c.key);
-    if (!(base.steps as unknown[] | undefined)?.length)
-      Object.assign(base, { steps: [PLACEHOLDER_STEP], status: 'draft' });
-  }
+  const named = c.given('name') ?? c.given('version') ?? (kind === 'release' ? c.title : slugify(c.title));
+  const key = c.given('key') ?? (keyKind ? nextKey(keyKind, c.keys) : named);
+  const dir =
+    kind === 'use-case' ? placeUseCase(c, base, key) : kind === 'test-case' ? placeTestCase(c, base) : '';
   base[kind === 'environment' ? 'name' : kind === 'release' ? 'version' : 'key'] = key;
-  const file = path.replace('{d}', dir).replace('{k}', key).replace('{s}', slugify(title));
+  const file = path.replace('{d}', dir).replace('{k}', key).replace('{s}', slugify(c.title));
   if (await fs.read(file)) fail('CONFLICT', `${file} already exists`);
-  const id = given('id') ?? newId(prefix, +now);
+  const id = c.given('id') ?? newId(prefix, +c.now);
   await writeDefinition(fs, file, type, { ...base, id });
   return { kind, id, key, file };
 }
@@ -176,12 +180,8 @@ export async function approveDefinition(
   for (const [type, item, version] of targets) {
     if (!item) continue;
     const v = await version();
-    await writeDefinition(fs, item.file, type, {
-      ...item.data,
-      status: 'ready',
-      approved_by: approver,
-      approved_version: v,
-    });
+    const approved = { status: 'ready', approved_by: approver, approved_version: v };
+    await writeDefinition(fs, item.file, type, { ...item.data, ...approved });
     return { file: item.file, version: v };
   }
   // features, environments, releases and plans have no status or version: approval records the reviewer
