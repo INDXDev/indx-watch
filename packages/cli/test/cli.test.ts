@@ -82,6 +82,38 @@ describe('acceptance criteria (docs/spec/cli.md)', () => {
     expect(iw(dir, ['check']).code).toBe(0);
   });
 
+  it('a newer schema_version exits 3; a store of another project exits 4', () => {
+    const dir = shop();
+    const project = join(dir, '.indx-watch/project.toml');
+    const toml = readFileSync(project, 'utf8');
+    writeFileSync(project, toml.replace('schema_version = 1', 'schema_version = 2'));
+    const newer = iwJson(dir, 'check', ['check']);
+    expect(newer.code).toBe(3);
+    expect(JSON.stringify(newer.json.error)).toContain('unsupported-schema-version');
+    writeFileSync(project, toml);
+    const marker = join(dir, 'store/indx-watch-store.json');
+    writeFileSync(marker, readFileSync(marker, 'utf8').replace(/prj_\w+/, 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y01'));
+    expect(iwJson(dir, 'sync', ['sync']).code).toBe(4);
+  });
+
+  it('a secret in a fixture CSV makes sync exit 1 with nothing uploaded; plain sync writes no bundle record', () => {
+    const dir = shop();
+    const log = () => readdirSync(join(dir, 'store/v1/log')).sort();
+    const csv = join(dir, '.indx-watch/fixtures/FX-1-coupons/coupons.csv');
+    const clean = readFileSync(csv, 'utf8');
+    iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass']);
+    const before = log();
+    writeFileSync(csv, `${clean}AKIAABCDEFGHIJKLMNOP,0.5,2099-12-31,\n`);
+    const r = iwJson(dir, 'sync', ['sync']);
+    expect([r.code, r.json.error.code]).toEqual([1, 'SECRETS_FOUND']);
+    expect(log()).toEqual(before);
+    writeFileSync(csv, clean);
+    expect(iwJson(dir, 'sync', ['sync']).json.data.pushed.records).toBe(1);
+    const added = log().filter((k) => !before.includes(k));
+    expect(added).toHaveLength(1);
+    expect(readFileSync(join(dir, 'store/v1/log', added[0]!), 'utf8')).not.toContain('"kind":"bundle"');
+  });
+
   it('exit codes: valid 0, invalid 1, unknown flag 2, missing bundle 3, unreachable store 4', () => {
     const dir = shop();
     expect(iw(dir, ['check']).code).toBe(0);
