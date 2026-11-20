@@ -1,0 +1,28 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y35"
+key = "TC-5"
+title = "Placing an order shows a confirmation and empties the cart"
+status = "ready"
+tags = ["smoke"]
+covers = ["AC-3.1", "AC-3.2"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "Add \"Enamel Mug\" to the cart, open the cart and press \"Place order\"."
+expected = "The page shows \"Thank you for your order\" and an order number like \"SHOP-1001\"."
+evidence = ["screenshot"]
+
+[[steps]]
+instruction = "Open the cart again."
+expected = "The cart shows \"Your cart is empty\"."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/checkout.spec.ts"]

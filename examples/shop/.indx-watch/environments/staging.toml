@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/environment.json
+
+id = "env_01JF3Q8M5X2V7K9D4R6T1W0Y01"
+name = "staging"
+title = "Staging"
+base_url = "http://localhost:4173"
+accounts = ["FX-3"]
+guide = """
+Open the base URL in any browser. No VPN is needed.
+Sign in with the account in FX-3 when a step asks you to.
+"""
+
+[access]
+method = "public"
+
+[hooks.seed]
+method = "POST"
+url = "/__test/seed"
+secret_ref = "env:SHOP_SEED_TOKEN"

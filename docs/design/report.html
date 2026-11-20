@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shop v1.2.0 — test report (customer)</title>
+    <!--
+      Design of the customer HTML report (docs/spec/reports.md). The real report is ONE self-contained file
+      rendered by packages/server: tokens.css and the styles below are inlined, no JavaScript, no external requests.
+      Customer audience: no emails, notes, judgement reasons, CI links, environment guides/URLs or [x] data.
+      Sample: examples/shop, release v1.2.0, staging.
+    -->
+    <link rel="stylesheet" href="tokens.css" />
+    <style>
+      body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-md) / var(--lh) var(--font-sans); }
+      .doc { max-width: 960px; margin: 0 auto; padding: var(--space-6) var(--space-5); }
+      h1 { font-size: var(--fs-2xl); margin: 0 0 var(--space-1); }
+      h2 { font-size: var(--fs-lg); margin: var(--space-6) 0 var(--space-2); padding-bottom: var(--space-1); border-bottom: 2px solid var(--border); }
+      h3 { font-size: var(--fs-md); margin: var(--space-4) 0 var(--space-1); }
+      p { margin: 0 0 var(--space-2); }
+      .muted { color: var(--text-muted); }
+      .small { font-size: var(--fs-sm); }
+      code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+      .key { font: 600 var(--fs-sm) var(--font-mono); white-space: nowrap; }
+      .meta { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--space-3); font-size: var(--fs-sm); margin: var(--space-3) 0; }
+      .meta dt { color: var(--text-muted); }
+      .meta dd { margin: 0; }
+      table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); margin: var(--space-2) 0; }
+      th { text-align: left; color: var(--text-muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); padding: 4px 8px; }
+      td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .wrap { overflow-x: auto; }
+      .s-pass { --c: var(--pass); --cs: var(--pass-soft); }
+      .s-fail { --c: var(--fail); --cs: var(--fail-soft); }
+      .s-needs_review { --c: var(--review); --cs: var(--review-soft); }
+      .s-stale { --c: var(--stale); --cs: var(--stale-soft); }
+      .s-untested { --c: var(--untested); --cs: var(--untested-soft); }
+      .s-uncovered { --c: var(--uncovered); --cs: var(--uncovered-soft); }
+      .badge { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; color: var(--c); background: var(--cs); white-space: nowrap; }
+      .verdict { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--cs); border-left: 5px solid var(--c); margin: var(--space-4) 0; }
+      .verdict strong { color: var(--c); font-size: var(--fs-lg); }
+      .counts { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-2); }
+      .count { background: var(--cs, var(--surface-2)); color: var(--c, var(--text-muted)); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-weight: 600; font-size: var(--fs-xs); }
+      .count b { display: block; font-size: var(--fs-xl); }
+      .uc { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); margin: var(--space-2) 0; background: var(--surface); page-break-inside: avoid; }
+      .uc ul { margin: var(--space-1) 0 0; padding-left: var(--space-5); }
+      .literal { background: var(--literal-bg); color: var(--literal-text); border-radius: 3px; padding: 0 2px; }
+      .matrix td.cell { text-align: center; }
+      footer { margin-top: var(--space-6); color: var(--text-muted); font-size: var(--fs-sm); }
+      @media print { body { background: #fff; } .doc { padding: 0; } h2 { page-break-after: avoid; } }
+    </style>
+  </head>
+  <body>
+    <main class="doc">
+      <!-- 1. Header -->
+      <p class="muted small">Test report · customer copy</p>
+      <h1>Shop — release v1.2.0 <span class="muted">Coupons and sign-in</span></h1>
+      <dl class="meta">
+        <dt>Scope</dt>
+        <dd>staging</dd>
+        <dt>Generated</dt>
+        <dd>19 Nov 2026, 09:00 UTC by QA team</dd>
+        <dt>Results up to</dt>
+        <dd><code>run_01JFB2Q8M5X2V7K9D4R6T1W008</code></dd>
+      </dl>
+
+      <!-- 2. Verdict -->
+      <div class="verdict s-fail" role="status">
+        <strong>✕ Not ready to ship</strong>
+        <p>3 of 7 readiness checks fail. Details below.</p>
+      </div>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr><th>Check</th><th class="num">Now</th><th class="num">Needed</th><th>Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Every P0 criterion has a test</td><td class="num mono">6/6</td><td class="num mono">≥ 1.00</td><td><span class="badge s-pass">✓ Pass</span></td></tr>
+            <tr><td>Every P0 test passes <span class="muted small">TC-4, TC-6, TC-8</span></td><td class="num mono">3/6</td><td class="num mono">6/6</td><td><span class="badge s-fail">✕ Fail</span></td></tr>
+            <tr><td>P1 tests pass (or are waived)</td><td class="num mono">2/2 (1.00)</td><td class="num mono">≥ 0.95</td><td><span class="badge s-pass">✓ Pass</span></td></tr>
+            <tr><td>P0–P1 results waiting for review <span class="muted small">TC-6</span></td><td class="num mono">1</td><td class="num mono">≤ 0</td><td><span class="badge s-fail">✕ Fail</span></td></tr>
+            <tr><td>P0–P1 tests not run or blocked</td><td class="num mono">0</td><td class="num mono">≤ 0</td><td><span class="badge s-pass">✓ Pass</span></td></tr>
+            <tr><td>P0–P1 results from an older version <span class="muted small">TC-8</span></td><td class="num mono">1</td><td class="num mono">≤ 0</td><td><span class="badge s-fail">✕ Fail</span></td></tr>
+            <tr><td>Passing P0 results have evidence</td><td class="num mono">3/3</td><td class="num mono">3/3</td><td><span class="badge s-pass">✓ Pass</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3. Summary counts -->
+      <h2>Summary</h2>
+      <div class="counts">
+        <div class="count s-pass"><b>5</b>✓ Pass</div>
+        <div class="count s-fail"><b>1</b>✕ Fail</div>
+        <div class="count s-needs_review"><b>1</b>? Needs review</div>
+        <div class="count s-stale"><b>1</b>↻ Outdated</div>
+        <div class="count"><b>0</b>○ Not tested</div>
+        <div class="count"><b>0</b>≈ Waived</div>
+      </div>
+      <p class="small">Acceptance criteria with a test: <strong>8 of 9 (89%)</strong>.</p>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr><th>Priority</th><th class="num">Pass</th><th class="num">Fail</th><th class="num">Needs review</th><th class="num">Outdated</th><th class="num">Not tested</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>P0</td><td class="num">3</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>
+            <tr><td>P1</td><td class="num">2</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+            <tr><td>P2</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 4. Use cases -->
+      <h2>Use cases</h2>
+      <div class="uc">
+        <p><span class="key">UC-2</span> <strong>Guest applies a coupon at checkout</strong> · P0 · <span class="badge s-fail">✕ Fail</span></p>
+        <ul>
+          <li><span class="key">AC-2.1</span> A valid coupon reduces the order total by its discount. — <span class="key">TC-3</span> <span class="badge s-pass">✓ Pass</span></li>
+          <li><span class="key">AC-2.2</span> An expired coupon shows <span class="literal">"This coupon has expired"</span> and the total does not change. — <span class="key">TC-4</span> <span class="badge s-fail">✕ Fail</span></li>
+        </ul>
+      </div>
+      <div class="uc">
+        <p><span class="key">UC-3</span> <strong>Guest places an order</strong> · P0 · <span class="badge s-needs_review">? Needs review</span></p>
+        <ul>
+          <li><span class="key">AC-3.1</span> Placing an order shows a confirmation page with an order number. — <span class="key">TC-5</span> <span class="badge s-pass">✓ Pass</span> <span class="key">TC-6</span> <span class="badge s-needs_review">? Needs review</span></li>
+          <li><span class="key">AC-3.2</span> After the order is placed, the cart is empty. — <span class="key">TC-5</span> <span class="badge s-pass">✓ Pass</span></li>
+        </ul>
+      </div>
+      <div class="uc">
+        <p><span class="key">UC-4</span> <strong>Customer signs in</strong> · P0 · <span class="badge s-stale">↻ Outdated</span></p>
+        <ul>
+          <li><span class="key">AC-4.1</span> Valid credentials show <span class="literal">"Welcome back, Casey"</span>. — <span class="key">TC-7</span> <span class="badge s-pass">✓ Pass</span></li>
+          <li><span class="key">AC-4.2</span> A wrong password shows <span class="literal">"Email or password is incorrect"</span> and the customer stays signed out. — <span class="key">TC-8</span> <span class="badge s-stale">↻ Outdated</span></li>
+        </ul>
+      </div>
+      <div class="uc">
+        <p><span class="key">UC-1</span> <strong>Shopper finds a product</strong> · P1 · <span class="badge s-pass">✓ Pass</span> · done</p>
+      </div>
+      <div class="uc">
+        <p><span class="key">UC-5</span> <strong>Customer adds a photo to a review</strong> · P2 · <span class="badge s-uncovered">! No test</span></p>
+      </div>
+
+      <!-- 5. Failures and open items (customer: no notes or reasons; evidence off by default) -->
+      <h2>Failures and open items</h2>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr><th>Test case</th><th>Priority</th><th>Status</th><th>Run</th><th>Step</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="key">TC-4</span> Expired coupon is rejected</td><td>P0</td><td><span class="badge s-fail">✕ Fail</span></td><td class="mono small">run_01JFB2Q8…W004</td><td class="num">1</td></tr>
+            <tr><td><span class="key">TC-6</span> Confirmation page is readable on a phone</td><td>P0</td><td><span class="badge s-needs_review">? Needs review</span></td><td class="mono small">run_01JFB2Q8…W006</td><td class="num">—</td></tr>
+            <tr><td><span class="key">TC-8</span> Wrong password is rejected</td><td>P0</td><td><span class="badge s-stale">↻ Outdated</span></td><td class="mono small">run_01JFB2Q8…W008</td><td class="num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 6. Waivers -->
+      <h2>Accepted failures (waivers)</h2>
+      <p class="muted">None for this release.</p>
+
+      <!-- 7. Coverage matrix -->
+      <h2>Coverage matrix</h2>
+      <div class="wrap">
+        <table class="matrix">
+          <thead>
+            <tr><th>Use case</th><th>Criterion</th><th>Test case</th><th>Latest result</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>UC-1</td><td>AC-1.1</td><td>TC-1</td><td class="cell"><span class="badge s-pass">✓</span></td></tr>
+            <tr><td>UC-1</td><td>AC-1.2</td><td>TC-2</td><td class="cell"><span class="badge s-pass">✓</span></td></tr>
+            <tr><td>UC-2</td><td>AC-2.1</td><td>TC-3</td><td class="cell"><span class="badge s-pass">✓</span></td></tr>
+            <tr><td>UC-2</td><td>AC-2.2</td><td>TC-4</td><td class="cell"><span class="badge s-fail">✕</span></td></tr>
+            <tr><td>UC-3</td><td>AC-3.1</td><td>TC-5, TC-6</td><td class="cell"><span class="badge s-pass">✓</span> <span class="badge s-needs_review">?</span></td></tr>
+            <tr><td>UC-3</td><td>AC-3.2</td><td>TC-5</td><td class="cell"><span class="badge s-pass">✓</span></td></tr>
+            <tr><td>UC-4</td><td>AC-4.1</td><td>TC-7</td><td class="cell"><span class="badge s-pass">✓</span></td></tr>
+            <tr><td>UC-4</td><td>AC-4.2</td><td>TC-8</td><td class="cell"><span class="badge s-stale">↻</span></td></tr>
+            <tr><td>UC-5</td><td>AC-5.1</td><td>—</td><td class="cell"><span class="badge s-uncovered">!</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 8. Run log (customer: display names only, no CI links) -->
+      <h2>Run log</h2>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr><th>Test case</th><th>Version</th><th>Verdict</th><th>By</th><th>Source</th><th>Build</th><th>Ended (UTC)</th><th class="num">Evidence</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>TC-6</td><td class="mono small">tcv:3f9a1c2b7e06</td><td><span class="badge s-needs_review">? Needs review</span></td><td>QA team (human)</td><td>cli</td><td class="mono small">—</td><td>2026-11-19 07:46</td><td class="num">1</td></tr>
+            <tr><td>TC-7</td><td class="mono small">tcv:3f9a1c2b7e07</td><td><span class="badge s-pass">✓ Pass</span></td><td>GitHub Actions (ci)</td><td>playwright</td><td class="mono small">a1b2c3d</td><td>2026-11-18 22:10</td><td class="num">1</td></tr>
+            <tr><td>TC-5</td><td class="mono small">tcv:3f9a1c2b7e05</td><td><span class="badge s-pass">✓ Pass</span></td><td>GitHub Actions (ci)</td><td>playwright</td><td class="mono small">a1b2c3d</td><td>2026-11-18 22:10</td><td class="num">1</td></tr>
+            <tr><td>TC-4</td><td class="mono small">tcv:3f9a1c2b7e04</td><td><span class="badge s-fail">✕ Fail</span></td><td>GitHub Actions (ci)</td><td>playwright</td><td class="mono small">a1b2c3d</td><td>2026-11-18 22:10</td><td class="num">1</td></tr>
+            <tr><td>TC-3</td><td class="mono small">tcv:3f9a1c2b7e03</td><td><span class="badge s-pass">✓ Pass</span></td><td>GitHub Actions (ci)</td><td>playwright</td><td class="mono small">a1b2c3d</td><td>2026-11-18 22:10</td><td class="num">1</td></tr>
+            <tr><td>TC-8</td><td class="mono small">tcv:0b7c55e1d902</td><td><span class="badge s-stale">↻ Outdated</span></td><td>QA team (human)</td><td>manual</td><td class="mono small">a1b2c3d</td><td>2026-11-12 09:05</td><td class="num">1</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small">TC-1 and TC-2 omitted here for brevity in this mockup; the real report lists every run in scope.</p>
+
+      <!-- 9. Appendix -->
+      <h2>Appendix</h2>
+      <h3>Statuses</h3>
+      <dl class="meta">
+        <dt><span class="badge s-pass">✓ Pass</span></dt><dd>The latest result passed.</dd>
+        <dt><span class="badge s-fail">✕ Fail</span></dt><dd>The latest result failed.</dd>
+        <dt><span class="badge s-needs_review">? Needs review</span></dt><dd>A person still has to decide.</dd>
+        <dt><span class="badge s-stale">↻ Outdated</span></dt><dd>The test or its data changed after the latest run; it must run again.</dd>
+        <dt><span class="badge s-untested">○ Not tested</span></dt><dd>No run in this release yet.</dd>
+        <dt><span class="badge s-uncovered">! No test</span></dt><dd>An acceptance criterion has no approved test case.</dd>
+      </dl>
+      <h3>Gate thresholds used</h3>
+      <p class="small mono">p0_coverage 1.0 · p0_all_pass true · p1_pass_rate 0.95 · max_needs_review 0 · max_untested 0 · allow_stale false · require_evidence true</p>
+
+      <footer>Generated by INDX Watch from the project's test definitions and recorded results.</footer>
+    </main>
+  </body>
+</html>

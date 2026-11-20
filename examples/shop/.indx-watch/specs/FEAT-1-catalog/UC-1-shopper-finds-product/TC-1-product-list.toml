@@ -1,0 +1,24 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y31"
+key = "TC-1"
+title = "Product list shows names and prices"
+status = "ready"
+tags = ["catalog", "smoke"]
+covers = ["AC-1.1"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "Open the home page."
+expected = "Three products are listed, each with a name and a price, including \"Canvas Tote\" at \"40.00\"."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/catalog.spec.ts"]

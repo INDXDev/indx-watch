@@ -1,0 +1,194 @@
+# INDX Watch composite action (docs/spec/integrations.md#github-action).
+# It only wraps the `indx-watch` CLI: (deployment add) → sync → status → report → job summary → artifact → gate.
+name: INDX Watch
+description: Sync INDX Watch results, add the readiness report to the job summary and optionally fail on the release gate.
+author: INDXDev
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  version:
+    description: indx-watch npm version to run (default the action's tag, e.g. v0.1.0 → 0.1.0; otherwise latest).
+    required: false
+    default: ""
+  cli:
+    description: >-
+      Where the CLI comes from. "npm" runs `npx --yes indx-watch@<version>`. "local" runs the build inside the
+      action's own checkout (`packages/cli/dist/bin.js`; for this repository's CI after `pnpm build`).
+      "auto" (default) uses the local build when it exists, otherwise npm.
+    required: false
+    default: auto
+  dir:
+    description: Bundle directory (default `.indx-watch` discovery).
+    required: false
+    default: ""
+  release:
+    description: Release version to report on (default project.current_release).
+    required: false
+    default: ""
+  environment:
+    description: Environment to report on (default any).
+    required: false
+    default: ""
+  store:
+    description: Store URL override (default `[store].url` in project.toml).
+    required: false
+    default: ""
+  sync:
+    description: >-
+      Push local records and pull others before computing status ("true", "false"; default: when a store is
+      configured). Publishes a bundle snapshot (--snapshot) on the default branch.
+    required: false
+    default: ""
+  summary:
+    description: Append the Markdown report to the job summary.
+    required: false
+    default: "true"
+  gate:
+    description: Fail the step when the readiness gate fails.
+    required: false
+    default: "false"
+  deployment:
+    description: Environment name; records a deployment of this commit there (`indx-watch deployment add`).
+    required: false
+    default: ""
+  upload-artifact:
+    description: Upload the bundle's runs/ folder as a workflow artifact ("true", "false"; default when no store).
+    required: false
+    default: ""
+
+outputs:
+  gate:
+    description: "`pass` or `fail`"
+    value: ${{ steps.iw.outputs.gate }}
+  report:
+    description: Path of the Markdown report
+    value: ${{ steps.iw.outputs.report }}
+  pass:
+    description: Number of passing test cases
+    value: ${{ steps.iw.outputs.pass }}
+  fail:
+    description: Number of failing test cases
+    value: ${{ steps.iw.outputs.fail }}
+  untested:
+    description: Number of untested test cases
+    value: ${{ steps.iw.outputs.untested }}
+
+runs:
+  using: composite
+  steps:
+    - id: iw
+      shell: bash
+      env:
+        IW_IN_VERSION: ${{ inputs.version }}
+        IW_IN_CLI: ${{ inputs.cli }}
+        IW_IN_DIR: ${{ inputs.dir }}
+        IW_IN_RELEASE: ${{ inputs.release }}
+        IW_IN_ENVIRONMENT: ${{ inputs.environment }}
+        IW_IN_STORE: ${{ inputs.store }}
+        IW_IN_SYNC: ${{ inputs.sync }}
+        IW_IN_SUMMARY: ${{ inputs.summary }}
+        IW_IN_DEPLOYMENT: ${{ inputs.deployment }}
+        IW_IN_UPLOAD: ${{ inputs.upload-artifact }}
+        IW_ACTION_PATH: ${{ github.action_path }}
+        IW_ACTION_REF: ${{ github.action_ref }}
+        IW_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        IW_CHECK_RUN_ID: ${{ job.check_run_id }}
+      run: |
+        set -o pipefail
+        # A second use of the action in the same job gets its own folder and artifact name.
+        out="${RUNNER_TEMP:-/tmp}/indx-watch"; n=""
+        if [ -e "$out" ]; then out="$(mktemp -d "$out-XXXXXX")"; n="-${out##*-}"; fi
+        mkdir -p "$out"
+        local_bin="$IW_ACTION_PATH/packages/cli/dist/bin.js"
+        if [ "$IW_IN_CLI" = local ] || { [ "$IW_IN_CLI" != npm ] && [ -f "$local_bin" ]; }; then
+          [ -f "$local_bin" ] || { echo "::error::cli: local needs $local_bin (run pnpm build first)"; exit 1; }
+          iw() { node "$local_bin" "$@"; }
+        else
+          version="$IW_IN_VERSION"
+          if [ -z "$version" ]; then
+            if [[ "$IW_ACTION_REF" =~ ^v[0-9] ]]; then version="${IW_ACTION_REF#v}"; else version=latest; fi
+          fi
+          iw() { npx --yes "indx-watch@$version" "$@"; }
+        fi
+
+        common=(); scope=(); store=()
+        [ -n "$IW_IN_DIR" ] && common+=(--dir "$IW_IN_DIR")
+        [ -n "$IW_IN_RELEASE" ] && scope+=(--release "$IW_IN_RELEASE")
+        [ -n "$IW_IN_ENVIRONMENT" ] && scope+=(--env "$IW_IN_ENVIRONMENT")
+        [ -n "$IW_IN_STORE" ] && store+=(--store "$IW_IN_STORE")
+
+        # Is a store configured? (input, IW_STORE, or a [store] table in project.toml)
+        bundle="${IW_IN_DIR:-.indx-watch}"
+        [ -f "$bundle/project.toml" ] || bundle="$bundle/.indx-watch"
+        has_store=false
+        if [ -n "$IW_IN_STORE" ] || [ -n "${IW_STORE:-}" ] || grep -qs '^\[store\]' "$bundle/project.toml"; then
+          has_store=true
+        fi
+        sync="${IW_IN_SYNC:-$has_store}"
+        upload="${IW_IN_UPLOAD:-}"
+        [ -n "$upload" ] || { [ "$has_store" = true ] && upload=false || upload=true; }
+        echo "upload=$upload" >> "$GITHUB_OUTPUT"
+        echo "runs=$bundle/runs" >> "$GITHUB_OUTPUT"
+        # artifact names must be unique per job, matrix leg and attempt
+        echo "artifact=indx-watch-runs-${GITHUB_JOB:-job}-${IW_CHECK_RUN_ID:-${GITHUB_RUN_ATTEMPT:-1}-$RANDOM}$n" >> "$GITHUB_OUTPUT"
+
+        if [ -n "$IW_IN_DEPLOYMENT" ]; then
+          deploy=(deployment add --env "$IW_IN_DEPLOYMENT")
+          [ -n "$IW_IN_RELEASE" ] && deploy+=(--release "$IW_IN_RELEASE")
+          iw "${deploy[@]}" "${common[@]}" --json > "$out/deployment.json" || echo "::warning::indx-watch deployment add failed"
+        fi
+
+        if [ "$sync" = true ]; then
+          snapshot=()
+          [ -n "$IW_DEFAULT_BRANCH" ] && [ "${GITHUB_REF:-}" = "refs/heads/$IW_DEFAULT_BRANCH" ] && snapshot=(--snapshot)
+          iw sync "${common[@]}" "${store[@]}" "${snapshot[@]}" --json > "$out/sync.json" \
+            || echo "::warning::indx-watch sync failed; the report uses local results only"
+        fi
+
+        # `|| true`: GitHub runs bash with -e; the check below turns a failure into an ::error:: annotation.
+        iw status "${common[@]}" "${scope[@]}" --json > "$out/status.json" || true
+        node -e '
+          const fs = require("node:fs");
+          const env = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+          if (!env.data) { console.log(`::error::indx-watch status failed: ${env.error?.message}`); process.exit(1); }
+          const c = env.data.counts ?? {};
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, [
+            `gate=${env.data.gate.passed ? "pass" : "fail"}`,
+            `pass=${c.pass ?? 0}`, `fail=${c.fail ?? 0}`, `untested=${c.untested ?? 0}`, ""].join("\n"));
+        ' "$out/status.json" || exit 1
+
+        report="$out/report.md"
+        if iw report "${common[@]}" "${scope[@]}" --format md --out "$report" > /dev/null; then
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          if [ "$IW_IN_SUMMARY" = true ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            # The job summary allows 1 MiB per step: cut at a line boundary below that.
+            node -e '
+              const fs = require("node:fs");
+              const max = 1000000, note = "\n\n_Report truncated; see the `report` output or the artifact._\n";
+              let s = fs.readFileSync(process.argv[1], "utf8");
+              if (Buffer.byteLength(s) > max) {
+                s = Buffer.from(s).subarray(0, max - Buffer.byteLength(note)).toString("utf8");
+                s = s.slice(0, s.lastIndexOf("\n")) + note;
+              }
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, s + "\n");
+            ' "$report"
+          fi
+        else
+          echo "::warning::indx-watch report failed"
+        fi
+
+    - if: ${{ !cancelled() && steps.iw.outputs.upload == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ steps.iw.outputs.artifact }}
+        path: ${{ steps.iw.outputs.runs }}
+        include-hidden-files: true
+        if-no-files-found: ignore
+
+    - if: ${{ !cancelled() && inputs.gate == 'true' && steps.iw.outputs.gate != 'pass' }}
+      shell: bash
+      run: |
+        echo "::error::INDX Watch readiness gate failed"
+        exit 1

@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47CF2XS03H0RXJ0X9Z6Y"
+key = "TC-8"
+title = "HTML and customer reports"
+status = "ready"
+tags = ["report"]
+covers = ["AC-6.1", "AC-6.2"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Run \"iw report --release v1.2.0 --format html\" on examples/shop."
+expected = "One HTML file is written and opens with the network disabled."
+
+[[steps]]
+instruction = "Run it again with \"--audience customer --format md\"."
+expected = "The output contains no email address."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

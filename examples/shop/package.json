@@ -1,0 +1,14 @@
+{
+  "name": "shop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node app/server.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@indx-watch/playwright": "workspace:*",
+    "@playwright/test": "^1.65.1"
+  }
+}

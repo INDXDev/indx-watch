@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^env_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "accounts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^FX-[1-9][0-9]*$"
+      }
+    },
+    "guide": {
+      "type": "string"
+    },
+    "access": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "public",
+            "basic",
+            "cloudflare_access",
+            "vpn",
+            "sso",
+            "other"
+          ]
+        },
+        "secret_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+          }
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    "hooks": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "POST",
+                "PUT"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "secret_ref": {
+              "type": "string",
+              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "reset": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "POST",
+                "PUT"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "secret_ref": {
+              "type": "string",
+              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "i18n": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ja"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "guide": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "machine",
+              "reviewed"
+            ]
+          },
+          "source_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "status",
+          "source_hash"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "model",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "title",
+    "base_url"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/environment.json",
+  "title": "environment"
+}

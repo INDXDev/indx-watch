@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y34"
+key = "TC-4"
+title = "Expired coupon is rejected"
+status = "ready"
+tags = ["coupon"]
+covers = ["AC-2.2"]
+mode = "playwright"
+preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
+
+[[fixtures]]
+ref = "FX-1"
+rows = ["OLD5"]
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
+expected = "The message \"This coupon has expired\" appears and the total stays \"40.00\"."
+evidence = ["screenshot"]
+
+[steps.i18n.ja]
+instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
+expected = "「This coupon has expired」と表示され、合計は「40.00」のまま。"
+status = "reviewed"
+source_hash = "d560dd539b6f"
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/coupon.spec.ts"]
+
+[i18n.ja]
+title = "期限切れのクーポンは使えない"
+status = "reviewed"
+source_hash = "1842223e763f"

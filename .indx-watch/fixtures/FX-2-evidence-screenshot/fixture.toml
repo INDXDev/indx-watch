@@ -1,0 +1,8 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json
+
+id = "fx_01M7TF47A5BMSNY35X0BHFGTBJ"
+key = "FX-2"
+title = "Evidence screenshot"
+status = "ready"
+kind = "file"
+files = ["evidence.png"]

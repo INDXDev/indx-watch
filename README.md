@@ -1,79 +1,109 @@
 # INDX Watch
 
-**An AI-native end-to-end testing and QA management platform, self-hosted on Cloudflare.**
+**Test management that lives in your repo.** Use cases, acceptance criteria, test cases and fixtures are typed TOML files next to your code. Results — manual, Playwright or agent — sync through any folder or S3 bucket. Release readiness is computed, never declared. Built for humans *and* coding agents.
 
-INDX Watch gives business people, engineers and QA one shared place to answer three questions for every release:
+[![CI](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-1. **What has to work?** Features → use cases → acceptance criteria, written in plain language.
-2. **Has it been verified, and how do we know?** Test cases cover acceptance criteria. Every run records the exact spec version, fixture versions and deployment it ran against, along with screenshots and judge reasoning.
-3. **Who does what next?** Test plans assign each test case to a person (or the AI browser agent) on a specific environment, with priority and due date.
+> Status: **v0.1, pre-release, not yet on npm** — build from source to try it ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
 
-The single source of truth is the **Watch Bundle format**: a typed, fixed directory layout of TOML files plus data files. The hosted instance on Cloudflare (D1 for records, R2 for files) is the hub for sharing, sync, the web UI and AI runs. It is not a lock-in: drop a `watch.toml` into an `indx-watch/` folder and the zero-install CLI `iw` (via npx) clones the whole project in seconds, syncs both ways like a shared drive, exports everything losslessly, and can even deploy a fresh instance to another Cloudflare account with `iw deploy`.
+## Why
 
-> **Status: M0 complete, ready for M1.** There is no application code yet. The `docs/` folder holds the specification, and `docs/guides/dev-plan.html` lists the tasks to execute in order, starting with human setup (H-01–H-07) and T-101.
+QA often *looks* done but is not. Test cases sit in spreadsheets and people's heads, fixtures are unversioned, Playwright and CI results are not linked to what they verify, and agents cannot read any of it. INDX Watch puts the whole picture into one typed, local, file-based model:
 
-## Key ideas
+- **Git for definitions** — review test cases and fixtures in pull requests, next to the code they test.
+- **Drive-like sync for results** — runs and evidence sync continuously through a bucket, without bloating git.
+- **Computed done** — a use case is done only when every acceptance criterion is covered by test cases whose latest result passes, on this release, with evidence.
 
-- **Done is computed, not declared.** A use case is done when all of its acceptance criteria pass. A release is Go when the P0/P1 gate conditions are met.
-- **Evidence for every verdict.** Every pass or fail carries screenshots, DOM/accessibility snapshots, logs and the reasoning of each judge.
-- **AI proposes, humans approve.** AI drafts use cases, test cases and fixtures from PRDs or pull requests. It runs browser tests and judges results with a confidence score. Anything below the threshold, or any P0 test case, goes to a human review queue.
-- **Fixtures and test cases are versioned.** You can upload, edit, diff and roll back test data in the browser. Each run pins the versions it used.
-- **No one gets lost.** Each environment has an entry guide (URL, how to get in, test accounts, reset hooks), so a tester can start from "My tasks" without asking anyone.
-- **Japanese and English.** The UI and the content people write (use cases, steps, comments) work in both languages. Each text has one source language, AI translations are reviewed by people, and every run records which language the tester read.
-- **Full activity trail.** Using Cloudflare Access identity and logs, INDX Watch records who logged in (including failed attempts), when, from where, on which device, and what they did.
-- **No lock-in.** Every project can be exported and imported without loss, used fully offline in local-only mode, or redeployed elsewhere. Cloudflare-specific parts sit behind replaceable ports.
-- **Small codebase.** One Next.js app plus one runner Worker. The project leans on Cloudflare managed services instead of custom infrastructure.
+Read the [vision](docs/vision.md) for the full problem statement.
 
-## Architecture at a glance
+## 60-second quickstart
 
-| Concern | Cloudflare service |
-|---|---|
-| UI + API | Next.js (App Router) on Workers via vinext (fallback: `@opennextjs/cloudflare`) |
-| Database | D1 (SQLite), Drizzle ORM |
-| Files | R2 (evidence, fixtures, baselines) |
-| Test execution | Workflows + Queues + Browser Run, formerly Browser Rendering (`@cloudflare/playwright`, recording, Live View) |
-| Scheduled runs | Workflow schedules |
-| Test emails | Email Routing + Email Workers |
-| Access control | Cloudflare Access (Zero Trust) on the Worker: company domain plus invited customers via one-time PIN |
-| Login and activity audit | Access JWT + get-identity, Access logs via Logpush to R2, request metadata (`request.cf`) |
-| LLM | Anthropic Claude through Cloudflare AI Gateway |
-| Integrations | GitHub App (deployments, PR impact analysis, Check Runs, issues) and an MCP server for coding agents |
+Requires Node 22.13+.
 
-## Repository layout
+**Before the first npm release**, build the CLI from source (needs pnpm 10, e.g. `corepack enable`):
 
-```
-AGENTS.md        Guide for coding agents (Japanese). Read this first.
-CLAUDE.md        Claude Code entry point (imports AGENTS.md)
-docs/            Single source of truth, as HTML (Japanese)
-  index.html       Entry point
-  spec/            Layer 1: what and why (PRD, domain, UX, data model, architecture, AI,
-                   ER and communication flows, i18n, identity and audit logs,
-                   portability: Watch Bundle, CLI, sync, export, deploy)
-  screens/         Layer 2: one page per screen (mockup + screen spec), S01–S13
-  guides/          Layer 2: implementation guide, target app onboarding,
-                   development plan (component/file layout, tasks T-101–T-406)
-apps/web/        Next.js app (planned)
-apps/runner/     Execution Worker (planned)
-apps/cli/        iw CLI distributed via npx: clone, sync, check, export, deploy (planned)
-packages/bundle/ Watch Bundle format: schemas, canonical TOML, mapping, merge (planned)
-packages/core/   Domain types, decision policy, judges, LLM client (planned)
-packages/db/     Drizzle schema and D1 migrations (planned)
+```bash
+git clone https://github.com/INDXDev/indx-watch && cd indx-watch
+pnpm install && pnpm build
+npm install --global ./packages/cli   # puts `iw` on your PATH; or run `node packages/cli/dist/bin.js`
 ```
 
-## Reading the docs
+Then, in a folder outside the clone, type `iw` wherever the steps below say `npx indx-watch`. Once `indx-watch` is published on npm, `npx indx-watch` works without a clone.
 
-Open `docs/index.html` in a browser. Diagrams use Mermaid. When you open the files locally, `docs/assets/docs.js` loads Mermaid from a CDN to render them.
+```bash
+npx indx-watch init demo && cd demo
+npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
+npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
+npx indx-watch check
+npx indx-watch record TC-1 --verdict pass --step 1=pass   # you ran the step and it passed
+npx indx-watch status
+npx indx-watch report --format html --out report.html
+```
 
-All documentation except this README is written in Japanese.
+To run the test case in the browser instead of `record`, start the readiness dashboard and manual runner in a second terminal (it keeps running):
 
-## Roadmap
+```bash
+npx indx-watch serve --open   # http://127.0.0.1:4321
+```
 
-| Milestone | Scope |
+Once installed, everything works offline. After publishing, install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+
+## Features
+
+| | |
 |---|---|
-| M0 | Design documentation (this) |
-| M1 | Auth and login audit, projects/environments/releases, spec tree, manual runner, my tasks, fixtures, release readiness, Japanese/English UI and translation |
-| M2 | AI spec import, browser agent runs, LLM judge, review queue |
-| M3 | GitHub App, scheduled runs, visual diff, MCP server |
-| M4 | Customer UAT (guest role), analytics, flaky test detection |
+| **Typed bundle** | `.indx-watch/` of canonical TOML with JSON Schemas for editor completion ([format](docs/spec/bundle-format.md)) |
+| **Fixtures as data** | Datasets, seeds, files and accounts — versioned by content hash, large files as pointers, secrets as references only ([fixtures](docs/guides/fixtures.md)) |
+| **Computed readiness** | Coverage, use case status and a configurable release gate from one pure function ([concepts](docs/spec/concepts.md)) |
+| **Every result attributable** | Who/what ran it, when, on which commit, environment, test case version and fixture versions, with evidence |
+| **Manual runner** | Step-by-step browser runner with screenshot upload, in English and Japanese |
+| **Playwright reporter** | Tag a test `@TC-3`; results land next to manual ones ([Playwright](docs/guides/playwright.md)) |
+| **GitHub Action** | Sync, job summary and an optional readiness gate in CI ([GitHub Actions](docs/guides/github-actions.md)) |
+| **Sync anywhere** | Folder, AWS S3, Cloudflare R2, MinIO, GCS interop — no server needed ([S3 sync](docs/guides/s3-sync.md)) |
+| **Agent-native** | `--json` everywhere, Claude Code / Codex skills, MCP server; AI drafts need human approval ([agents](docs/spec/agents.md)) |
+| **Reports for customers** | Markdown, single-file HTML or PDF, with customer redaction ([reports](docs/spec/reports.md)) |
+| **Self-host** | `iw deploy` puts the same server on Cloudflare Workers + R2 + D1 behind Access, or run it with Node/Docker |
+| **No lock-in** | Files are the truth; `iw export --full` writes a lossless archive |
 
-See `docs/guides/dev-plan.html` for the task breakdown, dependencies and acceptance criteria.
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph repo["Your repository"]
+    B[".indx-watch/ (TOML, in git)"]
+    T["Playwright tests @TC-n"]
+  end
+  CLI["iw CLI / MCP"] --> B
+  T -- reporter --> R[".indx-watch/runs/ (local replica)"]
+  CLI --> R
+  R <-- "iw sync" --> S[("Result store: folder / S3 / R2")]
+  S --> H["Hosted UI (Cloudflare Workers + D1) or iw serve"]
+  A["Claude Code / Codex skills"] --> CLI
+```
+
+One TypeScript codebase: pure domain logic in the middle, every vendor behind a port, the same server on Node and Workers. Details: [architecture](docs/architecture.md), [decisions](docs/adr/README.md).
+
+## How it compares
+
+| | Spreadsheets / Drive | Classic TCM (TestRail, Xray, Kiwi) | Tests-as-code only | **INDX Watch** |
+|---|---|---|---|---|
+| Source of truth | Sheets | Database | Test code | **Typed files in git** |
+| Manual + automated in one model | ✗ | ✓ | ✗ | **✓** |
+| Fixtures versioned and linked | ✗ | ✗ | partial | **✓** |
+| Works offline / self-host / no lock-in | ✓ / – / ✓ | varies | ✓ | **✓ / ✓ / ✓** |
+| Agent-native (skills, MCP, `--json`) | ✗ | MCP add-ons | ✗ | **✓** |
+
+See the [landscape research](docs/research/landscape.md) for sources and details.
+
+## Documentation
+
+Start at [docs/README.md](docs/README.md) — reading order for users, self-hosters, contributors and agents.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). This repository manages its own QA with INDX Watch in [`.indx-watch/`](.indx-watch).
+
+## License
+
+[Apache-2.0](LICENSE)

@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01JF3Q8M5X2V7K9D4R6T1W0Y24"
+key = "UC-3"
+title = "Guest places an order"
+status = "ready"
+actor = "Guest shopper"
+goal = "Buy the items in the cart without creating an account."
+priority = "P0"
+
+[[criteria]]
+id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA5"
+key = "AC-3.1"
+text = "Placing an order shows a confirmation page with an order number."
+
+[[criteria]]
+id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA6"
+key = "AC-3.2"
+text = "After the order is placed, the cart is empty."

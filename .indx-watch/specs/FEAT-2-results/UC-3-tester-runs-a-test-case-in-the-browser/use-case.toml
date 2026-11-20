@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47B3Q74EGDP6H7WSMNF4"
+key = "UC-3"
+title = "Tester runs a test case in the browser"
+status = "ready"
+actor = "Tester"
+goal = "Follow plain-language steps and record the result with evidence."
+priority = "P0"
+
+[[criteria]]
+id = "ac_01M7TF47B3Q74EGDP6H7WSMNF2"
+key = "AC-3.1"
+text = "The manual runner records a run with the tester's identity and verdict."
+
+[[criteria]]
+id = "ac_01M7TF47B3Q74EGDP6H7WSMNF3"
+key = "AC-3.2"
+text = "An uploaded screenshot is stored by its SHA-256 and shown on the run page."

@@ -1,0 +1,21 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/project.json
+
+schema_version = 1
+id = "prj_01M7TF479CY0P7A4C4V1JAHXN6"
+key = "IW"
+name = "INDX Watch"
+source_locale = "en"
+locales = ["en", "ja"]
+default_environment = "local"
+current_release = "v0.1.0"
+default_branch = "main"
+notes = "This repository manages its own QA with INDX Watch. Automated test cases run in e2e/ (Playwright) and are recorded by the reporter in CI."
+
+[gate]
+p0_coverage = 1.0
+p0_all_pass = true
+p1_pass_rate = 0.95
+max_needs_review = 0
+max_untested = 0
+allow_stale = false
+require_evidence = true

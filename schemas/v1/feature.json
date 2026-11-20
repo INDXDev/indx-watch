@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^fea_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^FEAT-[1-9][0-9]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "i18n": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ja"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "machine",
+              "reviewed"
+            ]
+          },
+          "source_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "status",
+          "source_hash"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "model",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "key",
+    "title"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json",
+  "title": "feature"
+}

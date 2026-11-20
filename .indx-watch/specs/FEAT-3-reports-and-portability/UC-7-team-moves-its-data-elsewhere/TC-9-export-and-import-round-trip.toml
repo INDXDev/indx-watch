@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47CXZ59JBBG28STDKHX8"
+key = "TC-9"
+title = "Export and import round trip"
+status = "ready"
+tags = ["portability"]
+covers = ["AC-7.1"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Run \"iw export --full\" on examples/shop, \"iw import\" the archive into an empty folder, and export again."
+expected = "Both manifests have the same sha256."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

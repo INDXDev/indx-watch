@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47AFGAJ3VE1TQTD5KVGY"
+key = "TC-1"
+title = "Init and create a use case and a test case"
+status = "ready"
+tags = ["cli", "smoke"]
+covers = ["AC-1.1", "AC-1.2"]
+mode = "playwright"
+
+[[steps]]
+instruction = "In an empty directory, run \"iw init demo\"."
+expected = "The command exits 0 and \"iw check\" passes."
+
+[[steps]]
+instruction = "Run \"iw new uc\" with one acceptance criterion and \"iw new tc\" with one step, both with --ready."
+expected = "Both files exist and \"iw check --json\" reports 0 errors."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

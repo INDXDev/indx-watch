@@ -1,0 +1,50 @@
+name: Release
+
+# Publishes the `indx-watch` npm package when a maintainer pushes a version tag (v0.1.0, …).
+# Nothing runs on ordinary pushes. Requires the repository secret NPM_TOKEN; uses npm provenance.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build and pack only (no publish)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "v$(node -p "require('./packages/cli/package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Pack
+        run: cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP/pkg"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: indx-watch-package
+          path: ${{ runner.temp }}/pkg/*.tgz
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/') || inputs.dry-run == false
+        run: cd packages/cli && npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/pkg/*.tgz --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

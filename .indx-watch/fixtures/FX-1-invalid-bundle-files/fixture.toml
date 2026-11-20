@@ -1,0 +1,9 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json
+
+id = "fx_01M7TF47A1X5ZW692FVNRX5HAE"
+key = "FX-1"
+title = "Invalid bundle files"
+status = "ready"
+kind = "dataset"
+files = ["invalid-files.csv"]
+row_key = "case"

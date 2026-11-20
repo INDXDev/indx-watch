@@ -1,0 +1,24 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y32"
+key = "TC-2"
+title = "Search filters products by name"
+status = "ready"
+tags = ["catalog"]
+covers = ["AC-1.2"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-2"
+apply = "before_run"
+
+[[steps]]
+instruction = "Type \"mug\" in the search box."
+expected = "Only \"Enamel Mug\" is listed."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["examples/shop/tests/catalog.spec.ts"]

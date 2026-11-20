@@ -1,0 +1,119 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font:
+    16px / 1.5 system-ui,
+    sans-serif;
+  color: #1f2328;
+  background: #fff;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #d0d7de;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+a {
+  color: #0550ae;
+}
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+}
+ul {
+  padding: 0;
+  list-style: none;
+}
+li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eaeef2;
+}
+.products li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.products a {
+  flex: 1;
+}
+.price {
+  font-variant-numeric: tabular-nums;
+}
+label {
+  display: block;
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+input,
+textarea,
+button {
+  font: inherit;
+  max-width: 100%;
+}
+input:not([type="file"]),
+textarea {
+  width: 100%;
+  padding: 0.4rem;
+  border: 1px solid #8c959f;
+  border-radius: 4px;
+}
+button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #1f2328;
+  border-radius: 4px;
+  background: #f6f8fa;
+  cursor: pointer;
+}
+form > button {
+  margin-top: 0.75rem;
+}
+#coupon input {
+  width: auto;
+}
+#coupon button {
+  margin: 0 0 0 0.25rem;
+}
+input[type="file"] {
+  display: block;
+}
+[role="alert"]:empty {
+  display: none;
+}
+[role="alert"] {
+  color: #a40e26;
+  font-weight: 600;
+}
+.totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  font-variant-numeric: tabular-nums;
+}
+.totals dd {
+  margin: 0;
+  text-align: right;
+}
+.thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+}

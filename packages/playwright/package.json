@@ -1,0 +1,21 @@
+{
+  "name": "@indx-watch/playwright",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@indx-watch/bundle": "workspace:*",
+    "@indx-watch/core": "workspace:*",
+    "@indx-watch/store": "workspace:*",
+    "@indx-watch/sync": "workspace:*"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.45"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}

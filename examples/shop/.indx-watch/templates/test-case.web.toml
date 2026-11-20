@@ -1,0 +1,10 @@
+tags = ["web"]
+mode = "manual"
+
+[[steps]]
+instruction = "Open {{env.base_url}}."
+expected = "The home page loads without errors."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "human"

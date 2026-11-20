@@ -1,0 +1,16 @@
+{
+  "name": "@indx-watch/store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/index.ts",
+    "./workers": "./src/workers/index.ts"
+  },
+  "dependencies": {
+    "@indx-watch/bundle": "workspace:*",
+    "aws4fetch": "^1.0.20",
+    "jose": "^6.2.18"
+  }
+}

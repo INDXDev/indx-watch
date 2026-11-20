@@ -1,0 +1,9 @@
+/**
+ * Server package entry (runtime-neutral). CONTRACT: signatures frozen; implementation T-107.
+ * createApp(deps: AppDeps): the Hono app used by both `iw serve` (Node) and the Worker.
+ * renderReport(data: ReportData, opts: RenderOptions): Markdown or a single self-contained HTML file
+ * (docs/spec/reports.md); attach `texts` from reportTexts(model, locale) for localized titles and AC texts.
+ */
+export { createApp, errorResponse, HttpError, resolveRelease, type ServerDeps } from './app.js';
+export * from './contract.js';
+export { type ReportTexts, renderReport, reportTexts } from './report.js';

@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json
+
+id = "fea_01M7TF479ZBEAM6YS0KX55HC63"
+key = "FEAT-4"
+title = "Agents"
+description = "AI-written drafts and human approval."

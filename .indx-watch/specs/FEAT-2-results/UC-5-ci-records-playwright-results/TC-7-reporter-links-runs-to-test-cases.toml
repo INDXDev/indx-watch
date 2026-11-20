@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47C3TN95SQFQ81P52Q90"
+key = "TC-7"
+title = "Reporter links runs to test cases"
+status = "ready"
+tags = ["playwright"]
+covers = ["AC-5.1"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Run the examples/shop Playwright tests with the INDX Watch reporter."
+expected = "One run per tagged test case appears in the local replica, with test case version, fixture versions and build commit."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/reporter.spec.ts"]

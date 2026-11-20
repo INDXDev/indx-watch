@@ -1,0 +1,14 @@
+{
+  "products": [
+    { "id": "tote", "name": "Canvas Tote", "price": 40 },
+    { "id": "mug", "name": "Enamel Mug", "price": 18 },
+    { "id": "cap", "name": "Wool Cap", "price": 25 }
+  ],
+  "coupons": [
+    { "code": "SUMMER10", "discount": 0.1, "expires": "2099-12-31" },
+    { "code": "OLD5", "discount": 0.05, "expires": "2020-01-01" }
+  ],
+  "customers": [
+    { "email": "casey@shop.test", "name": "Casey" }
+  ]
+}

@@ -1,0 +1,11 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json
+
+id = "fx_01JF3Q8M5X2V7K9D4R6T1W0Y43"
+key = "FX-3"
+title = "Staging customer account"
+status = "ready"
+kind = "account"
+
+[account]
+username = "casey@shop.test"
+secret_ref = "env:SHOP_CUSTOMER_PASSWORD"

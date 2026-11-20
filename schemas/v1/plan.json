@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^pln_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^PLAN-[1-9][0-9]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "due": {
+      "type": "string",
+      "format": "date"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "test_case": {
+            "type": "string",
+            "pattern": "^TC-[1-9][0-9]*$"
+          },
+          "assignee": {
+            "type": "string",
+            "pattern": "^(ci|agent:[a-z0-9-]+|[^@\\s]+@[^@\\s]+)$"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "due": {
+            "type": "string",
+            "format": "date"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "test_case"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skill": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "model",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "x": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "key",
+    "title"
+  ],
+  "additionalProperties": false,
+  "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/plan.json",
+  "title": "plan"
+}

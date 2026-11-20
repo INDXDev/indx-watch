@@ -1,0 +1,14 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01JF3Q8M5X2V7K9D4R6T1W0Y26"
+key = "UC-5"
+title = "Customer adds a photo to a review"
+status = "ready"
+actor = "Registered customer"
+goal = "Show other shoppers what the product looks like."
+priority = "P2"
+
+[[criteria]]
+id = "ac_01JF3Q8M5X2V7K9D4R6T1W0YA9"
+key = "AC-5.1"
+text = "An uploaded PNG appears as a thumbnail under the review."

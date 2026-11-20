@@ -1,0 +1,8 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json
+
+id = "fx_01JF3Q8M5X2V7K9D4R6T1W0Y44"
+key = "FX-4"
+title = "Review photo"
+status = "ready"
+kind = "file"
+files = ["review-photo.png"]

@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47BHHCM8J3G7KNTFDN1A"
+key = "UC-4"
+title = "Team shares results through a store"
+status = "ready"
+actor = "Team member"
+goal = "See each other's results without committing them to git."
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M7TF47BHHCM8J3G7KNTFDN18"
+key = "AC-4.1"
+text = "A run recorded in one clone appears in another clone after \"iw sync\"."
+
+[[criteria]]
+id = "ac_01M7TF47BHHCM8J3G7KNTFDN19"
+key = "AC-4.2"
+text = "Running \"iw sync\" twice in a row transfers nothing the second time."

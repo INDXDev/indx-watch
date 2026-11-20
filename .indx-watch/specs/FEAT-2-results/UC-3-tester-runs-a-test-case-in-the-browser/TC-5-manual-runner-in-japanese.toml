@@ -1,0 +1,22 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47BCFVJXKE1G79KC2FCX"
+key = "TC-5"
+title = "Manual runner in Japanese"
+status = "ready"
+tags = ["ui", "i18n"]
+covers = ["AC-3.1"]
+mode = "manual"
+
+[[steps]]
+instruction = "Switch the UI language to Japanese and open the manual runner for TC-4 of examples/shop."
+expected = "Labels are Japanese, the step shows the reviewed Japanese translation, and quoted on-screen strings stay in English."
+evidence = ["screenshot"]
+
+[[steps]]
+instruction = "Finish the run with \"pass\"."
+expected = "The run records locale \"ja\"."
+evidence = ["screenshot"]
+
+[[judges]]
+kind = "human"

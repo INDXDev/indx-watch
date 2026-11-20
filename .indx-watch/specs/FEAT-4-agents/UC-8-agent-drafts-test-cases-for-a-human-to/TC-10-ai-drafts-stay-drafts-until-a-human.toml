@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47DA76AB1YD3X2YGBJV9"
+key = "TC-10"
+title = "AI drafts stay drafts until a human approves"
+status = "ready"
+tags = ["agents"]
+covers = ["AC-8.1", "AC-8.2"]
+mode = "playwright"
+
+[[steps]]
+instruction = "Run \"iw new tc --origin ai --model test-model\" on a copy of examples/shop."
+expected = "The file has status \"draft\", origin \"ai\" and an [ai] table."
+
+[[steps]]
+instruction = "Run \"iw approve\" on it with IW_ACTOR_KIND=agent, then as a human."
+expected = "The agent attempt exits 2; the human approval sets status \"ready\" and approved_by."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

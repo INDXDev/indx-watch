@@ -1,0 +1,7 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/release.json
+
+id = "rel_01M7TF479PY5GA2S082WZ8HQ62"
+version = "v0.1.0"
+title = "First open-source release"
+state = "testing"
+refs = ["v0.1.0", "main"]

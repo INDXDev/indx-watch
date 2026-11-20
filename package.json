@@ -1,0 +1,34 @@
+{
+  "name": "indx-watch-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "iw": "tsx packages/cli/src/bin.ts",
+    "build": "pnpm -r --filter ./packages/web --filter ./packages/cli run build",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "schemas": "tsx packages/bundle/scripts/gen-schemas.ts",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:example": "tsx packages/cli/src/bin.ts check --dir examples/shop/.indx-watch",
+    "check:pure": "scripts/check-pure.sh",
+    "check:report": "scripts/check-report.sh",
+    "check:worker": "tsx scripts/check-worker.ts",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm schemas --check && pnpm check:docs && pnpm check:pure && node scripts/loc.mjs && pnpm build && pnpm check:example && pnpm check:report && pnpm check:worker",
+    "e2e": "playwright test -c e2e"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@indx-watch/playwright": "workspace:*",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,23 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M7TF47ANYAN6J39QJZXH2WAV"
+key = "TC-2"
+title = "Check names invalid files"
+status = "ready"
+tags = ["cli"]
+covers = ["AC-1.3"]
+mode = "playwright"
+
+[[fixtures]]
+ref = "FX-1"
+rows = ["unknown-key"]
+
+[[steps]]
+instruction = "Break one file of a fresh bundle as described by the selected FX-1 row and run \"iw check --json\"."
+expected = "The command exits 1 and lists a problem with the file path and the expected code."
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]

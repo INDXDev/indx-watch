@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M7TF47ASDXBENF5HS5EF55G6"
+key = "UC-2"
+title = "Lead sees whether a release is ready"
+status = "ready"
+actor = "QA lead"
+goal = "Decide go or no-go from computed facts."
+priority = "P0"
+
+[[criteria]]
+id = "ac_01M7TF47ASDXBENF5HS5EF55G4"
+key = "AC-2.1"
+text = "Running \"iw status\" shows each use case status and every gate check."
+
+[[criteria]]
+id = "ac_01M7TF47ASDXBENF5HS5EF55G5"
+key = "AC-2.2"
+text = "Running \"iw status --gate\" exits with code 1 when the gate fails."

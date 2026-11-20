@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json
+
+id = "fea_01M7TF479TDAMQQN6GBCWQJV9N"
+key = "FEAT-2"
+title = "Results"
+description = "Recording runs manually, from Playwright, and syncing them."

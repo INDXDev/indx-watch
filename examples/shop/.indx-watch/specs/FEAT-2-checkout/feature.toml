@@ -1,0 +1,12 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/feature.json
+
+id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y11"
+key = "FEAT-2"
+title = "Checkout"
+description = "Cart, coupons and placing an order."
+
+[i18n.ja]
+title = "購入手続き"
+description = "カート・クーポン・注文確定。"
+status = "reviewed"
+source_hash = "21d4059be89b"

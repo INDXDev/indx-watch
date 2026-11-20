@@ -1,0 +1,78 @@
+{
+  "name": "indx-watch",
+  "version": "0.1.0",
+  "description": "File-first, agent-native test management: typed test cases and fixtures in your repo, results synced through any S3 bucket, a local UI, a Playwright reporter and agent skills.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "homepage": "https://github.com/INDXDev/indx-watch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/INDXDev/indx-watch.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/INDXDev/indx-watch/issues",
+  "keywords": [
+    "testing",
+    "qa",
+    "test-management",
+    "playwright",
+    "e2e",
+    "fixtures",
+    "mcp",
+    "agents",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bin": {
+    "iw": "./dist/bin.js",
+    "indx-watch": "./dist/bin.js"
+  },
+  "exports": {
+    ".": "./dist/api.js",
+    "./api": "./dist/api.js",
+    "./playwright": "./dist/playwright.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/copy-assets.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.9",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "aws4fetch": "^1.0.20",
+    "citty": "^0.2.2",
+    "hono": "^4.13.19",
+    "jose": "^6.2.18",
+    "modern-tar": "^0.8.6",
+    "smol-toml": "^1.9.1",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.45"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@indx-watch/bundle": "workspace:*",
+    "@indx-watch/core": "workspace:*",
+    "@indx-watch/server": "workspace:*",
+    "@indx-watch/store": "workspace:*",
+    "@indx-watch/sync": "workspace:*",
+    "@indx-watch/playwright": "workspace:*",
+    "@indx-watch/web": "workspace:*",
+    "tsup": "^8.5.0"
+  }
+}
