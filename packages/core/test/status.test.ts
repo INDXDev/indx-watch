@@ -1,7 +1,8 @@
 // buildModel, testCaseStatus (variants, ordering, scope, staleness, waivers), plan items and localize.
-import { type AnyRecord, type Bundle, type RunRecord, testCaseVersion } from '@indx-watch/bundle';
+import { type Actor, type AnyRecord, type Bundle, type RunRecord, testCaseVersion } from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
+  approvedBaseline,
   buildModel,
   evaluateGate,
   type LocalizeOptions,
@@ -304,5 +305,33 @@ describe('localize', () => {
       fallback: false,
       stale: false,
     });
+  });
+});
+
+describe('visual baselines (docs/spec/concepts.md#visual-baselines)', () => {
+  it('approvedBaseline: the latest human baseline per (test case, name, project); others are ignored', () => {
+    const tc = b.testCases.find((t) => t.data.key === 'TC-6')!.data;
+    const human: Actor = { kind: 'human', id: 'qa@shop.test', via: 'git' };
+    const base = (sha: string, at: string, actor = human, more = {}) =>
+      ({
+        ...{ kind: 'baseline', id: `rec_01JF7Z3K0W8N2Q4R6S8T0V${sha[0]!.toUpperCase()}000`, v: 1 },
+        ...{ project: b.project.data.id, at, actor, source: 'cli' },
+        ...{
+          test_case: { id: tc.id, key: 'TC-6' },
+          name: 'confirmation.png',
+          sha256: sha.repeat(64),
+          ...more,
+        },
+      }) as AnyRecord;
+    const agent: Actor = { ...human, kind: 'agent' };
+    const m = model([
+      base('a', '2026-11-19T01:00:00Z'),
+      base('b', '2026-11-19T02:00:00Z'),
+      base('c', '2026-11-19T03:00:00Z', agent),
+      base('d', '2026-11-19T04:00:00Z', human, { automation_project: 'webkit' }),
+    ]);
+    expect(approvedBaseline(m, tc.id, 'confirmation.png')?.sha256).toBe('b'.repeat(64));
+    expect(approvedBaseline(m, tc.id, 'confirmation.png', 'webkit')?.sha256).toBe('d'.repeat(64));
+    expect(approvedBaseline(m, tc.id, 'other.png')).toBeUndefined();
   });
 });

@@ -116,7 +116,7 @@ describe('planDeploy', () => {
         directory: '../web',
         binding: 'ASSETS',
         not_found_handling: 'single-page-application',
-        run_worker_first: ['/api/*', '/healthz', '/mcp', '/mcp/*'],
+        run_worker_first: ['/api/*', '/healthz', '/mcp', '/mcp/*', '/s/*'],
       },
       r2_buckets: [{ binding: 'STORE', bucket_name: 'b' }],
       d1_databases: [{ binding: 'DB', database_name: 'd', database_id: UUID }],
@@ -218,6 +218,17 @@ describe('deploy wrangler config', () => {
     writeFileSync(join(dir, 'project.toml'), readFileSync(join(dir, 'project.toml'), 'utf8') + entry);
     await dryRun(dir, dist, fakeExec({}).exec);
     expect(JSON.parse(readConfig(dir).vars.SIGNING_KEYS)).toEqual([key]);
+  });
+
+  it('pins [hosting] oidc_repositories as the Worker var OIDC_REPOSITORIES', async () => {
+    const { dir, dist } = setup();
+    const toml = readFileSync(join(dir, 'project.toml'), 'utf8');
+    writeFileSync(
+      join(dir, 'project.toml'),
+      toml.replace('[hosting]\n', '[hosting]\noidc_repositories = ["INDXDev/shop"]\n'),
+    );
+    await dryRun(dir, dist, fakeExec({}).exec);
+    expect(JSON.parse(readConfig(dir).vars.OIDC_REPOSITORIES)).toEqual(['INDXDev/shop']);
   });
 });
 

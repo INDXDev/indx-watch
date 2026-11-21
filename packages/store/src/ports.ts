@@ -191,3 +191,17 @@ export interface LlmClient {
   /** The next action of a browser agent (agent mode); optional, so judge-only clients stay valid. */
   next?(input: AgentStepInput): Promise<AgentAction>;
 }
+
+// ---------- GitHub OIDC (docs/spec/security.md#github-oidc) ----------
+/** The claims of a verified GitHub Actions OIDC ID token that signing relies on. */
+export interface GithubOidcClaims {
+  repository: string;
+  repository_id: string;
+  actor: string;
+  run_id: string;
+}
+
+export interface OidcVerifier {
+  /** Verify signature (issuer JWKS), issuer, audience and expiry. Throws StoreError('unauthorized'). */
+  verify(token: string, audience: string): Promise<GithubOidcClaims>;
+}

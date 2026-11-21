@@ -28,6 +28,7 @@ export const ROUTES = {
   run: 'GET /api/runs/:id',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
+  approveBaseline: 'POST /api/runs/:id/baselines (humans only; docs/spec/web.md#visual-baselines)',
   uploadBlob: 'POST /api/blobs',
   blob: 'GET /api/blobs/:sha256',
   report: 'GET /api/report?release=&env=&plan=&format=md|html&audience=internal|customer&locale=',
@@ -35,13 +36,19 @@ export const ROUTES = {
   storeHead: 'HEAD /api/store/objects/*',
   storePut: 'PUT /api/store/objects/* (create-only: 412 when it exists; manifest, log objects, blobs)',
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
+  sign: 'POST /api/sign (Authorization: Bearer <GitHub OIDC token>; { records } → { records } signed; docs/spec/security.md#github-oidc)',
   mcp: 'POST /mcp (MCP over Streamable HTTP, stateless; docs/spec/agents.md#mcp-server)',
+  createShare:
+    'POST /api/shares?release=&env=&plan=&audience=&locale=&evidence=none|embed&days= (v0.2, hosted)',
+  shares: 'GET /api/shares',
+  revokeShare: 'DELETE /api/shares/:id',
+  openShare: 'GET /s/:token (no identity; the frozen HTML report of an active link, else 404)',
 } as const;
 
 /**
  * Response types per route (all JSON): project → ProjectInfo; status → StatusResult; specs → SpecTree; testCase → TestCaseDetail;
  * fixtures → FixtureDetail[]; fixture → FixtureDetail; plans → PlanView[]; plan → PlanView; runs → RunSummary[]; run → RunDetail;
- * createRun → ManualRunResult; addJudgement → ReviewResult; uploadBlob → BlobResult; report → text/markdown or text/html.
+ * createRun → ManualRunResult; addJudgement → ReviewResult; approveBaseline → { baseline: BaselineRecord }; uploadBlob → BlobResult; report → text/markdown or text/html.
  *
  * Translations: wherever an entity's `i18n` tables are returned, the server sets `status: "stale"` on a table whose source_hash no
  * longer matches the current source, so clients only need to check `status`.
@@ -98,10 +105,31 @@ export interface ProjectInfo {
   problems: { severity: string; message: string; file?: string }[];
   /** source for `iw clone` (this hosted app, or the local `[store].url`) */
   share: { clone: string | null };
-  /** "Not you?" (iw_tester cookie) and uploads are possible on this server */
-  can: { declare: boolean; upload: boolean };
+  /** "Not you?" (iw_tester cookie), uploads and (v0.2) creating report share links are possible here */
+  can: { declare: boolean; upload: boolean; share: boolean };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+}
+
+/** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */
+export interface ShareLink {
+  id: string;
+  at: string;
+  actor: Actor;
+  audience: 'internal' | 'customer';
+  locale?: Locale;
+  release?: string;
+  environment?: string;
+  plan?: string;
+  expires_at: string;
+  state: 'active' | 'expired' | 'revoked';
+  opens: number;
+  revoked?: { at: string; actor: Actor };
+}
+/** POST /api/shares response (201): the URL is returned only here. */
+export interface ShareCreated {
+  link: ShareLink;
+  url: string;
 }
 
 /** GET /api/snapshots item: a bundle record (newest first). */
@@ -211,6 +239,13 @@ export interface RunDetail {
   testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
   /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: string[];
+  /** sha256 of this run's screenshots that are the current approved baseline of their name (v0.2) */
+  baselines?: string[];
+}
+
+/** POST /api/runs/:id/baselines: approve one PNG screenshot of the run as its visual baseline. */
+export interface BaselineInput {
+  sha256: string;
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */
@@ -253,6 +288,8 @@ export interface AppDeps {
   loadModel(): Promise<{ model: Model; problems: ProjectInfo['problems'] }>;
   /** append a record (local replica on Node; store + index on Workers) */
   writeRecord(record: import('@indx-watch/bundle').AnyRecord): Promise<void>;
+  /** the signer writeRecord applies, so share links can refuse a record that would not verify (hosted) */
+  signRecord?<R extends import('@indx-watch/bundle').AnyRecord>(record: R): Promise<R>;
   putBlob(data: Uint8Array, contentType: string): Promise<string>;
   getBlob(sha256: string): Promise<Uint8Array | null>;
   identity: IdentityProvider;

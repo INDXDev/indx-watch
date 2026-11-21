@@ -38,7 +38,7 @@ export function memoryObjectStore(url = 'memory://'): ObjectStore {
 
 /** Record filter of the memory index (the d1 index implements the same meaning in SQL). */
 export function recordTestCase(r: AnyRecord): string | undefined {
-  return r.kind === 'run' || r.kind === 'waiver' ? r.test_case.id : undefined;
+  return r.kind === 'run' || r.kind === 'waiver' || r.kind === 'baseline' ? r.test_case.id : undefined;
 }
 export function recordRelease(r: AnyRecord): string | undefined {
   return 'release' in r ? r.release : undefined;

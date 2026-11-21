@@ -77,6 +77,8 @@ export const Judgement = z.strictObject({
   at: DateTime.optional(),
   /** content language the reviewer read and wrote the reason in (v0.2) */
   locale: Locale.optional(),
+  /** visual judge: sha256 of the approved baseline it compared with (v0.2) */
+  baseline: Sha256.optional(),
 });
 export type Judgement = z.infer<typeof Judgement>;
 
@@ -213,6 +215,40 @@ export const RetractionRecord = z.strictObject({
 });
 export type RetractionRecord = z.infer<typeof RetractionRecord>;
 
+/** A person approved a screenshot as the visual baseline of (test case, name, automation project) (v0.2). */
+export const BaselineRecord = z.strictObject({
+  kind: z.literal('baseline'),
+  id: idOf('rec'),
+  ...envelope,
+  test_case: z.strictObject({ id: idOf('tc'), key: z.string() }),
+  name: z.string().min(1),
+  automation_project: z.string().optional(),
+  sha256: Sha256,
+  run: idOf('run').optional(),
+});
+export type BaselineRecord = z.infer<typeof BaselineRecord>;
+
+/** A report share link was created, opened or revoked on the hosted app (v0.2, docs/spec/reports.md#share-links). */
+export const ShareRecord = z.strictObject({
+  kind: z.literal('share'),
+  id: idOf('rec'),
+  ...envelope,
+  action: z.enum(['create', 'open', 'revoke']),
+  /** the link's `create` record (open and revoke) */
+  link: idOf('rec').optional(),
+  /** create only: SHA-256 of the URL token, never the token */
+  token_sha256: Sha256.optional(),
+  expires_at: DateTime.optional(),
+  audience: z.enum(['internal', 'customer']).optional(),
+  locale: Locale.optional(),
+  release: z.string().optional(),
+  environment: z.string().optional(),
+  plan: z.string().optional(),
+  /** blob: the frozen HTML report */
+  sha256: Sha256.optional(),
+});
+export type ShareRecord = z.infer<typeof ShareRecord>;
+
 export const AnyRecord = z.discriminatedUnion('kind', [
   RunRecord,
   JudgementRecord,
@@ -221,6 +257,8 @@ export const AnyRecord = z.discriminatedUnion('kind', [
   BundleRecord,
   FileRecord,
   RetractionRecord,
+  BaselineRecord,
+  ShareRecord,
 ]);
 export type AnyRecord = z.infer<typeof AnyRecord>;
 export type RecordKind = AnyRecord['kind'];

@@ -126,7 +126,7 @@ describe('POST /api/bundle and GET /api/snapshots', () => {
     expect(((await res.json()) as UploadResult).snapshot).toBe('rec_01JF7Z3K0W8N2Q4R6S8T0V9999');
     expect(published[0]).toMatchObject({ changed: [TC3], message: 'fix title', actor: ALEX });
     const info = (await (await a.fetch(req('/api/project'))).json()) as ProjectInfo;
-    expect(info.can).toEqual({ declare: false, upload: true });
+    expect(info.can).toEqual({ declare: false, upload: true, share: false });
     f.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
     expect((await a.fetch(req('/api/bundle', { json: body }))).status).toBe(403);
   });

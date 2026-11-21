@@ -11,6 +11,8 @@ import type {
   ReviewInput,
   RunDetail,
   RunSummary,
+  ShareCreated,
+  ShareLink,
   SnapshotSummary,
   SpecTree,
   StatusResult,
@@ -25,6 +27,7 @@ export type {
   ProjectInfo,
   RunDetail,
   RunSummary,
+  ShareLink,
   SnapshotSummary,
   SpecTree,
   StatusResult,
@@ -132,6 +135,7 @@ export const api = {
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),
   createRun: (input: ManualRunInput) => post<ManualRunResult>('api/runs', input),
   review: (id: string, input: ReviewInput) => post<unknown>(`api/runs/${id}/judgements`, input),
+  approveBaseline: (id: string, sha256: string) => post<unknown>(`api/runs/${id}/baselines`, { sha256 }),
   uploadBlob: (file: Blob, name: string) =>
     call<BlobResult>('api/blobs', {
       method: 'POST',
@@ -144,6 +148,16 @@ export const api = {
     }),
   report: (q: ReportQuery) => call<string>(reportPath(q), undefined, 'text'),
   snapshots: () => call<SnapshotSummary[]>('api/snapshots'),
+  shares: () => call<ShareLink[]>('api/shares'),
+  createShare: (q: ReportQuery, days: number) =>
+    call<ShareCreated>(
+      `api/shares${query({ ...scopeQ(q), plan: q.plan, audience: q.audience, locale: q.locale, days })}`,
+      {
+        method: 'POST',
+        headers: WRITE,
+      },
+    ),
+  revokeShare: (id: string) => call<ShareLink>(`api/shares/${id}`, { method: 'DELETE', headers: WRITE }),
   /** 422 still carries the preview (check errors): return it instead of throwing */
   uploadBundle: (input: UploadInput) =>
     post<UploadResult>('api/bundle', input).catch((e: unknown) => {

@@ -3,11 +3,18 @@
  * manual runs, reviews, blob uploads) and the store endpoints (docs/spec/sync.md#store-http-endpoints).
  */
 import * as B from '@indx-watch/bundle';
-import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
+import {
+  approvedBaseline,
+  computeStatus,
+  decide,
+  type Model,
+  reportData,
+  type Scope,
+} from '@indx-watch/core';
 import { checkRecord, ulidTime } from '@indx-watch/store';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
-import type { ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
+import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
 import { renderReport, reportTexts } from './report.js';
 import { prepareUpload, type UploadInput } from './upload.js';
@@ -80,7 +87,7 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   app.get('/api/report', (c) => report(c, x));
 }
 
-async function projectInfo(c: Context, { deps, actor }: Ctx) {
+async function projectInfo(c: Context, { deps, actor, sharer }: Ctx) {
   const { model: m, problems } = await deps.loadModel();
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
@@ -92,14 +99,15 @@ async function projectInfo(c: Context, { deps, actor }: Ctx) {
     return { version, title, state, i18n };
   };
   const clone = deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null);
+  const who = await actor(c);
   const info: ProjectInfo = {
     project: { key, name, source_locale, locales, default_environment, current_release },
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
-    ...{ identity: await actor(c), mode: deps.mode, problems },
+    ...{ identity: who, mode: deps.mode, problems },
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone },
-    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle },
+    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle, share: sharer(who) },
     snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);
@@ -115,7 +123,11 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
   const flagged = (jid: string, i: number) => m.unverified?.has(i ? `${record.id}#${jid}` : jid);
   const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
-  return { record, judgements, decision, stale, testCase, ...(ids.length ? { unverified: ids } : {}) };
+  const project = record.automation?.project;
+  const current = (e: B.Evidence) => approvedBaseline(m, record.test_case.id, e.name, project)?.sha256;
+  const baselines = record.evidence.filter((e) => current(e) === e.sha256).map((e) => e.sha256);
+  const extra = { ...(ids.length && { unverified: ids }), ...(baselines.length && { baselines }) };
+  return { record, judgements, decision, stale, testCase, ...extra };
 }
 
 async function blob(c: Context, { deps, uploads }: Ctx) {
@@ -128,16 +140,18 @@ async function blob(c: Context, { deps, uploads }: Ctx) {
   return new Response(data as Uint8Array<ArrayBuffer>, { headers });
 }
 
-/** Validated `?format=&audience=&locale=&evidence=` of a report. */
-function reportOptions(c: Context, m: Model) {
-  const format = q(c, 'format') ?? 'md';
-  const audience = q(c, 'audience') ?? 'internal';
+/** Validated `?format=&audience=&locale=&evidence=` of a report (`format` fixed for share links). */
+function reportOptions(c: Context, m: Model, fixed?: 'html') {
+  const format = fixed ?? q(c, 'format') ?? 'md';
+  const audience = q(c, 'audience') ?? (fixed ? 'customer' : 'internal');
   const locale = q(c, 'locale') ?? m.project.source_locale;
   if (format !== 'md' && format !== 'html') throw bad('format must be md or html');
   if (audience !== 'internal' && audience !== 'customer') throw bad('audience: internal or customer');
   if (locale !== 'en' && locale !== 'ja') throw bad('locale must be en or ja');
-  const fallback = audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links';
-  return { format, audience, locale, evidence: (q(c, 'evidence') ?? fallback) as 'none' } as const;
+  const evidence =
+    q(c, 'evidence') ?? (audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links');
+  if (fixed && evidence === 'links') throw bad('share links embed evidence or leave it out');
+  return { format, audience, locale, evidence: evidence as 'none' } as const;
 }
 
 type ReportOf = { scope: Scope; audience: 'internal' | 'customer'; locale: B.Locale; plan?: string };
@@ -151,15 +165,28 @@ export async function reportOf({ deps }: Ctx, m: Model, a: B.Actor, o: ReportOf)
   });
 }
 
-async function report(c: Context, x: Ctx) {
+/** The report a request asks for, rendered (GET /api/report; POST /api/shares fixes `html`). */
+export async function reportFor(c: Context, x: Ctx, fixed?: 'html') {
   const [m, a, plan] = [await x.model(), await x.actor(c), q(c, 'plan')];
-  const { format, audience, locale, evidence } = reportOptions(c, m);
+  const { format, audience, locale, evidence } = reportOptions(c, m, fixed);
   const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
   const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
   const data = await reportOf(x, m, a, { scope, audience, locale, plan });
   const text = await renderReport(data, { format, locale, evidence, getBlob: x.deps.getBlob });
-  const html = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP_REPORT };
-  return c.body(text, 200, format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : html);
+  return { m, format, audience, locale, plan, scope, text };
+}
+
+export const HTML_REPORT = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Content-Security-Policy': CSP_REPORT,
+};
+async function report(c: Context, x: Ctx) {
+  const { format, text } = await reportFor(c, x);
+  return c.body(
+    text,
+    200,
+    format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : HTML_REPORT,
+  );
 }
 
 // ---------- writes ----------
@@ -172,6 +199,7 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/bundle', (c) => uploadBundle(c, x));
   app.post('/api/runs', (c) => createRun(c, x));
   app.post('/api/runs/:id/judgements', (c) => review(c, x));
+  app.post('/api/runs/:id/baselines', (c) => approveBaseline(c, x));
   app.post('/api/blobs', (c) => uploadBlob(c, x));
 }
 
@@ -289,6 +317,27 @@ async function review(c: Context, x: Ctx) {
   return c.json({ judgement: record.judgement, decision }, 201);
 }
 
+/** A person approves one PNG screenshot of a run as its visual baseline (docs/spec/web.md#visual-baselines). */
+async function approveBaseline(c: Context, x: Ctx) {
+  const [input, m] = [await readJson<BaselineInput>(c), await x.model()];
+  const run = runOf(m, c.req.param('id')!).record;
+  const e = run.evidence.find((e) => e.sha256 === input.sha256 && e.media_type === 'image/png');
+  if (!e) throw bad('sha256 must name a PNG screenshot of this run');
+  const [who, at] = [await x.actor(c), x.now()];
+  if (who.kind !== 'human') throw new HttpError(403, 'forbidden', 'only people can approve baselines');
+  const env = { kind: 'baseline', id: B.newId('rec'), v: 1, project: m.project.id, at, actor: who };
+  const fields = {
+    test_case: { id: run.test_case.id, key: run.test_case.key },
+    name: e.name,
+    sha256: e.sha256,
+  };
+  const baseline = B.BaselineRecord.parse({
+    ...{ ...env, source: 'manual', ...fields, automation_project: run.automation?.project, run: run.id },
+  });
+  await x.deps.writeRecord(baseline);
+  return c.json({ baseline }, 201);
+}
+
 async function uploadBlob(c: Context, { deps, uploads }: Ctx) {
   const data = await readBody(c);
   if (!data.byteLength) throw bad('empty upload');
@@ -323,6 +372,7 @@ export function registerStoreRoutes(app: Hono, x: Ctx) {
     return c.body(data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'application/octet-stream' });
   });
   app.put('/api/store/objects/*', (c) => putObject(c, x));
+  app.post('/api/sign', (c) => signRecords(c, x));
   app.get('/api/store/list', async (c) => {
     const limit = Math.min(Number(q(c, 'limit')) || 1000, 1000);
     const [prefix, startAfter] = [c.req.query('prefix') ?? '', q(c, 'startAfter')];
@@ -330,6 +380,21 @@ export function registerStoreRoutes(app: Hono, x: Ctx) {
     const keys = r.keys.map(({ key, size, etag }) => ({ key, size, ...(etag && { etag }) }));
     return c.json({ keys, truncated: r.truncated });
   });
+}
+
+/** GitHub OIDC exchange (docs/spec/security.md#github-oidc): signs the records for the token; stores nothing. */
+async function signRecords(c: Context, x: Ctx) {
+  const exchange = x.deps.signForGithub ?? fail(notFound('GitHub OIDC signing'));
+  const auth = /^Bearer (\S+)$/i.exec(c.req.header('authorization') ?? '')?.[1];
+  const token = auth ?? fail(new HttpError(401, 'unauthorized', 'missing GitHub OIDC token'));
+  const raw = (await readJson<{ records?: unknown }>(c)).records;
+  if (!Array.isArray(raw) || !raw.length || raw.length > 1000) throw bad('records: 1 to 1000 records');
+  const records = raw.map((r) => {
+    const checked = checkRecord(r);
+    return 'error' in checked ? fail(bad(checked.error)) : checked.record;
+  });
+  const project = (await storeProject(x, true)) ?? fail(notFound('project'));
+  return c.json({ records: await exchange(token, records, project) });
 }
 
 /** project of the served model (none before the first snapshot), else of the store manifest */
@@ -350,6 +415,7 @@ async function checkLog(key: string, data: Uint8Array, project: string | undefin
     const r = checkRecord(raw);
     if ('error' in r) throw bad(`${key}: ${r.error}`);
     if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
+    if (r.record.kind === 'share') throw bad(`${r.record.id}: share records are written by the server only`);
   }
 }
 

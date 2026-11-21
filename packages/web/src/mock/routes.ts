@@ -32,7 +32,7 @@ function decideByHuman(s: MockState, r: Run, verdict: Verdict) {
 }
 
 const project: Handler = () =>
-  json({ ...D.project, share: { clone: null }, can: { declare: true, upload: false } });
+  json({ ...D.project, share: { clone: null }, can: { declare: true, upload: false, share: false } });
 const testCase: Handler = (s, m) => (s.testCase(m[1]!) ? json(s.testCase(m[1]!)) : notFound(m[1]!));
 const fixture: Handler = (_s, m) => {
   const f = D.fixtures.find((x) => x.key === m[1]);
@@ -69,6 +69,7 @@ const runDetail: Handler = (s, m) => {
     decision: s.decision(r),
     stale: s.summary(r).stale,
     testCase: { key: tc.key, title: tc.title, currentVersion: D.tcv(Number(tc.key.slice(3))) },
+    baselines: r.evidence.filter((e) => approved.has(e.sha256)).map((e) => e.sha256),
   } satisfies RunDetail);
 };
 
@@ -125,6 +126,13 @@ const review: Handler = (s, m, _u, body) => {
   return json({ ok: true }, 201);
 };
 
+/** Screenshots approved as visual baselines in this session. */
+const approved = new Set<string>();
+const approveBaseline: Handler = (_s, _m, _u, body) => {
+  approved.add((body as { sha256: string }).sha256);
+  return json({ ok: true }, 201);
+};
+
 /** Method, path pattern (without the leading slash) and handler, matched in order. */
 export const routes: [string, RegExp, Handler][] = [
   ['GET', /^api\/project$/, project],
@@ -140,6 +148,7 @@ export const routes: [string, RegExp, Handler][] = [
   ['GET', /^api\/runs\/(run_\w+)$/, runDetail],
   ['POST', /^api\/runs$/, createRun],
   ['POST', /^api\/runs\/(run_\w+)\/judgements$/, review],
+  ['POST', /^api\/runs\/(run_\w+)\/baselines$/, approveBaseline],
   ['GET', /^api\/report$/, report],
 ];
 

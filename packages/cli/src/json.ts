@@ -112,9 +112,12 @@ export const CommandData = {
   review: z.object({ judgement: z.record(z.string(), z.unknown()), verdict: z.string() }),
   judge: z.object({
     judgement: z.record(z.string(), z.unknown()),
+    /** --visual: every judgement appended (v0.2) */
+    judgements: z.array(z.record(z.string(), z.unknown())).optional(),
     verdict: z.string(),
     recorded: z.boolean(),
   }),
+  'baseline approve': z.object({ baselines: z.array(z.record(z.string(), z.unknown())) }),
   waive: z.object({ waiver: z.record(z.string(), z.unknown()) }),
   approve: z.object({ ref: z.string(), file: z.string(), version: z.string(), approved_by: z.string() }),
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),

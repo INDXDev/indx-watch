@@ -6,9 +6,10 @@ import type * as B from '@indx-watch/bundle';
 import type { ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
-import { errorResponse, HttpError, iso, notFound } from './http.js';
+import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
 import { registerReadRoutes, registerStoreRoutes, registerWriteRoutes } from './routes.js';
+import { registerShareRoutes } from './shares.js';
 import type { ToolOutputs } from './tools.js';
 
 export { errorResponse, HttpError, MAX_BLOB_BYTES } from './http.js';
@@ -31,6 +32,8 @@ export interface ServerDeps extends AppDeps {
     files: Map<string, Uint8Array>,
     info: { actor: B.Actor; message?: string; changed: string[]; removed: string[] },
   ): Promise<string | undefined>;
+  /** sign records for a GitHub OIDC token (docs/spec/security.md#github-oidc); POST /api/sign answers 404 without it */
+  signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
@@ -84,6 +87,8 @@ function appContext(deps: AppDeps) {
   return {
     deps: d,
     actor,
+    /** may this actor create and revoke report share links */
+    sharer: (a: B.Actor) => canShare(d, a),
     now: () => iso(d.now?.() ?? new Date()),
     read: d.readFile ?? (async () => null),
     model: async () => (await deps.loadModel()).model,
@@ -104,7 +109,8 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   app.use('*', async (c, next) => {
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
-    if (deps.mode === 'hosted' && c.req.path !== '/healthz') await x.actor(c);
+    // without Access: /healthz, /api/sign (GitHub OIDC token instead) and share links (docs/spec/security.md)
+    if (deps.mode === 'hosted' && !/^\/(healthz|api\/sign|s\/[^/]+)$/.test(c.req.path)) await x.actor(c);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
     const html = c.res.headers.get('content-type')?.startsWith('text/html');
@@ -114,6 +120,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   registerReadRoutes(app, x);
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);
+  registerShareRoutes(app, x);
   if (x.deps.toolOutputs) registerMcpRoute(app, x, x.deps.toolOutputs);
   return { fetch: async (request: Request) => app.fetch(request) };
 }
