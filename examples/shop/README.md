@@ -1,6 +1,6 @@
 # Shop: the INDX Watch example project
 
-`examples/shop` is the one sample project used by the INDX Watch docs and tests. It has four parts:
+`examples/shop` is the one sample project used by the INDX Watch docs and tests. It has five parts:
 
 | Path           | What it is                                                                                                                              |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -8,6 +8,7 @@
 | `tests/`       | Playwright tests for the shop. Each test is tagged with the test case it implements (`@TC-3`).                                          |
 | `.indx-watch/` | The bundle: features, use cases, acceptance criteria, test cases, fixtures, the `staging` environment, the `v1.2.0` release and a plan. |
 | `store/`       | Sample results used by the docs and the committed report.                                                                               |
+| `specs/`       | A Playwright Test Agents planner plan, the input of `iw import playwright-plan` (see [cli.md](../../docs/spec/cli.md#iw-import-playwright-plan-filemd)). |
 
 ## Run the app
 

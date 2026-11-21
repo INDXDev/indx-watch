@@ -55,6 +55,28 @@ export function activeWaiver(model: Model, release: string, tcId: string): Waive
     .at(-1);
 }
 
+/** Decided runs considered for the flake rate (docs/spec/concepts.md#flaky-tests). */
+const FLAKY_WINDOW = 10;
+function flakiness(runs: RunView[]): TestCaseStatus['flaky'] {
+  const decided = runs
+    .filter((r) => r.decision.verdict === 'pass' || r.decision.verdict === 'fail')
+    .sort((a, b) => byTimeThenId(a.record.ended_at, a.record.id, b.record.ended_at, b.record.id));
+  const key = (x: RunView) => `${x.variant}#${x.record.test_case.version}`;
+  const seen: { r: RunView; flip: boolean }[] = [];
+  const flakes = decided.map((r) => {
+    // p: previous run, same variant and version, other execution. A flip counts on the same build or when it
+    // reverts p's own flip (p f p); a lone change is a regression or a fix (docs/spec/concepts.md#flaky-tests).
+    const p = seen.findLast(({ r: x }) => key(x) === key(r) && x.group !== r.group);
+    const flip = !!p && p.r.decision.verdict !== r.decision.verdict;
+    seen.push({ r, flip });
+    const sameBuild = !!r.record.build.commit && p?.r.record.build.commit === r.record.build.commit;
+    return (flip && (sameBuild || !!p?.flip)) || r.judgements.some((j) => j.flaky);
+  });
+  const window = flakes.slice(-FLAKY_WINDOW);
+  const n = window.filter(Boolean).length;
+  return n ? { rate: n / window.length, flakes: n, runs: window.length } : undefined;
+}
+
 const hasProof = (runs: RunView[]) =>
   runs.some((r) => (r.record.evidence?.length ?? 0) > 0 || r.judgements.some((j) => j.kind === 'assert'));
 
@@ -111,6 +133,7 @@ export function testCaseStatus(model: Model, key: string, scope: Scope): TestCas
     stale: variants.some((v) => v.stale),
     waived,
     hasEvidence: passing.length > 0 && passing.every((v) => v.proof),
+    flaky: flakiness(runs),
   };
 }
 

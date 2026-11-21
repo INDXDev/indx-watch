@@ -10,15 +10,23 @@ import { href, navigate } from '../router';
 import { Badge, Chip, Focus, Icon, Load, Priority, Seg, Tx, txt, useApi, ViewSwitch } from '../ui';
 import { TestCaseView } from './TestCase';
 
-type Filter = 'all' | 'open';
+type Filter = 'all' | 'open' | 'flaky';
+const asFilter = (f?: string): Filter => (f === 'open' || f === 'flaky' ? f : 'all');
 const OPEN = new Set(['fail', 'needs_review', 'blocked', 'stale', 'untested', 'uncovered']);
 
 /** Every test case under every criterion, in tree order (a test case covering several criteria repeats). */
 export const allTestCases = (tree: SpecTree) =>
   tree.features.flatMap((f) => f.useCases.flatMap((u) => u.criteria.flatMap((c) => c.testCases)));
 
-/** Test case keys in tree order (each once), only open ones with `f=open`. Pure; tested. */
+/** Flaky test cases (each once), highest flake rate first, then by key (docs/spec/web.md#quarantine). */
+export const flakyTestCases = (tree: SpecTree) =>
+  [...new Map(allTestCases(tree).map((x) => [x.key, x])).values()]
+    .filter((x) => x.flaky)
+    .sort((a, b) => b.flaky!.rate - a.flaky!.rate || a.key.localeCompare(b.key, 'en', { numeric: true }));
+
+/** Test case keys in tree order (each once), only open ones with `f=open`, flaky ones by rate with `f=flaky`. */
 export function testOrder(tree: SpecTree, filter?: string): string[] {
+  if (filter === 'flaky') return flakyTestCases(tree).map((x) => x.key);
   const keys = allTestCases(tree).filter((x) => filter !== 'open' || OPEN.has(x.status));
   return [...new Set(keys.map((x) => x.key))];
 }
@@ -26,7 +34,7 @@ export function testOrder(tree: SpecTree, filter?: string): string[] {
 export function Tests({ filter }: { filter?: string | undefined }) {
   const { scope } = useApp();
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
-  return <Load state={specs}>{(s) => <Tree tree={s} filter={filter === 'open' ? 'open' : 'all'} />}</Load>;
+  return <Load state={specs}>{(s) => <Tree tree={s} filter={asFilter(filter)} />}</Load>;
 }
 
 /** #/tc/TC-3: the Focus card of a test case, with ← / → over the list it was opened from. */
@@ -36,13 +44,13 @@ export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | 
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
   const list = items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey];
-  const q = filter === 'open' ? { f: 'open' } : undefined;
+  const q = query(asFilter(filter));
   return (
     <>
       <div className="page-head page-head-tight">
         <p className="eyebrow">
           <a href={href.tests(q)}>{t('nav.tests')}</a>
-          {filter === 'open' && ` · ${t('specs.filter.open')}`}
+          {q && ` · ${t(`specs.filter.${q.f}`)}`}
         </p>
         <ViewSwitch view="focus" list={href.tests(q)} />
       </div>
@@ -64,7 +72,7 @@ export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | 
 
 type Feature = SpecTree['features'][number];
 type UseCase = Feature['useCases'][number];
-const query = (filter: Filter) => (filter === 'open' ? { f: filter } : undefined);
+const query = (filter: Filter) => (filter === 'all' ? undefined : { f: filter });
 
 /** Features with only the use cases that pass the filter and whose own or nested text contains `needle`. */
 function visibleFeatures(tree: SpecTree, filter: Filter, needle: string, locale: 'en' | 'ja') {
@@ -123,17 +131,48 @@ function Tree({ tree, filter }: { tree: SpecTree; filter: Filter }) {
           <Seg
             label={t('specs.filter')}
             value={filter}
-            options={['all', 'open'] as const}
+            options={['all', 'open', 'flaky'] as const}
             text={(f) => t(`specs.filter.${f}`)}
             onChange={(f) => navigate(href.tests(query(f)))}
           />
         </div>
       </div>
-      {features.length === 0 && <p className="empty">{t('specs.none')}</p>}
-      {features.map((f) => (
-        <FeatureNode key={f.key} f={f} filter={filter} />
-      ))}
+      {filter === 'flaky' ? (
+        <Quarantine tree={tree} needle={q.trim().toLowerCase()} />
+      ) : (
+        <>
+          {features.length === 0 && <p className="empty">{t('specs.none')}</p>}
+          {features.map((f) => (
+            <FeatureNode key={f.key} f={f} filter={filter} />
+          ))}
+        </>
+      )}
     </>
+  );
+}
+
+/** The quarantine view: flaky test cases with their flake rate, highest first. */
+function Quarantine({ tree, needle }: { tree: SpecTree; needle: string }) {
+  const { t, locale } = useI18n();
+  const rows = flakyTestCases(tree).filter(
+    (x) => !needle || [x.key, x.title, txt(x, 'title', locale)].some((p) => p.toLowerCase().includes(needle)),
+  );
+  if (!rows.length) return <p className="empty">{t('specs.noFlaky')}</p>;
+  return (
+    <ul className="card list">
+      {rows.map((x) => (
+        <li key={x.key} className="queue-item">
+          <Badge status={x.status} />
+          <a href={href.testCase(x.key, { f: 'flaky' })}>
+            <span className="key">{x.key}</span> <Tx of={x} field="title" />
+          </a>
+          <span className="queue-actions">
+            <strong>{Math.round(x.flaky!.rate * 100)}%</strong>
+            <span className="muted">{t('specs.flakes', x.flaky)}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

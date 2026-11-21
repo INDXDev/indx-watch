@@ -47,7 +47,11 @@ Problems from `iw check` appear as one quiet line under the bar ("3 problems in 
 | `#/uploads` | Uploads | Bundle snapshots, newest first: who uploaded, when, from where (commit or browser), file count, "current" marker, download | — |
 | `#/report` | Report | — | — |
 
-The List / Focus switch sits at the top right of each collection screen. Each view has its own URL, so a link opens the same view: `#/tests` and `#/tc/TC-3`, `#/activity` and `#/runs/<run>`, `#/fixtures` and `#/fixtures/FX-1`. `?f=open` (Tests) and `?f=review` (Activity) carry the filter into Focus.
+The List / Focus switch sits at the top right of each collection screen. Each view has its own URL, so a link opens the same view: `#/tests` and `#/tc/TC-3`, `#/activity` and `#/runs/<run>`, `#/fixtures` and `#/fixtures/FX-1`. `?f=open` and `?f=flaky` (Tests) and `?f=review` (Activity) carry the filter into Focus.
+
+### Quarantine
+
+The Tests filter has a third option, **Flaky** (`#/tests?f=flaky`). It replaces the tree with a flat list of the test cases that have a [flake rate](concepts.md#flaky-tests) in the current scope, highest rate first (ties: key). Each row shows the status badge, the key, the title in the chosen language, the rate as a percentage and "n of m runs". The Tests search box narrows the list by key or title. With no flaky test case (or no match) it says so. The view only reads `flaky` from the API; it never hides a test case from the gate or changes a verdict, so a quarantined test still counts until it is fixed. Focus pages through the same list.
 
 ### Home
 
@@ -166,4 +170,5 @@ You can upload definitions in three ways:
 - [x] Dropping a changed `TC-3` file previews "1 changed" with the check result. On a hosted app the upload publishes a `bundle` record, and the app serves the new title at once (server and Worker tests).
 - [x] An upload with a secret finding is refused, and nothing is written (server test).
 - [x] A run that claims `via = "github"` without a valid signature comes from the API with `unverified: true` and is shown with the "unverified" chip instead of ✓ (server and Worker tests; the chip itself is not tested automatically).
+- [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).

@@ -13,7 +13,7 @@ import type {
 } from '../src/index.js';
 import { createApp } from '../src/index.js';
 import { app, get, jaStatus } from './app-helpers.js';
-import { ALEX, fakeDeps, req, SHOT_SHA, sampleRecords, shop } from './helpers.js';
+import { ALEX, fakeDeps, req, run, SHOT_SHA, sampleRecords, shop } from './helpers.js';
 
 const RELEASE = 'v1.2.0';
 
@@ -61,6 +61,20 @@ describe('read routes: project and status', () => {
 });
 
 describe('read routes: specs and test cases', () => {
+  it('GET /api/specs and /api/status carry the flake rate of a flaky test case', async () => {
+    const b = await shop();
+    const records = [run(b, 'TC-2', { judgements: [{ kind: 'assert', verdict: 'pass', flaky: true }] })];
+    const { app: a } = await app({ bundle: b, records });
+    const tcs = (await get<SpecTree>(a, '/api/specs')).features.flatMap((f) =>
+      f.useCases.flatMap((u) => u.criteria.flatMap((c) => c.testCases)),
+    );
+    const flaky = { rate: 1, flakes: 1, runs: 1 };
+    expect(tcs.find((t) => t.key === 'TC-2')).toMatchObject({ status: 'pass', flaky });
+    expect(tcs.find((t) => t.key === 'TC-3')?.flaky).toBeUndefined();
+    const status = await get<StatusResult>(a, '/api/status');
+    expect(status.testCases.find((t) => t.key === 'TC-2')?.flaky).toEqual(flaky);
+  });
+
   it('GET /api/specs builds the tree and marks outdated translations stale', async () => {
     const bundle = await shopWithTc4(() => ({ title: 'Expired coupon is refused' }));
     const { app: a } = await app({ bundle });

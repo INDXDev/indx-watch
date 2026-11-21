@@ -13,10 +13,12 @@ import { createReplica } from '../replica.js';
 import { compact } from '../util.js';
 import { exec as defaultExec, type ExecSync, execSync } from './exec.js';
 import { fsObjectStore } from './fs-store.js';
+import { sqliteIndex } from './sqlite-index.js';
 
 export type { Exec, ExecSync } from './exec.js';
 export { fsObjectStore } from './fs-store.js';
 export { isAgentEnv, processContext, processIdentity } from './identity.js';
+export { sqliteIndex } from './sqlite-index.js';
 
 type Env = Record<string, string | undefined>;
 type Credentials = { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
@@ -138,9 +140,10 @@ export function openReplica(bundleDir: string): LocalReplica {
   });
 }
 
-/** Index on Node: in memory in v0.1 (node:sqlite is roadmap T-210). */
+/** Index on Node: a node:sqlite file at <bundleDir>/cache/index.sqlite (safe to delete), or in memory. */
 export async function openNodeIndex(bundleDir: string, opts?: { memory?: boolean }): Promise<Index> {
-  void bundleDir;
-  void opts;
-  return memoryIndex();
+  if (opts?.memory) return memoryIndex();
+  const cache = join(resolve(bundleDir), 'cache');
+  mkdirSync(cache, { recursive: true });
+  return sqliteIndex(join(cache, 'index.sqlite'));
 }

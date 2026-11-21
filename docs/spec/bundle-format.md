@@ -32,7 +32,7 @@ The Zod schemas in [`packages/bundle/src/schema/`](../../packages/bundle/src/sch
 ├── templates/
 │   └── test-case.web.toml            # partial files used by `iw new --template`
 ├── .gitignore                        # written by `iw init`: ignores cache/ and runs/
-├── cache/                            # ignored: index, sync state, fetched blobs
+├── cache/                            # ignored: index.sqlite, sync state, fetched blobs
 └── runs/                             # ignored by default: local replica of the result store
 ```
 

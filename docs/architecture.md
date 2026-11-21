@@ -37,6 +37,8 @@ flowchart TB
 |---|---|---|
 | `bundle` | `packages/bundle` | Zod schemas for every file and record (→ JSON Schema), canonical TOML parse/format, IDs and keys, content hashes and versions, loading a bundle through a `BundleFs` port, `check`, archive read/write. `src/node/` holds the Node `BundleFs`. |
 | `core` | `packages/core` | Builds the in-memory **model** from a bundle and records; `decide`, latest results, AC/UC status, coverage, `evaluateGate`, plan item status, staleness, flakiness, `localize`, report data. Pure. |
+| `store` | `packages/store` | Ports `ObjectStore`, `Index`, `IdentityProvider`, `ContextProvider`, `BrowserProvider`, `LlmClient`; adapters (`fs`, `s3`, `r2`, `http`, `memory`; `memory`, `d1` and `sqlite` (`node:sqlite`) index; `git`, `github`, `cloudflare-access` identity); `ResultStore` (record/blob protocol on top of `ObjectStore`); the local replica. |
+| `core` | `packages/core` | Builds the in-memory **model** from a bundle and records; `decide`, latest results, AC/UC status, coverage, `evaluateGate`, plan item status, staleness, flakiness (flake rate), `localize`, report data. Pure. |
 | `store` | `packages/store` | Ports `ObjectStore`, `Index`, `IdentityProvider`, `ContextProvider`, `BrowserProvider`, `LlmClient`; adapters (`fs`, `s3`, `r2`, `http`, `memory`; `memory` and `d1` index (`sqlite`: v0.2); `git`, `github`, `cloudflare-access` identity); `ResultStore` (record/blob protocol on top of `ObjectStore`); the local replica. |
 | `sync` | `packages/sync` | Push/pull algorithm, lookback cursor, watch mode, bundle snapshots (workspace-mode merge: v0.2). |
 | `server` | `packages/server` | `createApp(deps)` Hono app: JSON API, `/api/store/*` protocol endpoint, report rendering (md/html), static SPA. `node.ts` and `worker.ts` entry points. |
@@ -52,7 +54,7 @@ Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.t
 | Port | Methods (abridged) | Adapters in v0.1 |
 |---|---|---|
 | `ObjectStore` | `get(key)`, `head(key)`, `put(key, body, { ifNoneMatch })`, `list({ prefix, startAfter, limit })`, `delete(key)` (tests only) | `fs`, `s3` (aws4fetch: S3, R2, MinIO, GCS), `r2` (binding), `http` (hosted server), `memory` |
-| `Index` | `ingest(records, logKey?)` (applies the [merge rule](spec/sync.md#merge-rules) for two bodies with one ID), `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory` (Node), `d1` (Workers); `sqlite` (`node:sqlite`) in v0.2 — all share one plain SQL schema |
+| `Index` | `ingest(records, logKey?)` (applies the [merge rule](spec/sync.md#merge-rules) for two bodies with one ID), `setDefinitions(snapshot)`, `records(filter)`, `definitions()`, `meta` get/set, `reset()` | `memory`, `sqlite` (`node:sqlite`, Node), `d1` (Workers) — `sqlite` and `d1` share one plain SQL schema and the same guarded writes |
 | `BundleFs` | `read`, `write`, `list`, `remove`, `stat` | Node fs, in-memory (tests, Workers snapshot), tar snapshot |
 | `IdentityProvider` | `current(request?) → Actor` | process (`env` → `github` → `git`), `cloudflare-access`, trusted header |
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
@@ -99,20 +101,19 @@ On Cloudflare the same app runs in a Worker: the "local replica" is the R2 bucke
 Node ≥ 22.13 is required (Node 20 is end-of-life; see [platform notes](research/platform-notes.md#libraries-and-versions)).
 
 ## Line budget
-Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216). Signed records (T-211) raised `bundle` by 40 (Ed25519 signing and verification over WebCrypto, no new dependency) and `cli` by 30 (`iw keygen`). The review of signed records raised `store` by 60 (guarded D1 ingest, signed bodies win merges), `server` by 70 (deploy-pinned trust root, the hosted catch-up's daily full listing, the log key clock window) and `cli` by 10 (`iw deploy` pins `SIGNING_KEYS`); the total rose by 140. A readability refactor (splitting `check`, `fix`, `createApp`, `startNodeServer` and `syncOnce` into named steps) raised `bundle` by 40 and `server` by 30; the total rose by 70. GitLab CI, CircleCI and Buildkite context (T-208) raised `store` by 35 (the provider variable table, job retries and the checkout commit fallback) and `bundle` by 5 (the new `via` values); the total rose by 40.
+Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (tests, CSS and JSON excluded) by `scripts/loc.mjs`, checked in CI. Raising a budget needs a note in the PR description. The bundle budget includes about 700 lines of schema declarations. After the v0.1 security and correctness review, per-package budgets were rebalanced (CLI, server, store and reporter up; core, sync and web down) while the total stayed below the original 11,600. v0.2 raised `store` by 80 lines for the Anthropic `LlmClient` adapter (T-202), and `web` (+1,000), `cli` (+250) and `server` (+250) for the web app v2, uploads, `iw push` / `iw clone` / `iw translate` and the declared tester (T-213–T-216). Signed records (T-211) raised `bundle` by 40 (Ed25519 signing and verification over WebCrypto, no new dependency) and `cli` by 30 (`iw keygen`). The review of signed records raised `store` by 60 (guarded D1 ingest, signed bodies win merges), `server` by 70 (deploy-pinned trust root, the hosted catch-up's daily full listing, the log key clock window) and `cli` by 10 (`iw deploy` pins `SIGNING_KEYS`); the total rose by 140. A readability refactor (splitting `check`, `fix`, `createApp`, `startNodeServer` and `syncOnce` into named steps) raised `bundle` by 40 and `server` by 30; the total rose by 70. The `node:sqlite` index (T-210) raised `store` by 55 (a D1-shaped wrapper of `DatabaseSync`, so the D1 index code runs unchanged on Node, plus emptying an index file written with an older schema; no new dependency). Importing Playwright Test Agents plans (T-212) raised `cli` by 110 (the Markdown plan parser and `iw import playwright-plan`). Flaky tests (T-303) raised `web` by 30 (the Flaky quarantine view on Tests) and `server` by 5 (the flake rate in the spec tree); the total rose by 35. GitLab CI, CircleCI and Buildkite context (T-208) raised `store` by 35 (the provider variable table, job retries and the checkout commit fallback) and `bundle` by 5 (the new `via` values); the total rose by 40.
 
 | Package | Budget |
 |---|---|
 | bundle | 2,085 |
 | core | 1,000 |
-| store | 1,475 |
+| store | 1,530 |
 | sync | 450 |
-| server | 1,710 |
-| web | 3,820 |
-| cli (incl. MCP, deploy) | 2,490 |
+| server | 1,715 |
+| web | 3,850 |
+| cli (incl. MCP, deploy) | 2,600 |
 | playwright | 450 |
-| **Total** | **13,460** |
-
+| **Total** | **13,680** |
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.
 

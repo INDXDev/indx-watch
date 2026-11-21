@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- A `node:sqlite` index on Node with the D1 schema and merge writes; `iw reindex` builds it in `.indx-watch/cache/index.sqlite` instead of a throwaway in-memory index; an index file from another schema version is emptied when opened (T-210).
+- `iw import playwright-plan <file.md> --uc <UC>`: each scenario of a Playwright Test Agents planner plan becomes an AI-written draft test case; sample plan in `examples/shop/specs/` (T-212).
+- Flaky tests: a flake rate per test case over its last 10 pass/fail runs (`flaky: true` judgements and pass/fail flips on the same build or back and forth) in `iw status --json`, the API and a Flaky (quarantine) view on the Tests screen; it never changes verdicts or the gate (T-303).
 - GitLab CI, CircleCI and Buildkite context: the reporter and the CLI fill `build`, `ci`, the actor (`via = "gitlab"`, `"circleci"`, `"buildkite"`, verified only when signed) and the run group (a retried job starts a new execution) from each provider's standard variables (T-208).
 
 ## [0.1.0] - 2026-11-21
