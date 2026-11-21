@@ -273,6 +273,8 @@ Start the server and web UI on Node: readiness dashboard, spec tree, test case v
 
 Prints the URL. With `--json`, prints `{ "url": string }` once listening and keeps running.
 
+Records come from the local replica through the `node:sqlite` index at `cache/index.sqlite` (the one `iw reindex` builds), always, with no size threshold or flag. On start and after every replica change the server lists `runs/records/` with file times and parses only the files whose record the index does not hold yet, then ingests them; a restart on a large replica therefore reads no record file it already indexed. The API answers exactly as if every file had been read: same records, same order, same `invalid record` warnings (invalid files are not indexed and are read again each time). When a file the index holds is gone, or was rewritten since the last read (sync applying the [merge rule](sync.md#merge-rules) replaces a file; a newer modification time is the signal), the index is emptied and rebuilt from the replica once. An index file from another schema version is emptied when opened, and one that is not a SQLite database is deleted and created again; if the index still cannot be used, the server reads every replica file, as before. A file rewritten with an older modification time (copied with its times preserved) is not noticed: run `iw reindex` or delete `cache/`.
+
 ### `iw report`
 
 Without `--out`, `html` and `pdf` reports are written to `report-<release or plan>.<ext>`, and customer reports to `report-<release or plan>.customer.<ext>`.
@@ -335,7 +337,7 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 
 ### `iw reindex`
 
-Drop and rebuild the local index from the bundle and the local replica. The index is a `node:sqlite` database at `cache/index.sqlite` (same schema as the D1 index; safe to delete). The file records a schema version (`PRAGMA user_version`); a file written with another schema is emptied when opened and rebuilt in the current one. `data`: `{ "records": number, "definitions": number, "ms": number }`
+Drop and rebuild the local index from the bundle and the local replica. The index is a `node:sqlite` database at `cache/index.sqlite` (same schema as the D1 index; safe to delete). The file records a schema version (`PRAGMA user_version`); a file written with another schema is emptied when opened and rebuilt in the current one. `iw serve` reads its records from this index and keeps it current ([`iw serve`](#iw-serve)). `data`: `{ "records": number, "definitions": number, "ms": number }`
 
 ### `iw migrate`
 
