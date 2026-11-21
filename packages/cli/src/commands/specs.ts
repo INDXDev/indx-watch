@@ -4,7 +4,7 @@ import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { openNodeIndex, openReplica } from '@indx-watch/store/node';
+import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -263,8 +263,7 @@ export const specCommands: Record<string, Spec> = {
       const p = await cx.openProject(ctx, a);
       const index = await openNodeIndex(p.dir);
       await index.reset();
-      const records = await p.replica.records();
-      await index.ingest(records);
+      const records = await indexedRecords(index, join(p.dir, 'runs'))(); // also what `iw serve` reads next
       const files = new Map<string, string>();
       for (const path of (await iwb.walk(p.fs, '')).filter((f) => f.endsWith('.toml')))
         files.set(path, new TextDecoder().decode((await p.fs.read(path))!));

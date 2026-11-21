@@ -18,6 +18,7 @@ import { sqliteIndex } from './sqlite-index.js';
 export type { Exec, ExecSync } from './exec.js';
 export { fsObjectStore } from './fs-store.js';
 export { isAgentEnv, processContext, processIdentity } from './identity.js';
+export { indexedRecords, REPLICA_META } from './replica-index.js';
 export { sqliteIndex } from './sqlite-index.js';
 
 type Env = Record<string, string | undefined>;
