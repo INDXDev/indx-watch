@@ -190,7 +190,7 @@ const llmJudgement = (answer: Awaited<ReturnType<typeof askClaude>>) => ({
 /** One visual judgement per PNG screenshot, compared with its approved baseline (docs/spec/concepts.md#visual-baselines). */
 async function visualJudgements(
   ctx: Ctx,
-  p: cx.Project,
+  blob: (sha: string) => Promise<Uint8Array | null>,
   m: core.Model,
   tc: core.TestCaseNode,
   run: RunRecord,
@@ -199,11 +199,11 @@ async function visualJudgements(
   if (!judge) fail('USAGE', `${tc.data.key} declares no visual judge`);
   const shots = pngShots(run, judge!.baseline);
   if (!shots.length) fail('USAGE', `${run.id} has no PNG screenshot ${judge!.baseline ?? ''} to compare`);
-  const [by, at, blob] = [await cx.actorOf(ctx), iso(), (sha: string) => p.replica.getBlob(sha)];
+  const [by, at] = [await cx.actorOf(ctx), iso()];
   const out = [];
   for (const e of shots) {
     const base = core.approvedBaseline(m, tc.data.id, e.name, run.automation?.project);
-    const verdict = compareShot(await blob(e.sha256), base ? await blob(base.sha256) : null);
+    const verdict = compareShot(await blob(e.sha256), base && (await blob(base.sha256)));
     out.push({
       id: newId('jdg'),
       kind: 'visual' as const,
@@ -231,14 +231,15 @@ const judge: Spec = {
     const m = await cx.loadModel(p);
     const view = cx.resolveRun(m, str(a.run)!);
     const run = view.record;
+    const blob = (await import('./data.js')).blobReader(ctx, p, a); // lazy: data.ts imports this module
     const tc =
       m.testCases.get(run.test_case.key) ?? fail('NOT_FOUND', `${run.test_case.key} is not in the bundle`);
-    if (a.visual) return visualJudge(ctx, a, p, await visualJudgements(ctx, p, m, tc, run), view);
+    if (a.visual) return visualJudge(ctx, a, p, await visualJudgements(ctx, blob, m, tc, run), view);
     const rubric = tc.data.judges?.find((j) => j.kind === 'llm')?.rubric?.filter(Boolean);
     if (!rubric?.length) return fail('USAGE', `${tc.data.key} declares no llm judge with a rubric`);
     const { expected, observed } = judgeInput(tc, view);
     const shot = run.evidence.filter((e) => e.kind === 'screenshot' && e.media_type === 'image/png').at(-1);
-    const screenshot = shot ? ((await p.replica.getBlob(shot.sha256)) ?? undefined) : undefined;
+    const screenshot = shot ? ((await blob(shot.sha256)) ?? undefined) : undefined;
     const title = `${tc.data.key} ${tc.data.title}`;
     const observation = { url: run.ci?.url ?? '', title, tree: observed, screenshot };
     const answer = await askClaude(str(a.model) ?? ctx.env.IW_LLM_MODEL, { rubric, expected, observation });

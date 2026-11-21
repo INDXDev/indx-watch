@@ -87,12 +87,12 @@ export function diffRatio(a: Image, b: Image): number {
   return Math.round((changed / (a.width * a.height)) * 1e6) / 1e6;
 }
 
-/** Verdict fields of one visual judgement: the screenshot compared with its baseline (null: none approved). */
-export function compareShot(shot: Uint8Array | null, base: Uint8Array | null) {
-  if (!base)
+/** Verdict fields of one visual judgement: the screenshot compared with its baseline (undefined: none approved, null: blob missing). */
+export function compareShot(shot: Uint8Array | null, base: Uint8Array | null | undefined) {
+  if (base === undefined)
     return { verdict: 'unknown' as const, reason: 'no approved baseline (iw baseline approve <run>)' };
   try {
-    if (!shot) throw new Error('screenshot blob not found');
+    if (!shot || !base) throw new Error(`${shot ? 'baseline' : 'screenshot'} blob not found`);
     const [a, b] = [decodePng(shot), decodePng(base)];
     const diff_ratio = diffRatio(a, b);
     const size = (x: Image) => `${x.width}×${x.height}`;

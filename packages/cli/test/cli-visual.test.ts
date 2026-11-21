@@ -1,5 +1,5 @@
 /** Visual judge: PNG decoding, pixel diff, `iw baseline approve` and `iw judge --visual` (docs/spec/concepts.md#visual-baselines). */
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
@@ -56,7 +56,8 @@ describe('visual: PNG decoding and diff', () => {
     expect(compareShot(shot(0), shot(0))).toMatchObject({ verdict: 'pass', diff_ratio: 0 });
     expect(compareShot(shot(2), shot(0))).toMatchObject({ verdict: 'diff', diff_ratio: 0.02 });
     expect(compareShot(png(5, 5, white), shot(0)).reason).toBe('size 5×5, baseline 10×10');
-    expect(compareShot(shot(0), null)).toMatchObject({ verdict: 'unknown' });
+    expect(compareShot(shot(0), undefined).reason).toMatch(/no approved baseline/);
+    expect(compareShot(shot(0), null).reason).toBe('cannot compare: baseline blob not found');
     expect(compareShot(new Uint8Array([0]), shot(0))).toMatchObject({ verdict: 'unknown' });
   });
 });
@@ -103,6 +104,14 @@ describe('commands: baseline approve and judge --visual', () => {
     });
     expect(pass.judgement.baseline).toBe(ok[0].sha256);
 
+    // a baseline blob that is not local (evidence = on-demand) is read from the store
+    expect(iwJson(dir, 'sync', ['sync', '--push-only']).code).toBe(0);
+    const sha = ok[0].sha256 as string;
+    const local = join(dir, '.indx-watch/runs/blobs/sha256', sha.slice(0, 2), sha);
+    rmSync(local);
+    const again = iwJson(dir, 'judge', ['judge', same, '--visual', '--dry-run'], ci).json.data;
+    expect(again.judgement).toMatchObject({ verdict: 'pass', baseline: sha });
+
     const changed = runWith(5); // 5% of pixels changed, over visual_threshold 0.01
     const dry = iwJson(dir, 'judge', ['judge', changed, '--visual', '--dry-run'], ci).json.data;
     expect(dry).toMatchObject({ recorded: false, judgement: { verdict: 'diff', diff_ratio: 0.05 } });
@@ -112,6 +121,11 @@ describe('commands: baseline approve and judge --visual', () => {
     // within the threshold a diff counts as a pass (rule 8)
     const small = runWith(1);
     expect(iwJson(dir, 'judge', ['judge', small, '--visual'], ci).json.data.verdict).toBe('pass');
+    // missing everywhere: unknown, and the reason names the missing blob
+    rmSync(join(dir, 'store/v1/blobs/sha256', sha.slice(0, 2), sha));
+    const gone = iwJson(dir, 'judge', ['judge', runWith(2), '--visual', '--dry-run'], ci).json.data;
+    expect(gone.judgement).toMatchObject({ verdict: 'unknown', baseline: sha });
+    expect(gone.judgement.reason).toBe('cannot compare: baseline blob not found');
 
     const plain = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], ci).json.data.run.id;
     expect(iwJson(dir, 'judge', ['judge', plain, '--visual'], ci).code).toBe(2);
