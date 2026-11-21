@@ -110,9 +110,11 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 
 Outputs: `gate` (`pass`/`fail`), `report` (path of the Markdown report), `pass`, `fail`, `untested` counts.
 
-Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sync pushes it) → `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → optional PR comment and check run (`gh api`; a missing permission is a warning, never a failure) → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
+Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sync pushes it) → `npx indx-watch@<version> sync --json` (if enabled; with `--snapshot` on the default branch) → `status --json` → `report --format md --out …` → append to job summary (truncated below 1 MiB) → on pull requests with `comment` or `check`, `impact --changed -` over the pull request's changed files → optional PR comment and check run (`gh api`; a missing permission is a warning, never a failure) → optional `actions/upload-artifact` of `.indx-watch/runs/` (`include-hidden-files: true`) → exit according to `gate`.
 
 The job summary needs no permissions; `comment` needs `pull-requests: write` and `check` needs `checks: write`. The comment starts with a hidden marker `<!-- indx-watch:<dir>:<release> -->`, which is how the next run finds and edits it instead of adding another. Comment and check-run bodies are cut at a line boundary below GitHub's 65,536-character limit. On pull requests from forks the token is read-only, so both are skipped with a warning.
+
+**Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
 
 ## Acceptance criteria
 
@@ -121,4 +123,6 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
 - [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
 - [x] With `gate: true` and a failing P0 test case, the action step fails.
+- [x] The "Suggested test cases" section for a change to `examples/shop/tests/coupon.spec.ts` lists TC-3 and TC-4 (`iw impact` human output, CLI test).
+- [x] On this repository's pull requests (`comment: true` in CI), the PR comment carries that section (seen on PR #29).
 - [x] With only GitLab CI, CircleCI or Buildkite variables set, `build`, `ci`, `actor` and `automation.group` come from the table above (store and reporter unit tests with fake environments).
