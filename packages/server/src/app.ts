@@ -109,10 +109,8 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   app.use('*', async (c, next) => {
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
-    // /api/sign is authenticated by its GitHub OIDC token instead of Access; share links are public
-    // (docs/spec/security.md#share-links)
-    if (deps.mode === 'hosted' && !['/healthz', '/api/sign'].includes(c.req.path) && !/^\/s\/[^/]+$/.test(c.req.path))
-      await x.actor(c);
+    // without Access: /healthz, /api/sign (GitHub OIDC token instead) and share links (docs/spec/security.md)
+    if (deps.mode === 'hosted' && !/^\/(healthz|api\/sign|s\/[^/]+)$/.test(c.req.path)) await x.actor(c);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
     const html = c.res.headers.get('content-type')?.startsWith('text/html');
