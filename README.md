@@ -7,6 +7,8 @@
 
 > Status: **v0.1, pre-release, not yet on npm** — build from source to try it ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
 
+> Live demo: `https://indx-watch-demo.<subdomain>.workers.dev` (**placeholder — TODO(D-5): replace with the real URL after the first demo deploy**) — the web app loaded with the [`examples/shop`](examples/shop) sample, redeployed from `main` ([how it is deployed](docs/guides/self-host-cloudflare.md#demo-site-from-github-actions)). Anyone can write to it, so do not enter real data.
+
 ## Why
 
 QA often *looks* done but is not. Test cases sit in spreadsheets and people's heads, fixtures are unversioned, Playwright and CI results are not linked to what they verify, and agents cannot read any of it. INDX Watch puts the whole picture into one typed, local, file-based model:
