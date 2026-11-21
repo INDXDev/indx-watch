@@ -132,6 +132,18 @@ npx playwright merge-reports --reporter=indx-watch/playwright ./all-blob-reports
 
 All shards and the merge job must use the same Playwright version.
 
+## Import plans from Playwright Test Agents
+
+If you use Playwright's planner agent, import its Markdown plan as draft test cases, then review and approve them:
+
+```bash
+iw import playwright-plan specs/coupon.plan.md --uc UC-2 --model <planner-model-id>
+iw check
+iw approve TC-10       # a human, after reading it
+```
+
+Each scenario becomes one AI-written draft that covers the use case's criteria. When the generator writes the test, tag it with the new key (`@TC-10`). Details: [cli.md](../spec/cli.md#iw-import-playwright-plan-filemd).
+
 ## See the results
 
 ```bash

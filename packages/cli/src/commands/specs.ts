@@ -13,7 +13,7 @@ import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } f
 /** Keys used by records (test cases and fixtures), so retired keys are never reused. */
 const used = (r: iwb.AnyRecord) =>
   r.kind === 'run' ? [r.test_case, ...(r.fixtures ?? [])] : r.kind === 'waiver' ? [r.test_case] : [];
-const knownKeys = (records: iwb.AnyRecord[]) => records.flatMap(used).map((x) => x.key);
+export const knownKeys = (records: iwb.AnyRecord[]) => records.flatMap(used).map((x) => x.key);
 /** Where `iw fixture fetch` puts a pointer blob. */
 export const cacheBlob = (p: cx.Project, sha: string) => join(p.dir, 'cache', 'blobs', sha);
 
@@ -65,7 +65,7 @@ async function newFields(ctx: Ctx, a: Args, kind: iwb.NewKind) {
 }
 
 /** Origin and AI model of `iw new`; agents always write AI-marked items. */
-async function originOf(ctx: Ctx, a: Args) {
+export async function originOf(ctx: Ctx, a: Args) {
   let origin = str(a.origin) as 'human' | 'ai' | 'import' | undefined;
   if (origin && !['human', 'ai', 'import'].includes(origin))
     fail('USAGE', '--origin must be human, ai or import');
