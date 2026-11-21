@@ -16,6 +16,7 @@ import { exec as defaultExec, type ExecSync, execSync } from './exec.js';
 import { fsObjectStore } from './fs-store.js';
 import { sqliteIndex } from './sqlite-index.js';
 
+export { browserRun, type Chromium, loadChromium, playwrightBrowser } from './browser.js';
 export type { Exec, ExecSync } from './exec.js';
 export { fsObjectStore } from './fs-store.js';
 export { isAgentEnv, processContext, processIdentity } from './identity.js';

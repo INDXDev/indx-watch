@@ -78,6 +78,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Agent mode with real Chromium (the vitest suites the check job skips without a browser)
+        run: pnpm exec vitest run packages/store/test/agent.test.ts packages/cli/test/cli-agent.test.ts
       - name: examples/shop end-to-end
         run: pnpm --filter shop test
         env:

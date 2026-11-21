@@ -110,8 +110,8 @@ describe('iw mcp', () => {
       model: 'claude-opus-5-5',
       skill: 'write-test-cases',
     });
-    expect(r.structuredContent).toMatchObject({ key: 'TC-10' });
-    expect((await call('show', { ref: 'TC-10' })).structuredContent).toMatchObject({
+    expect(r.structuredContent).toMatchObject({ key: 'TC-11' });
+    expect((await call('show', { ref: 'TC-11' })).structuredContent).toMatchObject({
       status: 'draft',
       origin: 'ai',
       ai: { model: 'claude-opus-5-5' },
@@ -130,7 +130,7 @@ describe('iw mcp', () => {
     const dup = await call('new', {
       kind: 'tc',
       uc: 'UC-5',
-      fields: { ...fields, key: 'TC-10' },
+      fields: { ...fields, key: 'TC-11' },
       model: 'm',
     });
     expect(JSON.parse(dup.content[0].text).code).toBe('CONFLICT');

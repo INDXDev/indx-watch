@@ -91,7 +91,7 @@ A test case inherits the highest priority of the use cases it covers unless it s
 |---|---|---|
 | `manual` | A person follows the steps in the browser runner or CLI | `human` |
 | `playwright` | A Playwright test tagged `@TC-128` | `assert` (+ `visual`) |
-| `agent` | An LLM browser agent follows the plain-language steps (v0.2) | `assert` + `llm` |
+| `agent` | An LLM browser agent follows the plain-language steps ([`iw run`](cli.md#iw-run-tc-ref), v0.2) | `assert` + `llm` |
 | `hybrid` | An agent or script executes, a person confirms | any + `human` |
 
 **Judges** — who or what decides:

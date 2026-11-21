@@ -191,14 +191,14 @@ describe('agent skills (docs/spec/agents.md): the worked examples on examples/sh
     expect(add.json.data.files[0]).toMatchObject({ name: 'not-an-image.txt', pointer: false });
     const tcArgs = [...TC_10_ARGS, ...AI_FLAGS, '--skill', 'write-test-cases', '--from', '-'];
     const tc = iwJson(dir, 'new', tcArgs, { env, input: TC_10_INPUT });
-    expect(tc.json.data.key).toBe('TC-10');
+    expect(tc.json.data.key).toBe('TC-11');
     expect(parseToml(read(dir, tc.json.data.file))).toMatchObject({
       status: 'draft',
       origin: 'ai',
       ai: { skill: 'write-test-cases' },
     });
     expect(iwJson(dir, 'check', ['check'], { env }).json.data.errors).toBe(0);
-    const runArgs = ['record', 'TC-10', '--verdict', 'pass', '--confidence', '0.9', '--step', '1=pass'];
+    const runArgs = ['record', 'TC-11', '--verdict', 'pass', '--confidence', '0.9', '--step', '1=pass'];
     const run = iwJson(dir, 'record', runArgs, { env });
     expect(run.json.data).toMatchObject({ verdict: 'pass', rule: 8 });
   });

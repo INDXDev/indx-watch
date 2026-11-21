@@ -12,6 +12,7 @@ describe('check on examples/shop', () => {
     expect(problems).toEqual([]);
     expect(bundle?.testCases.map((t) => t.data.key).sort()).toEqual([
       'TC-1',
+      'TC-10',
       'TC-2',
       'TC-3',
       'TC-4',

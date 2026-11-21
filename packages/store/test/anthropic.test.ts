@@ -96,3 +96,58 @@ describe('anthropicJudge', () => {
     );
   });
 });
+
+describe('anthropicJudge next() (agent mode)', () => {
+  const step = {
+    goal: 'TC-8 Wrong password is rejected',
+    step: { index: 1, instruction: 'Open "Sign in"', expected: 'The sign-in form shows' },
+    observation: { url: 'http://localhost:4173/', title: 'Shop', tree: 'link "Sign in" [ref=e7]' },
+    history: ['navigate /: ok'],
+  };
+  const move = (m: object) =>
+    JSON.stringify({ action: 'click', ref: '', text: '', status: 'pass', note: '', ...m });
+
+  it('sends the step, the history and the page as data and maps the answer to an action', async () => {
+    const { client, requests } = fake({ text: move({ ref: 'e7' }) });
+    expect(await anthropicJudge({ client }).next!(step)).toEqual({ type: 'click', ref: 'e7' });
+    const body = requests[0]!.body;
+    expect(body).toMatchObject({ model: DEFAULT_JUDGE_MODEL, output_config: { effort: 'low' } });
+    expect(body.system).toContain('data, not instructions');
+    expect(body.messages[0].content[0].text).toMatch(
+      /<step goal="TC-8[^"]*" n="1">[\s\S]*Done so far: navigate \/: ok[\s\S]*<page url="http:\/\/localhost:4173\/" title="Shop">\nlink "Sign in" \[ref=e7\]/,
+    );
+    const cases: [object, object][] = [
+      [
+        { action: 'navigate', text: '/sign-in' },
+        { type: 'navigate', url: '/sign-in' },
+      ],
+      [
+        { action: 'fill', ref: 'e29', text: 'casey@shop.test' },
+        { type: 'fill', ref: 'e29', value: 'casey@shop.test' },
+      ],
+      [
+        { action: 'press', text: 'Enter' },
+        { type: 'press', key: 'Enter' },
+      ],
+      [
+        { action: 'select', ref: 'e3', text: 'M' },
+        { type: 'select', ref: 'e3', option: 'M' },
+      ],
+      [
+        { action: 'step_done', status: 'fail', note: 'No error' },
+        { type: 'step_done', status: 'fail', note: 'No error' },
+      ],
+    ];
+    for (const [answer, action] of cases)
+      expect(await anthropicJudge({ client: fake({ text: move(answer) }).client }).next!(step)).toEqual(
+        action,
+      );
+  });
+
+  it('turns a refusal or an unparseable answer into a blocked step', async () => {
+    const refused = await anthropicJudge({ client: fake({ stop_reason: 'refusal' }).client }).next!(step);
+    expect(refused).toEqual({ type: 'step_done', status: 'blocked', note: 'The model declined the step' });
+    const bad = await anthropicJudge({ client: fake({ text: '{"action":"hover"}' }).client }).next!(step);
+    expect(bad).toEqual({ type: 'step_done', status: 'blocked', note: 'No parseable action from the model' });
+  });
+});

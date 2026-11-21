@@ -44,7 +44,7 @@ You turn a use case (or a PRD, issue or diff) into acceptance criteria (ACs) and
 
    Read `data.key` and `data.file`. Fields you may set: `tags`, `priority`, `preconditions`, `fixtures` (`ref`, `rows`, `apply`), `steps` (`instruction`, `expected`, `evidence`), `judges` (`kind`, `rubric`), `automation.files`. Unknown keys are errors.
 5. **Validate.** `iw check --json`. If `ok` is `false`, read `data.problems[]` (`file`, `path`, `message`), fix the file, run `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M iw fmt` and check again until it passes.
-6. **Hand over.** List what you created (keys, files, which AC each TC covers) and ask a human to review and run `iw approve AC-5.2` / `iw approve TC-10`. Never approve yourself. Drafts do not count towards coverage or readiness until approved.
+6. **Hand over.** List what you created (keys, files, which AC each TC covers) and ask a human to review and run `iw approve AC-5.2` / `iw approve TC-11`. Never approve yourself. Drafts do not count towards coverage or readiness until approved.
 
 ## What good looks like
 
@@ -94,6 +94,6 @@ User: "Add test cases for UC-5."
    EOF
    ```
 
-   → `data.key` is `TC-10`; `data.file` is a new `TC-10-….toml` in the UC-5 folder with `status = "draft"`, `origin = "ai"` and an `[ai]` table.
+   → `data.key` is `TC-11`; `data.file` is a new `TC-11-….toml` in the UC-5 folder with `status = "draft"`, `origin = "ai"` and an `[ai]` table.
 5. `iw check --json` → `ok: true`.
-6. Reply: "Added draft AC-5.2 and TC-10 (covers AC-5.2, uses FX-3 and FX-5); TC-9 is still a draft for AC-5.1. Please review and run `iw approve AC-5.2`, `iw approve FX-5`, `iw approve TC-9` and `iw approve TC-10`." To run them, continue with the `run-tests` skill.
+6. Reply: "Added draft AC-5.2 and TC-11 (covers AC-5.2, uses FX-3 and FX-5); TC-9 is still a draft for AC-5.1. Please review and run `iw approve AC-5.2`, `iw approve FX-5`, `iw approve TC-9` and `iw approve TC-11`." To run them, continue with the `run-tests` skill.

@@ -4,6 +4,7 @@ export { githubOidcVerifier, oidcAudience, oidcSigner, usesGithubOidc } from './
 export { httpObjectStore } from './adapters/http.js';
 export { memoryIndex, memoryObjectStore } from './adapters/memory.js';
 export { s3ObjectStore } from './adapters/s3.js';
+export { type AgentRunInput, type AgentStepResult, runAgent } from './agent.js';
 export { fakeBrowserProvider, fakeLlmClient } from './fakes.js';
 export { CONFLICTS_META, conflictMessage, mergeStep, type Trust } from './merge.js';
 export * from './ports.js';

@@ -1,8 +1,13 @@
-/**
- * Fakes of the execution ports (docs/architecture.md#ports-and-adapters): v0.1 ships the interfaces and these fakes;
- * real adapters (Playwright, Cloudflare Browser Run, Anthropic) come in v0.2 and must pass the same contract tests.
- */
-import type { BrowserAction, BrowserObservation, BrowserProvider, LlmClient, LlmJudgement } from './ports.js';
+/** Deterministic fakes of the execution ports (docs/architecture.md#ports-and-adapters) for tests. */
+import type {
+  AgentAction,
+  AgentStepInput,
+  BrowserAction,
+  BrowserObservation,
+  BrowserProvider,
+  LlmClient,
+  LlmJudgement,
+} from './ports.js';
 
 type Page = Omit<BrowserObservation, 'url'>;
 const href = (url: string, base?: string) => new URL(url, base).href;
@@ -43,13 +48,23 @@ export function fakeBrowserProvider(
   };
 }
 
-/** An LLM judge without a model: `answer` decides (default: pass when the expected text is in the page's tree). */
+/**
+ * An LLM without a model: `answer` judges (default: pass when the expected text is in the page's tree); `plan` picks
+ * the agent's actions (default: every step passes at once). Calls are recorded in `calls` and `steps`.
+ */
 export function fakeLlmClient(
   answer?: (input: Parameters<LlmClient['judge']>[0]) => Partial<LlmJudgement>,
-): LlmClient & { calls: Parameters<LlmClient['judge']>[0][] } {
+  plan: (input: AgentStepInput) => AgentAction = () => ({ type: 'step_done', status: 'pass', note: 'Done' }),
+): Required<LlmClient> & { calls: Parameters<LlmClient['judge']>[0][]; steps: AgentStepInput[] } {
   const calls: Parameters<LlmClient['judge']>[0][] = [];
+  const steps: AgentStepInput[] = [];
   return {
     calls,
+    steps,
+    async next(input) {
+      steps.push(input);
+      return plan(input);
+    },
     async judge(input) {
       calls.push(input);
       const pass = input.observation.tree.includes(input.expected);

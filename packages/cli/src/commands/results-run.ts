@@ -1,9 +1,10 @@
-/** Commands that add a run or a judgement to one: record and judge, with the helpers they share with results.ts. */
+/** Commands that add a run or a judgement to one: record, run and judge, with the helpers they share with results.ts. */
 import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import { type Build, type Judgement, newId, type RunRecord, StepStatus } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
-import { recordWarnings } from '@indx-watch/server';
+import { recordWarnings, testCaseDetail } from '@indx-watch/server';
+import { type BrowserProvider, type LlmClient, runAgent } from '@indx-watch/store';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, csv, fail, iso, many, P, pick, S, str } from '../util.js';
@@ -165,17 +166,21 @@ function judgeInput(tc: core.TestCaseNode, view: core.RunView) {
 }
 
 type LlmJudge = ReturnType<typeof import('@indx-watch/store/llm').anthropicJudge>;
-/** Ask Claude; a missing or rejected credential is a config error. */
-async function askClaude(model: string | undefined, req: Parameters<LlmJudge['judge']>[0]) {
-  const { anthropicJudge } = await import('@indx-watch/store/llm');
+/** A missing or rejected Anthropic credential is a config error. */
+async function claudeErrors<T>(call: Promise<T>) {
   try {
-    return await anthropicJudge(model ? { model } : {}).judge(req);
+    return await call;
   } catch (e) {
     const msg = (e as Error).message;
     if (/api ?key|auth|credential/i.test(msg))
       fail('INVALID_CONFIG', `No usable Anthropic credential: ${msg}`);
     throw e;
   }
+}
+/** Ask Claude to judge. */
+async function askClaude(model: string | undefined, req: Parameters<LlmJudge['judge']>[0]) {
+  const { anthropicJudge } = await import('@indx-watch/store/llm');
+  return claudeErrors(anthropicJudge(model ? { model } : {}).judge(req));
 }
 
 /** Claude's answer as an llm judgement by the model. */
@@ -254,6 +259,102 @@ const judge: Spec = {
   },
 };
 
+/** {{FX-3.username}} (first selected row; account fixtures give only the username) and {{env.base_url}}. */
+async function placeholders(p: cx.Project, m: core.Model, tc: core.TestCaseNode, env?: object) {
+  const values = new Map(Object.entries(env ?? {}).map(([k, v]) => [`env.${k}`, String(v)]));
+  const { fixtures } = await testCaseDetail(m, tc.data.key, {}, (f) => p.fs.read(f));
+  for (const fx of fixtures)
+    for (const [k, v] of Object.entries(fx.values?.[0] ?? {})) values.set(`${fx.key}.${k}`, v);
+  return (text: string) => text.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (all, ref) => values.get(ref) ?? all);
+}
+
+/** A step the agent reported failed is the model's own fail judgement, so the final judge cannot overrule it. */
+const agentFail = ({ steps, judgement: j }: Awaited<ReturnType<typeof runAgent>>) =>
+  steps.flatMap((r) =>
+    r.status === 'fail'
+      ? [{ ...j, verdict: 'fail' as const, confidence: 1, reason: `Step ${r.index}: ${r.note}` }]
+      : [],
+  );
+
+export type AgentPorts = { browser: BrowserProvider; llm: LlmClient };
+
+/** iw run with the given ports (tests pass fakes); the run is recorded with source "agent" and evidence per step. */
+export async function runAgentCase(ctx: Ctx, a: Args, ports: () => Promise<AgentPorts>) {
+  const p = await cx.openProject(ctx, a);
+  const m = await cx.loadModel(p);
+  const tc = m.testCases.get(cx.resolveKey(m, str(a.tc)!)) ?? fail('NOT_FOUND', `${a.tc} is not a test case`);
+  if (tc.data.mode !== 'agent' && tc.data.mode !== 'hybrid')
+    fail('USAGE', `${tc.data.key} is a ${tc.data.mode} test case; iw run executes agent and hybrid ones`);
+  const environment = str(a.env) ?? ctx.env.IW_ENV ?? m.project.default_environment;
+  const env = m.environments.find((e) => e.name === environment);
+  const baseUrl = str(a['base-url']) ?? env?.base_url ?? fail('USAGE', 'No base URL: pass --base-url');
+  const max = str(a['max-actions']) === undefined ? 15 : Number(a['max-actions']);
+  if (!Number.isInteger(max) || max < 1) fail('USAGE', '--max-actions must be a positive integer');
+  const fill = await placeholders(p, m, tc, env);
+  const steps = tc.data.steps.map((s) => ({ instruction: fill(s.instruction), expected: fill(s.expected) }));
+  const rubric = tc.data.judges?.find((j) => j.kind === 'llm')?.rubric?.filter(Boolean) ?? [];
+  const goal = `${tc.data.key} ${tc.data.title}`;
+  const started_at = iso();
+  const input = { baseUrl, goal, steps, rubric: rubric.length ? rubric : steps.map((s) => s.expected) };
+  const out = await runAgent({ ...(await ports()), ...input, maxActions: max });
+  const evidence: Evidence = [];
+  for (const { index, screenshot } of out.steps.filter((r) => r.screenshot)) {
+    const sha256 = await p.replica.putBlob(screenshot!, 'image/png');
+    const meta = { name: `step-${index}.png`, media_type: 'image/png', size: screenshot!.length };
+    evidence.push({ sha256, ...meta, kind: 'screenshot', step: index });
+  }
+  const [build, ci] = [await buildOf(ctx, a), await cx.contextOf(ctx).ci()];
+  const run = await cx.append(ctx, p, 'run', {
+    ...{ test_case: { id: tc.data.id, key: tc.data.key, version: tc.version }, source: 'agent' },
+    ...{ fixtures: fixturesOf(m, tc, []), build, ci, started_at, ended_at: iso(), environment },
+    release: runRelease(ctx, a, m, { build, ci: !!ci }),
+    reported: out.steps.some((r) => r.status === 'blocked') ? 'blocked' : null,
+    steps: out.steps.map(({ index, status, note }) => {
+      const shas = evidence.filter((e) => e.step === index).map((e) => e.sha256);
+      return { index, status, note, evidence: shas.length ? shas : undefined };
+    }),
+    ...{ evidence, judgements: [out.judgement, ...agentFail(out)].map(llmJudgement) },
+  });
+  const { decision } = (await cx.loadModel(p)).runs.get(run.id)!;
+  const text = `Ran ${tc.data.key}: ${run.steps.map((r) => `step ${r.index} ${r.status}`).join(', ')}; llm ${out.judgement.verdict} (${out.judgement.confidence}): ${out.judgement.reason}\nRecorded ${run.id}: ${decision.verdict} (rule ${decision.rule}: ${decision.reason})`;
+  return { data: { run, verdict: decision.verdict, rule: decision.rule }, text };
+}
+
+/** The ports of --browser and --model: Playwright or Browser Run, and Claude. */
+async function agentPorts(ctx: Ctx, a: Args): Promise<AgentPorts> {
+  const { browserRun, playwrightBrowser } = await import('@indx-watch/store/node');
+  const where = str(a.browser) ?? 'local';
+  const {
+    CLOUDFLARE_ACCOUNT_ID: accountId,
+    CLOUDFLARE_API_TOKEN: apiToken,
+    PW_CHROMIUM_PATH: path,
+  } = ctx.env;
+  if (where === 'cloudflare' && !(accountId && apiToken))
+    fail('INVALID_CONFIG', 'Browser Run needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN');
+  if (where !== 'local' && where !== 'cloudflare') fail('USAGE', '--browser: local or cloudflare');
+  const browser =
+    where === 'cloudflare'
+      ? browserRun({ accountId: accountId!, apiToken: apiToken! })
+      : playwrightBrowser(path ? { executablePath: path } : {});
+  const { anthropicJudge } = await import('@indx-watch/store/llm');
+  const model = str(a.model) ?? ctx.env.IW_LLM_MODEL;
+  return { browser, llm: anthropicJudge(model ? { model } : {}) };
+}
+
+const run: Spec = {
+  description:
+    'Run an agent test case: Claude follows its steps in a browser; records the run with evidence per step',
+  args: {
+    tc: P('Test case (TC-n) with mode agent or hybrid'),
+    browser: S('local (Playwright, default) or cloudflare (Browser Run)'),
+    'base-url': S('Default: base_url of the environment'),
+    model: S('Claude model (default IW_LLM_MODEL or claude-opus-5-5)'),
+    'max-actions': S('Actions per step before it is blocked (default 15)'),
+    ...{ release: S(), env: S(), commit: S() },
+  },
+  run: (ctx, a) => claudeErrors(runAgentCase(ctx, a, () => agentPorts(ctx, a))),
+};
+
 /** Records (unless --dry-run) the visual judgements of one run. */
 async function visualJudge(ctx: Ctx, a: Args, p: cx.Project, judgements: Judgement[], view: core.RunView) {
   const id = view.record.id;
@@ -269,5 +370,5 @@ async function visualJudge(ctx: Ctx, a: Args, p: cx.Project, judgements: Judgeme
   return { data: { judgement: judgements[0]!, judgements, verdict, recorded: true }, text };
 }
 
-/** record and judge, registered in results.ts. */
-export const runCommands = { record, judge };
+/** record, run and judge, registered in results.ts. */
+export const runCommands = { record, run, judge };

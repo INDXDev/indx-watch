@@ -175,8 +175,11 @@ export function browserProviderContract(
       expect(home.url).toBe(new URL(baseUrl).href);
       expect(home.title).not.toBe('');
       expect(await s.act({ type: 'navigate', url: '/cart' })).toEqual({ ok: true });
-      expect((await s.observe()).url).toBe(new URL('/cart', baseUrl).href);
-      expect((await s.act({ type: 'click', ref: 'e1' })).ok).toBe(true);
+      const cart = await s.observe();
+      expect(cart.url).toBe(new URL('/cart', baseUrl).href);
+      // the first element ref of the tree ("[e1]" in fakes, "[ref=f1e2]" in Playwright after a navigation)
+      const ref = /\[(?:ref=)?(\w*e\d+)\]/.exec(cart.tree)?.[1] ?? 'e1';
+      expect((await s.act({ type: 'click', ref })).ok).toBe(true);
       expect(await s.act({ type: 'navigate', url: '/missing' })).toMatchObject({
         ok: false,
         error: expect.any(String),

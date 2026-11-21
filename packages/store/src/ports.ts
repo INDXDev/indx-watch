@@ -140,7 +140,7 @@ export interface ContextProvider {
   ci(): Promise<CiContext | undefined>;
 }
 
-// ---------- Execution ports (v0.2; interfaces + fakes only in v0.1) ----------
+// ---------- Execution ports (v0.2: docs/spec/agents.md#agent-execution-mode-v02) ----------
 export interface BrowserObservation {
   url: string;
   title: string;
@@ -170,12 +170,26 @@ export interface LlmJudgement {
   reason: string;
   model: string;
 }
+/** What a browser agent does next in one step: a browser action, or the step's result. */
+export type AgentAction =
+  | BrowserAction
+  | { type: 'step_done'; status: 'pass' | 'fail' | 'blocked'; note: string };
+export interface AgentStepInput {
+  /** the test case's key and title */
+  goal: string;
+  step: { index: number; instruction: string; expected: string };
+  observation: BrowserObservation;
+  /** actions taken in this step so far, with their outcome */
+  history: string[];
+}
 export interface LlmClient {
   judge(input: {
     rubric: string[];
     expected: string;
     observation: BrowserObservation;
   }): Promise<LlmJudgement>;
+  /** The next action of a browser agent (agent mode); optional, so judge-only clients stay valid. */
+  next?(input: AgentStepInput): Promise<AgentAction>;
 }
 
 // ---------- GitHub OIDC (docs/spec/security.md#github-oidc) ----------

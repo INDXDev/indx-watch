@@ -118,7 +118,7 @@ This sets `status = "ready"`, `approved_by` (your identity) and `approved_versio
 
 ## Keys, files and tags
 
-- `iw new` assigns the next free key (`TC-10`) and a machine ID. Never renumber or reuse keys by hand; deprecate items instead of deleting them (`status = "deprecated"`).
+- `iw new` assigns the next free key (`TC-11`) and a machine ID. Never renumber or reuse keys by hand; deprecate items instead of deleting them (`status = "deprecated"`).
 - File names are `{KEY}-{slug}`; the slug is cosmetic and `iw fmt` regenerates it from the title. Moving a file never changes its identity.
 - Two branches can create the same key. `iw check` reports it and `iw check --fix` renumbers the newer item, including the `@TC-n` tags in its `[automation] files`.
 - `tags` (`["coupon", "smoke"]`) are lowercase labels for filtering (`iw list tcs --tag smoke`). They are separate from Playwright tags such as `@TC-3`.

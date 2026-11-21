@@ -21,18 +21,18 @@ describe('check --fix renumbers duplicate keys', () => {
     const repo = new Map([['examples/shop/tests/coupon.spec.ts', "test('x @TC-3', () => {}); // @TC-30"]]);
     const deps: CheckDeps = {
       fix: true,
-      knownKeys: ['TC-10'],
+      knownKeys: ['TC-11'],
       repo: { read: async (p) => repo.get(p) ?? null, write: async (p, t) => void repo.set(p, t) },
     };
     const r = await checkBundle(fs, deps);
-    expect(r.renumbered).toEqual([{ from: 'TC-3', to: 'TC-11', id: 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y3Z' }]);
+    expect(r.renumbered).toEqual([{ from: 'TC-3', to: 'TC-12', id: 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y3Z' }]);
     expect(r.errors).toBe(0);
-    const moved = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-11-other-coupon.toml';
-    expect(parseToml(fs.text(moved)!).key).toBe('TC-11');
+    const moved = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-12-other-coupon.toml';
+    expect(parseToml(fs.text(moved)!).key).toBe('TC-12');
     expect(fs.files.has('specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-other-coupon.toml')).toBe(
       false,
     );
-    expect(repo.get('examples/shop/tests/coupon.spec.ts')).toBe("test('x @TC-11', () => {}); // @TC-30");
+    expect(repo.get('examples/shop/tests/coupon.spec.ts')).toBe("test('x @TC-12', () => {}); // @TC-30");
   });
 
   it('prefers renumbering the item absent from the default branch', async () => {
@@ -42,7 +42,7 @@ describe('check --fix renumbers duplicate keys', () => {
       fix: true,
       onDefaultBranch: async (id) => id.endsWith('Y33'),
     } as CheckDeps);
-    expect(r.renumbered).toEqual([{ from: 'TC-3', to: 'TC-10', id: 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y30' }]);
+    expect(r.renumbered).toEqual([{ from: 'TC-3', to: 'TC-11', id: 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y30' }]);
   });
   it('renumbers a use case with its criteria, covers and directory', async () => {
     const fs = memFs();
@@ -51,8 +51,8 @@ describe('check --fix renumbers duplicate keys', () => {
     const ids = (t: string) =>
       t.replace(/0Y26"/, '0Y2Z"').replace(/0YA9"/, '0YAZ"').replace(/0Y39"/, '0Y3X"');
     fs.files.set(`${dst}/use-case.toml`, new TextEncoder().encode(ids(fs.text(`${src}/use-case.toml`)!)));
-    const tc = fs.text(`${src}/TC-9-upload-review-photo.toml`)!.replace('key = "TC-9"', 'key = "TC-10"');
-    fs.files.set(`${dst}/TC-10-edit.toml`, new TextEncoder().encode(ids(tc)));
+    const tc = fs.text(`${src}/TC-9-upload-review-photo.toml`)!.replace('key = "TC-9"', 'key = "TC-11"');
+    fs.files.set(`${dst}/TC-11-edit.toml`, new TextEncoder().encode(ids(tc)));
     fs.files.set(`${dst}/README.md`, new TextEncoder().encode('notes'));
     const before = await checkBundle(fs);
     expect(codes(before)).toEqual(['duplicate-key', 'duplicate-key']);
@@ -60,7 +60,7 @@ describe('check --fix renumbers duplicate keys', () => {
     expect(r.renumbered.map((x) => `${x.from}>${x.to}`)).toEqual(['UC-5>UC-6', 'AC-5.1>AC-6.1']);
     expect(r.errors).toBe(0);
     const moved = 'specs/FEAT-3-account/UC-6-customer-edits-review';
-    expect(parseToml(fs.text(`${moved}/TC-10-edit.toml`)!).covers).toEqual(['AC-6.1']);
+    expect(parseToml(fs.text(`${moved}/TC-11-edit.toml`)!).covers).toEqual(['AC-6.1']);
     expect(fs.text(`${moved}/README.md`)).toBe('notes');
     expect([...fs.files.keys()].some((k) => k.startsWith(`${dst}/`))).toBe(false);
   });
@@ -83,14 +83,14 @@ describe('check --fix renumbers criteria', () => {
     const branchAc = 'ac_01JF3Q8M5X2V7K9D4R6T1W0Z99';
     const block = `[[criteria]]\nid = "${branchAc}"\nkey = "AC-2.1"\ntext = "Branch criterion."\n\n`;
     edit(fs, UC2, (t) => t.replace('[[criteria]]', `${block}[[criteria]]`));
-    const branchTc = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-10-branch.toml';
+    const branchTc = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-11-branch.toml';
     fs.files.set(
       branchTc,
       new TextEncoder().encode(
         fs
           .text(TC3)!
           .replace('tc_01JF3Q8M5X2V7K9D4R6T1W0Y33', 'tc_01JF3Q8M5X2V7K9D4R6T1W0Z98')
-          .replace('key = "TC-3"', 'key = "TC-10"'),
+          .replace('key = "TC-3"', 'key = "TC-11"'),
       ),
     );
     const onDefaultBranch = async (id: string) => !id.includes('0Z9');

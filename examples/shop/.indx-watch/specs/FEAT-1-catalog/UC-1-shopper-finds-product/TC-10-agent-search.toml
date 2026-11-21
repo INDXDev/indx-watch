@@ -1,0 +1,49 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01JF3Q8M5X2V7K9D4R6T1W0Y3A"
+key = "TC-10"
+title = "A browser agent finds a product by searching"
+status = "draft"
+origin = "ai"
+tags = ["catalog", "agent"]
+covers = ["AC-1.1", "AC-1.2"]
+mode = "agent"
+
+[[steps]]
+instruction = "Open the home page."
+expected = "\"Canvas Tote\", \"Enamel Mug\" and \"Wool Cap\" are listed, each with a price."
+evidence = ["screenshot"]
+
+[steps.i18n.ja]
+instruction = "トップページを開く。"
+expected = "「Canvas Tote」「Enamel Mug」「Wool Cap」がそれぞれ価格つきで並ぶ。"
+status = "machine"
+source_hash = "1412d3f3cedb"
+
+[[steps]]
+instruction = "Type \"cap\" in the search box."
+expected = "Only \"Wool Cap\" is listed, at \"25.00\"."
+evidence = ["screenshot"]
+
+[steps.i18n.ja]
+instruction = "検索ボックスに「cap」と入力する。"
+expected = "「Wool Cap」だけが「25.00」で表示される。"
+status = "machine"
+source_hash = "e6621c756d61"
+
+[[judges]]
+kind = "llm"
+rubric = [
+  "The home page lists \"Canvas Tote\", \"Enamel Mug\" and \"Wool Cap\" with prices.",
+  "After the search, \"Wool Cap\" at \"25.00\" is the only product listed.",
+]
+
+[i18n.ja]
+title = "ブラウザエージェントが検索で商品を見つける"
+status = "machine"
+source_hash = "827a3669d2dd"
+
+[ai]
+model = "claude-opus-5-5"
+skill = "write-test-cases"
+created_at = 2026-11-21T09:00:00Z

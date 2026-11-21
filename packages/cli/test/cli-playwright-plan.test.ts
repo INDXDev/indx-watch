@@ -17,7 +17,7 @@ describe('iw import playwright-plan', () => {
     expect(r.code, r.stderr).toBe(0);
     const { created, uc } = r.json.data;
     expect(uc).toBe('UC-2');
-    expect(created.map((c: { key: string }) => c.key)).toEqual(['TC-10', 'TC-11', 'TC-12']);
+    expect(created.map((c: { key: string }) => c.key)).toEqual(['TC-11', 'TC-12', 'TC-13']);
     const tc = parseToml(read(dir, created[0].file)) as Record<string, unknown>;
     expect(tc).toMatchObject({
       title: 'Should apply valid coupon',
