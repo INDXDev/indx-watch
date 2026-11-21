@@ -3,6 +3,7 @@ import type { AnyRecord } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import { memoryIndex } from '../src/adapters/memory.js';
 import { CONFLICTS_META } from '../src/merge.js';
+import { sqliteIndex } from '../src/node/sqlite-index.js';
 import type { Index } from '../src/ports.js';
 import { d1Index, INDEX_SCHEMA } from '../src/workers/index.js';
 import { fakeD1 } from './helpers/fakes.js';
@@ -128,6 +129,17 @@ function storageContract(make: () => Index) {
   });
 }
 
+/** An Index whose methods wait for an asynchronously opened one (the contract factories are synchronous). */
+const lazyIndex = (opening: Promise<Index>) =>
+  new Proxy({} as Index, {
+    get:
+      (_, m: keyof Index) =>
+      async (...a: unknown[]) => {
+        const idx = await opening;
+        return Reflect.apply(idx[m] as (...x: unknown[]) => unknown, idx, a);
+      },
+  });
+
 function indexContract(name: string, make: () => Index) {
   describe(`Index: ${name}`, () => {
     filterContract(make);
@@ -138,6 +150,7 @@ function indexContract(name: string, make: () => Index) {
 
 indexContract('memory', memoryIndex);
 indexContract('d1 (node:sqlite fake)', () => d1Index(fakeD1()));
+indexContract('sqlite (node:sqlite)', () => lazyIndex(sqliteIndex(':memory:')));
 
 describe('index schema', () => {
   it('src/index-schema.sql and the Workers copy are the same statements', async () => {

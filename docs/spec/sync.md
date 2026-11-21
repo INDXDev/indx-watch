@@ -188,7 +188,7 @@ For teams without git, definitions will also sync through the store, Drive-style
 
 ## The hosted server and the index
 
-The server keeps an index (SQLite on Node, D1 on Cloudflare) of records and the current definitions. It ingests:
+The hosted server keeps an index (D1 on Cloudflare) of records and the current definitions; on Node, `iw reindex` builds the same index in `cache/index.sqlite`. The hosted server ingests:
 
 - its own writes, immediately;
 - uploads through `/api/store/*`, on receipt;
