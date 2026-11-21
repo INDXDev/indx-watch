@@ -129,5 +129,5 @@ describe('commands: baseline approve and judge --visual', () => {
 
     const plain = iwJson(dir, 'record', ['record', 'TC-1', '--verdict', 'pass'], ci).json.data.run.id;
     expect(iwJson(dir, 'judge', ['judge', plain, '--visual'], ci).code).toBe(2);
-  });
+  }, 60_000); // spawns the CLI a dozen times; 20 s was too tight on CI runners
 });
