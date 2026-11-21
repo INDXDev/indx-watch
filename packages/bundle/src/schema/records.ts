@@ -233,6 +233,17 @@ export const LogObject = z.strictObject({
 });
 export type LogObject = z.infer<typeof LogObject>;
 
+const LogKey = z.string().regex(/^v1\/log\/[0-9A-HJKMNP-TV-Z]{26}\.json$/);
+/** Body of one object under v1/snapshots/: copies of log objects, in key order (docs/spec/sync.md#log-snapshots-v02). */
+export const LogSnapshot = z.object({
+  v: z.literal(1),
+  format: z.literal('indx-watch-log-snapshot'),
+  project: idOf('prj'),
+  upto: LogKey,
+  logs: z.array(z.object({ key: LogKey, records: z.array(z.unknown()) })),
+});
+export type LogSnapshot = z.infer<typeof LogSnapshot>;
+
 /** indx-watch-store.json at the store prefix root. */
 export const StoreManifest = z.strictObject({
   format: z.literal('indx-watch-store'),

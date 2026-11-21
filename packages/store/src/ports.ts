@@ -68,7 +68,20 @@ export interface ResultStore {
   putBlob(sha256: string, data: Uint8Array, contentType?: string): Promise<void>;
   /** Verifies the hash after reading; null if absent. */
   getBlob(sha256: string): Promise<Uint8Array | null>;
+  /** Upload a log snapshot of these log objects (ascending keys; docs/spec/sync.md#log-snapshots-v02). Returns its key. */
+  putLogSnapshot(projectId: string, logs: LogCopy[]): Promise<string>;
+  /**
+   * The newest log snapshot whose key is not after `now`, or null when there is none.
+   * Throws StoreError('invalid') when it is corrupt, newer, out of order or of another project.
+   */
+  readLogSnapshot(
+    projectId: string,
+    now?: number,
+  ): Promise<{ key: string; upto: string; logs: LogCopy[] } | null>;
 }
+
+/** A log object as a log snapshot holds it: its key and its records. */
+export type LogCopy = Pick<LogEntry, 'key' | 'records'>;
 
 // ---------- Local replica (.indx-watch/runs/) ----------
 export interface LocalReplica {

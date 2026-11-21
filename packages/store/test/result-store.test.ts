@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { AnyRecord, sha256Hex } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import { memoryObjectStore } from '../src/adapters/memory.js';
-import { openReplica } from '../src/node/index.js';
+import { fsObjectStore, openReplica } from '../src/node/index.js';
 import { createResultStore } from '../src/result-store.js';
 import { checkRecord, idTime } from '../src/util.js';
 import { PROJECT, runRecord } from './helpers/records.js';
@@ -153,6 +153,36 @@ describe('local replica (fs)', () => {
       });
       await b.putRecord(runRecord());
       await seen;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('log snapshots', () => {
+  it('round-trips log objects with their keys and records, and picks the newest snapshot not in the future', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'iw-snap-'));
+    try {
+      const rs = createResultStore(fsObjectStore(dir));
+      expect(await rs.readLogSnapshot(PROJECT)).toBeNull();
+      const [key] = await rs.appendLog('w', [runRecord(), runRecord()]);
+      const logs = [{ key: key!, records: (await rs.readLog(key!)).records }];
+      const snap = await rs.putLogSnapshot(PROJECT, logs);
+      expect(snap).toMatch(/^v1\/snapshots\/[0-9A-Z]{26}\.json$/);
+      expect(JSON.parse(await readFile(join(dir, snap), 'utf8'))).toMatchObject({
+        v: 1,
+        format: 'indx-watch-log-snapshot',
+        project: PROJECT,
+        upto: key,
+      });
+      expect(await rs.readLogSnapshot(PROJECT)).toEqual({ key: snap, upto: key, logs });
+      expect(await rs.readLogSnapshot(PROJECT, 0)).toBeNull();
+      await expect(rs.readLogSnapshot('prj_01JF3Q8M5X2V7K9D4R6T1W0Y01')).rejects.toMatchObject({
+        code: 'invalid',
+      });
+      // a folder removed after a write is created again on the next write
+      await rm(join(dir, 'v1'), { recursive: true });
+      expect(await rs.putLogSnapshot(PROJECT, logs)).toMatch(/^v1\/snapshots\//);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

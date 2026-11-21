@@ -7,5 +7,5 @@ export { fakeBrowserProvider, fakeLlmClient } from './fakes.js';
 export { CONFLICTS_META, conflictMessage, mergeStep, type Trust } from './merge.js';
 export * from './ports.js';
 export { createReplica } from './replica.js';
-export { createResultStore, LOG_PREFIX } from './result-store.js';
+export { createResultStore, LOG_PREFIX, SNAPSHOT_PREFIX } from './result-store.js';
 export { blobRefs, checkRecord, idTime, ulidTime } from './util.js';

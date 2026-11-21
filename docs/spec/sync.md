@@ -41,7 +41,7 @@ Any `ObjectStore` (fs, S3, R2 binding, HTTP) exposes the same keys under the sto
 ├── indx-watch-store.json               # {"format":"indx-watch-store","version":1,"project":"prj_…"}
 ├── v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json   # log objects: one per upload, key = upload ULID
 ├── v1/blobs/sha256/87/8760bc67…1e1b     # content-addressed blobs
-└── v1/snapshots/…                        # (v0.2) compacted log snapshots
+└── v1/snapshots/01JF8A1B2C3D4E5F6G7H8J9K0M.json   # log snapshots (compaction): key = upload ULID
 ```
 
 | Object | Rule |
@@ -49,6 +49,7 @@ Any `ObjectStore` (fs, S3, R2 binding, HTTP) exposes the same keys under the sto
 | `indx-watch-store.json` | Created by the first writer with a conditional create. A store bound to another project ID is refused (exit 4). |
 | Log object | Key = a ULID generated **at upload time**. Body = `{"v":1,"writer":"<writer-id>","records":[…]}`, at most 1,000 records or 5 MB. Never overwritten. |
 | Blob | Key = SHA-256 of the content. Written only if absent. Verified on read. |
+| Log snapshot | *(v0.2)* Key = a ULID generated at upload time. A copy of log objects for fresh clones ([log snapshots](#log-snapshots-v02)). Never overwritten; the log stays the source of truth. |
 
 Writes use `If-None-Match: *` (on GCS: `x-goog-if-generation-match: 0`), so nothing is ever overwritten; ULID keys and content hashes make collisions practically impossible anyway. Store URLs:
 
@@ -157,7 +158,7 @@ Because every operation is a union of immutable items, sync is idempotent, order
 1. List `v1/log/` with `StartAfter` = the ULID of (cursor time − 15 minutes) — the **lookback window** that absorbs clock skew and slow uploads between writers.
 2. Fetch log objects not yet seen (tracked by key for the lookback window), write their records into the local replica if absent (another body for a held ID follows the [merge rules](#merge-rules)), mark them as pushed. Unreadable log objects (corrupt, or from a newer format) are skipped with a warning and remembered as seen; unknown top-level fields are accepted. Records of another project are ignored with a warning.
 3. Advance the cursor to min(greatest key seen, ULID of the reader's current time), so one writer with a clock running ahead cannot push every reader's cursor into the future. When no key has been seen, the cursor stays unset.
-4. Every 24 hours (or with `--full`, or when `cache/` was deleted), list the whole log once to catch writers whose clocks were wrong by more than the window and to rebuild the pushed set.
+4. Every 24 hours (or with `--full`, or when `cache/` was deleted), list the whole log once to catch writers whose clocks were wrong by more than the window and to rebuild the pushed set. Unless `--full` was given, this full listing first reads the newest [log snapshot](#log-snapshots-v02), so it only fetches the log objects the snapshot does not hold.
 5. Blobs are fetched per `[store].evidence`: `on-demand` (when a page, report or command needs them — read-through from `iw serve`), `all`, or `none`.
 
 **Watch** (`iw sync --watch`): push within ~300 ms of a local write (file watcher on `runs/records/`), poll the store every 3 s (`--interval`). With the `http` adapter, the server can answer list requests by long-polling (v0.2).
@@ -177,6 +178,20 @@ sequenceDiagram
     B->>B: add records to runs/, refresh index
   end
 ```
+
+### Log snapshots *(v0.2)*
+
+A full listing fetches every log object, so a fresh clone of a store with 100,000 records would make thousands of `GET`s. A **log snapshot** is one object holding a copy of many log objects, so that clone reads one object and then only the log objects written since. (Not to be confused with the bundle snapshots above, which hold definitions.)
+
+```json
+{ "v": 1, "format": "indx-watch-log-snapshot", "project": "prj_…", "upto": "v1/log/01JF7Z9A2B4C6D8E0F2G4H6J8K.json",
+  "logs": [ { "key": "v1/log/01JF7Z0…json", "records": [ … ] }, … ] }
+```
+
+- `logs`: log objects in ascending key order, each with its own key and its records as read (the canonical record JSON, `sig` included). Keeping the log key of every record means a clone applies them exactly as if it had read those log objects in key order, so the [merge rules](#merge-rules) (remembered keys, two bodies with one ID, signed bodies win) converge to the same result. `upto` is the greatest key it holds.
+- **Who writes it:** `iw compact` ([cli.md](cli.md#iw-compact)), run by hand or on a schedule by anyone with direct write access to the store (`file://` or `s3://`). It reads the newest valid snapshot, adds every log object from the log listing that it lacks and whose key is older than the lookback window (now − 15 minutes), and uploads a new snapshot under a fresh ULID with a create-only write. Log objects that cannot be read, or that hold invalid records, are left out, so clones read them from the log and warn as before. When nothing is new it writes nothing. The hosted server's `/api/store` refuses writes under `v1/snapshots/` (as any key outside the layout), so a holder of an Access token alone cannot add one.
+- **How a clone uses it:** a full listing ([pull step 4](#iw-sync-algorithm), and every fresh clone) reads the newest snapshot whose key is not in the reader's future, merges its records log object by log object, marks those log keys as read, then lists the whole log and fetches only the keys the snapshot does not hold. The cursor then advances as usual. A clone remembers the snapshot it applied (`logSnapshot` in the sync state) and on the next daily full listing only marks its keys as read.
+- **Safety:** snapshots are additive and immutable; the log is never deleted or rewritten, and removing every snapshot only makes full listings slower. A snapshot that is not valid JSON, has another `format`, a newer `v`, another project, keys out of order or above `upto`, or an invalid record is ignored with a warning (`…; reading the whole log instead`), and the clone reads the whole log. `iw sync --full` ignores snapshots and reads every log object. Old snapshots may be deleted by hand or by a bucket lifecycle rule; readers only read the newest.
 
 ### Snapshots from people *(v0.2)*
 
@@ -212,4 +227,5 @@ Records written by the hosted server itself carry an Access-verified actor and, 
 - [x] Two concurrent D1 ingests of different bodies for one ID end with the body under the earliest key and a conflict note.
 - [x] The hosted catch-up's daily full listing ingests another body written straight to the bucket under a key older than its lookback window.
 - [x] `PUT /api/store/objects/v1/log/<key>` refuses a key more than an hour from the server clock.
+- [x] A fresh clone pulls 100,000 records from a log snapshot in under 10 s, holds the same records as one that read the whole log, and a corrupt snapshot falls back to the log with a warning.
 - [x] The adapter contract test suite passes for `memory`, `fs`, `http`, and `s3` (against MinIO when available, otherwise an S3-compatible fake).

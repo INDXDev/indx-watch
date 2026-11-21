@@ -18,6 +18,8 @@ export interface SyncState {
   keys?: Record<string, string>;
   /** record ID → warning, for records the store has two bodies of (`iw check` and the UI show them) */
   conflicts?: Record<string, string>;
+  /** key of the log snapshot the last full listing started from (docs/spec/sync.md#log-snapshots-v02) */
+  logSnapshot?: string;
 }
 
 export interface StateStore {
@@ -66,8 +68,11 @@ export interface SyncResult {
   warnings?: string[];
   /** secret-scan errors of records held back from the push (docs/spec/security.md#secrets); never contain the value */
   held?: Problem[];
+  /** the log snapshot a full listing started from */
+  logSnapshot?: string;
 }
 
+export { type CompactResult, compactLog } from './compact.js';
 export { isoSeconds, ulidFloor } from './phases.js';
 export { definitionFiles, definitionsHash, snapshotBundle } from './snapshot.js';
 

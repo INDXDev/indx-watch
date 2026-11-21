@@ -85,7 +85,7 @@ export async function pullPhase(c: SyncContext): Promise<void> {
     full || state.cursor === null
       ? undefined
       : `${LOG_PREFIX}${ulidFloor(Math.max(0, keyTime(state.cursor) - c.lookback))}`;
-  let greatest: string | null = null;
+  let greatest = full && !c.opts.full ? await fromLogSnapshot(c) : null;
   for (;;) {
     const page = await c.opts.store.listLog(after ? { startAfter: after } : {});
     for (const key of page.keys) {
@@ -99,6 +99,23 @@ export async function pullPhase(c: SyncContext): Promise<void> {
   await c.save();
 }
 
+/** A full listing starts from the newest log snapshot (docs/spec/sync.md#log-snapshots-v02): its log objects count as read. */
+async function fromLogSnapshot(c: SyncContext): Promise<string | null> {
+  const snap = await c.opts.store.readLogSnapshot(c.opts.projectId, c.now()).catch((e) => {
+    if ((e as StoreError).code !== 'invalid') throw e;
+    c.warn(`${(e as Error).message}; reading the whole log instead`);
+  });
+  if (!snap) return null;
+  if (snap.key !== c.state.logSnapshot)
+    await pullRecords(
+      c,
+      snap.logs.flatMap((l) => l.records.map((r): [AnyRecord, string] => [r, l.key])),
+    );
+  for (const l of snap.logs) c.seen.add(l.key);
+  c.result.logSnapshot = c.state.logSnapshot = snap.key;
+  return snap.upto;
+}
+
 /** Merge one log object; it counts as seen afterwards, also when it could not be read. */
 async function pullKey(c: SyncContext, key: string): Promise<void> {
   // One unreadable object (corrupt, or from a newer tool) must not block every later sync.
@@ -107,8 +124,24 @@ async function pullKey(c: SyncContext, key: string): Promise<void> {
     c.warn(`${(e as Error).message} (skipped)`);
   });
   if (entry?.invalid) c.warn(`skipped ${entry.invalid} invalid record(s) in ${key}`);
-  for (const r of entry?.records ?? []) await pullRecord(c, r, key);
+  await pullRecords(
+    c,
+    (entry?.records ?? []).map((r) => [r, key]),
+  );
   c.seen.add(key);
+}
+
+/** Merge (record, log key) pairs in order, 500 at a time; bodies of one ID one after another (only they are ordered). */
+async function pullRecords(c: SyncContext, items: [AnyRecord, string][]): Promise<void> {
+  for (let i = 0; i < items.length; i += 500) {
+    const chains = new Map<string, Promise<void>>();
+    for (const [r, key] of items.slice(i, i + 500))
+      chains.set(
+        r.id,
+        (chains.get(r.id) ?? Promise.resolve()).then(() => pullRecord(c, r, key)),
+      );
+    await Promise.all(chains.values());
+  }
 }
 
 /** Two bodies with one ID: every replica ends with the one under the log key that sorts first. */

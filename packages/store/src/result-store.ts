@@ -1,10 +1,11 @@
-import { LogObject, newUlid, StoreManifest, sha256Hex } from '@indx-watch/bundle';
+import { LogObject, LogSnapshot, newUlid, StoreManifest, sha256Hex } from '@indx-watch/bundle';
 import type { ObjectStore, ResultStore } from './ports.js';
 import { StoreError } from './ports.js';
-import { blobPath, checkRecord, parseJson } from './util.js';
+import { blobPath, checkRecord, parseJson, ulidTime } from './util.js';
 
 const MANIFEST = 'indx-watch-store.json';
 export const LOG_PREFIX = 'v1/log/';
+export const SNAPSHOT_PREFIX = 'v1/snapshots/';
 const MAX_RECORDS = 1000;
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -77,6 +78,40 @@ export function createResultStore(objects: ObjectStore): ResultStore {
         o.startAfter && !o.startAfter.startsWith(LOG_PREFIX) ? LOG_PREFIX + o.startAfter : o.startAfter;
       const r = await objects.list({ prefix: LOG_PREFIX, startAfter, limit: o.limit });
       return { keys: r.keys.map((k) => k.key).filter((k) => k.endsWith('.json')), truncated: r.truncated };
+    },
+    async putLogSnapshot(project, logs) {
+      const upto = logs.at(-1)?.key;
+      const body = JSON.stringify({ v: 1, format: 'indx-watch-log-snapshot', project, upto, logs });
+      for (;;) {
+        const key = `${SNAPSHOT_PREFIX}${newUlid()}.json`;
+        if (await objects.put(key, body, { ifNoneMatch: true, contentType: 'application/json' })) return key;
+      }
+    },
+    async readLogSnapshot(project, now = Date.now()) {
+      let [key, after]: (string | undefined)[] = [];
+      for (;;) {
+        const page = await objects.list({ prefix: SNAPSHOT_PREFIX, startAfter: after });
+        for (const k of page.keys.map((o) => o.key))
+          if (k.endsWith('.json') && ulidTime(k.slice(SNAPSHOT_PREFIX.length)) <= now) key = k;
+        if (!page.truncated || !page.keys.length) break;
+        after = page.keys.at(-1)!.key;
+      }
+      const raw = key ? await objects.get(key) : null;
+      if (!key || !raw) return null;
+      const bad = (why: string) => new StoreError('invalid', `log snapshot ${key} ${why}`);
+      const s = LogSnapshot.safeParse(parseJson(raw));
+      if (!s.success) throw bad('is not valid (or was written by a newer INDX Watch)');
+      if (s.data.project !== project) throw bad(`belongs to project ${s.data.project}`);
+      const logs = s.data.logs.map((l, i, all) => {
+        if ((i > 0 && all[i - 1]!.key >= l.key) || l.key > s.data.upto) throw bad('has keys out of order');
+        const records = l.records.map((r) => {
+          const c = checkRecord(r);
+          if ('error' in c) throw bad(`has an invalid record in ${l.key}: ${c.error}`);
+          return c.record;
+        });
+        return { key: l.key, records };
+      });
+      return { key, upto: s.data.upto, logs };
     },
     async readLog(key) {
       const raw = await objects.get(key);
