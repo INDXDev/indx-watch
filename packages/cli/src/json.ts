@@ -108,6 +108,7 @@ export const CommandData = {
   show: z.record(z.string(), z.unknown()),
   list: z.object({ items: z.array(z.record(z.string(), z.unknown())) }),
   record: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),
+  run: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),
   review: z.object({ judgement: z.record(z.string(), z.unknown()), verdict: z.string() }),
   judge: z.object({
     judgement: z.record(z.string(), z.unknown()),

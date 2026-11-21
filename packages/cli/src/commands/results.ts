@@ -1,4 +1,4 @@
-/** Commands that read status or append records: status, impact, show, list, record, review, judge, waive, retract, deployment add. */
+/** Commands that read status or append records: status, impact, show, list, record, run, review, judge, waive, retract, deployment add. */
 import { relative } from 'node:path';
 import { newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
@@ -129,6 +129,7 @@ export const resultCommands: Record<string, Spec> = {
   },
 
   record: runCommands.record,
+  run: runCommands.run,
 
   review: {
     description: 'Add a human judgement to a run (humans only)',

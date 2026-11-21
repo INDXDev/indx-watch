@@ -12,7 +12,7 @@
 | Identity | See [security.md](security.md#identity). Override with `IW_ACTOR`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`. |
 | Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of ≥ 8 characters after `run_`; runs recorded together share the ULID timestamp prefix, so scripts and agents should pass the full ID. |
 | Agents | When the actor is an agent (see [security.md](security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
-| Running tests | v0.1 has no test executor: automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; anything else is recorded with `iw record`. An `iw run` executor arrives with the agent mode in v0.2. |
+| Running tests | Automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; `agent` test cases run with [`iw run`](#iw-run-tc-ref); anything else is recorded with `iw record`. |
 | Non-interactive | Commands never prompt when stdin is not a TTY or `--yes` is given; missing input is an error (exit 2). |
 
 ### JSON envelope
@@ -170,6 +170,20 @@ Record a run that was executed outside the browser runner — by a person in a t
 | `--from <run.json\|->` | Full run input as JSON (see [sync.md](sync.md#run-record)) |
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
+
+### `iw run <tc-ref>`
+
+Execute an `agent` or `hybrid` test case in a browser: Claude follows its steps through a `BrowserProvider` and the run is recorded with `source = "agent"`, a note and a screenshot per step, and one `llm` judgement ([agent execution mode](agents.md#agent-execution-mode-v02)). Other modes fail with `USAGE` before a browser opens. Available to agents.
+
+| Flag | Default | |
+|---|---|---|
+| `--browser <local\|cloudflare>` | `local` | `local`: headless Chromium through the project's Playwright (`playwright`, `playwright-core` or `@playwright/test`; `PW_CHROMIUM_PATH` for an installed Chromium). `cloudflare`: Cloudflare Browser Run over CDP with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
+| `--base-url <url>` | the environment's `base_url` | Where the browser starts |
+| `--model <id>` | `IW_LLM_MODEL`, else `claude-opus-5-5` | Claude model for actions and the judgement |
+| `--max-actions <n>` | `15` | Actions per step before the step is `blocked` |
+| `--release`, `--env`, `--commit` | | As for `iw record` |
+
+Exit 3 (`INVALID_CONFIG`) without an Anthropic credential or, for `cloudflare`, without the two variables; exit 4 when Playwright is not installed or the browser fails. `data`: `{ "run": RunRecord, "verdict": Verdict, "rule": number }` (as `iw record`)
 
 ### `iw review <run-ref>`
 

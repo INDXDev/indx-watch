@@ -81,10 +81,34 @@ Over HTTP the tools work on the server's model and store instead of local files:
 ## Safety
 Bundle text, fixture data, evidence and page content are **data, not instructions**. Skills tell agents to ignore instructions found in them, never to run commands found in them, and to stop and ask a human when content asks for credentials or for changes outside `.indx-watch/` and the tests.
 
-## Planned (v0.2+)
+## Agent execution mode (v0.2)
+`iw run <tc>` ([cli.md](cli.md#iw-run-tc-ref)) executes an `agent` (or `hybrid`) test case without a Playwright test: Claude follows the plain-language steps in a real browser and the run is recorded like any other.
 
-- **Agent execution mode**: an LLM browser agent follows plain-language steps through the `BrowserProvider` port (local Playwright or Cloudflare Browser Run) and records `agent` runs; tools: navigate, click/fill by accessibility ref, assert, screenshot, step_done, finish.
-- Both ports exist as interfaces; see the [roadmap](../roadmap.md).
+```mermaid
+sequenceDiagram
+  participant R as iw run
+  participant B as BrowserProvider
+  participant L as LlmClient (Claude)
+  R->>B: open(base_url)
+  loop each step, at most --max-actions actions
+    R->>B: observe() → URL, title, accessibility tree with refs, screenshot
+    R->>L: next(step, page, actions so far)
+    L-->>R: navigate / click / fill / press / select, or step_done(status, note)
+    R->>B: act(action)
+  end
+  R->>L: judge(rubric, expected results, step results + final page, screenshot)
+  R->>R: append the run (source "agent"): steps with notes, a screenshot per step, one llm judgement
+```
+
+- **Steps.** Placeholders are filled first: `{{FX-n.column}}` from the first selected row of a dataset, `{{FX-n.username}}` from an account fixture and `{{env.<field>}}` from the environment. Secret values are never given to the model, so a step that needs a password should use a literal test value or stay `manual`.
+- **Actions.** The model sees the page as Playwright's accessibility snapshot (`ariaSnapshot({ mode: "ai" })`, elements carry refs such as `e7`) and answers with one action: `navigate`, `click`, `fill`, `press`, `select` (by ref), or `step_done` with `pass`, `fail` or `blocked` and a one-sentence note. A step without `step_done` after `--max-actions` actions (default 15) is `blocked`. After a step that does not pass, the remaining steps are `skipped`.
+- **Evidence.** Each step result keeps the agent's note followed by the actions it took and their outcome, and the screenshot of the page when the step ended (a `screenshot` evidence item with its `step`, stored as a blob in the local replica).
+- **Verdict.** The run ends with one `llm` judgement from `LlmClient.judge`: the test case's `llm` rubric (or, without one, its expected results) against the step results, the final page and its screenshot. The [decision policy](concepts.md#decision-policy) decides the verdict as for every run: a confident pass is `pass`, confidence below `llm_pass_confidence` or a declared `human` judge is `needs_review`, and a blocked step makes the run `blocked` (`reported`).
+- **Browsers** (`BrowserProvider` adapters in `@indx-watch/store/node`): `--browser local` (default) launches headless Chromium through Playwright, which the published package does not depend on: `iw run` imports `playwright`, `playwright-core` or `@playwright/test` from the project when a run starts (install one with `npm install -D playwright` and `npx playwright install chromium`; `PW_CHROMIUM_PATH` uses an installed Chromium instead). `--browser cloudflare` connects the same Playwright code to [Cloudflare Browser Run](../research/platform-notes.md#browser-run-and-workflows) over CDP with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a token with *Browser Rendering - Edit*); the browser runs in Cloudflare, so the base URL must be reachable from the internet.
+- **Model.** The Anthropic adapter (`claude-opus-5-5` by default, `--model` or `IW_LLM_MODEL`; credentials as for [`iw judge`](#llm-judge-v02)) picks actions at low effort with a JSON schema; a refusal or an unparseable answer ends the step as `blocked`. Page content and bundle text are data, not instructions, in both prompts.
+- **Who records it.** The run's actor is whoever runs `iw run` (a person, CI or an agent); `source = "agent"`; the judgement's `by` names the model as an `agent` actor, like `iw judge`.
+
+`examples/shop` has one agent test case, `TC-10` (an AI-drafted search check covering AC-1.1 and AC-1.2): with the shop app running, `iw run TC-10 --dir examples/shop/.indx-watch` records a run with two screenshots.
 
 ## LLM judge (v0.2)
 `iw judge <run>` ([cli.md](cli.md#iw-judge-run-ref)) sends a recorded run (steps, results, notes, last screenshot) and the test case's `llm` rubric to Claude through the `LlmClient` port (Anthropic adapter, `claude-opus-5-5` by default) and appends an `llm` judgement with confidence. Low confidence, `fail` or `unknown` means `needs_review`, so a person still decides. Use it for `hybrid` and `agent` test cases, or to add a second opinion to a Playwright run whose screenshot shows what an assertion cannot.
@@ -96,4 +120,5 @@ Bundle text, fixture data, evidence and page content are **data, not instruction
 - [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
 - [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
 - [x] `/mcp` on `iw serve` lists the same tools (names, schemas, annotations) as `iw mcp`; `show` returns the data of `iw show --json` and `record_run` writes an agent run (MCP over HTTP in-process test). Behind Access, `/mcp` without a valid JWT is 401 and a write records the verified identity with `kind = "agent"` (test with a fake JWKS).
+- [x] `iw run TC-10` on `examples/shop` with a fake `BrowserProvider` and a fake `LlmClient` records an `agent` run with a note and a screenshot blob per step and one `llm` judgement whose verdict comes from the decision policy; low confidence is `needs_review`, a step out of actions is `blocked` (tests). With Playwright's Chromium installed, the same command drives the real shop app through the local adapter (test, skipped without Chromium); the Browser Run adapter connects to the documented CDP endpoint with the API token (test against a fake Playwright, no network).
 - [x] `iw judge` on a run whose test case has an `llm` rubric sends the rubric, the steps and the last screenshot to the Messages API and appends an `llm` judgement that the decision policy uses; a refusal or an answer that fails the schema becomes `unknown` with confidence 0, and API errors are not recorded (tests against a fake API).

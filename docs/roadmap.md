@@ -43,7 +43,7 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 
 | ID | Task | Acceptance criteria | Status |
 |---|---|---|---|
-| T-201 | Agent execution mode via `BrowserProvider` (local Playwright, Cloudflare Browser Run) | An `agent` TC in `examples/shop` runs end to end and records evidence per step | ⏳ |
+| T-201 | Agent execution mode via `BrowserProvider` (local Playwright, Cloudflare Browser Run) | An `agent` TC in `examples/shop` runs end to end and records evidence per step | ✅ [`iw run`](spec/cli.md#iw-run-tc-ref): Claude picks actions from the accessibility tree (`LlmClient.next`), a note and a screenshot per step, one `llm` judgement; local Playwright (imported at run time) and Browser Run over CDP. `examples/shop` TC-10 (AI draft) ran against the shop app with real Chromium and a scripted fake LLM in tests; Browser Run is tested against a fake Playwright only, and no live Claude call runs in CI |
 | T-202 | LLM judge via `LlmClient` (Anthropic, optional AI gateway) | `llm` judgements with confidence; low confidence → `needs_review` | ✅ `iw judge` with the Anthropic adapter; tested against a fake Messages API (no live call in CI) |
 | T-203 | Report share links on the hosted app (frozen snapshots, expiry, audit records) | [reports.md](spec/reports.md#sharing-with-customers) | ⏳ |
 | T-204 | PR comment + check run from the GitHub Action | One comment per PR, updated in place | ✅ verified on this repository's PR #7 (comment edited in place on the next push, check run `INDX Watch (v0.1.0)`) |

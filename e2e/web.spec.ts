@@ -31,10 +31,10 @@ test('step through tests and run a session', { tag: ['@TC-12'] }, async ({ page,
     });
     await test.step('3. Focus view: → and ← move between test cases; List switches back', async () => {
       await page.goto(`${server.url}#/tc/TC-3`);
-      await expect(page.getByText(/3 of \d/)).toBeVisible();
+      await expect(page.getByText(/4 of \d/)).toBeVisible(); // spec tree order: TC-1, TC-2, TC-10 (UC-1), TC-3
       await page.keyboard.press('ArrowRight');
       await expect(page).toHaveURL(/#\/tc\/TC-4$/);
-      await expect(page.getByText(/4 of \d/)).toBeVisible();
+      await expect(page.getByText(/5 of \d/)).toBeVisible();
       await page.keyboard.press('ArrowLeft');
       await expect(page).toHaveURL(/#\/tc\/TC-3$/);
       await page.getByRole('link', { name: 'List' }).click();

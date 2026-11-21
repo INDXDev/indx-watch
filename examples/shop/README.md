@@ -54,3 +54,4 @@ With the reporter enabled (the default), every tagged test is recorded as a run 
 - **Steps match by number.** `test.step('1. …')` reports the result of step 1 of the test case.
 - **Fixtures come from the bundle.** `tests/support.ts` posts `fixtures/FX-2-catalog/catalog.json` to the seed hook, reads coupon rows from `fixtures/FX-1-coupons/coupons.csv` (and records the chosen row as an `_iw.fixture` annotation) and takes the username from FX-3.
 - **Manual test cases** (`TC-6` on a phone, `TC-8` wrong password, `TC-9` review photo) have no Playwright test. People run them in the browser runner against the same app.
+- **Agent test case** `TC-10` (search, an AI draft) has no test code either: with the app running, `iw run TC-10 --dir examples/shop/.indx-watch` lets Claude follow its steps in Chromium and records a run with a screenshot per step (needs `ANTHROPIC_API_KEY` and Playwright's Chromium; see [agents.md](../../docs/spec/agents.md#agent-execution-mode-v02)).

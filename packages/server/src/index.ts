@@ -22,3 +22,4 @@ export {
   type UploadInput,
   type UploadResult,
 } from './upload.js';
+export { testCaseDetail } from './views.js';

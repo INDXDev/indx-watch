@@ -62,16 +62,16 @@ describe('prepareUpload', () => {
     const base = await definitionFiles(nodeFs(SHOP));
     const fresh = tc3()
       .replace('tc_01JF3Q8M5X2V7K9D4R6T1W0Y33', 'tc_01JF3Q8M5X2V7K9D4R6T1W0Y99')
-      .replace('key = "TC-3"', 'key = "TC-10"')
+      .replace('key = "TC-3"', 'key = "TC-11"')
       .replace('Valid coupon reduces the total', 'Coupon code is case-insensitive');
     const { result } = await prepareUpload(base, {
       files: [
-        { name: 'TC-10.toml', data: b64(fresh) },
+        { name: 'TC-11.toml', data: b64(fresh) },
         { name: 'notes.txt', data: b64('hello') },
       ],
     });
     expect(result.changes.filter((c) => c.change === 'added').map((c) => c.path)).toEqual([
-      'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-10-coupon-code-is-case-insensitive.toml',
+      'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-11-coupon-code-is-case-insensitive.toml',
     ]);
     expect(result.unplaced).toEqual([{ name: 'notes.txt', reason: 'no file with this name' }]);
     expect(result.ok).toBe(true);

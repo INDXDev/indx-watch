@@ -33,7 +33,8 @@ A run is one execution of one test case version against one build and environmen
      ```
 
      The `indx-watch/playwright` reporter in `playwright.config.ts` records the run (one per Playwright project) with screenshots. If the config has no reporter, tell the human and point to the Playwright guide; do not record Playwright results by hand.
-   - `manual` (or `agent`): follow the steps in order, exactly as written, against `base_url`. Use a browser tool, or write a throwaway Playwright script outside `.indx-watch/` that reads secrets from `process.env` so values never pass through the conversation. Take a screenshot for every step whose `evidence` asks for one, and one for any failure. Compare what you see with `expected`; quoted text must match exactly.
+   - `agent`, when `iw run` can reach a model (`ANTHROPIC_API_KEY` set) and Playwright's Chromium is installed: `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M iw run TC-10 --json` executes the steps in a browser and records the run with a screenshot per step; read `data.run.id`, `data.verdict`, `data.rule` and skip step 4. Otherwise run it like a manual test case.
+   - `manual` (or `agent` without `iw run`): follow the steps in order, exactly as written, against `base_url`. Use a browser tool, or write a throwaway Playwright script outside `.indx-watch/` that reads secrets from `process.env` so values never pass through the conversation. Take a screenshot for every step whose `evidence` asks for one, and one for any failure. Compare what you see with `expected`; quoted text must match exactly.
 4. **Record** each manual or agent execution once:
 
    ```bash
