@@ -2,7 +2,7 @@
 import { parseToml } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { describe, expect, it } from 'vitest';
-import { createApp, statusData } from '../src/index.js';
+import { createApp, type ServerDeps, statusData } from '../src/index.js';
 import { ALEX, fakeDeps, SHOP, SHOT_SHA } from './helpers.js';
 import { mcpCall, mcpRequest } from './mcp-helpers.js';
 
@@ -23,6 +23,10 @@ describe('/mcp', () => {
     const names = tools.map((t: { name: string }) => t.name);
     expect(names).toEqual(['status', 'list', 'show', 'check', 'new', 'record_run', 'report', 'sync']);
     expect(tools[0].annotations).toMatchObject({ readOnlyHint: true });
+    expect(tools[0].outputSchema).toMatchObject({ type: 'object' });
+    // without the output schemas (passed in by the CLI) there is no /mcp
+    const bare = createApp({ ...(await fakeDeps()).deps, toolOutputs: undefined } as ServerDeps);
+    expect((await mcpRequest(bare.fetch, BASE, 'tools/list', {})).status).toBe(404);
   });
 
   it('read tools return the data of the CLI commands', async () => {
@@ -59,9 +63,13 @@ describe('/mcp', () => {
     expect(run).toMatchObject({ source: 'agent', judgements: [{ kind: 'llm', confidence: 0.6 }] });
     expect(run.steps[0]).toMatchObject({ index: 1, evidence: [SHOT_SHA] });
     const unknown = await mcpCall(app.fetch, BASE, 'record_run', {
-      ...{ test_case: 'TC-9', verdict: 'pass', evidence: ['0'.repeat(64)] },
+      ...{ test_case: 'TC-9', verdict: 'pass', evidence: ['0'.repeat(64)], model: 'claude-test' },
     });
     expect(unknown.isError).toBe(true);
+    // a stateless request has no client name to fall back to: the model is required
+    const noModel = await mcpCall(app.fetch, BASE, 'record_run', { test_case: 'TC-9', verdict: 'fail' });
+    expect(JSON.parse(noModel.content[0].text)).toMatchObject({ code: 'USAGE' });
+    expect(f.written).toHaveLength(1);
   });
 
   it('new publishes an AI draft into the served bundle; check validates it', async () => {
@@ -86,6 +94,12 @@ describe('/mcp', () => {
     const toml = parseToml(new TextDecoder().decode(next.get(r.structuredContent.file)));
     expect(toml).toMatchObject({ origin: 'ai', status: 'draft', ai: { model: 'claude-test' } });
     expect(files.has(r.structuredContent.file)).toBe(false); // the served files are not changed in place
+    // a version or name with .. never becomes a path outside the bundle
+    for (const fields of [{ version: '../../../evil' }, { version: '../x' }]) {
+      const bad = await mcpCall(app.fetch, BASE, 'new', { kind: 'release', fields, model: 'claude-test' });
+      expect(JSON.parse(bad.content[0].text)).toMatchObject({ code: 'INVALID_INPUT' });
+    }
+    expect(published).toHaveLength(1);
     const check = await mcpCall(app.fetch, BASE, 'check');
     expect(check.structuredContent).toMatchObject({ errors: 0 });
   });

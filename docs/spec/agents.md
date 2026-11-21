@@ -40,7 +40,7 @@ claude mcp add --scope project indx-watch -- npx -y indx-watch mcp
 codex mcp add indx-watch -- npx -y indx-watch mcp
 ```
 
-`iw serve` and the hosted server expose the same tools over Streamable HTTP at `/mcp` *(v0.2)*: `https://<worker>/mcp` for a deploy, `http://127.0.0.1:4321/mcp` locally. The endpoint is stateless (one request, one exchange; 2025-era and 2026-07-28 clients) and sits behind the same identity as `/api` ([security](security.md#hosted-app)): on Cloudflare every request needs Cloudflare Access, so send `cf-access-token` from `cloudflared access token -app=<url>` (people) or the Access service token headers `CF-Access-Client-Id` / `CF-Access-Client-Secret` (CI):
+`iw serve` and the hosted server expose the same tools over Streamable HTTP at `/mcp`: `https://<worker>/mcp` for a deploy, `http://127.0.0.1:4321/mcp` locally. The endpoint is stateless (one request, one exchange; 2025-era and 2026-07-28 clients) and sits behind the same identity as `/api` ([security](security.md#hosted-app)): on Cloudflare every request needs Cloudflare Access, so send `cf-access-token` from `cloudflared access token -app=<url>` (people) or the Access service token headers `CF-Access-Client-Id` / `CF-Access-Client-Secret` (CI):
 
 ```bash
 claude mcp add --transport http indx-watch https://<worker>/mcp \
@@ -62,9 +62,9 @@ Both transports serve one tool set (`packages/server/src/tools.ts`). Each tool's
 
 Over HTTP the tools work on the server's model and store instead of local files:
 
-- Every write is recorded as the request's identity (the verified Access identity on Cloudflare, the `iw serve` identity locally) with `kind = "agent"` and the `model`, and the server signs it like its other writes. Pass `model`: a stateless request carries no client name to fall back to.
+- Every write is recorded as the request's identity (the verified Access identity on Cloudflare, the `iw serve` identity locally) with `kind = "agent"` and the `model`, and the server signs it like its other writes. `new` and `record_run` refuse a write without `model` (`USAGE`): a stateless request carries no client name to fall back to.
 - `record_run.evidence[]` items are the `sha256` of blobs uploaded before with `POST /api/blobs`, optionally with `@step`; the run gets `source = "agent"` and the server's build context, release and default environment.
-- `new` writes the AI draft into the served bundle like an upload (files on disk for `iw serve`, a new bundle snapshot on Cloudflare). It needs a server that accepts uploads.
+- `new` writes the AI draft into the served bundle like an upload (files on disk for `iw serve`, a new bundle snapshot on Cloudflare). It needs a server that accepts uploads, and refuses a file name that is not a path inside the bundle (a release version or environment name with `..`).
 - `check` validates the served bundle files; `report` renders for the internal audience with evidence links.
 - `sync` returns an error: the hosted server is the result store, so run `iw sync` where the files are.
 

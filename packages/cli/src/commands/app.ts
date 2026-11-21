@@ -17,6 +17,7 @@ import { fileStateStore } from '@indx-watch/sync/node';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { deploy } from '../deploy/index.js';
+import { TOOL_OUTPUTS } from '../tools.js';
 import { type Args, asset, B, type Ctx, fail, git, here, P, S, str } from '../util.js';
 
 const oneOf = <T extends string>(v: unknown, values: readonly T[], flag: string): T | undefined =>
@@ -106,6 +107,7 @@ export const appCommands: Record<string, Spec> = {
         ...{ dir: p.dir, port: Number(str(a.port) ?? 4321), host, webRoot },
         sync: typeof a.sync === 'boolean' ? a.sync : !!p.bundle.project.data.store,
         identityHeader: str(a['identity-header']),
+        toolOutputs: TOOL_OUTPUTS,
       });
       const message = `Listening on ${host}: anyone on the network can read this project; writes need --identity-header`;
       const local = /^(127\.|::1$|localhost$)/.test(host);

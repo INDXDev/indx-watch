@@ -6,16 +6,17 @@ import * as B from '@indx-watch/bundle';
 import { decide, type Model } from '@indx-watch/core';
 import { createMcpHandler, type McpServer } from '@modelcontextprotocol/server';
 import type { Context, Hono } from 'hono';
+import type { z } from 'zod';
 import type { Ctx } from './app.js';
 import { renderReport } from './report.js';
 import { evidenceOf, reportOf, resolveRelease, runFixtures } from './routes.js';
 import * as T from './tools.js';
-import { memoryBundleFs } from './upload.js';
+import { memoryBundleFs, safePath } from './upload.js';
 
 /** Stateless: each request gets a fresh server bound to that request's identity. */
-export function registerMcpRoute(app: Hono, x: Ctx) {
+export function registerMcpRoute(app: Hono, x: Ctx, outputs: T.ToolOutputs) {
   app.all('/mcp', (c) => {
-    const factory = () => T.createToolServer((server) => hostedTools(x, c, server));
+    const factory = () => T.createToolServer(outputs, (server) => hostedTools(x, c, server));
     return createMcpHandler(factory).fetch(c.req.raw);
   });
 }
@@ -25,9 +26,7 @@ const CODES: Record<string, string> = {
   invalid: 'INVALID_INPUT',
   forbidden: 'USAGE',
 };
-const fail = (code: string, message: string): never => {
-  throw new B.BundleError(code, message);
-};
+const { fail } = T;
 const recordsOf = (m: Model) => [...[...m.runs.values()].map((v) => v.record), ...m.waivers];
 
 function hostedTools(x: Ctx, c: Context, server: McpServer): T.ToolHandlers {
@@ -36,13 +35,13 @@ function hostedTools(x: Ctx, c: Context, server: McpServer): T.ToolHandlers {
     f().catch((e: Error & { code?: string; details?: unknown[] }) =>
       T.toolError(CODES[e.code ?? ''] ?? e.code ?? 'INTERNAL', e.message, e.details),
     );
-  const scope = (m: Model, release?: string, environment?: string) => ({
-    release: release ?? m.project.current_release,
-    environment,
+  const scope = (m: Model, release = m.project.current_release, environment?: string) => ({
+    ...{ release, environment },
   });
-  /** the agent behind a write: the identity of the request with kind "agent" and the model */
+  /** the agent behind a write: the identity of the request with kind "agent" and the model, which it must give */
   const agent = async (given?: string) => {
     const { model, warnings } = T.writeModel(server, given);
+    if (!model) fail('USAGE', 'Agent writes over HTTP need your model ID: pass model');
     return { actor: { ...(await x.actor(c)), kind: 'agent' as const, model }, warnings };
   };
   const read = (f: (m: Model) => unknown) => run(async () => T.toolData(f(await x.model())));
@@ -95,25 +94,19 @@ async function createDraft(
     fields.text = fields.title ?? fields.text;
     delete fields.title;
   }
-  const model = actor.model ?? fail('USAGE', 'AI drafts need the model ID: pass model');
-  const ai = { model, ...(typeof i.skill === 'string' && { skill: i.skill }) };
+  const ai = { model: actor.model!, ...(typeof i.skill === 'string' && { skill: i.skill }) };
   const parent = (kind === 'use-case' ? i.feature : i.uc) as string | undefined;
   const knownKeys = T.knownKeys(recordsOf(await x.model()));
   const r = await B.createDefinition(fs, bundle, { kind, fields, parent, origin: 'ai', ai, knownKeys });
+  // a release version or environment name becomes the file name: never outside the bundle (like uploads)
+  if (!safePath(r.file)) fail('INVALID_INPUT', `${JSON.stringify(r.file)} is not a path inside the bundle`);
   await publishBundle!(files, { actor, changed: [r.file], removed: [], message: `MCP new ${r.key}` });
   return T.toolData(r, warnings);
 }
 
-type RunInput = {
-  test_case: string;
-  verdict: B.StepStatus;
-  note?: string;
-  confidence?: number;
-  model?: string;
-};
-type StepInput = { index: number; status: B.StepStatus; note?: string };
+type RunInput = z.infer<typeof T.TOOL_INPUTS.record_run>;
 /** `record_run`: an agent run with an llm judgement; evidence names blobs uploaded with POST /api/blobs. */
-async function recordRun(x: Ctx, i: RunInput & { steps?: StepInput[]; evidence?: string[] }, agent: Agent) {
+async function recordRun(x: Ctx, i: RunInput, agent: Agent) {
   const m = await x.model();
   const tc =
     m.testCases.get(T.resolveKey(m, i.test_case)) ?? fail('NOT_FOUND', `${i.test_case} is not a test case`);

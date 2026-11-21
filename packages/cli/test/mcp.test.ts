@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { makeCtx } from '../src/cli.js';
 import { CommandData } from '../src/json.js';
 import { createMcpServer } from '../src/mcp.js';
+import { TOOL_OUTPUTS } from '../src/tools.js';
 import { cleanEnv, iw, shop } from './helpers.js';
 
 /** A minimal JSON-RPC client over an in-memory transport (2025-era opening, served by the same factory). */
@@ -162,6 +163,7 @@ describe('/mcp on iw serve', () => {
       port: 0,
       sync: false,
       webRoot: dir,
+      toolOutputs: TOOL_OUTPUTS,
     });
     try {
       const { request } = await connect(dir);

@@ -63,8 +63,8 @@ const ABOUT: Record<ToolName, [string, object]> = {
   report: ['Release report: Markdown text (md) or the report data (json)', READ],
   sync: ['Push and pull records and blobs with the store in project.toml', NETWORK],
 };
-/** Output schemas per tool, set once by the entry points from CommandData (packages/cli/src/json.ts, their home). */
-export const TOOL_OUTPUTS: Partial<Record<ToolName, z.ZodType>> = {};
+/** Output schemas per tool (report has none): CommandData of packages/cli/src/json.ts, their home, passed in by the CLI. */
+export type ToolOutputs = Record<Exclude<ToolName, 'report'>, z.ZodType>;
 
 export type ToolResult = { content: { type: 'text'; text: string }[] } & {
   structuredContent?: Record<string, unknown>;
@@ -85,12 +85,12 @@ export const toolError = (code: string, message: string, details?: unknown[]): T
 });
 
 /** An MCP server with the tools; there is no approve/review/waive tool. */
-export function createToolServer(handlers: (server: McpServer) => ToolHandlers): McpServer {
+export function createToolServer(outputs: ToolOutputs, tools: (s: McpServer) => ToolHandlers): McpServer {
   const server = new McpServer({ name: 'indx-watch', version: '0.1.0' });
-  const h = handlers(server);
+  const h = tools(server);
   for (const [name, inputSchema] of Object.entries(TOOL_INPUTS) as [ToolName, z.ZodType][]) {
     const [description, annotations] = ABOUT[name];
-    const outputSchema = TOOL_OUTPUTS[name];
+    const outputSchema = name === 'report' ? undefined : outputs[name];
     server.registerTool(name, { description, inputSchema, outputSchema, annotations }, h[name] as never);
   }
   return server;
@@ -125,7 +125,8 @@ export function recordWarnings(c: {
 
 // ---------- data shared by the CLI commands and both tool hosts ----------
 
-const fail = (code: string, message: string, details?: unknown[]): never => {
+/** Throws a BundleError with a CLI error code. */
+export const fail = (code: string, message: string, details?: unknown[]): never => {
   throw new B.BundleError(code, message, details);
 };
 const pick = (o: object, keys: string) =>

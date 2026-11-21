@@ -7,9 +7,9 @@ import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { B, csv, fail, git, iso, P, pick, S, str } from '../util.js';
 
-const FILTERS = ['status', 'tag', 'priority', 'mode', 'uc', 'tc', 'release'] as const;
-
 import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
+
+const FILTERS = ['status', 'tag', 'priority', 'mode', 'uc', 'tc', 'release'] as const;
 
 export { mediaType } from './results-run.js';
 

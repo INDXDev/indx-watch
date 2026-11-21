@@ -11,11 +11,14 @@ import { createResultStore, memoryIndex, memoryObjectStore } from '@indx-watch/s
 import { r2ObjectStore } from '@indx-watch/store/workers';
 import { definitionFiles, snapshotBundle, ulidFloor } from '@indx-watch/sync';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TOOL_OUTPUTS } from '../../cli/src/tools.js';
 import { fakeD1, fakeR2 } from '../../store/test/helpers/fakes.js';
 import type { ProjectInfo, RunSummary, StatusResult } from '../src/index.js';
-import worker, { catchUp, memoryBundleFs } from '../src/worker.js';
+import { catchUp, createWorker, memoryBundleFs } from '../src/worker.js';
 import { SHOP, sampleRecords, shop } from './helpers.js';
 import { mcpCall } from './mcp-helpers.js';
+
+const worker = createWorker(TOOL_OUTPUTS);
 
 const assets = {
   fetch: async () =>

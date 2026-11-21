@@ -1,4 +1,5 @@
 /** Cloudflare Workers entry bundled into dist/worker.js for `iw deploy`. */
-import './tools.js';
+import { createWorker } from '@indx-watch/server/worker';
+import { TOOL_OUTPUTS } from './tools.js';
 
-export { default } from '@indx-watch/server/worker';
+export default createWorker(TOOL_OUTPUTS);

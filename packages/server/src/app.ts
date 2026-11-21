@@ -9,6 +9,7 @@ import type { AppDeps } from './contract.js';
 import { errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
 import { registerReadRoutes, registerStoreRoutes, registerWriteRoutes } from './routes.js';
+import type { ToolOutputs } from './tools.js';
 
 export { errorResponse, HttpError, MAX_BLOB_BYTES } from './http.js';
 export { resolveRelease } from './routes.js';
@@ -30,6 +31,8 @@ export interface ServerDeps extends AppDeps {
     files: Map<string, Uint8Array>,
     info: { actor: B.Actor; message?: string; changed: string[]; removed: string[] },
   ): Promise<string | undefined>;
+  /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
+  toolOutputs?: ToolOutputs;
 }
 
 /** The browser-declared tester from the `iw_tester` cookie, if valid. Pure; tested. */
@@ -111,6 +114,6 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   registerReadRoutes(app, x);
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);
-  registerMcpRoute(app, x);
+  if (x.deps.toolOutputs) registerMcpRoute(app, x, x.deps.toolOutputs);
   return { fetch: async (request: Request) => app.fetch(request) };
 }

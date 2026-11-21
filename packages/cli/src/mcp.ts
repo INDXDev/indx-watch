@@ -14,13 +14,13 @@ import { appCommands } from './commands/app.js';
 import { dataCommands } from './commands/data.js';
 import { resultCommands as R } from './commands/results.js';
 import { specCommands } from './commands/specs.js';
-import './tools.js';
+import { TOOL_OUTPUTS } from './tools.js';
 import { type Args, type Ctx, str } from './util.js';
 
 /** An MCP server whose writes are all recorded with actor.kind = "agent". */
 export function createMcpServer(base: Ctx, dir?: string): McpServer {
   const ctx: Ctx = { ...base, env: { ...base.env, IW_ACTOR_KIND: 'agent' } };
-  return createToolServer((server) => {
+  return createToolServer(TOOL_OUTPUTS, (server) => {
     /** Run a command as the CLI would ("no" answers such as failed checks keep their data; errors are the --json error). */
     type Write = { input?: Record<string, unknown>; model?: string };
     const call = async (spec: Spec, a: Args, write?: Write): Promise<Result> => {
