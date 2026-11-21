@@ -39,7 +39,7 @@ export function Tests({ filter }: { filter?: string | undefined }) {
 
 /** #/tc/TC-3: the Focus card of a test case, with ← / → over the list it was opened from. */
 export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | undefined }) {
-  const { scope } = useApp();
+  const { scope, project } = useApp();
   const { t } = useI18n();
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
@@ -59,9 +59,11 @@ export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | 
         at={tcKey}
         go={(k) => href.testCase(k, q)}
         actions={
-          <a className="btn btn-primary" href={href.runner(tcKey, list.slice(list.indexOf(tcKey)))}>
-            ▶ {t('tc.runManually')}
-          </a>
+          project.can.run !== false && (
+            <a className="btn btn-primary" href={href.runner(tcKey, list.slice(list.indexOf(tcKey)))}>
+              ▶ {t('tc.runManually')}
+            </a>
+          )
         }
       >
         <TestCaseView tcKey={tcKey} />

@@ -125,6 +125,8 @@ Every record carries an `actor` ([security](security.md#identity)). The app show
 - Agent detection does not apply to the cookie. Agents must not use the browser to review or waive ([agents](agents.md)), and the skills say so.
 - The server validates the cookie: `id` is an email or a name of 1 to 80 characters, and `name` is at most 80 characters. Anything else is ignored, and the default identity is used.
 
+**Roles** *(v0.3)*: on a hosted app with [roles](security.md#roles), the avatar menu shows the identity's role ("Role: customer (assigned items only)"), and the app hides what the role cannot do, from `can` in `GET /api/project`: without `can.run` (viewers) the Run, Start testing and Run manually buttons and the queue's Run actions; without `can.review` (viewers, customers) the review form; without `can.approve` (all but leads) "Approve as baseline"; without `can.upload` the upload drop zone; without `can.share` the Share links section. A customer's app shows only their assigned items, because the API returns nothing else. Hiding is a convenience: the server refuses these requests anyway.
+
 ## CLI panel
 
 The **CLI** button opens a panel with the commands that match what you are looking at, each with a copy button. The commands use the real URLs of this server and store:
@@ -188,4 +190,5 @@ You can upload definitions in three ways:
 - [x] `POST /api/runs/<run>/baselines` by a human writes a `baseline` record, after which the run detail lists that screenshot in `baselines`; an agent gets 403 and a non-PNG or unknown blob 400 (server test; the button itself is not tested automatically).
 - [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
+- [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).

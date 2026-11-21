@@ -131,7 +131,7 @@ function Hero({ d: { status, todo, passing, total } }: { d: HomeData }) {
         <p className="muted small">{t('home.progress', { passing, total })}</p>
       </div>
       <div className="hero-actions">
-        {todo.length > 0 && (
+        {todo.length > 0 && project.can.run !== false && (
           <a className="btn btn-primary btn-lg" href={href.runner(todo[0]!, todo)}>
             ▶ {t('home.start', { count: todo.length })}
           </a>
@@ -188,6 +188,7 @@ function Cards({ d: { status, passing, total } }: { d: HomeData }) {
 /** The first open test cases in queue order, each with its next action. */
 function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
   const { t } = useI18n();
+  const canRun = useApp().project.can.run !== false;
   const action = (key: string) => {
     const x = byKey.get(key);
     if (x?.latestRun && (x.status === 'fail' || x.status === 'needs_review'))
@@ -195,7 +196,9 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
         to: href.run(x.latestRun),
         label: t(x.status === 'fail' ? 'dash.action.inspect' : 'dash.action.review'),
       };
-    return { to: href.runner(key, todo.slice(todo.indexOf(key))), label: t('dash.action.run') };
+    return canRun
+      ? { to: href.runner(key, todo.slice(todo.indexOf(key))), label: t('dash.action.run') }
+      : null;
   };
   return (
     <section className="card" aria-labelledby="queue-h">
@@ -223,9 +226,11 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
                 <span className="queue-actions">
                   {prio.get(k) && <Priority p={prio.get(k)!} />}
                   {mine && <span className="chip chip-accent">{t('plan.you')}</span>}
-                  <a className="btn btn-sm" href={a.to}>
-                    {a.label}
-                  </a>
+                  {a && (
+                    <a className="btn btn-sm" href={a.to}>
+                      {a.label}
+                    </a>
+                  )}
                 </span>
               </li>
             );

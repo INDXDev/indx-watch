@@ -106,7 +106,13 @@ export interface ProjectInfo {
   /** source for `iw clone` (this hosted app, or the local `[store].url`) */
   share: { clone: string | null };
   /** "Not you?" (iw_tester cookie), uploads and (v0.2) creating report share links are possible here */
-  can: { declare: boolean; upload: boolean; share: boolean };
+  can: { declare: boolean; upload: boolean; share: boolean } & {
+    run?: boolean;
+    review?: boolean;
+    approve?: boolean;
+  };
+  /** (v0.3) the role of this identity (docs/spec/security.md#roles); `lead` where no roles are configured */
+  role?: 'lead' | 'tester' | 'viewer' | 'customer';
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
 }

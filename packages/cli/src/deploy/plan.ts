@@ -78,6 +78,7 @@ export function planDeploy(hosting: HostingConfig, existing: Existing, opts: Pla
   if (opts.public) vars.PUBLIC = 'true';
   if (opts.signingKeys?.length) vars.SIGNING_KEYS = JSON.stringify(opts.signingKeys);
   if (hosting.oidc_repositories?.length) vars.OIDC_REPOSITORIES = JSON.stringify(hosting.oidc_repositories);
+  if (hosting.roles) vars.ROLES = JSON.stringify(hosting.roles);
 
   const steps: string[][] = [];
   if (!hasBucket) steps.push(['r2', 'bucket', 'create', bucket]);

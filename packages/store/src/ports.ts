@@ -133,6 +133,8 @@ export interface Index {
 export interface IdentityProvider {
   /** Identity of the current process, or of an HTTP request on the server. Throws StoreError('unauthorized') when a required identity is missing. */
   current(request?: Request): Promise<Actor>;
+  /** Group IDs, names and emails of the request's identity (v0.3, docs/spec/security.md#roles); none: no groups. */
+  groups?(request: Request): Promise<string[]>;
 }
 
 export interface ContextProvider {

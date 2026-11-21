@@ -3,6 +3,7 @@
  * Routes and shapes: contract.ts. The actor always comes from deps.identity, never from a request body.
  */
 import type * as B from '@indx-watch/bundle';
+import { customerModel, type Principal, roleOf } from '@indx-watch/core';
 import type { ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
@@ -34,6 +35,8 @@ export interface ServerDeps extends AppDeps {
   ): Promise<string | undefined>;
   /** sign records for a GitHub OIDC token (docs/spec/security.md#github-oidc); POST /api/sign answers 404 without it */
   signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
+  /** roles pinned by the deploy (docs/spec/security.md#roles); without them every identity is `lead` */
+  roles?: B.Roles;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
@@ -72,6 +75,18 @@ export function crossSite(r: Request): string | undefined {
   return foreign || h.get('sec-fetch-site') === 'cross-site' ? 'cross-site writes are refused' : undefined;
 }
 
+/** Roles allowed per `METHOD /path`, first match (docs/spec/security.md#roles); anything else needs `lead`. */
+const PERMITS: [RegExp, B.Role[]][] = [
+  [/^\w+ \/mcp$/, ['tester', 'viewer']],
+  [/^(GET|HEAD) \/api\/(store|snapshots|shares)\b/, ['tester', 'viewer']],
+  [/^(GET|HEAD) /, ['tester', 'viewer', 'customer']],
+  [/^POST \/api\/(runs|blobs)$/, ['tester', 'customer']],
+  [/^(POST \/api\/runs\/[^/]+\/judgements|PUT \/api\/store\/.*)$/, ['tester']],
+];
+/** May this role make this request. Pure; tested. */
+export const permits = (role: B.Role | undefined, method: string, path: string) =>
+  role === 'lead' || !!(role && PERMITS.find(([re]) => re.test(`${method} ${path}`))?.[1].includes(role));
+
 /** Per-app state and request helpers shared by the route groups in routes.ts. */
 function appContext(deps: AppDeps) {
   const d = deps as ServerDeps;
@@ -84,14 +99,32 @@ function appContext(deps: AppDeps) {
     actors.set(c.req.raw, a);
     return a;
   };
+  const grants = new WeakMap<Request, Promise<{ role?: B.Role; who: Principal }>>();
+  /** the role and principal of a request, resolved once; groups are looked up only when roles are configured */
+  const grant = (c: Context) => {
+    const g =
+      grants.get(c.req.raw) ??
+      actor(c).then(async ({ id }) => {
+        if (!d.roles) return { role: 'lead' as const, who: { id, groups: [] } };
+        const who = { id, groups: (await d.identity.groups?.(c.req.raw)) ?? [] };
+        return { role: roleOf(d.roles, who), who };
+      });
+    grants.set(c.req.raw, g);
+    return g;
+  };
   return {
     deps: d,
     actor,
+    grant,
+    /** the current model; for a customer, restricted to the plan items assigned to them (null: no request) */
+    model: async (c: Context | null) => {
+      const [m, g] = [(await deps.loadModel()).model, c && (await grant(c))];
+      return g?.role === 'customer' ? customerModel(m, g.who) : m;
+    },
     /** may this actor create and revoke report share links */
     sharer: (a: B.Actor) => canShare(d, a),
     now: () => iso(d.now?.() ?? new Date()),
     read: d.readFile ?? (async () => null),
-    model: async () => (await deps.loadModel()).model,
     /** name and media type of blobs uploaded through this server (bounded) */
     uploads: new Map<string, { name: string; type: string }>(),
   };
@@ -110,7 +143,11 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
     // without Access: /healthz, /api/sign (GitHub OIDC token instead) and share links (docs/spec/security.md)
-    if (deps.mode === 'hosted' && !/^\/(healthz|api\/sign|s\/[^/]+)$/.test(c.req.path)) await x.actor(c);
+    if (deps.mode === 'hosted' && !/^\/(healthz|api\/sign|s\/[^/]+)$/.test(c.req.path)) {
+      const { role } = await x.grant(c);
+      if (!permits(role, c.req.method, c.req.path))
+        throw new HttpError(403, 'forbidden', `the role ${role ?? '(none)'} may not do this`);
+    }
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
     const html = c.res.headers.get('content-type')?.startsWith('text/html');

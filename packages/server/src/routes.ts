@@ -57,7 +57,7 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   const { model, read } = x;
   /** a JSON response computed from the current model */
   const get = (path: string, view: (m: Model, c: Context) => unknown) =>
-    app.get(path, async (c) => c.json(await view(await model(), c)));
+    app.get(path, async (c) => c.json(await view(await model(c), c)));
   app.get('/api/project', (c) => projectInfo(c, x));
   get('/api/status', (m, c) => computeStatus(m, scopeOf(c, m)));
   get('/api/specs', (m, c) => V.specTree(m, scopeOf(c, m)));
@@ -76,7 +76,7 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
     return (await V.planViews(m)).find((p) => p.key === key) ?? fail(notFound(`plan ${key}`));
   });
   app.get('/api/runs', async (c) => {
-    const [m, tc] = [await model(), q(c, 'tc')];
+    const [m, tc] = [await model(c), q(c, 'tc')];
     const f = { release: q(c, 'release'), environment: q(c, 'env'), tcId: tc && tcOf(m, tc).data.id };
     const limit = Math.min(Math.max(Number(q(c, 'limit')) || 100, 1), 1000);
     const runs = V.listRuns(m, f).slice(0, limit);
@@ -87,8 +87,9 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   app.get('/api/report', (c) => report(c, x));
 }
 
-async function projectInfo(c: Context, { deps, actor, sharer }: Ctx) {
-  const { model: m, problems } = await deps.loadModel();
+async function projectInfo(c: Context, { deps, actor, sharer, grant }: Ctx) {
+  const [{ model: m, problems }, { role }] = [await deps.loadModel(), await grant(c)];
+  const [lead, customer] = [role === 'lead', role === 'customer'];
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
     const { name, title, base_url, guide, i18n } = await V.markStale(e, 'environment');
@@ -104,11 +105,18 @@ async function projectInfo(c: Context, { deps, actor, sharer }: Ctx) {
     project: { key, name, source_locale, locales, default_environment, current_release },
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
-    ...{ identity: who, mode: deps.mode, problems },
+    ...{ identity: who, mode: deps.mode, problems: customer ? [] : problems, role },
     sync: deps.syncInfo?.() ?? { configured: false },
-    share: { clone },
-    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle, share: sharer(who) },
-    snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
+    share: { clone: customer ? null : clone },
+    can: {
+      ...{
+        declare: !!deps.declaredIdentity,
+        upload: !!deps.publishBundle && lead,
+        share: sharer(who) && lead,
+      },
+      ...{ run: role !== 'viewer', review: lead || role === 'tester', approve: lead },
+    },
+    snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);
 }
@@ -130,8 +138,12 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   return { record, judgements, decision, stale, testCase, ...extra };
 }
 
-async function blob(c: Context, { deps, uploads }: Ctx) {
+async function blob(c: Context, { deps, uploads, grant, model }: Ctx) {
   const sha = c.req.param('sha')!;
+  const runs = (await grant(c)).role === 'customer' && [...(await model(c)).runs.values()];
+  // a customer gets only the evidence of runs they see, or a blob uploaded here
+  if (runs && !uploads.has(sha) && !runs.some((v) => v.record.evidence.some((e) => e.sha256 === sha)))
+    throw notFound(`blob ${sha}`);
   const data = /^[0-9a-f]{64}$/.test(sha) ? await deps.getBlob(sha) : fail(bad('invalid sha256'));
   if (!data) throw notFound(`blob ${sha}`);
   const { type = sniff(data), name = sha.slice(0, 12) } = uploads.get(sha) ?? {};
@@ -141,9 +153,10 @@ async function blob(c: Context, { deps, uploads }: Ctx) {
 }
 
 /** Validated `?format=&audience=&locale=&evidence=` of a report (`format` fixed for share links). */
-function reportOptions(c: Context, m: Model, fixed?: 'html') {
+function reportOptions(c: Context, m: Model, fixed?: 'html', customer = false) {
   const format = fixed ?? q(c, 'format') ?? 'md';
-  const audience = q(c, 'audience') ?? (fixed ? 'customer' : 'internal');
+  // a customer's reports are always customer reports (docs/spec/security.md#roles)
+  const audience = customer ? 'customer' : (q(c, 'audience') ?? (fixed ? 'customer' : 'internal'));
   const locale = q(c, 'locale') ?? m.project.source_locale;
   if (format !== 'md' && format !== 'html') throw bad('format must be md or html');
   if (audience !== 'internal' && audience !== 'customer') throw bad('audience: internal or customer');
@@ -167,8 +180,8 @@ export async function reportOf({ deps }: Ctx, m: Model, a: B.Actor, o: ReportOf)
 
 /** The report a request asks for, rendered (GET /api/report; POST /api/shares fixes `html`). */
 export async function reportFor(c: Context, x: Ctx, fixed?: 'html') {
-  const [m, a, plan] = [await x.model(), await x.actor(c), q(c, 'plan')];
-  const { format, audience, locale, evidence } = reportOptions(c, m, fixed);
+  const [m, a, plan, { role }] = [await x.model(c), await x.actor(c), q(c, 'plan'), await x.grant(c)];
+  const { format, audience, locale, evidence } = reportOptions(c, m, fixed, role === 'customer');
   const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
   const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
   const data = await reportOf(x, m, a, { scope, audience, locale, plan });
@@ -271,7 +284,7 @@ export function runFixtures(m: Model, t: TestCase, input: unknown) {
 }
 
 async function createRun(c: Context, x: Ctx) {
-  const [input, m] = [await readJson<ManualRunInput>(c), await x.model()];
+  const [input, m] = [await readJson<ManualRunInput>(c), await x.model(c)];
   const t = tcOf(m, String(input.test_case ?? ''));
   const note = checkManualRun(input, m);
   const steps = Array.isArray(input.steps) ? input.steps : [];
@@ -299,7 +312,7 @@ async function createRun(c: Context, x: Ctx) {
 }
 
 async function review(c: Context, x: Ctx) {
-  const [input, m] = [await readJson<ReviewInput>(c), await x.model()];
+  const [input, m] = [await readJson<ReviewInput>(c), await x.model(c)];
   const v = runOf(m, c.req.param('id')!);
   if (!VERDICTS.includes(input.verdict)) throw bad('verdict must be pass, fail, blocked or skipped');
   const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
@@ -319,7 +332,7 @@ async function review(c: Context, x: Ctx) {
 
 /** A person approves one PNG screenshot of a run as its visual baseline (docs/spec/web.md#visual-baselines). */
 async function approveBaseline(c: Context, x: Ctx) {
-  const [input, m] = [await readJson<BaselineInput>(c), await x.model()];
+  const [input, m] = [await readJson<BaselineInput>(c), await x.model(c)];
   const run = runOf(m, c.req.param('id')!).record;
   const e = run.evidence.find((e) => e.sha256 === input.sha256 && e.media_type === 'image/png');
   if (!e) throw bad('sha256 must name a PNG screenshot of this run');
@@ -399,13 +412,15 @@ async function signRecords(c: Context, x: Ctx) {
 
 /** project of the served model (none before the first snapshot), else of the store manifest */
 async function storeProject(x: Ctx, manifest: boolean) {
-  const id = (await x.model().catch(() => undefined))?.project.id;
+  const id = (await x.model(null).catch(() => undefined))?.project.id;
   const m = !id && manifest && B.StoreManifest.safeParse(await parsed(await objects(x).get(MANIFEST)));
   return id ?? (m ? m.data?.project : undefined);
 }
 
-/** Refuse a log object that is far from now, malformed, or holds records of another project. */
-async function checkLog(key: string, data: Uint8Array, project: string | undefined) {
+/** Records only a lead may write through the store endpoint (docs/spec/security.md#roles). */
+const LEAD_KINDS = ['waiver', 'baseline', 'bundle'];
+/** Refuse a log object that is far from now, malformed, holds records of another project or beyond the role. */
+async function checkLog(key: string, data: Uint8Array, project: string | undefined, lead: boolean) {
   // the earliest log key wins a merge, so a writer may not pick one far from now (docs/spec/sync.md#merge-rules)
   if (Math.abs(ulidTime(key.slice(7, 33)) - Date.now()) > 3600_000)
     throw bad(`${key}: not within an hour of now`);
@@ -416,17 +431,19 @@ async function checkLog(key: string, data: Uint8Array, project: string | undefin
     if ('error' in r) throw bad(`${key}: ${r.error}`);
     if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
     if (r.record.kind === 'share') throw bad(`${r.record.id}: share records are written by the server only`);
+    if (!lead && LEAD_KINDS.includes(r.record.kind))
+      throw new HttpError(403, 'forbidden', `${r.record.id}: ${r.record.kind} records need the lead role`);
   }
 }
 
 /** Refuse anything but the manifest, valid log objects and matching blobs. */
-async function checkObject(x: Ctx, key: string, data: Uint8Array) {
+async function checkObject(x: Ctx, key: string, data: Uint8Array, lead: boolean) {
   if (BLOB_KEY.test(key)) {
     if (!key.endsWith(`/${await B.sha256Hex(data)}`)) throw bad('blob does not match its key');
     return;
   }
   const project = await storeProject(x, key !== MANIFEST);
-  if (LOG_KEY.test(key)) return checkLog(key, data, project);
+  if (LOG_KEY.test(key)) return checkLog(key, data, project, lead);
   if (key !== MANIFEST) throw bad(`${key}: only the manifest, log objects and blobs can be written`);
   const m = B.StoreManifest.safeParse(await parsed(data));
   if (!m.success) throw bad(`${key} is not a store manifest`);
@@ -439,7 +456,7 @@ async function putObject(c: Context, x: Ctx) {
   const store = objects(x);
   const exists = () => errorResponse(new HttpError(412, 'conflict', `${key} exists`));
   if (await store.head(key)) return exists();
-  await checkObject(x, key, data);
+  await checkObject(x, key, data, (await x.grant(c)).role === 'lead');
   const opts = { ifNoneMatch: true, contentType: c.req.header('content-type') };
   if (!(await store.put(key, data, opts))) return exists();
   if (key.startsWith('v1/log/')) await x.deps.onLogObject?.(key);

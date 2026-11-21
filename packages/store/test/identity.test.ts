@@ -364,3 +364,29 @@ describe('GitHub OIDC signer choice (docs/spec/security.md#github-oidc)', () => 
     expect(await verifyRecord(signed, [key])).toBe(true);
   });
 });
+
+describe('accessIdentity groups', () => {
+  it('reads group IDs, names and emails from get-identity with the token as the CF_Authorization cookie', async () => {
+    const calls: { url: string; cookie: string | null }[] = [];
+    const fake = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), cookie: new Headers(init?.headers).get('cookie') });
+      if (String(init?.headers && new Headers(init.headers).get('cookie')).includes('broken'))
+        return new Response('no', { status: 403 });
+      const groups = [{ id: 'g1', name: 'QA Leads', email: 'qa-leads@shop.test' }, 'uat', { name: '' }];
+      return Response.json({ email: 'alex@shop.test', groups });
+    }) as typeof fetch;
+    const id = accessIdentity({ team: 'shop', aud: 'aud-tag', fetch: fake });
+    const req = (token: string) =>
+      new Request('https://watch.shop.test/api/runs', { headers: { 'Cf-Access-Jwt-Assertion': token } });
+    expect(await id.groups!(req('tok-1'))).toEqual(['g1', 'QA Leads', 'qa-leads@shop.test', 'uat']);
+    expect(calls[0]).toEqual({
+      url: 'https://shop.cloudflareaccess.com/cdn-cgi/access/get-identity',
+      cookie: 'CF_Authorization=tok-1',
+    });
+    await id.groups!(req('tok-1')); // cached per token
+    expect(calls).toHaveLength(1);
+    expect(await id.groups!(req('broken'))).toEqual([]); // a failed lookup means no groups
+    expect(await id.groups!(new Request('https://watch.shop.test/'))).toEqual([]);
+    expect(calls).toHaveLength(2);
+  });
+});

@@ -73,7 +73,7 @@ The server protects writes made from a browser against cross-site requests and D
 
 ## Access control
 
-INDX Watch has no user database or roles in v0.1. Access is the storage's and host's access:
+INDX Watch has no user database. Access is the storage's and host's access; on the hosted app, [roles](#roles) *(v0.3)* narrow what each signed-in person may do:
 
 | Deployment | Who can read/write |
 |---|---|
@@ -87,7 +87,39 @@ INDX Watch has no user database or roles in v0.1. Access is the storage's and ho
 
 The CLI reaches a hosted server behind Access with `cloudflared access token -app=<url>` and sends the result as the `cf-access-token` header; in CI, use an Access **service token** (`CF-Access-Client-Id` / `CF-Access-Client-Secret` from secrets). INDX Watch stores no tokens.
 
-Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted app, derived from Access identity groups; see the [roadmap](../roadmap.md).
+## Roles
+
+*(v0.3, roadmap T-301)* On the hosted app behind Cloudflare Access, `[hosting.roles]` in `project.toml` maps Access identities and groups to four roles ([bundle format](bundle-format.md#projecttoml)):
+
+```toml
+[hosting.roles]
+lead = ["qa-leads@shop.test"]          # Access group emails, names or IDs, or user emails
+tester = ["qa@shop.test", "ci:access:<client id>"]
+viewer = ["Engineering"]
+customer = ["uat@shop.test"]
+default = "viewer"                     # optional: the role of a signed-in identity that matches nothing
+```
+
+- **Where roles apply.** Only on a Worker deployed with Access and a pinned role table. Without `[hosting.roles]`, on a `--public` deploy, and always on `iw serve` (a local single user, or a trusted proxy header without groups) every identity is `lead`, which is the v0.2 behavior.
+- **Trust root.** `iw deploy` pins the table as the Worker variable `ROLES`, like `SIGNING_KEYS`; the Worker never reads roles from a bundle snapshot, because anyone who can write the store (or upload a bundle) could promote themselves. After changing roles, run `iw deploy` again. An invalid `ROLES` value lets nobody in.
+- **Principals.** A request is matched by its actor ID (the Access email, or `ci:access:<client id>` for a service token) and by the `id`, `name` and `email` of each of its Access groups, all compared without case. The highest matching role wins, in the order lead, tester, viewer, customer. With no match and no `default`, every route except the public ones (`/healthz`, `/api/sign`, `/s/*`) answers 403.
+- **Group lookup.** Groups come from the Access `get-identity` endpoint (`https://<team>.cloudflareaccess.com/cdn-cgi/access/get-identity`, called with the already verified token as the `CF_Authorization` cookie) through the optional `groups(request)` method of the `IdentityProvider` port; the `cloudflare-access` adapter caches the answer per token for five minutes and asks only when roles are configured. A failed lookup means no groups, so the identity falls back to its email entries or `default`. The token's own claims are not used for groups: Access adds a `groups` claim only for custom IdP claims and trims large ones ([platform notes](../research/platform-notes.md#access)).
+
+| Request | viewer | tester | lead | customer |
+|---|---|---|---|---|
+| Read the app and the API (`GET`), reports | ✓ | ✓ | ✓ | assigned items only |
+| `GET /api/store/*`, `/api/snapshots`, `/api/shares` | ✓ | ✓ | ✓ | — |
+| Manual runs and evidence (`POST /api/runs`, `POST /api/blobs`) | — | ✓ | ✓ | assigned test cases |
+| Reviews (`POST /api/runs/:id/judgements`) | — | ✓ | ✓ | — |
+| Store writes (`PUT /api/store/objects/*`: `iw sync`, the reporter) | — | ✓ without `waiver`, `baseline` or `bundle` records | ✓ | — |
+| Baselines, bundle uploads, share links, everything else | — | — | ✓ | — |
+| `/mcp` | read tools | also `record_run` | also `new` | — |
+
+The server enforces this table in one middleware before any route (Node and Workers run the same `createApp`), and `/mcp` checks the tool. Agents keep their own limits on top ([hosted app](#hosted-app)). `GET /api/project` returns the `role` and `can.run`, `can.review` and `can.approve`, and `can.upload` and `can.share` are false below `lead`; the web app hides actions the role cannot use ([web.md](web.md#identity)), but the server never relies on that.
+
+**Assigned items.** A plan item is assigned to a customer when its `assignee` equals the customer's email, or is `group:<name>` with `<name>` equal to the `id`, `name` or `email` of one of the customer's Access groups (without case). For a customer the server builds every response from a model restricted to those items (`customerModel()` in core): the test cases of assigned items, the use cases and features above them with only the criteria those test cases cover, the fixtures they use, the runs, judgements, waivers and baselines of those test cases, and the plans with only the assigned items; no deployments, snapshots or share records. Status, the gate and reports are computed by the same functions over that model, so they describe only the assigned items, and reports a customer requests are always `customer` audience. `GET /api/project` shows a customer no load problems, snapshot or clone source, and `GET /api/blobs/<sha>` serves a customer only evidence of the runs they see or blobs uploaded through that server instance. A customer sees an assigned test case in full (they run it), including other people's runs of it.
+
+**Limits.** Roles guard the server, not the bucket: whoever can write the store directly is not bound by them ([signed records](#signed-records) still mark forged verified identities).
 
 ## Secrets
 - Bundle files contain **secret references only** (`env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`).
@@ -120,7 +152,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 | Tampering with past results | Records are immutable and content-addressed blobs are hash-verified on read; corrections are new judgements. Another body for a record ID is reported as a conflict; a signed body is never replaced by an unsigned one, but an unsigned record can be replaced by a body under an earlier log key (the [merge rule](sync.md#merge-rules) every replica applies alike). Sign every writer to protect records; a bucket with object versioning or WORM retention gives stronger guarantees. |
 | Malicious evidence (HTML/SVG with script) | Non-image media served as attachments; strict CSP |
 | Public exposure of the hosted app | Access in front of every route; `iw deploy` refuses public deploys without `--public` |
-| Leaking internal data to customers | `--audience customer` redaction; share links are frozen snapshots with an expiry, revocable, and every open is recorded |
+| Leaking internal data to customers | `--audience customer` redaction; share links are frozen snapshots with an expiry, revocable, and every open is recorded; on the hosted app the `customer` role sees only assigned plan items ([roles](#roles)) |
 | Compromised dependency | Small dependency list, each justified ([architecture](../architecture.md#dependencies)); lockfile; provenance on release |
 | Prompt injection via test content into agents | Skills treat bundle text as data; agents never execute instructions found in fixtures or evidence ([agents.md](agents.md#safety)) |
 
@@ -136,4 +168,7 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 - [x] Records written with `IW_SIGNING_KEY` set (CLI, hosted Worker) carry a signature that verifies against the key `iw keygen` printed.
 - [x] `POST /api/sign` with a GitHub OIDC token signed by a fake issuer key (test JWKS) returns the records signed by the server's key, which verify as `github-oidc`; a token with another audience, issuer or key, an expired one, an unpinned repository or a record whose actor or `ci` does not match the claims is refused and nothing is signed.
 - [x] With `IW_OIDC_SIGNER` and the GitHub OIDC variables set (fake token endpoint and server), the writer resolves `via = "github-oidc"` and the signer the CLI and the reporter use returns records carrying the server's signature, requesting one token for several records; a refused exchange fails the write.
+- [x] With roles configured, each role gets exactly the requests of the [roles](#roles) table (server tests over a fake identity with groups, `/mcp` included); a tester's store write with a `waiver` record is refused; without roles every identity is `lead`.
+- [x] A customer sees only the test cases of plan items assigned to them (by email or `group:`) in specs, status, test cases, runs, plans, fixtures, evidence and reports, and cannot record a run of another test case.
+- [x] The `cloudflare-access` adapter reads group IDs, names and emails from a fake `get-identity` endpoint with the token as the `CF_Authorization` cookie, once per token; a failed lookup gives no groups.
 - [x] On the Worker, `/s/<token>` of an active share link answers without an Access JWT, while `/api/*` still answers 401; the store endpoint refuses a log object with a `share` record (server and Worker tests).
