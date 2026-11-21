@@ -25,7 +25,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 | T-115 | Dogfooding: this repo's `.indx-watch/`, CI posting runs, release report | repo | [CONTRIBUTING.md](../CONTRIBUTING.md#dogfooding) | ✅ |
 | T-116 | CI: lint, typecheck, test, schemas, round trip, docs links, LOC budget, e2e | repo | [.github/workflows/ci.yml](../.github/workflows/ci.yml) green | ✅ green on GitHub since PR #2 (Node 22 and 24; e2e writes both job-summary reports) |
 | T-117 | Close the remaining acceptance-criteria test gaps: the unchecked `- [ ]` bullets in `docs/spec/*.md` (fixture size threshold → `*.blob.toml`; `serve --json` schema; `evaluateGate()` on the shop sample store; a step edit makes earlier runs `stale`; stale step translation in the UI; the action's gate step failing; offline HTML with zero requests; customer report without bundle `notes`; report gate vs `status --json`; `github-oidc` identity; two clones under `iw sync --watch` via the CLI) | all | the bullets themselves | ✅ every bullet is ticked; `github-oidc` is v0.2 ([security.md](spec/security.md#identity)) |
-| T-118 | Demo site: GitHub Actions deploys `examples/shop` to a public Worker on every push to `main` | repo | [guides/self-host-cloudflare.md](guides/self-host-cloudflare.md#demo-site-from-github-actions) | 🚧 workflow and dry run done; needs the `demo` environment secrets and a first live run |
+| T-118 | Demo site: GitHub Actions deploys `examples/shop` to a public Worker on every push to `main` | repo | [guides/self-host-cloudflare.md](guides/self-host-cloudflare.md#demo-site-from-github-actions) | ✅ live at <https://indx-watch-demo.i-248.workers.dev>; the smoke test checks the demo's gate against the sample |
 
 ### v0.1 definition of done
 
