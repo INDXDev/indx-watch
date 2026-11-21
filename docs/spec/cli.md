@@ -298,7 +298,7 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 
 ### `iw reindex`
 
-Drop and rebuild the local index from the bundle and the local replica. The index is a `node:sqlite` database at `cache/index.sqlite` (same schema as the D1 index; safe to delete). `data`: `{ "records": number, "definitions": number, "ms": number }`
+Drop and rebuild the local index from the bundle and the local replica. The index is a `node:sqlite` database at `cache/index.sqlite` (same schema as the D1 index; safe to delete). The file records a schema version (`PRAGMA user_version`); a file written with another schema is emptied when opened and rebuilt in the current one. `data`: `{ "records": number, "definitions": number, "ms": number }`
 
 ### `iw migrate`
 

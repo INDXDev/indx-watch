@@ -4,7 +4,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import type { Index } from '../ports.js';
-import { d1Index } from '../workers/index.js';
+import { d1Index, INDEX_SCHEMA } from '../workers/index.js';
 
 type Args = (string | number | null)[];
 
@@ -12,7 +12,8 @@ type Args = (string | number | null)[];
 export async function withoutSqliteWarning<T>(load: () => Promise<T>): Promise<T> {
   const emit = process.emitWarning;
   process.emitWarning = ((w: string | Error, ...rest: never[]) => {
-    if (!/SQLite/.test(typeof w === 'string' ? w : w.message)) emit.call(process, w, ...rest);
+    // Node 22 calls process.emitWarning(message, 'ExperimentalWarning')
+    if (!(rest[0] === 'ExperimentalWarning' && /SQLite/.test(String(w)))) emit.call(process, w, ...rest);
   }) as typeof emit;
   try {
     return await load();
@@ -47,8 +48,24 @@ export function sqliteD1(db: DatabaseSync) {
   };
 }
 
-/** Index in a SQLite database file (or ':memory:'); the schema is created on first use. */
+/** A number that changes whenever INDEX_SCHEMA changes; a file keeps it in PRAGMA user_version. */
+export const SCHEMA_VERSION =
+  [...INDEX_SCHEMA.join(';')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7) >>> 1;
+
+/**
+ * Index in a SQLite database file (or ':memory:'); the schema is created on first use. A file written with another
+ * schema is emptied on open (it is a cache), so `iw reindex` rebuilds it in the current schema.
+ */
 export async function sqliteIndex(path: string): Promise<Index> {
   const { DatabaseSync } = await withoutSqliteWarning(() => import('node:sqlite'));
-  return d1Index(sqliteD1(new DatabaseSync(path)));
+  const db = new DatabaseSync(path);
+  db.exec('PRAGMA busy_timeout = 5000'); // a concurrent `iw reindex` waits instead of failing with "database is locked"
+  if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version !== SCHEMA_VERSION) {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+      name: string;
+    }[];
+    for (const { name } of tables) db.exec(`DROP TABLE "${name}"`);
+    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  }
+  return d1Index(sqliteD1(db));
 }

@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import {
   accessHeaders,
@@ -10,7 +11,7 @@ import {
   openNodeIndex,
   openObjectStore,
 } from '../src/node/index.js';
-import { withoutSqliteWarning } from '../src/node/sqlite-index.js';
+import { SCHEMA_VERSION, withoutSqliteWarning } from '../src/node/sqlite-index.js';
 import { runRecord } from './helpers/records.js';
 import { startFakeS3, startStoreServer } from './helpers/servers.js';
 
@@ -97,6 +98,26 @@ describe('openObjectStore', () => {
     }
   });
 
+  it('empties an index file written with another schema, then works in the current one', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'iw-index-'));
+    try {
+      await openNodeIndex(dir);
+      const old = new DatabaseSync(join(dir, 'cache', 'index.sqlite'));
+      old.exec(
+        'DROP TABLE IF EXISTS records; CREATE TABLE records (id TEXT PRIMARY KEY); PRAGMA user_version = 1',
+      );
+      old.close();
+      const run = runRecord();
+      await (await openNodeIndex(dir)).ingest([run], 'v1/log/A.json');
+      expect(await (await openNodeIndex(dir)).records()).toEqual([run]);
+      const db = new DatabaseSync(join(dir, 'cache', 'index.sqlite'));
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: SCHEMA_VERSION });
+      db.close();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('drops only the node:sqlite ExperimentalWarning while loading it', async () => {
     const [emit, seen] = [process.emitWarning, [] as unknown[]];
     process.emitWarning = ((w: string) => void seen.push(w)) as typeof emit;
@@ -107,11 +128,12 @@ describe('openObjectStore', () => {
           'ExperimentalWarning',
         );
         process.emitWarning('something else');
+        process.emitWarning('SQLite file is busy');
       });
     } finally {
       process.emitWarning = emit;
     }
-    expect(seen).toEqual(['something else']);
+    expect(seen).toEqual(['something else', 'SQLite file is busy']);
   });
 });
 
