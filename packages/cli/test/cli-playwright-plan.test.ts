@@ -43,13 +43,14 @@ describe('iw import playwright-plan', () => {
     expect(iwJson(dir, 'check', ['check']).json.data.errors).toBe(0);
   });
 
-  it('needs --uc and a model; refuses --dry-run', () => {
+  it('needs --uc and a model; refuses --dry-run, and plan flags on archives', () => {
     const dir = shop();
     expect(iw(dir, ['import', 'playwright-plan', PLAN, '--model', 'm']).code).toBe(2);
     expect(iw(dir, ['import', 'playwright-plan', PLAN, '--uc', 'UC-2']).code).toBe(2);
     expect(
       iw(dir, ['import', 'playwright-plan', PLAN, '--uc', 'UC-2', '--model', 'm', '--dry-run']).code,
     ).toBe(2);
+    expect(iw(dir, ['import', 'x.tar', '--uc', 'UC-2']).code).toBe(2);
   });
 
   it('skips a scenario without expected results with a warning', () => {

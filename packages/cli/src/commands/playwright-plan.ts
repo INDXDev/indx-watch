@@ -80,6 +80,7 @@ export async function importPlaywrightPlan(ctx: Ctx, a: Args) {
   if (a['dry-run'] || a.merge) fail('USAGE', '--dry-run and --merge apply to archives only');
   const file = resolve(ctx.cwd, path!);
   const md = await readFile(file, 'utf8').catch(() => fail('NOT_FOUND', `${path} not found`));
+  const plan = relative(ctx.cwd, file).replaceAll('\\', '/');
   const p = await cx.openProject(ctx, a);
   const { origin, model } = await originOf(ctx, { ...a, origin: 'ai' });
   const ai = { model: model!, skill: str(a.skill) ?? 'playwright-test-planner' };
@@ -91,7 +92,7 @@ export async function importPlaywrightPlan(ctx: Ctx, a: Args) {
     const where = `${s.suite ? `${s.suite} › ` : ''}${s.title}`;
     if (!steps.length) {
       const message = `Skipped "${where}": no step has an expected result`;
-      warnings.push({ severity: 'warning', code: 'plan-no-expected', file: path, message });
+      warnings.push({ severity: 'warning', code: 'plan-no-expected', file: plan, message });
       continue;
     }
     const fields: Record<string, unknown> = { title: titleOf(s.title), steps, mode: str(a.mode) ?? 'manual' };
@@ -104,7 +105,7 @@ export async function importPlaywrightPlan(ctx: Ctx, a: Args) {
   }
   if (!created.length)
     fail('INVALID_INPUT', `No scenario with steps and expected results in ${path}`, warnings);
-  const data = { plan: relative(ctx.cwd, file).replaceAll('\\', '/'), uc: uc!, created };
+  const data = { plan, uc: uc!, created };
   const text = created.map((r) => `Created ${r.key} (draft) in ${r.file}`).join('\n');
   return { data, warnings, text };
 }

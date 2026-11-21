@@ -297,7 +297,7 @@ Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planne
 | a separate `**Expected Results:**` list (the format shown in the Playwright docs) | the results of the last step |
 | — | `covers` = every criterion of `--uc` that is not retired; `mode` from `--mode` (default `manual`) |
 
-`**File:**` lines are ignored: tag the generated test with `@TC-n` to link it ([Playwright guide](../guides/playwright.md#link-tests-to-test-cases-with-tags)). A scenario with no expected result is skipped with a `plan-no-expected` warning; a plan with none to import is `INVALID_INPUT` (exit 2). `--dry-run` and `--merge` apply to archives only (exit 2). Keys are the next free ones, as with `iw new`.
+`**File:**` lines are ignored: tag the generated test with `@TC-n` to link it ([Playwright guide](../guides/playwright.md#link-tests-to-test-cases-with-tags)). A scenario with no expected result is skipped with a `plan-no-expected` warning; a plan with none to import is `INVALID_INPUT` (exit 2). `--dry-run` and `--merge` apply to archives only, and `--uc`, `--mode`, `--model` and `--skill` to plans only (exit 2). Keys are the next free ones, as with `iw new`.
 
 | Flag | |
 |---|---|

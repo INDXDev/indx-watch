@@ -305,6 +305,8 @@ export const dataCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       if (str(a.archive) === 'playwright-plan') return importPlaywrightPlan(ctx, a);
+      if (a.uc || a.mode || a.model || a.skill)
+        fail('USAGE', '--uc, --mode, --model and --skill apply to plans only');
       const archive = resolve(ctx.cwd, str(a.archive)!);
       const x = await iwb
         .readArchive(new Uint8Array(await readTar(archive, a.archive)))
