@@ -143,6 +143,8 @@ export interface SpecTree {
           status: Status;
           lifecycle: 'draft' | 'ready' | 'deprecated';
           i18n?: unknown;
+          /** flake rate in the scope, only when flaky (docs/spec/concepts.md#flaky-tests) */
+          flaky?: TestCaseStatus['flaky'];
         }[];
         i18n?: unknown;
       }[];

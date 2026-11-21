@@ -67,11 +67,12 @@ export function listRuns(model: Model, f: Scope & { tcId?: string | undefined })
 
 export async function specTree(model: Model, scope: Scope): Promise<SpecTree> {
   const status = computeStatus(model, scope);
-  const tcStatus = new Map(status.testCases.map((t) => [t.key, t.status]));
+  const tcStatus = new Map(status.testCases.map((t) => [t.key, t]));
   const testCase = async (k: string) => {
     const t = model.testCases.get(k)!;
     const { title, mode, status: lifecycle = 'draft', i18n } = await markStale(t.data, 'test-case');
-    return { key: k, title, mode, status: tcStatus.get(k) ?? 'untested', lifecycle, i18n };
+    const { status: st = 'untested', flaky } = tcStatus.get(k) ?? {};
+    return { key: k, title, mode, status: st, lifecycle, i18n, flaky };
   };
   const useCase = async (u: Model['features'][number]['useCases'][number]) => {
     const s = status.useCases.find((x) => x.key === u.data.key);
