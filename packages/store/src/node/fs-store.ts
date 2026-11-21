@@ -17,10 +17,16 @@ function fsError(e: unknown, what: string): StoreError {
  * Write to a dot file in the same directory, then link it. link fails with EEXIST when the target exists,
  * so only complete files appear and nothing is overwritten. Without ifNoneMatch, rename replaces the file.
  */
+const made = new Set<string>();
 async function writeAtomic(path: string, data: Uint8Array, createOnly: boolean): Promise<boolean> {
-  await mkdir(dirname(path), { recursive: true });
   const tmp = join(dirname(path), `.tmp-${randomBytes(6).toString('hex')}`);
-  await writeFile(tmp, data);
+  if (!made.has(dirname(path))) await mkdir(dirname(path), { recursive: true });
+  await writeFile(tmp, data).catch(async (e) => {
+    if (code(e) !== 'ENOENT') throw e;
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(tmp, data);
+  });
+  made.add(dirname(path));
   if (!createOnly) {
     await rename(tmp, path);
     return true;

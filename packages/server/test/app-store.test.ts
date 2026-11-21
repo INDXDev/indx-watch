@@ -99,6 +99,7 @@ describe('store endpoints: validation', () => {
     expect(await put(LOG, log([{ ...r, project: OTHER_PROJECT }]))).toBe(400);
     expect(await put('v1/log/not-a-ulid.json', log([r]))).toBe(400);
     expect(await put('v1/snapshots/x', 'x')).toBe(400);
+    expect(await put(`v1/snapshots/${newUlid()}.json`, '{"v":1}')).toBe(400); // log snapshots: direct writers only
     expect(await objects.list({ prefix: 'v1/' })).toMatchObject({ keys: [] });
 
     const blob = `v1/blobs/sha256/${SHOT_SHA.slice(0, 2)}/${SHOT_SHA}`;

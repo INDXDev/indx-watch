@@ -217,7 +217,17 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[] }`. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string }`. `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
+
+### `iw compact`
+
+Write a [log snapshot](sync.md#log-snapshots-v02) to the store: the newest snapshot plus every readable log object older than the lookback window that it lacks, so fresh clones fetch one object instead of every log object. Needs direct write access (`file://` or `s3://`); a hosted server refuses the upload (`STORE_ERROR`, exit 4). Writes nothing when no log object is new. Safe to run at any time, from any number of places: snapshots are create-only and the log is never changed.
+
+| Flag | |
+|---|---|
+| `--store <url>` | Override `[store].url` |
+
+`data`: `{ "snapshot": string | null, "written": boolean, "logs": number, "records": number, "warnings"?: string[] }`: the newest snapshot key afterwards, whether this run wrote it, and the log objects and records it holds.
 
 ### `iw push`
 

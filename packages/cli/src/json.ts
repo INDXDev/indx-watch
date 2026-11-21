@@ -146,6 +146,15 @@ export const CommandData = {
     warnings: z.array(z.string()).optional(),
     /** secret-scan problems of records held back from the push */
     held: z.array(Problem).optional(),
+    /** the log snapshot a full listing started from */
+    logSnapshot: z.string().optional(),
+  }),
+  compact: z.object({
+    snapshot: z.string().nullable(),
+    written: z.boolean(),
+    logs: z.number(),
+    records: z.number(),
+    warnings: z.array(z.string()).optional(),
   }),
   push: z.object({
     snapshot: z.string().nullable(),

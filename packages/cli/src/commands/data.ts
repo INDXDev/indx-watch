@@ -7,7 +7,14 @@ import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { blobRefs, checkRecord, createResultStore, type LocalReplica } from '@indx-watch/store';
 import { openObjectStore, openReplica } from '@indx-watch/store/node';
-import { pointerBlobs, type SyncOptions, type SyncResult, syncOnce, watch } from '@indx-watch/sync';
+import {
+  compactLog,
+  pointerBlobs,
+  type SyncOptions,
+  type SyncResult,
+  syncOnce,
+  watch,
+} from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -235,6 +242,21 @@ export const dataCommands: Record<string, Spec> = {
       logWarnings(ctx, r);
       if (r.held?.length) fail('SECRETS_FOUND', held(r.held.length), r.held, r, syncText(r));
       return { data: r, text: syncText(r) };
+    },
+  },
+
+  compact: {
+    description: 'Write a log snapshot to the store so fresh clones pull fast',
+    args: { store: S('Store URL') },
+    async run(ctx, a) {
+      const p = await cx.openProject(ctx, a);
+      const r = await compactLog({
+        store: (await openStore(ctx, p, a)).store,
+        projectId: p.bundle.project.data.id,
+      });
+      for (const w of r.warnings ?? []) ctx.log(`warning: ${w}`);
+      const what = `${r.logs} log object(s), ${r.records} record(s)`;
+      return { data: r, text: r.written ? `wrote ${r.snapshot}: ${what}` : `no new log objects (${what})` };
     },
   },
 

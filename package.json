@@ -13,6 +13,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
+    "bench:sync": "IW_BENCH=1 vitest run packages/sync/test/compact.test.ts -t 100,000",
     "schemas": "tsx packages/bundle/scripts/gen-schemas.ts",
     "check:docs": "node scripts/check-docs.mjs",
     "check:example": "tsx packages/cli/src/bin.ts check --dir examples/shop/.indx-watch",

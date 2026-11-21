@@ -92,6 +92,21 @@ describe('commands: sync', () => {
   });
 });
 
+describe('commands: compact', () => {
+  it('compact writes a log snapshot of the sample store once; a fresh clone starts from it', () => {
+    const dir = shop();
+    const first = iwJson(dir, 'compact', ['compact']).json.data;
+    expect(first).toMatchObject({ written: true, logs: readdirSync(join(dir, 'store/v1/log')).length });
+    expect(first.snapshot).toMatch(/^v1\/snapshots\//);
+    expect(existsSync(join(dir, 'store', first.snapshot))).toBe(true);
+    expect(iwJson(dir, 'compact', ['compact']).json.data).toEqual({ ...first, written: false });
+    const other = shop();
+    const store = `file://${join(dir, 'store')}`;
+    const pulled = iwJson(other, 'sync', ['sync', '--store', store, '--pull-only']).json.data;
+    expect(pulled).toMatchObject({ logSnapshot: first.snapshot, pulled: { records: first.records } });
+  });
+});
+
 describe('commands: push and clone', () => {
   it('push uploads a snapshot once; clone makes a working copy with results from it', () => {
     const dir = shop();

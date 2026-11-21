@@ -66,8 +66,11 @@ export interface SyncResult {
   warnings?: string[];
   /** secret-scan errors of records held back from the push (docs/spec/security.md#secrets); never contain the value */
   held?: Problem[];
+  /** the log snapshot a full listing started from */
+  logSnapshot?: string;
 }
 
+export { type CompactResult, compactLog } from './compact.js';
 export { isoSeconds, ulidFloor } from './phases.js';
 export { definitionFiles, definitionsHash, snapshotBundle } from './snapshot.js';
 
