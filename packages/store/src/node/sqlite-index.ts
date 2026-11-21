@@ -2,6 +2,7 @@
  * Index in a node:sqlite file (roadmap T-210). It runs the D1 index over a small D1-shaped wrapper of DatabaseSync,
  * so the schema (src/index-schema.sql) and the guarded merge writes are the D1 ones, statement for statement.
  */
+import { rm } from 'node:fs/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Index } from '../ports.js';
 import { d1Index, INDEX_SCHEMA } from '../workers/index.js';
@@ -54,18 +55,33 @@ export const SCHEMA_VERSION =
 
 /**
  * Index in a SQLite database file (or ':memory:'); the schema is created on first use. A file written with another
- * schema is emptied on open (it is a cache), so `iw reindex` rebuilds it in the current schema.
+ * schema is emptied on open, and a file that is not a SQLite database is deleted and created again (it is a cache).
  */
 export async function sqliteIndex(path: string): Promise<Index> {
   const { DatabaseSync } = await withoutSqliteWarning(() => import('node:sqlite'));
-  const db = new DatabaseSync(path);
-  db.exec('PRAGMA busy_timeout = 5000'); // a concurrent `iw reindex` waits instead of failing with "database is locked"
-  if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version !== SCHEMA_VERSION) {
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
-      name: string;
-    }[];
-    for (const { name } of tables) db.exec(`DROP TABLE "${name}"`);
-    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  const open = () => {
+    const db = new DatabaseSync(path);
+    try {
+      db.exec('PRAGMA busy_timeout = 5000'); // a concurrent `iw reindex` waits instead of failing with "database is locked"
+      const v = db.prepare('PRAGMA user_version').get() as { user_version: number };
+      if (v.user_version === SCHEMA_VERSION) return db;
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
+        name: string;
+      }[];
+      for (const { name } of tables) db.exec(`DROP TABLE "${name}"`);
+      db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+      return db;
+    } catch (e) {
+      db.close();
+      throw e;
+    }
+  };
+  try {
+    return d1Index(sqliteD1(open()));
+  } catch (e) {
+    // not a SQLite file (a torn or foreign file): it is a cache, so delete it and start over
+    if (path === ':memory:') throw e;
+    await rm(path, { force: true });
+    return d1Index(sqliteD1(open()));
   }
-  return d1Index(sqliteD1(db));
 }

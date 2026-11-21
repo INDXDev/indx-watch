@@ -35,6 +35,8 @@ export interface NodeServerOptions {
   identityHeader?: string;
   /** the MCP tools' output schemas (CommandData); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
+  /** read records through the node:sqlite index in cache/index.sqlite (default); false reads every replica file */
+  index?: boolean;
 }
 
 const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/;
@@ -105,6 +107,8 @@ interface Local {
   dir: string;
   fs: ReturnType<typeof nodeFs>;
   replica: ReturnType<typeof SN.openReplica>;
+  /** the replica's records, through the index when it opens (docs/spec/cli.md#iw-serve) */
+  records: ReturnType<typeof SN.openReplica>['records'];
   sync: ProjectInfo['sync'];
   remote: WeakMap<Request, string>;
   state?: Awaited<ReturnType<typeof fileStateStore>>;
@@ -117,12 +121,26 @@ type App = ReturnType<typeof createApp>;
 export async function startNodeServer(opts: NodeServerOptions): Promise<Server> {
   const dir = resolve(opts.dir);
   const [sync, remote] = [{ configured: false }, new WeakMap<Request, string>()];
-  const l: Local = { dir, fs: nodeFs(dir), replica: SN.openReplica(dir), sync, remote };
+  const replica = SN.openReplica(dir);
+  const records = opts.index === false ? replica.records : await indexedRecords(dir, replica);
+  const l: Local = { dir, fs: nodeFs(dir), replica, records, sync, remote };
   const models = modelCache(l);
   const { model: m0 } = await models.loadModel();
   const stopSync = await startSync(l, m0, opts.sync !== false, models.invalidate);
   const app = createApp(nodeDeps(l, models, opts, m0.project.store?.evidence));
   return listen(l, app, opts, () => Promise.all([models.close(), stopSync?.()]));
+}
+
+/** Replica records through cache/index.sqlite; without a usable index (or after an index error), every file is read. */
+async function indexedRecords(dir: string, replica: Local['replica']): Promise<Local['records']> {
+  const index = await SN.openNodeIndex(dir).catch(() => null);
+  const read = index && SN.indexedRecords(index, join(dir, 'runs'));
+  return async (onInvalid) => {
+    const bad: [string, string][] = []; // passed on only when the read succeeds, so a fallback never reports twice
+    const r = read && (await read((f, e) => bad.push([f, e])).catch(() => null));
+    for (const [f, e] of r ? bad : []) onInvalid?.(f, e);
+    return r ?? replica.records(onInvalid);
+  };
 }
 
 /** The cached model, rebuilt after bundle edits (debounced) and replica writes. */
@@ -133,7 +151,7 @@ function modelCache(l: Local) {
     const { bundle, problems } = await loadBundle(l.fs);
     const shown: ProjectInfo['problems'] = problems.map((p) => ({ ...p, path: undefined, code: undefined }));
     if (!bundle) throw new StoreError('invalid', shown[0]?.message ?? `no bundle in ${l.dir}`);
-    const records = await l.replica.records((file, error) =>
+    const records = await l.records((file, error) =>
       shown.push({ severity: 'warning', message: `invalid record: ${error}`, file: `runs/${file}` }),
     );
     const { model, warnings } = await buildVerifiedModel(bundle, records);
