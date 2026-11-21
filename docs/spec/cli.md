@@ -284,6 +284,30 @@ Render a report offline from the bundle plus the local replica. See [reports.md]
 
 Write / read a portable archive (`.tar.zst`, or `.tar.gz` where zstd is unavailable) with a manifest of SHA-256 hashes, the bundle, all records as NDJSON and all blobs. `import` writes into the current directory (must not contain a bundle unless `--merge`) and verifies every hash; `--dry-run` reports what would change. Archive layout: `manifest.json`, `bundle/**` (definition and data files only; no `cache/`, `runs/`), `records.ndjson` (canonical record JSON, sorted by ID), `blobs/sha256/<aa>/<hash>`. Tar entries have fixed mtime, uid and mode; the manifest hash covers contents, not compression. `data` (export): `{ "archive", "manifest": { "sha256", "files", "records", "blobs" } }`; `import` adds `dryRun` and `changes`.
 
+### `iw import playwright-plan <file.md>`
+
+Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planner plan (`specs/*.plan.md`, written by the planner's `planner_save_plan` tool) into test cases: one per scenario, under the use case given by `--uc`. The planner is an AI agent, so every test case is written as `iw new tc --origin ai` would write it: `status = "draft"`, `origin = "ai"` and an `[ai]` table with the model from `--model` (or `IW_AGENT_MODEL`; otherwise exit 2) and `skill = "playwright-test-planner"` (override with `--skill`). They count towards nothing until a human runs `iw approve` ([states](concepts.md#test-case-use-case-fixture)). Example: [`examples/shop/specs/coupon.plan.md`](../../examples/shop/specs/coupon.plan.md).
+
+| Plan | Test case |
+|---|---|
+| `#### 1.2. should-reject-expired-coupon` | `title = "Should reject expired coupon"` (a hyphenated name becomes words; the numbering is dropped) |
+| `**Seed:** \`tests/seed.spec.ts\`` of its `### n. Suite` | `preconditions = "Playwright seed test: tests/seed.spec.ts"` |
+| `**Steps:**` `1. <action>` with `- expect: <result>` bullets | one step: `instruction` = the action, `expected` = the results, one per line |
+| a step without `- expect:` | joins the next step's `instruction` (trailing ones join the last step) |
+| a separate `**Expected Results:**` list (the format shown in the Playwright docs) | the results of the last step |
+| — | `covers` = every criterion of `--uc` that is not retired; `mode` from `--mode` (default `manual`) |
+
+`**File:**` lines are ignored: tag the generated test with `@TC-n` to link it ([Playwright guide](../guides/playwright.md#link-tests-to-test-cases-with-tags)). A scenario with no expected result is skipped with a `plan-no-expected` warning; a plan with none to import is `INVALID_INPUT` (exit 2). `--dry-run` and `--merge` apply to archives only (exit 2). Keys are the next free ones, as with `iw new`.
+
+| Flag | |
+|---|---|
+| `--uc <UC>` | Required. Parent use case |
+| `--model <id>` | Model the planner ran with (default `IW_AGENT_MODEL`) |
+| `--skill <name>` | Default `playwright-test-planner` |
+| `--mode <mode>` | Default `manual` |
+
+`data`: `{ "plan": string, "uc": string, "created": { "kind", "id", "key", "file" }[] }`
+
 ### `iw deploy`
 
 Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), using `wrangler`. Idempotent: lists existing resources before creating any. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md).
@@ -358,3 +382,4 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [x] No command prompts when stdin is not a TTY.
+- [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.

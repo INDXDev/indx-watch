@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `iw import playwright-plan <file.md> --uc <UC>`: each scenario of a Playwright Test Agents planner plan becomes an AI-written draft test case; sample plan in `examples/shop/specs/` (T-212).
+
 ## [0.1.0] - 2026-11-21
 
 ### Added
