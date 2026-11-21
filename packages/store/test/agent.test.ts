@@ -177,4 +177,16 @@ describe.runIf(installed)('playwrightBrowser (local Chromium)', () => {
     expect((await s.observe()).tree).toContain('Total: $90');
     await s.close();
   }, 30_000);
+
+  it('navigates only within the base URL origin', async () => {
+    const s = await playwrightBrowser(executablePath ? { executablePath } : {}).open({ baseUrl });
+    expect(await s.act({ type: 'navigate', url: '/cart' })).toEqual({ ok: true });
+    for (const url of ['file:///etc/passwd', 'http://localhost:9/', 'https://example.com/'])
+      expect(await s.act({ type: 'navigate', url })).toMatchObject({
+        ok: false,
+        error: /navigate only within/,
+      });
+    expect((await s.observe()).tree).toContain('Total: $90');
+    await s.close();
+  }, 30_000);
 });

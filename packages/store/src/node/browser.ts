@@ -29,10 +29,13 @@ export async function loadChromium(): Promise<Chromium> {
   );
 }
 
+/** `navigate` stays on the base URL's origin: page text must not send the agent to file:// or other hosts. */
 async function act(page: Page, a: BrowserAction, baseUrl: string) {
   const el = 'ref' in a ? page.locator(`aria-ref=${a.ref}`) : undefined;
   if (a.type === 'navigate') {
-    const status = (await page.goto(new URL(a.url, baseUrl).href))?.status() ?? 200;
+    const to = new URL(a.url, /^https?:/.test(page.url()) ? page.url() : baseUrl);
+    if (to.origin !== new URL(baseUrl).origin) throw new Error(`navigate only within ${baseUrl}`);
+    const status = (await page.goto(to.href))?.status() ?? 200;
     if (status >= 400) throw new Error(`HTTP ${status}`);
   } else if (a.type === 'press') await page.keyboard.press(a.key);
   else if (a.type === 'click') await el!.click();
@@ -57,7 +60,7 @@ async function session(browser: Browser, baseUrl: string, viewport?: { width: nu
     },
     async act(a) {
       try {
-        await act(page, a, page.url().startsWith('http') ? page.url() : baseUrl);
+        await act(page, a, baseUrl);
         await settle();
         return { ok: true };
       } catch (e) {
