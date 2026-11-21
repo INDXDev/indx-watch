@@ -125,7 +125,7 @@ describe('log snapshots', () => {
 
 describe('log snapshots: 100,000 records', () => {
   const dir = mkdtempSync(join(tmpdir(), 'iw-compact-'));
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }), 120_000); // 100k files: slow to delete on CI
 
   // Acceptance (roadmap T-206): a new clone pulls 100k records in < 10 s from a snapshot. The time is logged.
   // Parallel test files and CI runners slow it down, so the strict 10 s check runs alone: `pnpm bench:sync`.
