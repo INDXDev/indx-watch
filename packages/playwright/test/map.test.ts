@@ -39,13 +39,12 @@ describe('resolveRelease', () => {
 });
 
 describe('helpers', () => {
-  it('derives the run group from IW_RUN_GROUP, GitHub Actions or a fresh ID', () => {
-    expect(runGroup({ IW_RUN_GROUP: 'build-512', GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '1' })).toBe(
-      'build-512',
-    );
-    expect(runGroup({ GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '2' })).toBe(
-      'github:42:2',
-    );
+  it('derives the run group from IW_RUN_GROUP, the CI run or a fresh ID', () => {
+    const gh = { provider: 'github', run_id: '42', run_attempt: 2 };
+    expect(runGroup({ IW_RUN_GROUP: 'build-512' }, gh)).toBe('build-512');
+    expect(runGroup({}, gh)).toBe('github:42:2');
+    expect(runGroup({}, { provider: 'gitlab', run_id: '1001' })).toBe('gitlab:1001:1');
+    expect(runGroup({}, { provider: 'buildkite' })).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).not.toBe(runGroup({}));
   });

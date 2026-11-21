@@ -117,11 +117,10 @@ export function redactor(secrets: readonly string[]) {
   };
 }
 
-/** automation.group: IW_RUN_GROUP → github:<run_id>:<attempt> → a fresh ID per invocation. */
-export function runGroup(env: Env): string {
+/** automation.group: IW_RUN_GROUP → <provider>:<run_id>:<attempt> in CI → a fresh ID per invocation. */
+export function runGroup(env: Env, ci?: { provider: string; run_id?: string; run_attempt?: number }): string {
   if (env.IW_RUN_GROUP) return env.IW_RUN_GROUP;
-  if (env.GITHUB_ACTIONS === 'true' && env.GITHUB_RUN_ID)
-    return `github:${env.GITHUB_RUN_ID}:${env.GITHUB_RUN_ATTEMPT || '1'}`;
+  if (ci?.run_id) return `${ci.provider}:${ci.run_id}:${ci.run_attempt ?? 1}`;
   return newUlid();
 }
 

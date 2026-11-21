@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { useI18n } from './i18n';
 
 type Person = { kind: string; id: string; name?: string | undefined; via: string };
-const VERIFIED = new Set(['cloudflare-access', 'github-oidc', 'github']);
+/** VERIFIED_VIA of @indx-watch/bundle (docs/spec/security.md#signed-records); the app does not import the bundle. */
+const VERIFIED = new Set(['cloudflare-access', 'github-oidc', 'github', 'gitlab', 'circleci', 'buildkite']);
 export const isVerified = (a: Person) => VERIFIED.has(a.via);
 export const personName = (a: Person) => a.name ?? a.id;
 /** Initials and a stable hue from the ID. Pure; tested. */

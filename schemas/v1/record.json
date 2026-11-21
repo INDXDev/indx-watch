@@ -50,7 +50,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -415,7 +418,10 @@
                       "github-oidc",
                       "cloudflare-access",
                       "env",
-                      "browser"
+                      "browser",
+                      "gitlab",
+                      "circleci",
+                      "buildkite"
                     ]
                   },
                   "model": {
@@ -539,7 +545,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -663,7 +672,10 @@
                     "github-oidc",
                     "cloudflare-access",
                     "env",
-                    "browser"
+                    "browser",
+                    "gitlab",
+                    "circleci",
+                    "buildkite"
                   ]
                 },
                 "model": {
@@ -759,7 +771,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -908,7 +923,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -1050,7 +1068,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -1191,7 +1212,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {
@@ -1321,7 +1345,10 @@
                 "github-oidc",
                 "cloudflare-access",
                 "env",
-                "browser"
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
               ]
             },
             "model": {

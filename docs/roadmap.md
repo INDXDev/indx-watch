@@ -50,7 +50,7 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 | T-205 | Streamable HTTP MCP endpoint on the hosted server | Same tools as `iw mcp` behind Access | ⏳ |
 | T-206 | Log compaction snapshots | New clone pulls 100k records in < 10 s from a snapshot | ⏳ |
 | T-207 | Visual judge with approved baselines | `visual` judgements; baseline approval is a human record | ⏳ |
-| T-208 | Other CI providers' context (GitLab, CircleCI, Buildkite) | Context detected from standard variables | ⏳ |
+| T-208 | Other CI providers' context (GitLab, CircleCI, Buildkite) | Context detected from standard variables | ✅ `build`, `ci`, actor (`via` = `gitlab` / `circleci` / `buildkite`, verified only when signed) and run group ([integrations.md](spec/integrations.md#ci-identity-and-context)) |
 | T-209 | Workspace mode: definitions synced through the store, edited in the hosted UI | [sync.md](spec/sync.md#workspace-mode-v02) design notes hold | ⏳ |
 | T-210 | `node:sqlite` index for large local projects | Same SQL schema file as D1 (`packages/store/src/index-schema.sql`) | ⏳ |
 | T-211 | Signed records (server and OIDC) so direct bucket writes cannot claim verified identities | Forged `via` is shown as unverified | ✅ Ed25519 `sig` on records, keys pinned in `project.toml` `[[signing_keys]]`, `iw keygen`, signing by the hosted server, `iw serve`, the CLI and the reporter (`IW_SIGNING_KEY`), "unverified" in the UI, API and reports, `gate.ignore_unverified`. CI signs with a secret key; GitHub OIDC-based signing is not built yet |
