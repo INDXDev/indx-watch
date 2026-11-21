@@ -40,6 +40,7 @@ access_team = "example"    # your Zero Trust team name
 | `r2_bucket`, `d1_database` | no                     | Default to `name`. Existing resources with these names are reused.                              |
 | `access_team`              | yes, unless `--public` | Team name of your Zero Trust organization                                                       |
 | `access_aud`               | after the first deploy | The Access application's Audience (AUD) tag. Until it is set, the Worker rejects every request. |
+| `oidc_repositories`        | no                     | *(v0.2)* GitHub repositories (`owner/name` or numeric ID) whose Actions jobs may get records signed by the Worker ([CI signing with GitHub OIDC](#ci-signing-with-github-oidc)). |
 
 Nothing in `[hosting]` is secret. Never put API tokens in `project.toml`.
 
@@ -66,7 +67,7 @@ It also writes the generated Wrangler configuration to `.indx-watch/cache/deploy
 | `assets`              | The web UI build, binding `ASSETS`, `not_found_handling: "single-page-application"`, `run_worker_first: ["/api/*", "/healthz", "/mcp", "/mcp/*"]` |
 | `r2_buckets`          | Binding `STORE` → `r2_bucket`                                                                                                                     |
 | `d1_databases`        | Binding `DB` → `d1_database` (with its ID)                                                                                                        |
-| `vars`                | `ACCESS_TEAM`, `ACCESS_AUD` (and `PUBLIC = "true"` only with `--public`)                                                                          |
+| `vars`                | `ACCESS_TEAM`, `ACCESS_AUD`, `SIGNING_KEYS` and `OIDC_REPOSITORIES` when configured (and `PUBLIC = "true"` only with `--public`)               |
 | `triggers.crons`      | `["* * * * *"]`: once a minute the Worker picks up new store objects into its index                                                               |
 | `compatibility_flags` | `["nodejs_compat"]`                                                                                                                               |
 
@@ -121,6 +122,22 @@ Keep the session duration short for customers (for example 24 hours). Removing a
 3. Store both values as CI secrets and expose them as `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`. `iw sync` and the Playwright reporter send them as `CF-Access-Client-Id` / `CF-Access-Client-Secret`.
 
 Records written with a service token carry the CI identity of the job (see [security.md](../spec/security.md#identity)), not the token.
+
+### CI signing with GitHub OIDC
+
+*(v0.2)* Instead of storing `IW_SIGNING_KEY` as a CI secret, a GitHub Actions job can have its records signed by the Worker, which checks the job's OIDC token first. The design and its limits are in [security.md](../spec/security.md#github-oidc).
+
+1. Create a key for the Worker and pin it: `npx indx-watch keygen --kid watch --via github-oidc` (add `github` and other `via` values if the Worker should vouch for them too), put the printed `[[signing_keys]]` entry in `project.toml`, and store the secret on the Worker with `npx wrangler secret put IW_SIGNING_KEY --name shop-watch`.
+2. List the repositories whose jobs may sign; the numeric repository ID survives renames:
+
+   ```toml
+   [hosting]
+   oidc_repositories = ["INDXDev/shop"]
+   ```
+
+3. Run `npx indx-watch deploy` again. It pins the keys and the repositories as Worker variables; without both, `POST /api/sign` answers 404.
+4. Let the job reach `/api/sign` through Access: add a second Access application for the path `/api/sign` with a **Bypass** policy (the Worker then checks the OIDC token instead of an Access token), or keep the job's service token (above), which is sent along.
+5. In the workflow, grant `permissions: id-token: write` and set `IW_OIDC_SIGNER` to the Worker's URL ([integrations.md](../spec/integrations.md)). Do not set `IW_ACTOR` or `IW_SIGNING_KEY` in that job: either one turns OIDC signing off.
 
 ## 4. Sync against the hosted server
 
