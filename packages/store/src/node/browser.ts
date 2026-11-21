@@ -3,6 +3,9 @@
  * Cloudflare Browser Run over its CDP endpoint. Playwright is not a dependency of the package: it is imported when a
  * browser opens, from `playwright`, `playwright-core` or `@playwright/test`, whichever the project has.
  */
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { BrowserType, Page } from '@playwright/test'; // types only: nothing is imported at run time
 import type { BrowserAction, BrowserProvider, BrowserSession } from '../ports.js';
 import { StoreError } from '../ports.js';
@@ -17,12 +20,18 @@ type Options = {
 
 const MAX_TREE = 30_000;
 
-/** Chromium from whichever Playwright package resolves. */
-export async function loadChromium(): Promise<Chromium> {
-  for (const name of ['playwright', 'playwright-core', '@playwright/test']) {
-    const mod = await import(name).catch(() => null);
-    if (mod?.chromium) return mod.chromium as Chromium;
-  }
+/** Chromium from whichever Playwright package resolves: the project's (from `cwd`) first, then one next to the CLI. */
+export async function loadChromium(cwd = process.cwd()): Promise<Chromium> {
+  const project = createRequire(join(cwd, 'package.json'));
+  const at = (name: string) => [() => pathToFileURL(project.resolve(name)).href, () => name];
+  for (const name of ['playwright', 'playwright-core', '@playwright/test'])
+    for (const where of at(name)) {
+      const mod = await Promise.resolve()
+        .then(where)
+        .then((u) => import(u))
+        .catch(() => null);
+      if (mod?.chromium) return mod.chromium as Chromium;
+    }
   throw new StoreError(
     'invalid',
     'Playwright is not installed: run `npm install -D playwright` and `npx playwright install chromium`',

@@ -21,6 +21,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Roles on the hosted app: `[hosting.roles]` in `project.toml` (pinned by `iw deploy` as `ROLES`) maps Access user emails and group IDs, names or emails, looked up through Access `get-identity`, to `lead`, `tester`, `viewer` or `customer` (optional `default`). Viewers read only, testers also record runs, reviews and store writes (no waivers, baselines or snapshots), leads do everything; a customer sees and runs only the plan items assigned to them by email or by the new `group:<name>` assignee, across the API, reports and the web app, without the notes, judgement reasons, CI links, environment guides and other people's emails that customer reports redact, and `/mcp` is refused. The web app hides actions the role cannot use. Without roles, and on `iw serve`, everyone is `lead` (T-301).
 - Workspace mode for teams without git (`[store] mode = "workspace"`): `iw sync` publishes changed definition files as `file` records (canonical TOML blobs, versions keyed by record ID) and writes the store's current definitions into the working tree; concurrent edits merge field by field, and edits of one field on both sides leave a `<name>.conflict-<sha8>.toml` file that fails `iw check` until resolved. `iw sync` refuses while git tracks the bundle, and an agent's changes are published only as AI drafts. The hosted app serves definitions from the `file` records and edits a test case's title, priority and steps (`PATCH /api/test-cases/:key`) as `file` records of the signed-in person; uploads are refused in workspace mode (T-209).
 
+### Fixed
+
+- `iw run --browser local` loads Playwright from the project (the current directory) before the copy next to the CLI, so `npx indx-watch run` finds the project's `playwright` (T-201).
+
 ## [0.1.0] - 2026-11-21
 
 ### Added

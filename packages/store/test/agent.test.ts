@@ -1,7 +1,9 @@
 /** The agent loop over fake ports, the Browser Run adapter over a fake Playwright, and real Chromium when installed. */
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeBrowserProvider, fakeLlmClient, runAgent } from '../src/index.js';
 import { browserRun, type Chromium, loadChromium, playwrightBrowser } from '../src/node/index.js';
@@ -189,4 +191,20 @@ describe.runIf(installed)('playwrightBrowser (local Chromium)', () => {
     expect((await s.observe()).tree).toContain('Total: $90');
     await s.close();
   }, 30_000);
+});
+
+describe('loadChromium', () => {
+  it("prefers the project's Playwright over one next to the CLI", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iw-pw-'));
+    mkdirSync(join(dir, 'node_modules', 'playwright'), { recursive: true });
+    writeFileSync(
+      join(dir, 'node_modules', 'playwright', 'package.json'),
+      '{"name":"playwright","main":"index.js"}',
+    );
+    writeFileSync(
+      join(dir, 'node_modules', 'playwright', 'index.js'),
+      'exports.chromium = { fromProject: true };',
+    );
+    expect(await loadChromium(dir)).toEqual({ fromProject: true });
+  });
 });
