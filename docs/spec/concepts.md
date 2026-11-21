@@ -234,6 +234,18 @@ A test case may appear in a plan more than once only with different environments
 
 **Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
 
+## Impact analysis
+
+`impactedTestCases()` suggests which test cases a change touches, from the paths it changes (for example the files of a pull request). It is information only: it changes no verdict, status or gate check, and it runs nothing.
+
+Changed paths are relative to the repository root with `/` separators, as `git diff --name-only` prints them; the bundle's own files are matched under the bundle's path from that root (`examples/shop/.indx-watch/`). A test case that is not `deprecated` is suggested when a changed path
+
+1. **automation**: matches an entry of its `[automation].files`: the same path, or a glob in which `*` matches any characters within one path segment, `?` one character and `**/` any number of whole segments; an entry ending in `/` covers everything below it;
+2. **definition**: is the test case's own file or the `use-case.toml` of its use case (the criteria it covers);
+3. **fixture**: lies inside the directory of a fixture the test case references.
+
+Each suggestion carries every reason that applies (`kind`, the changed `file`, and for `automation` the matching entry as `pattern`). Suggestions are ordered by priority (P0 first), then key. Drafts are included; their definition `status` tells them apart.
+
 ## Readiness gate
 
 `evaluateGate(model, scope)` in `packages/core` is the one pure function that answers "can we ship?". Thresholds come from `project.toml` `[gate]` merged over these defaults:
@@ -291,3 +303,4 @@ These are enforced by `iw check` and unit tests:
 - [x] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
 - [x] A confident agent pass on a test case that declares a `human` judge is `needs_review`.
 - [x] A test case whose last runs alternate pass and fail, or pass with `flaky: true`, reports a flake rate over at most the last 10 decided runs; its status and the gate are unchanged (core test).
+- [x] On `examples/shop`, a change to `examples/shop/tests/coupon.spec.ts` suggests TC-3 and TC-4 (`automation`), a change to a file of fixture FX-1 suggests the test cases that reference it (`fixture`), and an unrelated path suggests nothing (core test).

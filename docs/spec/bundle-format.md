@@ -342,7 +342,7 @@ source_hash = "21a0e3b40174"
 | `[[steps]]` | yes | `instruction`, `expected`, optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual`. Default: `human` for `manual`, `assert` for `playwright`. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
-| `[automation]` | no | `files`: paths of automated tests that implement this test case. The link itself is the tag `@TC-3` (see [integrations](integrations.md#playwright-reporter)). |
+| `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder, which [impact analysis](concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](integrations.md#playwright-reporter)). |
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](i18n.md#literal-strings)).
 
