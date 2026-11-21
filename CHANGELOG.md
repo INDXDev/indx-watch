@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- A `node:sqlite` index on Node with the D1 schema and merge writes; `iw reindex` builds it in `.indx-watch/cache/index.sqlite` instead of a throwaway in-memory index; an index file from another schema version is emptied when opened (T-210).
+
 ## [0.1.0] - 2026-11-21
 
 ### Added

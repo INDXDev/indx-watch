@@ -28,6 +28,7 @@ export default defineConfig([
     dts: false,
     noExternal: [/^@indx-watch\//],
     external: ['@playwright/test', 'playwright', 'playwright-core'],
+    removeNodeProtocol: false, // node:sqlite has no unprefixed name
     define: { __IW_VERSION__: JSON.stringify(version) },
   },
   {

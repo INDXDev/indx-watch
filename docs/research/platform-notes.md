@@ -234,11 +234,12 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 
 - **Node floor.** The docs say Node ≥ 20 (architecture: ≥ 20.19). Node 20 is EOL, and wrangler 4.165, tsup 9, vitest 5 and Playwright's own CI have all dropped it. Decide whether to raise the floor to `>=22.13`, or to keep 20 for the `iw` CLI only and pin older dev tools.
 - **Index driver.** ADR 0007 calls for Drizzle on `node:sqlite`. That driver needs Drizzle 1.0 RC. The options are the RC, `sqlite-proxy` over `DatabaseSync` on 0.45.x, or raw SQL.
-- **`node:sqlite` warnings.** `node:sqlite` is Stability 1.2 (release candidate) on v24.15.0+ and v25.7.0+, but 1.1 on v22, where it prints an `ExperimentalWarning`. The v26 docs rename `DatabaseSync` to `Database` and keep `DatabaseSync` as a deprecated alias (DEP0210). Use `DatabaseSync` while Node 22 is supported. (verified 2026-11-19, https://nodejs.org/api/sqlite.html , https://raw.githubusercontent.com/nodejs/node/v24.x/doc/api/sqlite.md , https://raw.githubusercontent.com/nodejs/node/v22.x/doc/api/sqlite.md)
+- **`node:sqlite` warnings.** `node:sqlite` is Stability 1.2 (release candidate) on v24.15.0+ and v25.7.0+, but 1.1 on v22, where it prints an `ExperimentalWarning`. The v26 docs rename `DatabaseSync` to `Database` and keep `DatabaseSync` as a deprecated alias (DEP0210). Use `DatabaseSync` while Node 22 is supported. The store loads it with a dynamic import that drops only that warning, and tsup must keep the `node:` prefix (`removeNodeProtocol: false`): tsup 8 strips it by default, and `sqlite` has no unprefixed name. Node 24.22.1 prints no warning (checked 2026-11-21). (verified 2026-11-19, https://nodejs.org/api/sqlite.html , https://raw.githubusercontent.com/nodejs/node/v24.x/doc/api/sqlite.md , https://raw.githubusercontent.com/nodejs/node/v22.x/doc/api/sqlite.md)
 - The architecture lists `ulidx` and `nanotar`. This file recommends `ulid` and `modern-tar` instead (see the table).
 - Test the R2 binding's create-only write (`onlyIf: new Headers({ 'If-None-Match': '*' })`) and AWS SDK checksum headers against R2 in a spike.
 
 ## Changelog
 
+- 2026-11-21: `node:sqlite` loading and the tsup `node:` prefix (T-210).
 - 2026-11-19: Added `pnpm/action-setup` runtimes and the `npx <tgz>` pitfall (review fixes).
 - 2026-11-19: First version, compiled from the Phase 0 research. Spot-checked on the web: R2 conditional PUT, `node:sqlite` stability, `z.toJSONSchema`, Codex skill locations, Hono static assets and `ctx.access` with Static Assets, the MCP 2026-07-28 changelog, D1 limits, Claude Code's AGENTS.md loading, GitHub Node 20 removal, and npm versions.
