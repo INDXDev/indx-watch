@@ -1,4 +1,4 @@
-/** Test fakes: an R2 binding (in memory) and a D1 binding (node:sqlite). */
+/** Test fakes: an R2 binding (in memory), a D1 binding (node:sqlite) and the Cloudflare API's Access policies. */
 import { DatabaseSync } from 'node:sqlite';
 
 export function fakeR2(opts: { honorStartAfter?: boolean } = {}) {
@@ -76,4 +76,29 @@ export function fakeD1() {
       }
     },
   };
+}
+
+/**
+ * The Cloudflare API's reusable Access policy `acc/pol` (docs/spec/security.md#customer-uat): `fetch` answers GET and
+ * PUT of it for the token `cf-token` (anything else: undefined, so a test can route other URLs); `requests` logs calls.
+ */
+export function fakeAccessApi(base = 'https://api.cloudflare.com/client/v4') {
+  let policy: Record<string, unknown> = {
+    ...{ id: 'pol', name: 'UAT customers', decision: 'allow', session_duration: '24h', created_at: 'x' },
+    ...{ include: [{ email: { email: 'placeholder@shop.test' } }], exclude: [], require: [] },
+  };
+  const requests: { method: string; body?: Record<string, unknown> }[] = [];
+  const emails = () =>
+    (policy.include as { email?: { email: string } }[]).flatMap((r) => r.email?.email ?? []);
+  const fetch = async (url: string | URL, init: RequestInit = {}): Promise<Response | undefined> => {
+    if (String(url) !== `${base}/accounts/acc/access/policies/pol`) return undefined;
+    const method = init.method ?? 'GET';
+    const body = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+    requests.push({ method, body });
+    if (new Headers(init.headers).get('authorization') !== 'Bearer cf-token')
+      return Response.json({ success: false, errors: [{ message: 'auth' }] }, { status: 403 });
+    if (method === 'PUT') policy = { ...body, id: 'pol' };
+    return Response.json({ success: true, result: policy });
+  };
+  return { fetch, requests, emails };
 }

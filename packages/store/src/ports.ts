@@ -137,6 +137,14 @@ export interface IdentityProvider {
   groups?(request: Request): Promise<string[]>;
 }
 
+/** The Access policy that lets invited customers in (v0.3, docs/spec/security.md#customer-uat). */
+export interface AccessPolicy {
+  /** Add the email to the policy; false when it was already there. */
+  allow(email: string): Promise<boolean>;
+  /** Remove the email from the policy; false when it was not there. */
+  revoke(email: string): Promise<boolean>;
+}
+
 export interface ContextProvider {
   build(): Promise<Build>;
   ci(): Promise<CiContext | undefined>;
