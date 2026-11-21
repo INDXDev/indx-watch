@@ -1,10 +1,10 @@
 /** Editing definitions in workspace mode (docs/spec/web.md#editing-in-workspace-mode): a `file` record per save. */
 import * as B from '@indx-watch/bundle';
-import type { Model } from '@indx-watch/core';
+import { canInvite, EMAIL, inviteItems, isAssignee, type Model } from '@indx-watch/core';
 import { headsOf, versionsByEntity } from '@indx-watch/sync';
 import type { Context } from 'hono';
 import type { Ctx } from './app.js';
-import type { TestCaseEdit } from './contract.js';
+import type { InviteInput, InviteResult, TestCaseEdit } from './contract.js';
 import { bad, fail, HttpError, notFound } from './http.js';
 
 const [enc, dec] = [new TextEncoder(), new TextDecoder()];
@@ -45,13 +45,13 @@ function asDraft(data: Record<string, unknown>, who: B.Actor, at: string) {
   return { ...rest, status: 'draft', origin: 'ai', ai: meta };
 }
 
-/** PATCH /api/test-cases/:key: apply the changed fields to the current file and append a `file` record. */
-export async function editTestCase(c: Context, x: Ctx) {
-  const input = await c.req.json<TestCaseEdit>().catch(() => fail(bad('request body must be JSON')));
-  const m = await x.model(c);
+type Edit = (data: Record<string, unknown>, who: B.Actor, at: string) => Record<string, unknown>;
+type Target = { file?: string; entity: string; type: 'test-case' | 'plan' };
+
+/** Save a new version of a definition file (found by `entity` without `file`) as a `file` record, after the edit guards. */
+async function saveFile(c: Context, x: Ctx, m: Model, t: Target, edit: Edit) {
   if (!workspaceMode(m))
     throw new HttpError(409, 'conflict', 'definitions come from git here: edit the file');
-  const t = m.testCases.get(m.keyOf(c.req.param('key')!) ?? '') ?? fail(notFound('test case'));
   const records = (await x.deps.records?.()) ?? [];
   if (x.deps.mode === 'hosted' && !records.some((r) => r.kind === 'file'))
     throw new HttpError(
@@ -60,23 +60,77 @@ export async function editTestCase(c: Context, x: Ctx) {
       'no workspace in this store yet: run `iw sync` in a working copy first',
     );
   const files = (await x.deps.bundleFiles?.()) ?? new Map<string, Uint8Array>();
+  const ours = ([p, d]: [string, Uint8Array]) =>
+    p.endsWith('.toml') && B.parseToml(dec.decode(d)).id === t.entity;
+  const file = t.file ?? [...files].find(ours)?.[0] ?? fail(notFound(t.entity));
   // saving on top of a conflict would silently drop the other value: it is resolved in a working copy
-  if ([...files.keys()].some((p) => B.CONFLICT_FILE.test(p) && p.replace(B.CONFLICT_FILE, '$1') === t.file))
-    throw new HttpError(409, 'conflict', `${t.file} has a conflict: resolve it in a working copy first`);
-  const current = files.get(t.file) ?? fail(notFound(t.file));
+  if ([...files.keys()].some((p) => B.CONFLICT_FILE.test(p) && p.replace(B.CONFLICT_FILE, '$1') === file))
+    throw new HttpError(409, 'conflict', `${file} has a conflict: resolve it in a working copy first`);
+  const current = files.get(file) ?? fail(notFound(file));
   const [who, at] = [await x.actor(c), x.now()];
-  const edited = applyEdit(B.parseToml(dec.decode(current)), input);
-  const parsed = B.TestCase.safeParse(who.kind === 'agent' ? asDraft(edited, who, at) : edited);
+  const parsed = B.FILE_TYPES[t.type].safeParse(edit(B.parseToml(dec.decode(current)), who, at));
   if (!parsed.success)
     throw bad(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
-  const data = enc.encode(B.formatToml('test-case', parsed.data as Record<string, unknown>));
+  const data = enc.encode(B.formatToml(t.type, parsed.data as Record<string, unknown>));
+  if (dec.decode(data) === dec.decode(current)) return { file }; // nothing changed: no new version
   const sha256 = await x.deps.putBlob(data, 'application/toml');
-  const parents = headsOf(versionsByEntity(records).get(t.data.id) ?? []).map((v) => v.id);
+  const parents = headsOf(versionsByEntity(records).get(t.entity) ?? []).map((v) => v.id);
   const record = B.FileRecord.parse({
     ...{ kind: 'file', id: B.newId('rec'), v: 1, project: m.project.id, at, actor: who, source: 'manual' },
-    ...{ path: t.file, entity: t.data.id, sha256, parents },
+    ...{ path: file, entity: t.entity, sha256, parents },
   });
   await x.deps.writeRecord(record);
-  await x.deps.writeFile?.(t.file, data);
-  return c.json({ file: t.file, record }, 201);
+  await x.deps.writeFile?.(file, data);
+  return { file, record };
+}
+
+/** PATCH /api/test-cases/:key: apply the changed fields to the current file and append a `file` record. */
+export async function editTestCase(c: Context, x: Ctx) {
+  const input = await c.req.json<TestCaseEdit>().catch(() => fail(bad('request body must be JSON')));
+  const m = await x.model(c);
+  if (!workspaceMode(m))
+    throw new HttpError(409, 'conflict', 'definitions come from git here: edit the file');
+  const t = m.testCases.get(m.keyOf(c.req.param('key')!) ?? '') ?? fail(notFound('test case'));
+  const target = { file: t.file, entity: t.data.id, type: 'test-case' } as const;
+  const saved = await saveFile(c, x, m, target, (data, who, at) => {
+    const edited = applyEdit(data, input);
+    return who.kind === 'agent' ? asDraft(edited, who, at) : edited;
+  });
+  return c.json(saved, 201);
+}
+
+/** POST /api/plans/:key/invites and DELETE …/:email: assign or unassign a customer, then the Access policy. */
+export async function invite(c: Context, x: Ctx, revoke: boolean) {
+  const who = await x.actor(c);
+  if (who.kind !== 'human') throw new HttpError(403, 'forbidden', 'only a person may invite');
+  if (!canInvite(x.deps.roles))
+    throw new HttpError(409, 'conflict', 'invites need pinned [hosting.roles] with no default role');
+  const body: Partial<InviteInput> = revoke
+    ? {}
+    : await c.req.json<InviteInput>().catch(() => fail(bad('request body must be JSON')));
+  const email = (revoke ? c.req.param('email') : body.email) ?? '';
+  if (!EMAIL.test(email)) throw bad('email must be an email address');
+  const keys = revoke ? (c.req.query('items')?.split(',').filter(Boolean) ?? []) : (body.items ?? []);
+  const m = await x.model(c);
+  const key = c.req.param('key')!.toUpperCase();
+  const plan = m.plans.find((p) => p.key.toUpperCase() === key) ?? fail(notFound('plan'));
+  let r: ReturnType<typeof inviteItems> | undefined;
+  const target = { entity: plan.id, type: 'plan' } as const;
+  const saved = await saveFile(c, x, m, target, (data) => {
+    r = inviteItems((data.items ?? []) as B.PlanItem[], email, keys, revoke);
+    return r.missing.length
+      ? fail(notFound(`${r.missing.join(', ')} in ${plan.key}`))
+      : { ...data, items: r.items };
+  });
+  const others = [...m.plans.filter((p) => p.id !== plan.id), { items: r!.items }];
+  const policy = x.deps.accessPolicy;
+  const kept = revoke && isAssignee(others, email);
+  const access = !policy ? 'manual' : kept ? 'kept' : revoke ? 'removed' : 'added';
+  if (policy && !kept)
+    await (revoke ? policy.revoke(email) : policy.allow(email)).catch((e: Error) => {
+      throw new HttpError(502, 'access-policy', `the plan was saved; ${e.message}`);
+    });
+  const { changed: items, reassigned } = r!;
+  const out: InviteResult = { ...saved, email, plan: plan.key, items, reassigned, revoked: revoke, access };
+  return c.json(out, revoke ? 200 : 201);
 }

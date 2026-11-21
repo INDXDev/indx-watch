@@ -8,7 +8,7 @@ export const MAX_BLOB_BYTES = 25 * 1024 * 1024;
 
 /** An error with an HTTP status and a code for the { error: { code, message } } body. */
 export class HttpError extends Error {
-  status: 400 | 401 | 403 | 404 | 409 | 412 | 413 | 503;
+  status: 400 | 401 | 403 | 404 | 409 | 412 | 413 | 502 | 503;
   code: string;
   constructor(status: HttpError['status'], code: string, message: string) {
     super(message);

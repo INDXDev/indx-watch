@@ -1,5 +1,6 @@
 /** Deterministic fakes of the execution ports (docs/architecture.md#ports-and-adapters) for tests. */
 import type {
+  AccessPolicy,
   AgentAction,
   AgentStepInput,
   BrowserAction,
@@ -77,4 +78,16 @@ export function fakeLlmClient(
       };
     },
   };
+}
+
+/** An Access policy held in memory: `emails` is its include list. */
+export function fakeAccessPolicy(emails = new Set<string>()): AccessPolicy & { emails: Set<string> } {
+  const change = async (email: string, add: boolean) => {
+    const e = email.toLowerCase();
+    if (emails.has(e) === add) return false;
+    if (add) emails.add(e);
+    else emails.delete(e);
+    return true;
+  };
+  return { emails, allow: (e) => change(e, true), revoke: (e) => change(e, false) };
 }

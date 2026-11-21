@@ -3,8 +3,8 @@
  * Routes and shapes: contract.ts. The actor always comes from deps.identity, never from a request body.
  */
 import type * as B from '@indx-watch/bundle';
-import { customerModel, type Principal, roleOf } from '@indx-watch/core';
-import type { ContextProvider } from '@indx-watch/store';
+import { customerModel, isAssignee, type Principal, roleOf } from '@indx-watch/core';
+import type { AccessPolicy, ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
 import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
@@ -37,6 +37,8 @@ export interface ServerDeps extends AppDeps {
   signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
   /** roles pinned by the deploy (docs/spec/security.md#roles); without them every identity is `lead` */
   roles?: B.Roles;
+  /** the Access policy invites add customers to (docs/spec/security.md#customer-uat); without it: `access: "manual"` */
+  accessPolicy?: AccessPolicy;
   /** every record (workspace mode: the `file` records a definition edit builds on) */
   records?(): Promise<B.AnyRecord[]>;
   /** write a definition file into the working tree after a workspace edit (Node) */
@@ -111,7 +113,9 @@ function appContext(deps: AppDeps) {
       actor(c).then(async ({ id }) => {
         if (!d.roles) return { role: 'lead' as const, who: { id, groups: [] } };
         const who = { id, groups: (await d.identity.groups?.(c.req.raw)) ?? [] };
-        return { role: roleOf(d.roles, who), who };
+        // the model only for an identity no role list or `default` covers
+        const invited = async () => isAssignee((await deps.loadModel()).model.plans, id);
+        return { role: roleOf(d.roles, who) ?? roleOf(d.roles, who, await invited()), who };
       });
     grants.set(c.req.raw, g);
     return g;

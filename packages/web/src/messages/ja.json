@@ -266,6 +266,8 @@
   "home.card.coverage": "テストのある完了条件",
   "home.card.upload": "最新のアップロード",
   "home.card.noUpload": "まだアップロードはありません",
+  "home.uat": "あなたの受け入れテスト",
+  "home.uat.empty": "まだ割り当てられたテストはありません。",
   "home.queue": "あなたのキュー",
   "home.queue.empty": "テストすべきものはありません。おつかれさまでした。",
   "home.seeAll": "{count} 件すべて",

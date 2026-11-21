@@ -2,7 +2,16 @@
  * HTTP API between the web UI / http store adapter and the server (docs/architecture.md#http-api).
  * FROZEN CONTRACT for v0.1: additive changes only. All JSON; errors are { error: { code, message } } with 4xx/5xx.
  */
-import type { Actor, Fixture, Judgement, Locale, RunRecord, StepStatus, TestCase } from '@indx-watch/bundle';
+import type {
+  Actor,
+  FileRecord,
+  Fixture,
+  Judgement,
+  Locale,
+  RunRecord,
+  StepStatus,
+  TestCase,
+} from '@indx-watch/bundle';
 import type {
   Decision,
   Model,
@@ -27,7 +36,10 @@ export const ROUTES = {
   runs: 'GET /api/runs?tc=&release=&env=&limit=',
   run: 'GET /api/runs/:id',
   editTestCase:
-    'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record }; docs/spec/web.md#editing-in-workspace-mode)',
+    'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record? }; docs/spec/web.md#editing-in-workspace-mode)',
+  invite:
+    'POST /api/plans/:key/invites (lead; InviteInput → InviteResult; docs/spec/security.md#customer-uat)',
+  uninvite: 'DELETE /api/plans/:key/invites/:email?items= (lead; → InviteResult)',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
   approveBaseline: 'POST /api/runs/:id/baselines (humans only; docs/spec/web.md#visual-baselines)',
@@ -263,6 +275,27 @@ export interface TestCaseEdit {
   title?: string;
   priority?: string | null;
   steps?: { instruction: string; expected: string }[];
+}
+
+/** POST /api/plans/:key/invites body (v0.3, docs/spec/security.md#customer-uat); no `items`: every item of the plan. */
+export interface InviteInput {
+  email: string;
+  items?: string[];
+}
+
+/**
+ * Answer of the invite routes: the saved plan version (no `record` when no item changed), the items whose assignee
+ * changed, those taken from another assignee, and what happened to the Access policy.
+ */
+export interface InviteResult {
+  file: string;
+  record?: FileRecord;
+  email: string;
+  plan: string;
+  items: string[];
+  reassigned: string[];
+  revoked: boolean;
+  access: 'added' | 'removed' | 'kept' | 'manual';
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */

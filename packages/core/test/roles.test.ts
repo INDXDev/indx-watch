@@ -1,6 +1,16 @@
 /** Roles and customer assignment (docs/spec/security.md#roles), over examples/shop. */
 import { describe, expect, it } from 'vitest';
-import { assignedTo, buildModel, computeStatus, customerModel, roleOf } from '../src/index.js';
+import {
+  assignedTo,
+  buildModel,
+  canInvite,
+  computeStatus,
+  customerModel,
+  EMAIL,
+  inviteItems,
+  isAssignee,
+  roleOf,
+} from '../src/index.js';
 import { SCOPE, shop } from './fixtures.js';
 
 const ROLES = { lead: ['QA-Leads'], tester: ['kim@shop.test'], customer: ['uat'] };
@@ -12,6 +22,59 @@ describe('roleOf', () => {
     expect(roleOf(ROLES, { id: 'sam@acme.test', groups: ['UAT'] })).toBe('customer');
     expect(roleOf(ROLES, { id: 'eve@other.test', groups: [] })).toBeUndefined();
     expect(roleOf({ ...ROLES, default: 'viewer' }, { id: 'eve@other.test', groups: [] })).toBe('viewer');
+  });
+
+  it('makes an invited assignee a customer only where no role list or default covers it', () => {
+    const eve = { id: 'eve@other.test', groups: [] };
+    expect(roleOf(ROLES, eve, true)).toBe('customer');
+    expect(roleOf({ ...ROLES, default: 'viewer' }, eve, true)).toBe('viewer');
+    expect(roleOf(ROLES, { id: 'kim@shop.test', groups: [] }, true)).toBe('tester');
+    expect(
+      [
+        undefined,
+        ROLES,
+        { ...ROLES, default: 'customer' as const },
+        { ...ROLES, default: 'viewer' as const },
+      ].map(canInvite),
+    ).toEqual([false, true, true, false]);
+  });
+});
+
+describe('invites (docs/spec/security.md#customer-uat)', () => {
+  const items = [
+    { test_case: 'TC-6', assignee: 'alex@shop.test' },
+    { test_case: 'TC-8', assignee: 'pat@client.test' },
+    { test_case: 'TC-9' },
+  ];
+  it("assigns the chosen items, by default only the free ones, and revokes only the email's own", () => {
+    const one = inviteItems(items, 'pat@client.test', ['tc-9']);
+    expect(one).toMatchObject({ changed: ['TC-9'], reassigned: [], missing: [] });
+    expect(one.items.map((i) => i.assignee)).toEqual([
+      'alex@shop.test',
+      'pat@client.test',
+      'pat@client.test',
+    ]);
+    const all = inviteItems(items, 'pat@client.test', []);
+    expect(all).toMatchObject({ changed: ['TC-9'], reassigned: [] });
+    expect(all.items[0]).toEqual(items[0]);
+    expect(inviteItems(items, 'pat@client.test', ['TC-6', 'TC-8'])).toMatchObject({
+      changed: ['TC-6'],
+      reassigned: ['TC-6'],
+    });
+    const off = inviteItems(items, 'PAT@client.test', [], true);
+    expect(off).toMatchObject({ changed: ['TC-8'], reassigned: [] });
+    expect(off.items).toEqual([items[0], { test_case: 'TC-8' }, { test_case: 'TC-9' }]);
+    expect(inviteItems(items, 'pat@client.test', ['TC-1']).missing).toEqual(['TC-1']);
+  });
+  it('isAssignee and EMAIL', () => {
+    expect(isAssignee([{ items }], 'Pat@client.test')).toBe(true);
+    expect(isAssignee([{ items }, {}], 'eve@other.test')).toBe(false);
+    expect(['pat@client.test', 'group:uat@x.test', 'ci', 'a@b'].map((e) => EMAIL.test(e))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });
 

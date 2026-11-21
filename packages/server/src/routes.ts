@@ -19,7 +19,7 @@ import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sni
 import { renderReport, reportTexts } from './report.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
-import { editTestCase, workspaceMode } from './workspace.js';
+import { editTestCase, invite, workspaceMode } from './workspace.js';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
 /** A non-empty query parameter. */
@@ -218,6 +218,8 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/runs/:id/baselines', (c) => approveBaseline(c, x));
   app.post('/api/blobs', (c) => uploadBlob(c, x));
   app.patch('/api/test-cases/:key', (c) => editTestCase(c, x));
+  app.post('/api/plans/:key/invites', (c) => invite(c, x, false));
+  app.delete('/api/plans/:key/invites/:email', (c) => invite(c, x, true));
 }
 
 /** Release of a manual run (docs/spec/bundle-format.md#releasesversiontoml). */

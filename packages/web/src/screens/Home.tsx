@@ -79,6 +79,13 @@ type Props = { status: StatusResult; specs?: SpecTree | undefined; plans: PlanVi
 function Ready({ status, specs, plans, runs }: Props) {
   const { t } = useI18n();
   const d = useHome(status, specs, plans);
+  if (useApp().project.role === 'customer')
+    return (
+      <div className="home">
+        <Hero d={d} />
+        <Assigned d={d} plans={plans} />
+      </div>
+    );
   return (
     <div className="home">
       <Hero d={d} />
@@ -237,6 +244,45 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
           })}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** A customer's Home: every plan item assigned to them, by plan (docs/spec/web.md#customer-view). */
+function Assigned({ d: { title, byKey }, plans }: { d: HomeData; plans: PlanView[] }) {
+  const { t, locale } = useI18n();
+  const keys = [...new Set(plans.flatMap((p) => (p.items ?? []).map((i) => i.test_case)))];
+  const row = (i: NonNullable<PlanView['items']>[number]) => {
+    const x = byKey.get(i.test_case);
+    const failed = x?.latestRun && x.status === 'fail' ? x.latestRun : undefined;
+    const to = failed ? href.run(failed) : href.runner(i.test_case, keys.slice(keys.indexOf(i.test_case)));
+    return (
+      <li key={i.test_case} className="queue-item">
+        <Badge status={x?.status ?? 'untested'} />
+        <span>
+          <span className="key">{i.test_case}</span> {title.get(i.test_case)}
+        </span>
+        <span className="queue-actions">
+          {i.due && <span className="muted small">{i.due}</span>}
+          <a className="btn btn-sm" href={to}>
+            {t(failed ? 'dash.action.inspect' : 'dash.action.run')}
+          </a>
+        </span>
+      </li>
+    );
+  };
+  return (
+    <section className="card" aria-labelledby="uat-h">
+      <header className="card-head">
+        <h2 id="uat-h">{t('home.uat')}</h2>
+      </header>
+      {keys.length === 0 && <p className="muted">{t('home.uat.empty')}</p>}
+      {plans.map((p) => (
+        <div key={p.key}>
+          <h3>{txt(p, 'title', locale)}</h3>
+          <ul className="list">{(p.items ?? []).map(row)}</ul>
+        </div>
+      ))}
     </section>
   );
 }

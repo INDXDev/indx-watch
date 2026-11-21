@@ -1,6 +1,7 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
- * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES, ROLES; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
+ * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES, ROLES; secrets IW_SIGNING_KEY,
+ * IW_ACCESS_POLICY, CLOUDFLARE_API_TOKEN. CONTRACT; implementation T-107.
  * Definitions: the `file` records in workspace mode, else the latest bundle snapshot record
  * (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
@@ -47,6 +48,9 @@ export interface Env {
   OIDC_REPOSITORIES?: string;
   /** JSON of `[hosting.roles]`, pinned by `iw deploy`; never read from the bucket (docs/spec/security.md#roles) */
   ROLES?: string;
+  /** secrets `<account id>/<policy id>` and an API token: the Access policy of invites (docs/spec/security.md#customer-uat) */
+  IW_ACCESS_POLICY?: string;
+  CLOUDFLARE_API_TOKEN?: string;
 }
 
 /** The pinned roles; an invalid value lets nobody in. */
@@ -292,6 +296,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
     roles: identity && identity !== anon ? pinnedRoles(env) : undefined,
+    accessPolicy: S.cloudflareAccessPolicy(env as unknown as Record<string, string | undefined>),
     objects,
     onLogObject: async (key) => void (await ingest((await store.readLog(key)).records, key)),
     syncInfo: () => ({ configured: true, store: objects.url, lastSyncAt: new Date(ingested.at).toJSON() }),
