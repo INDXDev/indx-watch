@@ -32,7 +32,7 @@ Resolution order, implemented once in the `IdentityProvider` port:
 
 **Browser-declared tester** *(v0.2)*: when the server has no verified identity for a web request (`iw serve` without `--identity-header`, or hosted `--public`), a valid `iw_tester` cookie set through the app's "Who's testing?" dialog replaces steps 4–5 for that request, with `kind = "human"` and `via = "browser"`. Behind Cloudflare Access or a trusted identity header the cookie is ignored. See [web.md](web.md#identity).
 
-Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors.
+Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors. Approving a [visual baseline](concepts.md#visual-baselines) also refuses CI actors, and the model ignores `baseline` records whose actor is not `human`.
 
 ## Shared servers
 

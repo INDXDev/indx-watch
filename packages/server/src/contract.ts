@@ -28,6 +28,7 @@ export const ROUTES = {
   run: 'GET /api/runs/:id',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
+  approveBaseline: 'POST /api/runs/:id/baselines (humans only; docs/spec/web.md#visual-baselines)',
   uploadBlob: 'POST /api/blobs',
   blob: 'GET /api/blobs/:sha256',
   report: 'GET /api/report?release=&env=&plan=&format=md|html&audience=internal|customer&locale=',
@@ -42,7 +43,7 @@ export const ROUTES = {
 /**
  * Response types per route (all JSON): project → ProjectInfo; status → StatusResult; specs → SpecTree; testCase → TestCaseDetail;
  * fixtures → FixtureDetail[]; fixture → FixtureDetail; plans → PlanView[]; plan → PlanView; runs → RunSummary[]; run → RunDetail;
- * createRun → ManualRunResult; addJudgement → ReviewResult; uploadBlob → BlobResult; report → text/markdown or text/html.
+ * createRun → ManualRunResult; addJudgement → ReviewResult; approveBaseline → { baseline: BaselineRecord }; uploadBlob → BlobResult; report → text/markdown or text/html.
  *
  * Translations: wherever an entity's `i18n` tables are returned, the server sets `status: "stale"` on a table whose source_hash no
  * longer matches the current source, so clients only need to check `status`.
@@ -212,6 +213,13 @@ export interface RunDetail {
   testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
   /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: string[];
+  /** sha256 of this run's screenshots that are the current approved baseline of their name (v0.2) */
+  baselines?: string[];
+}
+
+/** POST /api/runs/:id/baselines: approve one PNG screenshot of the run as its visual baseline. */
+export interface BaselineInput {
+  sha256: string;
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */

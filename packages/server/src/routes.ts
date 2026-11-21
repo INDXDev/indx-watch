@@ -3,11 +3,18 @@
  * manual runs, reviews, blob uploads) and the store endpoints (docs/spec/sync.md#store-http-endpoints).
  */
 import * as B from '@indx-watch/bundle';
-import { computeStatus, decide, type Model, reportData, type Scope } from '@indx-watch/core';
+import {
+  approvedBaseline,
+  computeStatus,
+  decide,
+  type Model,
+  reportData,
+  type Scope,
+} from '@indx-watch/core';
 import { checkRecord, ulidTime } from '@indx-watch/store';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
-import type { ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
+import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
 import { renderReport, reportTexts } from './report.js';
 import { prepareUpload, type UploadInput } from './upload.js';
@@ -115,7 +122,11 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
   const flagged = (jid: string, i: number) => m.unverified?.has(i ? `${record.id}#${jid}` : jid);
   const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
-  return { record, judgements, decision, stale, testCase, ...(ids.length ? { unverified: ids } : {}) };
+  const project = record.automation?.project;
+  const current = (e: B.Evidence) => approvedBaseline(m, record.test_case.id, e.name, project)?.sha256;
+  const baselines = record.evidence.filter((e) => current(e) === e.sha256).map((e) => e.sha256);
+  const extra = { ...(ids.length && { unverified: ids }), ...(baselines.length && { baselines }) };
+  return { record, judgements, decision, stale, testCase, ...extra };
 }
 
 async function blob(c: Context, { deps, uploads }: Ctx) {
@@ -172,6 +183,7 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/bundle', (c) => uploadBundle(c, x));
   app.post('/api/runs', (c) => createRun(c, x));
   app.post('/api/runs/:id/judgements', (c) => review(c, x));
+  app.post('/api/runs/:id/baselines', (c) => approveBaseline(c, x));
   app.post('/api/blobs', (c) => uploadBlob(c, x));
 }
 
@@ -287,6 +299,27 @@ async function review(c: Context, x: Ctx) {
   const ctx = { priority: t.priority, mode: t.data.mode, reported: v.record.reported ?? null };
   const decision = decide([...v.judgements, record.judgement], t.policy, ctx);
   return c.json({ judgement: record.judgement, decision }, 201);
+}
+
+/** A person approves one PNG screenshot of a run as its visual baseline (docs/spec/web.md#visual-baselines). */
+async function approveBaseline(c: Context, x: Ctx) {
+  const [input, m] = [await readJson<BaselineInput>(c), await x.model()];
+  const run = runOf(m, c.req.param('id')!).record;
+  const e = run.evidence.find((e) => e.sha256 === input.sha256 && e.media_type === 'image/png');
+  if (!e) throw bad('sha256 must name a PNG screenshot of this run');
+  const [who, at] = [await x.actor(c), x.now()];
+  if (who.kind !== 'human') throw new HttpError(403, 'forbidden', 'only people can approve baselines');
+  const env = { kind: 'baseline', id: B.newId('rec'), v: 1, project: m.project.id, at, actor: who };
+  const fields = {
+    test_case: { id: run.test_case.id, key: run.test_case.key },
+    name: e.name,
+    sha256: e.sha256,
+  };
+  const baseline = B.BaselineRecord.parse({
+    ...{ ...env, source: 'manual', ...fields, automation_project: run.automation?.project, run: run.id },
+  });
+  await x.deps.writeRecord(baseline);
+  return c.json({ baseline }, 201);
 }
 
 async function uploadBlob(c: Context, { deps, uploads }: Ctx) {

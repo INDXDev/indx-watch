@@ -45,6 +45,14 @@ export async function openStore(ctx: Ctx, p: cx.Project, a: Args) {
   };
 }
 
+/** Read blobs from the local replica, else from the result store (null when absent or unreachable). */
+export const blobReader = (ctx: Ctx, p: cx.Project, a: Args) => async (sha: string) =>
+  (await p.replica.getBlob(sha)) ??
+  openStore(ctx, p, a).then(
+    (s) => s.store.getBlob(sha),
+    () => null,
+  );
+
 /** Git facts, actor and signer for publishing a bundle snapshot of the project (iw sync --snapshot, iw push). */
 export async function snapshotOf(ctx: Ctx, p: cx.Project) {
   const time = git(p.dir, 'log', '-1', '--format=%cI');

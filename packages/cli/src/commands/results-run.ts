@@ -1,12 +1,13 @@
 /** Commands that add a run or a judgement to one: record and judge, with the helpers they share with results.ts. */
 import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
-import { type Build, newId, StepStatus } from '@indx-watch/bundle';
+import { type Build, type Judgement, newId, type RunRecord, StepStatus } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
 import { recordWarnings } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, csv, fail, iso, many, P, pick, S, str } from '../util.js';
+import { compareShot, pngShots } from '../visual.js';
 
 export const VERDICT = S('pass | fail | blocked | skipped');
 export const verdictOf = (v: unknown) =>
@@ -186,25 +187,59 @@ const llmJudgement = (answer: Awaited<ReturnType<typeof askClaude>>) => ({
   at: iso(),
 });
 
+/** One visual judgement per PNG screenshot, compared with its approved baseline (docs/spec/concepts.md#visual-baselines). */
+async function visualJudgements(
+  ctx: Ctx,
+  blob: (sha: string) => Promise<Uint8Array | null>,
+  m: core.Model,
+  tc: core.TestCaseNode,
+  run: RunRecord,
+) {
+  const judge = tc.data.judges?.find((j) => j.kind === 'visual');
+  if (!judge) fail('USAGE', `${tc.data.key} declares no visual judge`);
+  const shots = pngShots(run, judge!.baseline);
+  if (!shots.length) fail('USAGE', `${run.id} has no PNG screenshot ${judge!.baseline ?? ''} to compare`);
+  const [by, at] = [await cx.actorOf(ctx), iso()];
+  const out = [];
+  for (const e of shots) {
+    const base = core.approvedBaseline(m, tc.data.id, e.name, run.automation?.project);
+    const verdict = compareShot(await blob(e.sha256), base && (await blob(base.sha256)));
+    out.push({
+      id: newId('jdg'),
+      kind: 'visual' as const,
+      ...verdict,
+      test: e.name,
+      baseline: base?.sha256,
+      by,
+      at,
+    });
+  }
+  return out;
+}
+
 const judge: Spec = {
-  description: "Ask Claude to judge a run against the test case's llm rubric (adds an llm judgement)",
+  description:
+    "Judge a run: Claude against the test case's llm rubric, or --visual against approved baselines",
   args: {
     run: P('Run ID or prefix'),
     model: S('Claude model (default IW_LLM_MODEL or claude-opus-5-5)'),
+    visual: B('Compare the PNG screenshots with their approved baselines (visual judgements)'),
     'dry-run': B('Print the judgement without recording it'),
   },
   async run(ctx, a) {
     const p = await cx.openProject(ctx, a);
-    const view = cx.resolveRun(await cx.loadModel(p), str(a.run)!);
+    const m = await cx.loadModel(p);
+    const view = cx.resolveRun(m, str(a.run)!);
     const run = view.record;
+    const blob = (await import('./data.js')).blobReader(ctx, p, a); // lazy: data.ts imports this module
     const tc =
-      (await cx.loadModel(p)).testCases.get(run.test_case.key) ??
-      fail('NOT_FOUND', `${run.test_case.key} is not in the bundle`);
+      m.testCases.get(run.test_case.key) ?? fail('NOT_FOUND', `${run.test_case.key} is not in the bundle`);
+    if (a.visual) return visualJudge(ctx, a, p, await visualJudgements(ctx, blob, m, tc, run), view);
     const rubric = tc.data.judges?.find((j) => j.kind === 'llm')?.rubric?.filter(Boolean);
     if (!rubric?.length) return fail('USAGE', `${tc.data.key} declares no llm judge with a rubric`);
     const { expected, observed } = judgeInput(tc, view);
     const shot = run.evidence.filter((e) => e.kind === 'screenshot' && e.media_type === 'image/png').at(-1);
-    const screenshot = shot ? ((await p.replica.getBlob(shot.sha256)) ?? undefined) : undefined;
+    const screenshot = shot ? ((await blob(shot.sha256)) ?? undefined) : undefined;
     const title = `${tc.data.key} ${tc.data.title}`;
     const observation = { url: run.ci?.url ?? '', title, tree: observed, screenshot };
     const answer = await askClaude(str(a.model) ?? ctx.env.IW_LLM_MODEL, { rubric, expected, observation });
@@ -218,6 +253,21 @@ const judge: Spec = {
     return { data: { judgement: rec.judgement, verdict: after, recorded: true }, text };
   },
 };
+
+/** Records (unless --dry-run) the visual judgements of one run. */
+async function visualJudge(ctx: Ctx, a: Args, p: cx.Project, judgements: Judgement[], view: core.RunView) {
+  const id = view.record.id;
+  const line = (j: Judgement) => `${j.test}: visual ${j.verdict}${j.diff_ratio ? ` (${j.diff_ratio})` : ''}`;
+  if (a['dry-run'])
+    return {
+      data: { judgement: judgements[0]!, judgements, verdict: view.decision.verdict, recorded: false },
+      text: judgements.map(line).join('\n'),
+    };
+  for (const judgement of judgements) await cx.append(ctx, p, 'judgement', { run: id, judgement });
+  const verdict = (await cx.loadModel(p)).runs.get(id)!.decision.verdict;
+  const text = [...judgements.map(line), `${id}: ${verdict}`].join('\n');
+  return { data: { judgement: judgements[0]!, judgements, verdict, recorded: true }, text };
+}
 
 /** record and judge, registered in results.ts. */
 export const runCommands = { record, judge };
