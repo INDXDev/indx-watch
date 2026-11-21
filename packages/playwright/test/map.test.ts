@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { loadBundle } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
+import { processContext } from '@indx-watch/store/node';
 import { describe, expect, it } from 'vitest';
 import {
   annotatedRows,
@@ -47,6 +48,18 @@ describe('helpers', () => {
     expect(runGroup({}, { provider: 'buildkite' })).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).not.toBe(runGroup({}));
+  });
+
+  it('starts a new execution when a GitLab or Buildkite job is retried', async () => {
+    const group = async (env: Record<string, string>) => runGroup(env, await processContext({ env }).ci());
+    const gl = { GITLAB_CI: 'true', CI_PIPELINE_ID: '1001' };
+    expect(await group({ ...gl, CI_JOB_RETRY_COUNT: '0' })).toBe('gitlab:1001:1');
+    expect(await group({ ...gl, CI_JOB_RETRY_COUNT: '1' })).toBe('gitlab:1001:2');
+    expect(await group(gl)).toBe('gitlab:1001:1'); // GitLab before 19.3: IW_RUN_GROUP keeps retries apart
+    expect(await group({ BUILDKITE: 'true', BUILDKITE_BUILD_ID: 'b-5', BUILDKITE_RETRY_COUNT: '1' })).toBe(
+      'buildkite:b-5:2',
+    );
+    expect(await group({ CIRCLECI: 'true', CIRCLE_WORKFLOW_ID: 'wf-2' })).toBe('circleci:wf-2:1');
   });
 
   it('reads rows from _iw.fixture annotations', () => {

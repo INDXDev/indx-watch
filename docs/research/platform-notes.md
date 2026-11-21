@@ -59,6 +59,12 @@ Last verified: 2026-11-19
 - A Marketplace listing needs a public repo with a single `action.yml` at the root. Actions in subfolders work (`owner/repo/path@ref`) but are not listed. (verified 2026-11-19, https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace)
 - With immutable releases (GA 2025-10-28), the documented pattern is an immutable release per exact version plus plain moving tags (`v1`). (verified 2026-11-19, https://docs.github.com/en/actions/how-tos/create-and-publish-actions/using-immutable-releases-and-tags-to-manage-your-actions-releases)
 
+## Other CI providers
+
+- GitLab: `GITLAB_USER_LOGIN` is the unique username of the user who started the pipeline, "unless the job is a manual job"; `GITLAB_USER_NAME` is the display name. `CI_MERGE_REQUEST_IID` is set only in merge request pipelines and is the number in the MR URL. `CI_COMMIT_TAG` is set only in tag pipelines; `CI_COMMIT_REF_NAME` is the branch or tag. `CI_PIPELINE_ID` is unique per instance and does not change when a job is retried (`CI_JOB_ID` does). `CI_JOB_RETRY_COUNT` (GitLab 19.3+) is `0` on the first run and counts retries of the job in the pipeline. `CI_NODE_INDEX` is set only with `parallel:`. (verified 2026-11-21, https://docs.gitlab.com/ci/variables/predefined_variables/)
+- CircleCI: `CIRCLE_PULL_REQUEST` is a PR URL (one chosen at random when several exist), not a number. `CIRCLE_USERNAME` is the GitHub or Bitbucket username of the user who triggered the pipeline, only if they have a CircleCI account. `CIRCLE_BUILD_URL` is the job page. `CIRCLE_WORKFLOW_ID` identifies the workflow instance; a rerun creates a new workflow with a new ID (the API's rerun response returns the new `workflow_id`; a forum report confirms the variable changes while `CIRCLE_WORKFLOW_WORKSPACE_ID` stays). (verified 2026-11-21, https://circleci.com/docs/reference/variables/ , https://circleci.com/docs/api/v2/)
+- Buildkite: `BUILDKITE_COMMIT` can be a symbolic name such as `HEAD` before checkout; the agent resolves it after checkout. `BUILDKITE_PULL_REQUEST` is the PR number or `false`. `BUILDKITE_BUILD_CREATOR` is a display name and `BUILDKITE_BUILD_CREATOR_EMAIL` the creator's notification email; `BUILDKITE_BUILD_AUTHOR` is the commit author, may be unverified, and can be blank for manual builds. `BUILDKITE_BUILD_ID` is the build UUID, unchanged by job retries; `BUILDKITE_RETRY_COUNT` counts retries of the job. (verified 2026-11-21, https://buildkite.com/docs/pipelines/configure/environment-variables)
+
 ## Agent skills
 
 ### Agent Skills standard
@@ -240,5 +246,6 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 
 ## Changelog
 
+- 2026-11-21: Added GitLab CI, CircleCI and Buildkite variable semantics (T-208).
 - 2026-11-19: Added `pnpm/action-setup` runtimes and the `npx <tgz>` pitfall (review fixes).
 - 2026-11-19: First version, compiled from the Phase 0 research. Spot-checked on the web: R2 conditional PUT, `node:sqlite` stability, `z.toJSONSchema`, Codex skill locations, Hono static assets and `ctx.access` with Static Assets, the MCP 2026-07-28 changelog, D1 limits, Claude Code's AGENTS.md loading, GitHub Node 20 removal, and npm versions.

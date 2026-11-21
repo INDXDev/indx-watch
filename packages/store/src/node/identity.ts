@@ -29,16 +29,16 @@ const isGithub = (env: Env) => env.GITHUB_ACTIONS === 'true';
  * GitLab CI, CircleCI and Buildkite by their standard variables (docs/spec/integrations.md#ci-identity-and-context):
  * the marker set to 'true', then one variable per field of FIELDS ('-' = none).
  */
-const FIELDS = 'commit branch tag user pr url run_id job workflow event repository'.split(' ');
+const FIELDS = 'commit branch tag user name retry pr url run_id job workflow event repository'.split(' ');
 const PROVIDERS = Object.entries({
   gitlab:
-    'GITLAB_CI CI_COMMIT_SHA CI_COMMIT_REF_NAME CI_COMMIT_TAG GITLAB_USER_LOGIN CI_MERGE_REQUEST_IID CI_JOB_URL CI_PIPELINE_ID CI_JOB_NAME - CI_PIPELINE_SOURCE CI_PROJECT_PATH',
+    'GITLAB_CI CI_COMMIT_SHA CI_COMMIT_REF_NAME CI_COMMIT_TAG GITLAB_USER_LOGIN GITLAB_USER_NAME CI_JOB_RETRY_COUNT CI_MERGE_REQUEST_IID CI_JOB_URL CI_PIPELINE_ID CI_JOB_NAME - CI_PIPELINE_SOURCE CI_PROJECT_PATH',
   circleci:
-    'CIRCLECI CIRCLE_SHA1 CIRCLE_BRANCH CIRCLE_TAG CIRCLE_USERNAME CIRCLE_PULL_REQUEST CIRCLE_BUILD_URL CIRCLE_WORKFLOW_ID CIRCLE_JOB - - -',
+    'CIRCLECI CIRCLE_SHA1 CIRCLE_BRANCH CIRCLE_TAG CIRCLE_USERNAME - - CIRCLE_PULL_REQUEST CIRCLE_BUILD_URL CIRCLE_WORKFLOW_ID CIRCLE_JOB - - -',
   buildkite:
-    'BUILDKITE BUILDKITE_COMMIT BUILDKITE_BRANCH BUILDKITE_TAG BUILDKITE_BUILD_CREATOR BUILDKITE_PULL_REQUEST BUILDKITE_BUILD_URL BUILDKITE_BUILD_ID BUILDKITE_LABEL BUILDKITE_PIPELINE_SLUG BUILDKITE_SOURCE -',
+    'BUILDKITE BUILDKITE_COMMIT BUILDKITE_BRANCH BUILDKITE_TAG BUILDKITE_BUILD_CREATOR_EMAIL BUILDKITE_BUILD_CREATOR BUILDKITE_RETRY_COUNT BUILDKITE_PULL_REQUEST BUILDKITE_BUILD_URL BUILDKITE_BUILD_ID BUILDKITE_LABEL BUILDKITE_PIPELINE_SLUG BUILDKITE_SOURCE -',
 });
-/** The detected provider other than GitHub Actions (which wins) and the values of its FIELDS. */
+/** The first detected provider in PROVIDERS order, unless GitHub Actions (which wins), and the values of its FIELDS. */
 function otherCi(env: Env) {
   if (isGithub(env)) return undefined;
   for (const [provider, row] of PROVIDERS) {
@@ -65,7 +65,8 @@ export function processIdentity(opts: Opts = {}): IdentityProvider {
     } else if (isGithub(env) && env.GITHUB_ACTOR) {
       a = { kind: 'ci', id: `github:${env.GITHUB_ACTOR}`, name: env.GITHUB_ACTOR, via: 'github' };
     } else if (other?.v.user) {
-      a = { kind: 'ci', id: `${other.provider}:${other.v.user}`, name: other.v.user, via: other.provider };
+      const { provider: via, v } = other;
+      a = { kind: 'ci', id: `${via}:${v.user}`, name: v.name || v.user, via };
     } else {
       const [email, name] = [await git('user.email'), await git('user.name')];
       if (email) a = compact({ kind: 'human', id: email, name, via: 'git' });
@@ -100,7 +101,7 @@ interface GithubEvent {
   deployment?: { sha?: string };
 }
 
-/** Build and CI context from git and the variables of GitHub Actions, GitLab CI, CircleCI or Buildkite. */
+/** Build and CI context from GitHub Actions, GitLab CI, CircleCI or Buildkite variables, else from git. */
 export function processContext(opts: Opts = {}): ContextProvider {
   const env = opts.env ?? process.env;
   const gitEnv = { ...process.env, ...env };
@@ -129,12 +130,12 @@ export function processContext(opts: Opts = {}): ContextProvider {
         const ref = env.GITHUB_HEAD_REF ? `refs/heads/${env.GITHUB_HEAD_REF}` : env.GITHUB_REF;
         return compact({ commit, ref, dirty: false });
       }
+      const commit = sha(env.IW_COMMIT) ?? sha(other?.v.commit) ?? sha(await git('rev-parse', 'HEAD'));
       if (other) {
-        const { commit, branch, tag } = other.v;
+        const { branch, tag } = other.v;
         const ref = tag ? `refs/tags/${tag}` : branch ? `refs/heads/${branch}` : undefined;
-        return compact({ commit: sha(env.IW_COMMIT) ?? sha(commit), ref, dirty: false });
+        return compact({ commit, ref, dirty: false });
       }
-      const commit = sha(env.IW_COMMIT) ?? sha(await git('rev-parse', 'HEAD'));
       if (!commit) return {};
       const status = await git('status', '--porcelain');
       const dirty = status === undefined ? undefined : status.trim() !== '';
@@ -142,9 +143,10 @@ export function processContext(opts: Opts = {}): ContextProvider {
     },
     async ci(): Promise<CiContext | undefined> {
       if (other) {
-        const { commit, branch, tag, user, pr, ...fields } = other.v;
+        const { commit, branch, tag, user, name, retry, pr, ...fields } = other.v;
         const n = /(\d+)$/.exec(pr ?? '')?.[1]; // a number or a PR URL; Buildkite sets 'false'
-        return compact({ provider: other.provider, ...fields, pr: n ? Number(n) : undefined });
+        const run_attempt = retry && /^\d+$/.test(retry) ? Number(retry) + 1 : undefined; // retries of this job
+        return compact({ provider: other.provider, ...fields, run_attempt, pr: n ? Number(n) : undefined });
       }
       if (!isGithub(env)) return undefined;
       const pr = (await readEvent()).pull_request?.number;

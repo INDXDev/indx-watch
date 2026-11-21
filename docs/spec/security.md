@@ -15,7 +15,7 @@ Every record (run, judgement, waiver, deployment, snapshot) carries an `actor` a
 | Field | Values |
 |---|---|
 | `actor.kind` | `human`, `ci`, `agent` |
-| `actor.id` | email, or `<provider>:<login>` in CI (`github:octocat`, `gitlab:alex`) |
+| `actor.id` | email, or `<provider>:<login>` in CI (`github:octocat`, `gitlab:alex`; Buildkite uses the build creator's email) |
 | `actor.via` | `git`, `github`, `gitlab`, `circleci`, `buildkite`, `github-oidc`, `cloudflare-access`, `env`, `browser` |
 | `actor.model` | model ID, when `kind = "agent"` |
 | `source` | `manual`, `playwright`, `agent`, `cli`, `ci`, `import` |
@@ -26,7 +26,7 @@ Resolution order, implemented once in the `IdentityProvider` port:
    **Agent detection** — independently of the source, `kind` becomes `agent` when `IW_ACTOR_KIND=agent`, when running under `iw mcp`, or when a known coding-agent environment marker is set (the list lives in [platform notes](../research/platform-notes.md#agent-skills), e.g. `CLAUDECODE=1`).
 2. **Hosted server** — the verified Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`), checked with `jose` against the team's JWKS and the application's `aud`; `via = "cloudflare-access"`. Requests without a valid JWT are rejected (401) unless the server runs in local mode.
 3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`, `via = "github"`. *(v0.2)* With `id-token: write`, the action will attach OIDC claims (`repository`, `ref`, `sha`, `run_id`) and set `via = "github-oidc"`; the value is reserved in the schema and shown as verified, but v0.1 never produces it.
-   *(v0.2)* GitLab CI, CircleCI and Buildkite work the same way from their standard variables: `kind = "ci"`, `id = "<provider>:<user>"`, `via = "gitlab"`, `"circleci"` or `"buildkite"` ([integrations](integrations.md#ci-identity-and-context)).
+   *(v0.2)* GitLab CI, CircleCI and Buildkite work the same way from their standard variables: `kind = "ci"`, `id = "<provider>:<user>"` (the login; the build creator's email on Buildkite), `via = "gitlab"`, `"circleci"` or `"buildkite"` ([integrations](integrations.md#ci-identity-and-context)).
 4. **Local** — `git config user.email` / `user.name`; `via = "git"`.
 5. **Fallback** — OS user name with `via = "env"` and a warning.
 

@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- GitLab CI, CircleCI and Buildkite context: the reporter and the CLI fill `build`, `ci`, the actor (`via = "gitlab"`, `"circleci"`, `"buildkite"`, verified only when signed) and the run group from each provider's standard variables (T-208).
+- GitLab CI, CircleCI and Buildkite context: the reporter and the CLI fill `build`, `ci`, the actor (`via = "gitlab"`, `"circleci"`, `"buildkite"`, verified only when signed) and the run group (a retried job starts a new execution) from each provider's standard variables (T-208).
 
 ## [0.1.0] - 2026-11-21
 

@@ -174,13 +174,16 @@ describe('GitLab CI, CircleCI and Buildkite', () => {
         CI_JOB_NAME: 'e2e',
         CI_PIPELINE_SOURCE: 'merge_request_event',
         CI_PROJECT_PATH: 'shop/web',
+        GITLAB_USER_NAME: 'Alex Kim',
+        CI_JOB_RETRY_COUNT: '0',
       },
       ref: 'refs/heads/coupon-fix',
-      actor: { kind: 'ci', id: 'gitlab:alex', name: 'alex', via: 'gitlab' },
+      actor: { kind: 'ci', id: 'gitlab:alex', name: 'Alex Kim', via: 'gitlab' },
       ci: {
         provider: 'gitlab',
         url: 'https://gitlab.com/shop/web/-/jobs/7',
         run_id: '1001',
+        run_attempt: 1,
         job: 'e2e',
         event: 'merge_request_event',
         repository: 'shop/web',
@@ -212,10 +215,12 @@ describe('GitLab CI, CircleCI and Buildkite', () => {
     {
       env: {
         BUILDKITE: 'true',
-        BUILDKITE_COMMIT: 'HEAD', // not a SHA: IW_COMMIT or nothing
+        BUILDKITE_COMMIT: 'HEAD', // not a SHA: IW_COMMIT, else the checkout
         IW_COMMIT: sha,
         BUILDKITE_BRANCH: 'main',
         BUILDKITE_BUILD_CREATOR: 'Kim Lee',
+        BUILDKITE_BUILD_CREATOR_EMAIL: 'kim@shop.test',
+        BUILDKITE_RETRY_COUNT: '2',
         BUILDKITE_PULL_REQUEST: 'false',
         BUILDKITE_BUILD_URL: 'https://buildkite.com/shop/web/builds/5',
         BUILDKITE_BUILD_ID: 'b-5',
@@ -224,11 +229,12 @@ describe('GitLab CI, CircleCI and Buildkite', () => {
         BUILDKITE_SOURCE: 'webhook',
       },
       ref: 'refs/heads/main',
-      actor: { kind: 'ci', id: 'buildkite:Kim Lee', name: 'Kim Lee', via: 'buildkite' },
+      actor: { kind: 'ci', id: 'buildkite:kim@shop.test', name: 'Kim Lee', via: 'buildkite' },
       ci: {
         provider: 'buildkite',
         url: 'https://buildkite.com/shop/web/builds/5',
         run_id: 'b-5',
+        run_attempt: 3,
         job: ':playwright: e2e',
         workflow: 'web',
         event: 'webhook',
@@ -250,6 +256,15 @@ describe('GitLab CI, CircleCI and Buildkite', () => {
     expect((await processContext({ env: both }).ci())?.provider).toBe('github');
     const scheduled = { ...isolated(), ...env, GITLAB_USER_LOGIN: '' };
     expect((await processIdentity({ env: scheduled, cwd: repo }).current()).via).toBe('git');
+  });
+
+  it('takes the first provider in table order, ignores a non-numeric PR and falls back to the checkout commit', async () => {
+    const env = { ...cases[1]!.env, ...cases[2]!.env, CIRCLE_PULL_REQUEST: 'none', IW_COMMIT: undefined };
+    const ci = await processContext({ env }).ci();
+    expect(ci).toMatchObject({ provider: 'circleci', run_id: 'wf-1' });
+    expect(ci?.pr).toBeUndefined();
+    const bk = { ...isolated(), ...cases[2]!.env, IW_COMMIT: undefined };
+    expect((await processContext({ env: bk, cwd: repo }).build()).commit).toBe(git('rev-parse', 'HEAD'));
   });
 });
 
