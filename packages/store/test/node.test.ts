@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   accessHeaders,
   awsCredentials,
@@ -226,10 +226,11 @@ describe('indexedRecords (replica records through cache/index.sqlite)', () => {
   };
   const both = async (dir: string) => {
     const [a, b] = [[] as string[], [] as string[]];
-    const viaIndex = indexedRecords(await openNodeIndex(dir), join(dir, 'runs'));
-    const indexed = await viaIndex((f, e) => a.push(`${f}: ${e}`));
+    const index = await openNodeIndex(dir);
+    const reset = vi.spyOn(index, 'reset');
+    const indexed = await indexedRecords(index, join(dir, 'runs'))((f, e) => a.push(`${f}: ${e}`));
     const plain = await openReplica(dir).records((f, e) => b.push(`${f}: ${e}`));
-    return { indexed, plain, invalid: [a, b] };
+    return { indexed, plain, invalid: [a, b], rebuilt: reset.mock.calls.length > 0 };
   };
 
   it('returns what the replica returns, in the same order, with the same invalid files', async () => {
@@ -241,13 +242,17 @@ describe('indexedRecords (replica records through cache/index.sqlite)', () => {
       await put(dir, '{"kind":"run"', 'records/2026-03/run_01JQ0000000000000000000000.json');
       await put(dir, runRecord({ at: mid }), 'records/2026-03/misnamed.json');
       await put(dir, runs[0], 'records/2026-03/.tmp-1.json');
+      await put(dir, { ...runs[2], environment: 'dup' }, 'records/2026-03/zz-same-id.json');
       const first = await both(dir);
       expect(first.indexed).toEqual(first.plain);
       expect(first.invalid[0]).toEqual(first.invalid[1]);
-      expect(first.indexed.map((r) => r.at.slice(0, 4))).toEqual(['2025', '2026', '2026', '2026']);
-      const again = await both(dir); // a second read through a new index object on the same file
+      expect(first.indexed.map((r) => r.at.slice(0, 4))).toEqual(['2025', '2026', '2026', '2026', '2026']);
+      // a second read through a new index object on the same file: nothing is rebuilt (misnamed and duplicate
+      // files included) and the same bodies come back, the duplicate ID's second file included
+      const again = await both(dir);
       expect(again.indexed).toEqual(again.plain);
       expect(again.invalid[0]).toEqual(first.invalid[0]);
+      expect(again.rebuilt).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -258,9 +263,10 @@ describe('indexedRecords (replica records through cache/index.sqlite)', () => {
     try {
       const [a, b] = [runRecord({ at: Date.parse('2026-01-01') }), runRecord()];
       const [fa, fb] = [await put(dir, a), await put(dir, b)];
+      const mtime = new Date('2026-01-02T00:00:00Z'); // whole milliseconds, so utimes() can restore it exactly
+      await utimes(fa, mtime, mtime);
       expect((await both(dir)).indexed).toEqual([a, b]);
       // same mtime, other body: a restart does not read the file again, so the indexed body is returned
-      const { mtime } = await stat(fa);
       const edited = { ...a, environment: 'production' };
       await put(dir, edited);
       await utimes(fa, mtime, mtime);
@@ -268,10 +274,17 @@ describe('indexedRecords (replica records through cache/index.sqlite)', () => {
       // a newer mtime is a rewrite (sync applying the merge rule): the index is rebuilt
       await utimes(fa, new Date(), new Date(Date.now() + 1000));
       expect((await both(dir)).indexed).toEqual([edited, b]);
+      // any other mtime is a rewrite, an older one too (no clock comparison)
+      const older = { ...a, environment: 'staging' };
+      await put(dir, older);
+      await utimes(fa, mtime, new Date(mtime.getTime() - 60_000));
+      const back = await both(dir);
+      expect([back.indexed, back.rebuilt]).toEqual([[older, b], true]);
+      expect((await both(dir)).rebuilt).toBe(false);
       await rm(fb);
       const gone = await both(dir);
-      expect(gone.indexed).toEqual([edited]);
-      expect(gone.plain).toEqual([edited]);
+      expect(gone.indexed).toEqual([older]);
+      expect(gone.plain).toEqual([older]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

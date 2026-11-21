@@ -6,7 +6,6 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -161,6 +160,9 @@ describe('startNodeServer: records through the node:sqlite index', () => {
       writeFileSync(file(r), JSON.stringify(r));
     }
     writeFileSync(join(at, 'runs/records/2026-11/run_broken.json'), '{"kind":"run"');
+    const tc4 = records.find((r) => r.kind === 'run' && r.test_case.key === 'TC-4')!;
+    const mtime = new Date('2026-11-01T00:00:00Z'); // whole milliseconds, so utimesSync() can restore it exactly
+    utimesSync(file(tc4), mtime, mtime);
     const start = (index?: boolean) =>
       startNodeServer({ dir: at, port: 0, sync: false, webRoot: web, index });
     const [indexed, plain] = [await start(), await start(false)];
@@ -171,8 +173,6 @@ describe('startNodeServer: records through the node:sqlite index', () => {
       expect(existsSync(join(at, 'cache/index.sqlite'))).toBe(true);
       await indexed.close();
       // same mtime, other body: the restarted server answers from the index without reading the file again
-      const tc4 = records.find((r) => r.kind === 'run' && r.test_case.key === 'TC-4')!;
-      const { mtime } = statSync(file(tc4));
       writeFileSync(file(tc4), JSON.stringify({ ...tc4, environment: 'production' }));
       utimesSync(file(tc4), mtime, mtime);
       const again = await start();

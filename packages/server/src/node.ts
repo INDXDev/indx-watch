@@ -132,8 +132,12 @@ export async function startNodeServer(opts: NodeServerOptions): Promise<Server> 
 async function indexedRecords(dir: string, replica: Local['replica']): Promise<Local['records']> {
   const index = await SN.openNodeIndex(dir).catch(() => null);
   const read = index && SN.indexedRecords(index, join(dir, 'runs'));
-  return (onInvalid) =>
-    read ? read(onInvalid).catch(() => replica.records(onInvalid)) : replica.records(onInvalid);
+  return async (onInvalid) => {
+    const bad: [string, string][] = []; // passed on only when the read succeeds, so a fallback never reports twice
+    const r = read && (await read((f, e) => bad.push([f, e])).catch(() => null));
+    for (const [f, e] of r ? bad : []) onInvalid?.(f, e);
+    return r ?? replica.records(onInvalid);
+  };
 }
 
 /** The cached model, rebuilt after bundle edits (debounced) and replica writes. */
