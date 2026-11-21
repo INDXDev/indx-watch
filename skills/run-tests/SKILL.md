@@ -61,11 +61,11 @@ A run is one execution of one test case version against one build and environmen
 
 ## Worked example: examples/shop UC-5
 
-User: "Run the test cases for UC-5." (After the `write-test-cases` example, UC-5 has the manual drafts TC-9 and TC-10.)
+User: "Run the test cases for UC-5." (After the `write-test-cases` example, UC-5 has the manual drafts TC-9 and TC-11.)
 
-1. `iw list tcs --uc UC-5 --json` → TC-9 (manual, FX-3 + FX-4), TC-10 (manual, FX-3 + FX-5). `iw list envs --json` → `staging`, `base_url = "http://localhost:4173"`.
+1. `iw list tcs --uc UC-5 --json` → TC-9 (manual, FX-3 + FX-4), TC-11 (manual, FX-3 + FX-5). `iw list envs --json` → `staging`, `base_url = "http://localhost:4173"`.
 2. Start the app if it is not running: `node examples/shop/app/server.mjs`. `iw fixture fetch FX-4 --json` (the photo is a pointer). Check that `SHOP_CUSTOMER_PASSWORD` is set.
 3. With a short Playwright script (password from `process.env.SHOP_CUSTOMER_PASSWORD`): sign in as `casey@shop.test`, open "Canvas Tote", attach the photo, press "Post review", screenshot. The review shows a thumbnail.
 4. `IW_ACTOR_KIND=agent IW_AGENT_MODEL=claude-opus-5-5 iw record TC-9 --verdict pass --confidence 0.9 --step 1=pass --step 2=pass --evidence tc9-step2.png@2 --json` → `verdict: "pass"`.
-5. Same for TC-10 with FX-5: "Photos must be PNG or JPEG" appears → `pass`; if the review had been posted instead, record `--verdict fail --step "2=fail:Review was posted; no message shown"`.
-6. Skip `iw sync` here: the shop's store is the committed sample in `examples/shop/store`, so ask before pushing to it. Reply with both run IDs and verdicts, and remind the human that TC-9 and TC-10 count towards readiness only after `iw approve`.
+5. Same for TC-11 with FX-5: "Photos must be PNG or JPEG" appears → `pass`; if the review had been posted instead, record `--verdict fail --step "2=fail:Review was posted; no message shown"`.
+6. Skip `iw sync` here: the shop's store is the committed sample in `examples/shop/store`, so ask before pushing to it. Reply with both run IDs and verdicts, and remind the human that TC-9 and TC-11 count towards readiness only after `iw approve`.

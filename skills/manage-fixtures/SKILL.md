@@ -57,7 +57,7 @@ A fixture is versioned test data that test cases reference by key (`FX-1`). Its 
 
 ## Worked example: examples/shop FX-5
 
-`TC-10` (from the `write-test-cases` example) needs a file that is not an image, to check that the shop shows "Photos must be PNG or JPEG".
+`TC-11` (from the `write-test-cases` example) needs a file that is not an image, to check that the shop shows "Photos must be PNG or JPEG".
 
 1. `iw list fixtures --json` → FX-1 coupons (dataset), FX-2 catalog (seed), FX-3 staging customer (account), FX-4 review photo (file, a blob pointer). None fits.
 2. `IW_ACTOR_KIND=agent IW_AGENT_MODEL=claude-opus-5-5 iw new fixture --kind file --title "Text file that is not an image" --origin ai --model claude-opus-5-5 --skill manage-fixtures --json` → `FX-5`.
