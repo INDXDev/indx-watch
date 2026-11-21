@@ -70,7 +70,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Field | |
 |---|---|
-| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction` (`file` is reserved for workspace mode) |
+| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction`, `baseline` (*v0.2*) (`file` is reserved for workspace mode) |
 | `id` | `{prefix}_{ULID}`, generated at creation (offline) |
 | `v` | `1` |
 | `project` | project machine ID |
@@ -114,11 +114,12 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Kind | Fields (besides the envelope) | Meaning |
 |---|---|---|
-| `judgement` | `run` (run ID), `judgement` (as in the run: `id`, `kind`, `verdict`, `confidence`, `diff_ratio`, `reason`, `test`, `flaky`, `by`, `at`, and from v0.2 `locale`) | A later judgement, e.g. a human review. |
+| `judgement` | `run` (run ID), `judgement` (as in the run: `id`, `kind`, `verdict`, `confidence`, `diff_ratio`, `reason`, `test`, `flaky`, `by`, `at`, and from v0.2 `locale` and `baseline` — the SHA-256 of the approved baseline a `visual` judgement compared with) | A later judgement, e.g. a human review. |
 | `waiver` | `release`, `test_case` (ID + key), `reason`, `version` (test case version it applies to), `run`, `revokes` (waiver ID) | Accept a known failure of that version; a later waiver with `revokes` cancels one. |
 | `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment (`iw deployment add`). |
 | `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over the sorted lines `<path> <sha256>\n` of every definition file — excluding `cache/`, `runs/` and dot-files — to skip unchanged snapshots), `files` (count), `dirty` and `message` (*v0.2*, [snapshots from people](#snapshots-from-people-v02)) | A snapshot of definitions for hosted viewers in git mode. |
 | `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
+| `baseline` | *v0.2*: `test_case` (ID + key), `name` (screenshot evidence name), `automation_project` (the run's `automation.project`, if any), `sha256` (blob: the PNG), `run` (run it was taken from) | A person approved this screenshot as the [visual baseline](concepts.md#visual-baselines) for (test case, name, project). Only `human` actors count; the latest per key wins. Tools older than v0.2 skip it with a warning. |
 | `file` | reserved | Workspace mode (v0.2). |
 
 ## Merge rules
@@ -128,6 +129,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | Records | Set union by `id`. Records are immutable. Two different bodies with the same ID: keep the one signed by a pinned key, otherwise the one whose log key sorts first, and report a warning (see below). |
 | Verdict changes | Never edit; append a `judgement` record. Verdict = decision policy over all judgements of the run. |
 | Waivers | Latest non-revoked waiver per (release, test case) by `at`, ties broken by `id`. |
+| Baselines | Latest `baseline` record by a human per (test case, `name`, `automation_project`) by `at`, ties broken by `id`. |
 | Bundle snapshots | Latest by `commit_time`, then `at`, per `ref`, so an outdated checkout cannot roll the hosted view back. |
 | Retractions | A retracted record is ignored by the model; push never uploads a retracted record again. |
 | Blobs | Content-addressed; identical by definition. |
