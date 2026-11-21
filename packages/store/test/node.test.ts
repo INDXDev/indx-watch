@@ -43,10 +43,10 @@ describe('openObjectStore', () => {
     }
   });
 
-  it('rejects workspace mode (v0.2) and unknown schemes', () => {
-    expect(() =>
-      openObjectStore({ url: 'file://../store', mode: 'workspace' }, { bundleDir: '/tmp' }),
-    ).toThrow(/workspace/);
+  it('opens workspace-mode stores like git-mode ones and rejects unknown schemes', () => {
+    const s = openObjectStore({ url: 'file://../store', mode: 'workspace' }, { bundleDir: '/tmp' });
+    expect(s.url).toBe('file://../store');
+    expect(() => openObjectStore({ url: 'ftp://x' }, { bundleDir: '/tmp' })).toThrow(/ftp/);
   });
 
   it('opens s3:// with env credentials, endpoint and prefix', async () => {

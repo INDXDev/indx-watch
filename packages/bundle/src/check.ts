@@ -221,12 +221,11 @@ function targets(b: Bundle) {
   };
 }
 
-function checkProjectRefs({ b, err, ref, envs, rels, plans, fxs }: Ctx) {
+function checkProjectRefs({ b, ref, envs, rels, plans, fxs }: Ctx) {
   const [p, pf] = [b.project.data, b.project.file];
   if (p.default_environment)
     ref(envs.has(p.default_environment), pf, 'default_environment', p.default_environment);
   if (p.current_release) ref(rels.has(p.current_release), pf, 'current_release', p.current_release);
-  if (p.store?.mode === 'workspace') err('unsupported', pf, 'store mode "workspace" is v0.2', 'store.mode');
   for (const r of b.releases) if (r.data.plan) ref(plans.has(r.data.plan), r.file, 'plan', r.data.plan);
   for (const e of b.environments)
     for (const [i, a] of (e.data.accounts ?? []).entries())
