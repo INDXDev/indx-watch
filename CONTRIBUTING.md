@@ -16,6 +16,8 @@ pnpm iw serve --dir examples/shop/.indx-watch   # UI with the sample project
 
 End-to-end tests (after `pnpm build` and `pnpm exec playwright install chromium`): `pnpm --filter shop test` for the sample app, `pnpm e2e` for this repository's own test cases in `e2e/`.
 
+To try your build as a user would, run `pnpm build && npm install --global ./packages/cli` and use `iw` in a folder outside the clone (or call `node packages/cli/dist/bin.js`).
+
 `pnpm ci` does not work: pnpm reserves `ci` as a built-in command, so the script is called `verify`.
 
 ## Repository map

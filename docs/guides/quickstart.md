@@ -4,14 +4,6 @@ From an empty folder to a shareable readiness report in about a minute, fully of
 
 `iw` and `npx indx-watch` are the same CLI ([cli.md](../spec/cli.md)). This guide uses `npx indx-watch` in step 1 and `iw` after that. To get the short name, install the package (`npm install --global indx-watch`) or define `alias iw="npx indx-watch"`.
 
-**Before the first npm release** `npx indx-watch` cannot download the package yet. Build it from source once (pnpm 10, e.g. via `corepack enable`) and use `iw` everywhere, in a folder outside the clone:
-
-```bash
-git clone https://github.com/INDXDev/indx-watch && cd indx-watch
-pnpm install && pnpm build
-npm install --global ./packages/cli   # or call node <clone>/packages/cli/dist/bin.js
-```
-
 ## 1. Create a bundle
 
 ```bash

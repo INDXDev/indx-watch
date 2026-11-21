@@ -28,7 +28,7 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 
 ### v0.1 definition of done
 
-1. In an empty directory: `npx indx-watch init demo` (until the first npm release, the CLI built from source: see the [README](../README.md#60-second-quickstart)) → `iw new uc` / `iw new tc` → `iw check` passes → `iw serve` shows the readiness dashboard → run a TC manually in the browser with a screenshot → `iw report --format html` produces a shareable file. All offline.
+1. In an empty directory: `npx indx-watch init demo` → `iw new uc` / `iw new tc` → `iw check` passes → `iw serve` shows the readiness dashboard → run a TC manually in the browser with a screenshot → `iw report --format html` produces a shareable file. All offline.
 2. Two clones with the same S3 bucket see each other's runs within seconds via `iw sync --watch`. Definitions sync through git.
 3. In `examples/shop`, `npx playwright test` with the reporter creates runs linked to `TC-*` by tag, including fixture versions, the commit SHA and the actor. In GitHub Actions the run links to the PR and job and appears in the job summary.
 4. Claude Code with the shipped skills can be asked "add test cases for UC-5 and run them": it writes valid drafts (`origin = "ai"`), runs them and reports, through `iw --json` and/or MCP.
