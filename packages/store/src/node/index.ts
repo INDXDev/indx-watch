@@ -92,9 +92,6 @@ export function openObjectStore(
   opts: { bundleDir: string; env?: Record<string, string | undefined> },
 ): ObjectStore {
   const env = opts.env ?? process.env;
-  if (config.mode === 'workspace') {
-    throw new StoreError('invalid', '[store] mode = "workspace" is planned for v0.2; use git mode');
-  }
   const url = config.url;
   if (url.startsWith('file://')) {
     const p = decodeURIComponent(url.slice('file://'.length));

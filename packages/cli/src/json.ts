@@ -152,6 +152,13 @@ export const CommandData = {
     held: z.array(Problem).optional(),
     /** the log snapshot a full listing started from */
     logSnapshot: z.string().optional(),
+    /** workspace mode: bundle-relative paths published, written, removed, in conflict and held back */
+    workspace: z
+      .object({
+        ...{ published: z.array(z.string()), written: z.array(z.string()), removed: z.array(z.string()) },
+        ...{ conflicts: z.array(z.string()), held: z.array(z.string()) },
+      })
+      .optional(),
   }),
   compact: z.object({
     snapshot: z.string().nullable(),

@@ -34,6 +34,10 @@ export interface ServerDeps extends AppDeps {
   ): Promise<string | undefined>;
   /** sign records for a GitHub OIDC token (docs/spec/security.md#github-oidc); POST /api/sign answers 404 without it */
   signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
+  /** every record (workspace mode: the `file` records a definition edit builds on) */
+  records?(): Promise<B.AnyRecord[]>;
+  /** write a definition file into the working tree after a workspace edit (Node) */
+  writeFile?(path: string, data: Uint8Array): Promise<void>;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }

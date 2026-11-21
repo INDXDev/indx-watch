@@ -193,7 +193,7 @@ export const BundleRecord = z.strictObject({
 });
 export type BundleRecord = z.infer<typeof BundleRecord>;
 
-/** Reserved for workspace mode (v0.2, roadmap T-209); not written by v0.1 tools. */
+/** One version of a definition file in workspace mode (v0.2, docs/spec/sync.md#workspace-mode-v02). */
 export const FileRecord = z.strictObject({
   kind: z.literal('file'),
   id: idOf('rec'),
@@ -201,7 +201,12 @@ export const FileRecord = z.strictObject({
   path: z.string().min(1),
   sha256: Sha256.optional(),
   deleted: z.boolean().optional(),
+  /** unused (always empty): versions are record IDs, see `parents` */
   bases: z.array(Sha256).default([]),
+  /** the `id` inside the file; files without one are tracked by path */
+  entity: z.string().min(1).optional(),
+  /** the file record IDs this version replaces */
+  parents: z.array(idOf('rec')).default([]),
 });
 export type FileRecord = z.infer<typeof FileRecord>;
 

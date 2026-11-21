@@ -1,5 +1,6 @@
 /** Fixture files and sync commands on a temp copy of examples/shop: fixture add/fetch, sync, push, clone. */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseToml, sha256Hex } from '@indx-watch/bundle';
@@ -127,5 +128,32 @@ describe('commands: push and clone', () => {
     expect(iwJson(parent, 'clone', ['clone', source]).json.error.code).toBe('CONFLICT');
     const empty = mkdtempSync(join(tmpdir(), 'iw-empty-store-'));
     expect(iwJson(parent, 'clone', ['clone', `file://${empty}`, 'x']).code).toBe(4);
+  });
+});
+
+describe('commands: sync in workspace mode', () => {
+  it('publishes definitions, writes them into another working copy, and refuses while git tracks them', () => {
+    const dir = shop();
+    const project = join(dir, '.indx-watch/project.toml');
+    const store = `file://${join(dir, 'store')}`;
+    const toml = read(dir, 'project.toml').replace('mode = "git"', 'mode = "workspace"');
+    writeFileSync(project, toml.replace('file://../store', store));
+    const first = iwJson(dir, 'sync', ['sync']).json.data;
+    expect(first.workspace.published).toContain('project.toml');
+    expect(first.workspace.conflicts).toEqual([]);
+    // a second working copy that has only the same project.toml receives every file
+    const other = mkdtempSync(join(tmpdir(), 'iw-ws-'));
+    mkdirSync(join(other, '.indx-watch'));
+    writeFileSync(join(other, '.indx-watch/project.toml'), readFileSync(project, 'utf8'));
+    const pulled = iwJson(other, 'sync', ['sync']).json.data;
+    expect(pulled.workspace.written).toContain(
+      'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml',
+    );
+    expect(iw(other, ['check']).code).toBe(0);
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '.indx-watch/project.toml'], { cwd: dir });
+    const refused = iwJson(dir, 'sync', ['sync']);
+    expect([refused.code, refused.json.error.code]).toEqual([1, 'CONFLICT']);
+    expect(refused.json.error.message).toContain('git rm -r --cached');
   });
 });

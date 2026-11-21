@@ -17,6 +17,7 @@ import type {
   SpecTree,
   StatusResult,
   TestCaseDetail,
+  TestCaseEdit,
   UploadInput,
   UploadResult,
 } from '@indx-watch/server';
@@ -32,6 +33,7 @@ export type {
   SpecTree,
   StatusResult,
   TestCaseDetail,
+  TestCaseEdit,
   UploadInput,
   UploadResult,
 };
@@ -134,6 +136,12 @@ export const api = {
     call<RunSummary[]>(`api/runs${query({ ...scopeQ(p), tc: p.tc, limit: p.limit })}`),
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),
   createRun: (input: ManualRunInput) => post<ManualRunResult>('api/runs', input),
+  editTestCase: (key: string, input: TestCaseEdit) =>
+    call<unknown>(`api/test-cases/${key}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...WRITE },
+      body: JSON.stringify(input),
+    }),
   review: (id: string, input: ReviewInput) => post<unknown>(`api/runs/${id}/judgements`, input),
   approveBaseline: (id: string, sha256: string) => post<unknown>(`api/runs/${id}/baselines`, { sha256 }),
   uploadBlob: (file: Blob, name: string) =>

@@ -82,6 +82,8 @@ async function cachePointer(ctx: Ctx, p: cx.Project, a: Args, f: { name: string;
   await writeFile(path, data!);
 }
 
+const GIT_OWNS =
+  'Workspace mode, but git tracks files of this bundle: choose one owner of the definitions. Set [store] mode = "git", or stop tracking them (git rm -r --cached .indx-watch) and sync again';
 const held = (n: number) => `Held back records: the secret scan found ${n} problem(s); retract them`;
 /** iw sync --watch: sync every intervalMs until SIGINT / SIGTERM and return the last result. */
 async function watchSync(ctx: Ctx, opts: SyncOptions, intervalMs: number) {
@@ -142,8 +144,12 @@ async function importPlan(fs: iwb.BundleFs, replica: LocalReplica, x: Archive) {
 const fixtureOf = (p: cx.Project, ref: string) =>
   p.bundle.fixtures.find((f) => f.data.key === ref.replace(/^[A-Z0-9]+:/, '') || f.data.id === ref) ??
   fail('NOT_FOUND', `Fixture ${ref} not found`);
-const syncText = (r: SyncResult) =>
-  `pushed ${r.pushed.records} records, ${r.pushed.blobs} blobs; pulled ${r.pulled.records} records, ${r.pulled.blobs} blobs`;
+const syncText = ({ pushed, pulled, workspace: w }: SyncResult) =>
+  `pushed ${pushed.records} records, ${pushed.blobs} blobs; pulled ${pulled.records} records, ${pulled.blobs} blobs${
+    w
+      ? `; files: ${w.published.length} published, ${w.written.length} written, ${w.removed.length} removed`
+      : ''
+  }${w?.conflicts.length ? `\nconflicts to resolve (then delete them): ${w.conflicts.join(', ')}` : ''}`;
 const z = zlib as unknown as Partial<
   Record<'zstdCompressSync' | 'zstdDecompressSync', (b: Uint8Array) => Uint8Array>
 >;
@@ -235,6 +241,8 @@ export const dataCommands: Record<string, Spec> = {
         fail('USAGE', '--evidence: on-demand, all or none');
       const snapshot = await snapshotOf(ctx, p);
       const store = await openStore(ctx, p, a);
+      const workspace = p.bundle.project.data.store?.mode === 'workspace';
+      if (workspace && git(p.dir, 'ls-files', '--', '.')) fail('CONFLICT', GIT_OWNS);
       const opts: SyncOptions = {
         ...{ ...store, replica: p.replica, projectId: p.bundle.project.data.id },
         direction: a['pull-only'] ? 'pull' : a['push-only'] ? 'push' : 'both',
@@ -243,6 +251,7 @@ export const dataCommands: Record<string, Spec> = {
           full: !!a.full,
           bundle: a.snapshot ? snapshot : undefined,
           extraBlobs: pointerBlobs(p.bundle),
+          workspace: workspace ? { fs: p.fs, actor: snapshot.actor, sign: snapshot.sign } : undefined,
         },
       };
       if (a.watch) return watchSync(ctx, opts, Number(str(a.interval) ?? 3) * 1000);
