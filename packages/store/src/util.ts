@@ -71,13 +71,13 @@ export function checkRecord(raw: unknown): { record: AnyRecord } | { error: stri
   return { error: r.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ') };
 }
 
-/** Hashes of the blobs a record references (evidence, step evidence, bundle snapshots, files). */
+/** Hashes of the blobs a record references (evidence, step evidence, bundle snapshots, baselines, files). */
 export function blobRefs(record: AnyRecord): string[] {
   const out = new Set<string>();
   if (record.kind === 'run') {
     for (const e of record.evidence ?? []) out.add(e.sha256);
     for (const s of record.steps ?? []) for (const h of s.evidence ?? []) out.add(h);
-  } else if (record.kind === 'bundle') out.add(record.sha256);
+  } else if (record.kind === 'bundle' || record.kind === 'baseline') out.add(record.sha256);
   else if (record.kind === 'file' && record.sha256) out.add(record.sha256);
   return [...out];
 }

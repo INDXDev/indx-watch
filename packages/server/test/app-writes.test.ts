@@ -1,5 +1,5 @@
 /** Write routes: manual runs, reviews, blobs, and the cross-site request guard. */
-import type { JudgementRecord } from '@indx-watch/bundle';
+import type { BaselineRecord, JudgementRecord } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import type { ManualRunResult, ReviewResult, RunDetail, RunSummary } from '../src/index.js';
 import { createApp } from '../src/index.js';
@@ -144,6 +144,38 @@ describe('reviews', () => {
 
     f.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
     expect((await f.app.fetch(req(path, { json: { verdict: 'fail', reason: 'x' } }))).status).toBe(403);
+  });
+});
+
+describe('visual baselines', () => {
+  it('a person approves a PNG screenshot of a run; the run detail lists it; agents and other blobs refused', async () => {
+    const f = await app();
+    const up = {
+      method: 'POST',
+      body: SHOT,
+      headers: { 'content-type': 'image/png', 'x-filename': 'wrong.png' },
+    };
+    await f.app.fetch(req('/api/blobs', up));
+    const { run } = (await (
+      await f.app.fetch(req('/api/runs', { json: failedRun(SHOT_SHA) }))
+    ).json()) as ManualRunResult;
+    const path = `/api/runs/${run.id}/baselines`;
+    expect((await get<RunDetail>(f.app, `/api/runs/${run.id}`)).baselines).toBeUndefined();
+    expect((await f.app.fetch(req(path, { json: { sha256: 'f'.repeat(64) } }))).status).toBe(400);
+    const res = await f.app.fetch(req(path, { json: { sha256: SHOT_SHA } }));
+    expect(res.status).toBe(201);
+    const { baseline } = (await res.json()) as { baseline: BaselineRecord };
+    expect(baseline).toMatchObject({
+      kind: 'baseline',
+      actor: ALEX,
+      name: 'wrong.png',
+      sha256: SHOT_SHA,
+      run: run.id,
+    });
+    expect(baseline.test_case.key).toBe('TC-8');
+    expect((await get<RunDetail>(f.app, `/api/runs/${run.id}`)).baselines).toEqual([SHOT_SHA]);
+    f.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
+    expect((await f.app.fetch(req(path, { json: { sha256: SHOT_SHA } }))).status).toBe(403);
   });
 });
 

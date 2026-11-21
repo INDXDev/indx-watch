@@ -4,6 +4,7 @@
  */
 import type {
   AnyRecord,
+  BaselineRecord,
   BundleRecord,
   Criterion,
   DecisionPolicy,
@@ -129,6 +130,8 @@ export interface Model {
   runs: Map<string, RunView>; // by run ID
   waivers: WaiverRecord[];
   deployments: DeploymentRecord[];
+  /** baseline records by humans (docs/spec/concepts.md#visual-baselines) */
+  baselines: BaselineRecord[];
   /** bundle snapshots, newest first (by commit_time, then at, then id) */
   snapshots: BundleRecord[];
   /**

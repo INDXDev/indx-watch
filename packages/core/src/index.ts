@@ -8,8 +8,11 @@ import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 export { decide } from './decide.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
-/** buildModel(bundle, records): unknown/invalid records are skipped and reported. */
-export { buildModel, buildVerifiedModel, verifyRecords } from './model.js';
+/**
+ * buildModel(bundle, records): unknown/invalid records are skipped and reported.
+ * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
+ */
+export { approvedBaseline, buildModel, buildVerifiedModel, verifyRecords } from './model.js';
 export { reportData } from './report.js';
 /**
  * testCaseStatus(model, key, scope): latest relevant result of one test case in a scope.

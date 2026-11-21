@@ -99,7 +99,7 @@ A test case inherits the highest priority of the use cases it covers unless it s
 | Judge | Output |
 |---|---|
 | `assert` | Deterministic check (Playwright assertion, URL, text, HTTP). `pass`/`fail`. |
-| `visual` | Pixel diff against an approved baseline. `pass` or `diff` with a ratio. |
+| `visual` | Pixel diff of a PNG screenshot against its [approved baseline](#visual-baselines). `pass`, or `diff` with a `diff_ratio`. |
 | `llm` | Rubric-based model judgement with `confidence` 0–1 and a reason. |
 | `human` | A person's verdict with a mandatory reason. |
 
@@ -142,6 +142,17 @@ flowchart TD
 ```
 
 A human review never edits a run. It appends a `judgement` record; the verdict is recomputed. History stays as a list of judgements.
+
+### Visual baselines
+
+*(v0.2)* A `visual` judge compares the PNG screenshots of a run with **approved baselines**. A baseline is not a file in the bundle: it is a screenshot blob that a person approved with a `baseline` record ([sync](sync.md#other-records)).
+
+- **Key.** A baseline belongs to (test case, screenshot `name`, the run's `automation.project`), so `confirmation.png` from `chromium` and from `webkit` have separate baselines. The current baseline for a key is the latest `baseline` record by `at`, then `id`. Approving another screenshot replaces it; nothing is deleted.
+- **Humans only.** `iw baseline approve <run>` and "Approve as baseline" in the run viewer refuse agent and CI actors, and `buildModel` ignores `baseline` records whose actor is not `human` (or that are retracted), so a record written straight to the store by an agent changes nothing.
+- **Which screenshots.** The test case's `visual` judge names one screenshot with `baseline` (`baseline = "confirmation.png"`); without it every PNG screenshot of the run is compared.
+- **Comparison.** `iw judge <run> --visual` decodes both PNGs (8-bit, non-interlaced; Playwright screenshots are) and counts the pixels where any RGBA channel differs by more than 8 of 255. `diff_ratio` = changed pixels / all pixels, rounded to 6 decimals; different sizes give `diff_ratio = 1`. It appends one `visual` judgement per screenshot: `pass` when nothing changed, otherwise `diff` with the ratio; `unknown` when the screenshot has no approved baseline, cannot be decoded, or its or the baseline's blob is in neither the local replica nor the store. The judgement's `test` is the screenshot name and `baseline` the SHA-256 of the image it was compared with.
+- **Verdict.** Only `decide()` maps judgements to a verdict: a `diff` within `visual_threshold` counts as a pass (rule 8), above it the run is `needs_review` (rule 5), and `unknown` leaves it `needs_review` (rule 10). Approving a new baseline never changes past judgements; review the run, or judge a new run.
+- The comparison runs in the CLI (Node) only; the server and the Playwright reporter do not compute diffs.
 
 ## States
 

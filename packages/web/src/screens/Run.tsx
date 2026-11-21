@@ -54,7 +54,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
 
       <div className="split">
         <div className="stack">
-          <Steps r={r} />
+          <Steps r={r} reload={reload} />
           <Judgements r={r} />
           {!review && <ReviewForm id={rec.id} onDone={reload} />}
         </div>
@@ -95,9 +95,10 @@ function Verdict({ r }: { r: RunDetail }) {
 }
 
 /** Steps with their evidence, then evidence not tied to a step. */
-function Steps({ r }: { r: RunDetail }) {
+function Steps({ r, reload }: { r: RunDetail; reload: () => void }) {
   const { t } = useI18n();
   const { steps, evidence } = r.record;
+  const base = { run: r.record.id, baselines: r.baselines ?? [], reload };
   const loose = evidence.filter((e) => (e.step ?? 0) === 0);
   const ev = (sha: string) => evidence.find((e) => e.sha256 === sha);
   return (
@@ -112,6 +113,7 @@ function Steps({ r }: { r: RunDetail }) {
               {s.note && <p className="pre">{s.note}</p>}
               <Shots
                 items={(s.evidence ?? []).map((sha) => ev(sha) ?? { sha256: sha, name: sha.slice(0, 12) })}
+                base={base}
               />
             </div>
           </li>
@@ -120,7 +122,7 @@ function Steps({ r }: { r: RunDetail }) {
       {loose.length > 0 && (
         <>
           <h3>{t('run.otherEvidence')}</h3>
-          <Shots items={loose} />
+          <Shots items={loose} base={base} />
         </>
       )}
     </Section>
@@ -149,6 +151,12 @@ function Judgements({ r }: { r: RunDetail }) {
                   )}
                   {j.confidence !== undefined && (
                     <span className="muted small"> {Math.round(j.confidence * 100)}%</span>
+                  )}
+                  {j.diff_ratio !== undefined && (
+                    <span className="muted small">
+                      {' '}
+                      {t('run.diff', { ratio: +(j.diff_ratio * 100).toFixed(2) })}
+                    </span>
                   )}
                 </td>
                 <td className="pre">{j.reason ?? '—'}</td>
@@ -205,7 +213,10 @@ function RunMeta({ r: { record: rec } }: { r: RunDetail }) {
   );
 }
 
-function Shots({ items }: { items: { sha256: string; name: string; media_type?: string; size?: number }[] }) {
+type Shot = { sha256: string; name: string; media_type?: string; size?: number };
+type Base = { run: string; baselines: string[]; reload: () => void };
+
+function Shots({ items, base }: { items: Shot[]; base: Base }) {
   if (items.length === 0) return null;
   return (
     <div className="shots">
@@ -220,11 +231,35 @@ function Shots({ items }: { items: { sha256: string; name: string; media_type?: 
             <figcaption>
               {e.name}
               {e.size !== undefined && <span className="muted"> · {fmtBytes(e.size)}</span>}
+              {e.media_type === 'image/png' && <BaselineMark e={e} base={base} />}
             </figcaption>
           </figure>
         );
       })}
     </div>
+  );
+}
+
+/** "Baseline" on the approved visual baseline, else "Approve as baseline" (docs/spec/web.md#visual-baselines). */
+function BaselineMark({ e, base }: { e: Shot; base: Base }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  if (base.baselines.includes(e.sha256)) return <Chip>{t('run.baseline')}</Chip>;
+  const approve = () => {
+    setBusy(true);
+    api
+      .approveBaseline(base.run, e.sha256)
+      .then(base.reload, (x) => setError(x instanceof Error ? x.message : String(x)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={approve}>
+        {t('run.approveBaseline')}
+      </button>
+      {error && <span role="alert">{t('common.error', { message: error })}</span>}
+    </>
   );
 }
 

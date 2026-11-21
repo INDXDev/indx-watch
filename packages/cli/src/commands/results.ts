@@ -1,4 +1,4 @@
-/** Commands that read status or append records: status, impact, show, list, record, review, judge, waive, retract, deployment add. */
+/** Commands that read status or append records: status, impact, show, list, record, review, judge, baseline approve, waive, retract, deployment add. */
 import { relative } from 'node:path';
 import { newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
@@ -6,6 +6,7 @@ import { listItems, showEntity, statusData } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { B, csv, fail, git, iso, P, pick, S, str } from '../util.js';
+import { pngShots } from '../visual.js';
 
 import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
 
@@ -146,6 +147,30 @@ export const resultCommands: Record<string, Spec> = {
   },
 
   judge: runCommands.judge,
+
+  'baseline approve': {
+    description: "Approve a run's PNG screenshots as visual baselines (humans only)",
+    args: { run: P('Run ID or prefix'), name: S('Only the screenshot with this evidence name') },
+    async run(ctx, a) {
+      const actor = await cx.actorOf(ctx);
+      if (actor.kind !== 'human')
+        fail('USAGE', `Only people can approve baselines (actor kind: ${actor.kind})`);
+      const p = await cx.openProject(ctx, a);
+      const run = cx.resolveRun(await cx.loadModel(p), str(a.run)!).record;
+      const shots = pngShots(run, str(a.name));
+      if (!shots.length) fail('USAGE', `${run.id} has no PNG screenshot ${str(a.name) ?? ''} to approve`);
+      const baselines = [];
+      for (const { name, sha256 } of shots) {
+        const fields = { test_case: pick(run.test_case, 'id key'), name, sha256, run: run.id };
+        const automation_project = run.automation?.project;
+        baselines.push(await cx.append(ctx, p, 'baseline', { ...fields, automation_project }));
+      }
+      const text = baselines
+        .map((b) => `Approved ${b.name} as the baseline of ${b.test_case.key}`)
+        .join('\n');
+      return { data: { baselines }, text };
+    },
+  },
 
   waive: {
     description: 'Accept a known failure of a test case for a release (humans only; not P0)',
