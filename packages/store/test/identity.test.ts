@@ -389,4 +389,25 @@ describe('accessIdentity groups', () => {
     expect(await id.groups!(new Request('https://watch.shop.test/'))).toEqual([]);
     expect(calls).toHaveLength(2);
   });
+
+  it('keeps a failed lookup for 5 seconds only, so a transient failure does not drop a role for 5 minutes', async () => {
+    let fails = 1;
+    const fake = (async () =>
+      fails-- > 0
+        ? new Response('down', { status: 502 })
+        : Response.json({ groups: ['qa'] })) as typeof fetch;
+    const id = accessIdentity({ team: 'shop', aud: 'aud-tag', fetch: fake });
+    const req = new Request('https://watch.shop.test/', { headers: { 'Cf-Access-Jwt-Assertion': 't' } });
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      expect(await id.groups!(req)).toEqual([]);
+      expect(await id.groups!(req)).toEqual([]);
+      now.mockReturnValue(1_006_000);
+      expect(await id.groups!(req)).toEqual(['qa']);
+      now.mockReturnValue(1_200_000);
+      expect(await id.groups!(req)).toEqual(['qa']);
+    } finally {
+      now.mockRestore();
+    }
+  });
 });

@@ -247,13 +247,14 @@ export function accessIdentity(opts: { team: string; aud: string; fetch?: typeof
   const issuer = `https://${opts.team}.cloudflareaccess.com`;
   const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
   const cache = new Map<string, { until: number; groups: Promise<string[]> }>();
-  /** get-identity with the (already verified) token as the CF_Authorization cookie; a failure means no groups */
+  /** get-identity with the (already verified) token as the CF_Authorization cookie; throws on a failure */
   const lookup = async (token: string) => {
     const f = opts.fetch ?? fetch;
     const r = await f(`${issuer}/cdn-cgi/access/get-identity`, {
       headers: { cookie: `CF_Authorization=${token}` },
     });
-    const body = (r.ok ? await r.json().catch(() => ({})) : {}) as { groups?: unknown };
+    if (!r.ok) throw new Error(`get-identity: ${r.status}`);
+    const body = (await r.json()) as { groups?: unknown };
     const groups = Array.isArray(body.groups) ? (body.groups as unknown[]) : [];
     const names = (g: unknown) => (typeof g === 'string' ? [g] : Object.values(pickNames(g)));
     return groups.flatMap(names).filter((s): s is string => typeof s === 'string' && s !== '');
@@ -265,7 +266,11 @@ export function accessIdentity(opts: { team: string; aud: string; fetch?: typeof
       if (cache.size > 1000) cache.clear();
       const hit = cache.get(token);
       if (hit && hit.until > now) return hit.groups;
-      const groups = token ? lookup(token).catch(() => []) : Promise.resolve([]);
+      // a failed lookup means no groups for this request only: it is cached for 5 s, a success for 5 min
+      const groups = (token ? lookup(token) : Promise.resolve([])).catch(() => {
+        cache.set(token, { until: now + 5_000, groups });
+        return [];
+      });
       cache.set(token, { until: now + 300_000, groups });
       return groups;
     },
