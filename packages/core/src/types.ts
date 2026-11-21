@@ -153,6 +153,8 @@ export interface TestCaseStatus {
   stale: boolean;
   waived: boolean;
   hasEvidence: boolean;
+  /** flake rate over the last decided runs, only when there is a flake (docs/spec/concepts.md#flaky-tests) */
+  flaky?: { rate: number; flakes: number; runs: number } | undefined;
 }
 
 export interface CriterionStatus {

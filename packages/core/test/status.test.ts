@@ -1,7 +1,14 @@
 // buildModel, testCaseStatus (variants, ordering, scope, staleness, waivers), plan items and localize.
 import { type AnyRecord, type Bundle, testCaseVersion } from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { buildModel, type LocalizeOptions, localize, planItemStatus, testCaseStatus } from '../src/index.js';
+import {
+  buildModel,
+  evaluateGate,
+  type LocalizeOptions,
+  localize,
+  planItemStatus,
+  testCaseStatus,
+} from '../src/index.js';
 import {
   retraction,
   review,
@@ -171,6 +178,50 @@ describe('test case status: waivers', () => {
   it('a waiver is refused for a P0 test case', () => {
     const m = model([run(b, 'TC-3', { verdict: 'fail' }), waiver(b, 'TC-3', versionOf(b, 'TC-3'))]);
     expect(testCaseStatus(m, 'TC-3', scope).status).toBe('fail');
+  });
+});
+
+describe('test case status: flakiness', () => {
+  const at = (i: number) => `2026-11-19T${String(i).padStart(2, '0')}:00:00Z`;
+  const series = (verdicts: ('pass' | 'fail')[], o = {}) =>
+    verdicts.map((verdict, i) => run(b, 'TC-2', { verdict, ended: at(i), ...o }));
+
+  it('counts pass/fail flips and flaky passes over the last 10 decided runs', () => {
+    // 12 runs p f p p…: runs #1 and #2 flip; the window (last 10) holds only #2
+    const runs = series(['pass', 'fail', 'pass', ...Array(9).fill('pass')]);
+    expect(testCaseStatus(model(runs), 'TC-2', scope).flaky).toEqual({ rate: 0.1, flakes: 1, runs: 10 });
+    const retried = run(b, 'TC-2', {
+      judgements: [{ kind: 'assert', verdict: 'pass', flaky: true }],
+      ended: at(13),
+    });
+    expect(testCaseStatus(model([...runs, retried]), 'TC-2', scope).flaky).toEqual({
+      rate: 0.1,
+      flakes: 1,
+      runs: 10,
+    });
+    expect(testCaseStatus(model(series(['pass', 'pass'])), 'TC-2', scope).flaky).toBeUndefined();
+  });
+
+  it('ignores blocked runs, other variants, shards of one execution and version changes', () => {
+    const blocked = run(b, 'TC-2', { reported: 'blocked', ended: at(1) });
+    const [p, f] = series(['pass', 'fail']);
+    const webkit = run(b, 'TC-2', { verdict: 'fail', project: 'webkit', ended: at(2) });
+    expect(testCaseStatus(model([p!, blocked, webkit]), 'TC-2', scope).flaky).toBeUndefined();
+    const shards = series(['pass', 'fail'], { group: 'g1' });
+    expect(testCaseStatus(model(shards), 'TC-2', scope).flaky).toBeUndefined();
+    const old = run(b, 'TC-2', { verdict: 'fail', version: 'tcv:000000000000', ended: at(0) });
+    const fixed = run(b, 'TC-2', { verdict: 'pass', ended: at(1) });
+    expect(testCaseStatus(model([old, fixed]), 'TC-2', scope).flaky).toBeUndefined();
+    expect(testCaseStatus(model([p!, f!]), 'TC-2', scope).flaky).toEqual({ rate: 0.5, flakes: 1, runs: 2 });
+  });
+
+  it('changes neither the status nor the gate', () => {
+    const steady = series(['pass', 'pass']);
+    const flaky = series(['fail', 'pass']);
+    expect(testCaseStatus(model(flaky), 'TC-2', scope).status).toBe(
+      testCaseStatus(model(steady), 'TC-2', scope).status,
+    );
+    expect(evaluateGate(model(flaky), scope)).toEqual(evaluateGate(model(steady), scope));
   });
 });
 

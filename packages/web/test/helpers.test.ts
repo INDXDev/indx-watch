@@ -99,6 +99,18 @@ describe('List and Focus', () => {
     expect(testOrder(tree)).toEqual(['TC-1', 'TC-2', 'TC-3']);
     expect(testOrder(tree, 'open')).toEqual(['TC-2', 'TC-3']);
   });
+  it('f=flaky orders flaky test cases by flake rate, highest first, then by key', () => {
+    const flaky = (key: string, rate?: number) =>
+      ({ ...tc(key, 'pass'), ...(rate ? { flaky: { rate } } : {}) }) as never;
+    const t2 = structuredClone(tree);
+    t2.features[0]!.useCases[0]!.criteria[0]!.testCases = [
+      flaky('TC-10', 0.2),
+      flaky('TC-1'),
+      flaky('TC-9', 0.2),
+    ];
+    t2.features[0]!.useCases[0]!.criteria[1]!.testCases = [flaky('TC-9', 0.2), flaky('TC-3', 0.5)];
+    expect(testOrder(t2, 'flaky')).toEqual(['TC-3', 'TC-9', 'TC-10']);
+  });
   it('finds neighbours', () => {
     expect(neighbours(['a', 'b', 'c'], 'b')).toEqual({ index: 1, prev: 'a', next: 'c' });
     expect(neighbours(['a'], 'a')).toEqual({ index: 0, prev: undefined, next: undefined });

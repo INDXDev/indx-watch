@@ -218,6 +218,16 @@ A test case may appear in a plan more than once only with different environments
 
 **Effective priority** of a test case = its own `priority`, or the highest priority of the use cases it covers. A test case may not set a priority lower than that (`iw check` error), so a P0 use case can never be passed through a P3 test case.
 
+## Flaky tests
+
+`testCaseStatus()` (and so `computeStatus()`) also reports how flaky a test case is in the scope. It is information only: it changes no verdict, status, count or gate check.
+
+1. **Decided runs**: the scope's relevant runs (as in [computed done](#computed-done)) whose verdict from the decision policy is `pass` or `fail`, ordered by `ended_at` as instants (ties: run ID). `blocked`, `skipped` and `needs_review` runs say nothing about flakiness and are left out.
+2. A decided run is a **flake** when any of its judgements has `flaky: true` (e.g. a Playwright test that passed on retry, [integrations](integrations.md#playwright-reporter)), or when its verdict differs from the previous decided run of the same variant and test case version that belongs to another execution (a pass/fail flip without a change to the test).
+3. **Flake rate** = flakes ÷ decided runs among the last **10** decided runs. `flaky = { rate, flakes, runs }` is present only when there is at least one flake in that window.
+
+**Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
+
 ## Readiness gate
 
 `evaluateGate(model, scope)` in `packages/core` is the one pure function that answers "can we ship?". Thresholds come from `project.toml` `[gate]` merged over these defaults:
@@ -274,3 +284,4 @@ These are enforced by `iw check` and unit tests:
 - [x] `iw check --fix` resolves a duplicate `TC-` key by renumbering the newer file and updating references.
 - [x] A gate check with an empty denominator passes with `actual = "n/a"`; a scope with no `ready` P0–P1 test case fails `has_gated_tests`.
 - [x] A confident agent pass on a test case that declares a `human` judge is `needs_review`.
+- [x] A test case whose last runs alternate pass and fail, or pass with `flaky: true`, reports a flake rate over at most the last 10 decided runs; its status and the gate are unchanged (core test).

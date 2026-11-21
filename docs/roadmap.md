@@ -66,7 +66,7 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 |---|---|---|---|
 | T-301 | Roles from Access identity groups (viewer, tester, lead, customer) | A customer sees only assigned items | ⏳ |
 | T-302 | Customer UAT flow: invite by email (Access one-time PIN), assigned plan items only | End-to-end with a test Access policy | ⏳ |
-| T-303 | Flaky test detection and quarantine view | Flake rate per TC over the last N runs | ⏳ |
+| T-303 | Flaky test detection and quarantine view | Flake rate per TC over the last N runs | ✅ flake rate over the last 10 pass/fail runs in core, `iw status --json` and the API; Tests → Flaky view ([concepts](spec/concepts.md#flaky-tests)) |
 | T-304 | Impact analysis: suggest TCs for a PR from changed files and `[automation].files` | Suggestions listed in the PR summary | ⏳ |
 
 ## v1.0 — stable format

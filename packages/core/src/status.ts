@@ -55,6 +55,26 @@ export function activeWaiver(model: Model, release: string, tcId: string): Waive
     .at(-1);
 }
 
+/** Decided runs considered for the flake rate (docs/spec/concepts.md#flaky-tests). */
+const FLAKY_WINDOW = 10;
+function flakiness(runs: RunView[]): TestCaseStatus['flaky'] {
+  const decided = runs
+    .filter((r) => r.decision.verdict === 'pass' || r.decision.verdict === 'fail')
+    .sort((a, b) => byTimeThenId(a.record.ended_at, a.record.id, b.record.ended_at, b.record.id));
+  const seen: RunView[] = [];
+  const flakes = decided.map((r) => {
+    // the previous decided run of the same variant from another execution, on the same test case version
+    const p = seen.findLast((x) => x.variant === r.variant && x.group !== r.group);
+    seen.push(r);
+    const flip =
+      p?.record.test_case.version === r.record.test_case.version && p.decision.verdict !== r.decision.verdict;
+    return flip || r.judgements.some((j) => j.flaky);
+  });
+  const window = flakes.slice(-FLAKY_WINDOW);
+  const n = window.filter(Boolean).length;
+  return n ? { rate: n / window.length, flakes: n, runs: window.length } : undefined;
+}
+
 const hasProof = (runs: RunView[]) =>
   runs.some((r) => (r.record.evidence?.length ?? 0) > 0 || r.judgements.some((j) => j.kind === 'assert'));
 
@@ -111,6 +131,7 @@ export function testCaseStatus(model: Model, key: string, scope: Scope): TestCas
     stale: variants.some((v) => v.stale),
     waived,
     hasEvidence: passing.length > 0 && passing.every((v) => v.proof),
+    flaky: flakiness(runs),
   };
 }
 
