@@ -1,4 +1,4 @@
--- Index schema (plain SQL, shared by the D1 index and a future node:sqlite index, roadmap T-210).
+-- Index schema (plain SQL, shared by the D1 index and the node:sqlite index, src/node/sqlite-index.ts).
 -- Mirrored in src/workers/index-schema.ts (a test keeps them equal). The index is a cache: rebuild with `iw reindex`.
 CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, at TEXT NOT NULL, test_case_id TEXT, release TEXT, json TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS records_at ON records (at, id);
