@@ -1,9 +1,10 @@
-/** Commands that read status or append records: status, show, list, record, review, judge, waive, retract, deployment add. */
+/** Commands that read status or append records: status, impact, show, list, record, review, judge, waive, retract, deployment add. */
+import { relative } from 'node:path';
 import { newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { B, fail, git, iso, P, pick, S, str } from '../util.js';
+import { B, csv, fail, git, iso, P, pick, S, str } from '../util.js';
 import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
 
 export { mediaType } from './results-run.js';
@@ -66,6 +67,41 @@ export const resultCommands: Record<string, Spec> = {
       const failed = s.gate.checks.filter((c) => !c.passed);
       if (a.gate && !s.gate.passed) fail('GATE_FAILED', 'The readiness gate failed', failed, data, text);
       return { data, warnings, text };
+    },
+  },
+
+  impact: {
+    description: 'Suggest the test cases a change touches (changed files, [automation].files)',
+    args: {
+      changed: S('Changed paths from the repository root, comma-separated or repeated; - reads stdin'),
+      base: S('Use git diff --name-only <ref>...HEAD'),
+    },
+    repeat: ['changed'],
+    async run(ctx, a) {
+      const p = await cx.openProject(ctx, a);
+      const base = str(a.base);
+      const given = csv(a.changed);
+      const diff = base ? git(p.root, 'diff', '--name-only', `${base}...HEAD`) : '';
+      if (diff === null) fail('EXTERNAL_TOOL', `git diff --name-only ${base}...HEAD failed in ${p.root}`);
+      if (!base && !given.length) fail('USAGE', 'Pass --changed <paths> or --base <ref>');
+      const stdin = given.includes('-') ? (await ctx.stdin()).split('\n') : [];
+      const all = [...given, ...stdin, ...diff!.split('\n')]
+        .map((f) => f.trim())
+        .filter((f) => f && f !== '-');
+      const changed = [...new Set(all)];
+      const rel = relative(p.root, p.dir).replaceAll('\\', '/');
+      const m = core.buildModel(p.bundle, []).model;
+      const testCases = core.impactedTestCases(m, changed, rel && `${rel}/`);
+      const n = (k: number, what: string) => `${k} ${what}${k === 1 ? '' : 's'}`;
+      const why = (t: core.ImpactSuggestion) => t.reasons.map((r) => `${r.kind} \`${r.file}\``).join(', ');
+      const text = [
+        '### Suggested test cases\n',
+        testCases.length
+          ? `${n(testCases.length, 'test case')} relate to the ${n(changed.length, 'changed file')}:\n`
+          : `No test case is linked to the ${n(changed.length, 'changed file')}.`,
+        ...testCases.map((t) => `- **${t.key}** ${t.title} (${t.priority}, ${t.status}): ${why(t)}`),
+      ].join('\n');
+      return { data: { base: base ?? null, changed, testCases }, text };
     },
   },
 

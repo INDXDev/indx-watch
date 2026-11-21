@@ -107,6 +107,10 @@ runs:
         IW_ACTION_REF: ${{ github.action_ref }}
         IW_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         IW_CHECK_RUN_ID: ${{ job.check_run_id }}
+        IW_IN_COMMENT: ${{ inputs.comment }}
+        IW_IN_CHECK: ${{ inputs.check }}
+        IW_PR: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ inputs.token }}
       run: |
         set -o pipefail
         # A second use of the action in the same job gets its own folder and artifact name.
@@ -191,6 +195,16 @@ runs:
           echo "::warning::indx-watch report failed"
         fi
 
+        # Suggested test cases for the PR comment and check run: `iw impact` over the PR's changed files.
+        if [ -n "$IW_PR" ] && { [ "$IW_IN_COMMENT" = true ] || [ "$IW_IN_CHECK" = true ]; }; then
+          if gh api "repos/$GITHUB_REPOSITORY/pulls/$IW_PR/files" --paginate --jq '.[].filename' > "$out/changed.txt" \
+            && iw impact "${common[@]}" --changed - < "$out/changed.txt" > "$out/impact.md"; then
+            echo "impact=$out/impact.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::indx-watch could not list the suggested test cases"
+          fi
+        fi
+
     - if: ${{ !cancelled() && (inputs.comment == 'true' || inputs.check == 'true') && steps.iw.outputs.gate != '' }}
       shell: bash
       env:
@@ -204,6 +218,7 @@ runs:
         IW_FAIL: ${{ steps.iw.outputs.fail }}
         IW_UNTESTED: ${{ steps.iw.outputs.untested }}
         IW_REPORT: ${{ steps.iw.outputs.report }}
+        IW_IMPACT: ${{ steps.iw.outputs.impact }}
         IW_PR: ${{ github.event.pull_request.number }}
         IW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         IW_CHECK_RUN_ID: ${{ job.check_run_id }}
@@ -216,16 +231,19 @@ runs:
         name="INDX Watch${IW_IN_RELEASE:+ ($IW_IN_RELEASE)}"
         job="${GITHUB_SERVER_URL:-https://github.com}/$repo/actions/runs/$GITHUB_RUN_ID${IW_CHECK_RUN_ID:+/job/$IW_CHECK_RUN_ID}"
         body="$(mktemp "${RUNNER_TEMP:-/tmp}/iw-comment-XXXXXX")"
-        # Gate line + report, cut at a line boundary below GitHub's 65,536-character limit.
+        # Gate line + suggested test cases + report, cut at a line boundary below GitHub's 65,536-character limit.
         node -e '
           const fs = require("node:fs");
           const [marker, file, job, name] = process.argv.slice(1);
           const e = process.env, ok = e.IW_GATE === "pass";
+          const cut = (s, max, note) => s.length > max ? s.slice(0, s.lastIndexOf("\n", max - note.length)) + note : s;
+          const impact = e.IW_IMPACT && fs.existsSync(e.IW_IMPACT) ? fs.readFileSync(e.IW_IMPACT, "utf8").trim() : "";
           const head = `${marker}\n**${ok ? "✅" : "❌"} ${name}: gate ${ok ? "passed" : "failed"}** · ` +
-            `pass ${e.IW_PASS || 0} · fail ${e.IW_FAIL || 0} · untested ${e.IW_UNTESTED || 0} · [job](${job})\n\n`;
+            `pass ${e.IW_PASS || 0} · fail ${e.IW_FAIL || 0} · untested ${e.IW_UNTESTED || 0} · [job](${job})\n\n` +
+            (impact ? `${cut(impact, 20000, "\n- …")}\n\n` : "");
           let report = file && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
           const max = 65000 - head.length, note = "\n\n_Report truncated; see the job summary._\n";
-          if (report.length > max) report = report.slice(0, report.lastIndexOf("\n", max - note.length)) + note;
+          report = cut(report, max, note);
           process.stdout.write(head + report);
         ' "$marker" "$IW_REPORT" "$job" "$name" > "$body"
         if [ "$IW_IN_COMMENT" = true ]; then

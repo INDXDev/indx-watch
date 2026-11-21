@@ -135,6 +135,17 @@ Compute coverage, use case status and the readiness gate for a scope.
 
 A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](concepts.md#flaky-tests)).
 
+### `iw impact`
+
+Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](integrations.md#github-action).
+
+| Flag | |
+|---|---|
+| `--changed <paths>` | Changed paths, comma-separated or repeated; `-` reads one path per line from stdin |
+| `--base <ref>` | Use `git diff --name-only <ref>...HEAD` (the changes since the branch left `<ref>`), e.g. `--base origin/main` |
+
+`data`: `{ "base": string | null, "changed": string[], "testCases": { "key", "id", "title", "status", "priority", "reasons": { "kind": "automation" \| "definition" \| "fixture", "file": string, "pattern"?: string }[] }[] }`
+
 ### `iw show <ref>`
 
 Show one entity with resolved references, current version hash and recent runs. `--versions` lists versions from git history. `data`: the entity object as in the [programmatic model](../architecture.md#core-model) plus `runs`.
@@ -384,4 +395,5 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [x] No command prompts when stdin is not a TTY.
+- [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.

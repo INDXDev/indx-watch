@@ -81,6 +81,8 @@ permissions:
 
 The action keeps **one comment per pull request** (per bundle and release) and edits it on every push, so the conversation does not fill up with reports. The check run `INDX Watch (v1.2.0)` is green when the gate passes and red otherwise; make it a required check in branch protection to block merging an unready release. Pull requests from forks get a read-only token, so the comment and check are skipped with a warning; the job summary still works.
 
+Both also list **suggested test cases**: the test cases whose `[automation].files`, definition or fixtures the pull request changes, so reviewers know what to run or record ([`iw impact`](../spec/cli.md#iw-impact)). Run the same locally with `npx indx-watch impact --base origin/main`.
+
 ## Choosing when to gate
 
 `gate: true` turns "not ready" into a red job. Common setups:

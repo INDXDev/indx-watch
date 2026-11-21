@@ -72,6 +72,8 @@ const Gate = z.object({
   ),
 });
 
+const REASON = { file: z.string(), pattern: z.string().optional() };
+
 /** `data` shape per command. */
 export const CommandData = {
   init: z.object({ dir: z.string(), files: z.array(z.string()) }),
@@ -92,6 +94,16 @@ export const CommandData = {
     useCases: z.array(z.record(z.string(), z.unknown())),
     testCases: z.array(z.record(z.string(), z.unknown())),
     counts: z.record(z.string(), z.number()),
+  }),
+  /** docs/spec/concepts.md#impact-analysis */
+  impact: z.object({
+    ...{ base: z.string().nullable(), changed: z.array(z.string()) },
+    testCases: z.array(
+      z.object({
+        ...{ key: z.string(), id: z.string(), title: z.string(), status: z.string(), priority: z.string() },
+        reasons: z.array(z.object({ kind: z.enum(['automation', 'definition', 'fixture']), ...REASON })),
+      }),
+    ),
   }),
   show: z.record(z.string(), z.unknown()),
   list: z.object({ items: z.array(z.record(z.string(), z.unknown())) }),
