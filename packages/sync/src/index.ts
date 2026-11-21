@@ -18,8 +18,6 @@ export interface SyncState {
   keys?: Record<string, string>;
   /** record ID → warning, for records the store has two bodies of (`iw check` and the UI show them) */
   conflicts?: Record<string, string>;
-  /** key of the log snapshot the last full listing started from (docs/spec/sync.md#log-snapshots-v02) */
-  logSnapshot?: string;
 }
 
 export interface StateStore {

@@ -106,13 +106,13 @@ async function fromLogSnapshot(c: SyncContext): Promise<string | null> {
     c.warn(`${(e as Error).message}; reading the whole log instead`);
   });
   if (!snap) return null;
-  if (snap.key !== c.state.logSnapshot)
-    await pullRecords(
-      c,
-      snap.logs.flatMap((l) => l.records.map((r): [AnyRecord, string] => [r, l.key])),
-    );
+  // merged on every full listing, like the log objects it replaces: repairs the replica, applies new trusted keys
+  await pullRecords(
+    c,
+    snap.logs.flatMap((l) => l.records.map((r): [AnyRecord, string] => [r, l.key])),
+  );
   for (const l of snap.logs) c.seen.add(l.key);
-  c.result.logSnapshot = c.state.logSnapshot = snap.key;
+  c.result.logSnapshot = snap.key;
   return snap.upto;
 }
 

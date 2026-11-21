@@ -32,4 +32,4 @@ The store is an **append-only log of immutable JSON records plus content-address
 
 ## Notes
 
-- 2026-11-21 (T-206): Compaction is built as **log snapshots** ([sync.md](../spec/sync.md#log-snapshots-v02)): `iw compact` uploads an immutable object under `v1/snapshots/` holding a copy of the log objects with their keys, and full listings start from the newest one. The log stays the source of truth and is never rewritten, so the protocol still needs only create-only writes; a bad snapshot falls back to the log.
+- 2026-11-21 (T-206): Compaction is built as **log snapshots** ([sync.md](../spec/sync.md#log-snapshots-v02)): `iw compact` uploads an immutable object under `v1/snapshots/` holding a copy of the log objects with their keys, and full listings start from the newest one. The log is never rewritten, so the protocol still needs only create-only writes; an invalid snapshot falls back to the log, and since readers trust a valid one as much as the log (both need bucket write access), `iw sync --full` bypasses snapshots.
