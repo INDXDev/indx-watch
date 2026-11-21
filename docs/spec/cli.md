@@ -183,8 +183,15 @@ Ask an LLM to judge a recorded run against the `rubric` of the test case's `llm`
 |---|---|---|
 | `--model <id>` | `IW_LLM_MODEL`, else `claude-opus-5-5` | Claude model |
 | `--dry-run` | | Print the judgement without recording it |
+| `--visual` | | *v0.2*: compare the run's PNG screenshots with their approved baselines instead of asking an LLM (below) |
 
-Credentials: `ANTHROPIC_API_KEY` (or any credential the Anthropic SDK resolves, such as an `ant auth login` profile). `ANTHROPIC_BASE_URL` routes requests through a gateway (for example Cloudflare AI Gateway). `data`: `{ "judgement": Judgement, "verdict": Verdict, "recorded": boolean }`
+**`--visual`** appends one `visual` judgement per compared screenshot ([visual baselines](concepts.md#visual-baselines)): `pass`, `diff` with `diff_ratio`, or `unknown` when the screenshot has no approved baseline or is not a decodable PNG. Screenshot and baseline blobs that are not local (the default `[store].evidence = "on-demand"` does not pull them) are fetched from the store; a blob found in neither gives `unknown` with the reason `baseline blob not found` or `screenshot blob not found`. It needs no credential, and runs offline when the blobs are local. Fails with `USAGE` when the test case declares no `visual` judge or the run has no PNG screenshot to compare. `data` adds `judgements` (every judgement appended; `judgement` is the first).
+
+Credentials: `ANTHROPIC_API_KEY` (or any credential the Anthropic SDK resolves, such as an `ant auth login` profile). `ANTHROPIC_BASE_URL` routes requests through a gateway (for example Cloudflare AI Gateway). `data`: `{ "judgement": Judgement, "judgements"?: Judgement[], "verdict": Verdict, "recorded": boolean }`
+
+### `iw baseline approve <run-ref>`
+
+*(v0.2)* Approve a run's PNG screenshots as the [visual baselines](concepts.md#visual-baselines) of its test case: one `baseline` record per screenshot (`--name <evidence name>` approves only that one). Humans only: agents and CI actors exit 2. Fails with `USAGE` when the run has no matching PNG screenshot. `data`: `{ "baselines": BaselineRecord[] }`
 
 ### `iw waive <tc-ref>`
 
@@ -394,6 +401,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 | `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](security.md#signed-records)) |
+| `IW_OIDC_SIGNER` | writes, reporter (GitHub Actions) | Hosted server URL: with `id-token: write` and no `IW_SIGNING_KEY` or `IW_ACTOR`, record `via = "github-oidc"` and sign through the server ([GitHub OIDC](security.md#github-oidc)) |
 | `IW_LLM_MODEL` | judge | Model for `iw judge` (default `claude-opus-5-5`) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` | judge | Anthropic credential and optional gateway URL |
 
@@ -405,6 +413,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw new feature|env|release|plan` by an agent writes `origin = "ai"` and an `[ai]` table; `iw check` warns `ai-not-approved` until a human runs `iw approve` on it.
 - [x] In an empty directory, `iw init` → `iw new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready` → `iw new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready` → `iw check` exits 0.
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
+- [x] `iw baseline approve <run>` with `IW_ACTOR_KIND=agent` exits 2; by a human it writes a `baseline` record, and `iw judge <run> --visual` then appends `visual` judgements (`pass` for the same image, `diff` with `diff_ratio` for a changed one).
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [x] No command prompts when stdin is not a TTY.
 - [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.

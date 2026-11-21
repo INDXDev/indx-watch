@@ -59,7 +59,7 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | `ci.provider` / `ci.url` | `github` / the job page `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/$IW_CHECK_RUN_ID` when the step sets `IW_CHECK_RUN_ID: ${{ job.check_run_id }}` (GitHub has no default variable for it), else `…/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT` | — |
 | `ci.run_id`, `ci.run_attempt`, `ci.job`, `ci.workflow`, `ci.event` | `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_WORKFLOW`, `GITHUB_EVENT_NAME` | — |
 | `ci.pr` | PR number from the event payload | — |
-| `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }` | git identity |
+| `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }`; `via: "github-oidc"` with `IW_OIDC_SIGNER` and `id-token: write`, unless `IW_ACTOR` or `IW_SIGNING_KEY` is set ([GitHub OIDC](security.md#github-oidc)) | git identity |
 
 *(v0.2)* GitLab CI, CircleCI and Buildkite are detected by their standard variables (`GITLAB_CI`, `CIRCLECI`, `BUILDKITE` = `true`); GitHub Actions wins when several are set, then GitLab CI, then CircleCI, then Buildkite. `IW_COMMIT` overrides the commit and `IW_ACTOR` the actor on every provider, and any other CI can set those two. `build.dirty` is `false` in CI; a field whose variable is unset is left out. When the commit variable is not a SHA (Buildkite sets `HEAD` before checkout), `build.commit` comes from `git rev-parse HEAD`. Buildkite has no stable login, so its actor id uses the creator's notification email and the display name goes in `name`. Variable semantics are recorded in [platform notes](../research/platform-notes.md#other-ci-providers).
 
@@ -76,7 +76,20 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 
 Without the user variable (for example a scheduled pipeline) the actor falls back to git, as on GitHub. Like `github`, the `gitlab`, `circleci` and `buildkite` identities are read from variables anyone running the job can set, so they claim a verified source and are only shown as verified when the record is signed ([signed records](security.md#signed-records)).
 
-**Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](security.md#signed-records)). Signing through GitHub OIDC instead of a stored secret is not built yet.
+**Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](security.md#signed-records)).
+
+**Signing through GitHub OIDC** *(v0.2)*: without a stored secret, grant the job `permissions: id-token: write` and set `IW_OIDC_SIGNER` to your hosted server's URL. The reporter and the CLI then record `via = "github-oidc"` and get each record signed by that server, which checks the job's OIDC token against GitHub's keys and the repositories pinned in `[hosting] oidc_repositories` ([GitHub OIDC](security.md#github-oidc)):
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+env:
+  IW_OIDC_SIGNER: https://watch.example.com
+  # behind Cloudflare Access, unless /api/sign has a Bypass policy:
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+```
 
 ## GitHub Action
 A **composite action** at the repository root (`action.yml`) wraps the CLI; there is no separate action code to maintain.

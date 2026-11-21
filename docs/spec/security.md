@@ -25,14 +25,14 @@ Resolution order, implemented once in the `IdentityProvider` port:
 1. **Explicit** — `IW_ACTOR` (+ `IW_ACTOR_NAME`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`); `via = "env"`.
    **Agent detection** — independently of the source, `kind` becomes `agent` when `IW_ACTOR_KIND=agent`, when running under `iw mcp`, or when a known coding-agent environment marker is set (the list lives in [platform notes](../research/platform-notes.md#agent-skills), e.g. `CLAUDECODE=1`).
 2. **Hosted server** — the verified Cloudflare Access JWT (`Cf-Access-Jwt-Assertion`), checked with `jose` against the team's JWKS and the application's `aud`; `via = "cloudflare-access"`. Requests without a valid JWT are rejected (401) unless the server runs in local mode.
-3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`, `via = "github"`. *(v0.2)* With `id-token: write`, the action will attach OIDC claims (`repository`, `ref`, `sha`, `run_id`) and set `via = "github-oidc"`; the value is reserved in the schema and shown as verified, but v0.1 never produces it.
+3. **GitHub Actions** — `GITHUB_ACTOR` and the run URL; `kind = "ci"`, `via = "github"`. *(v0.2)* When the job can request an OIDC token (`permissions: id-token: write`, which sets `ACTIONS_ID_TOKEN_REQUEST_URL`) and `IW_OIDC_SIGNER` names a hosted server, the same actor gets `via = "github-oidc"`, and its records are signed by exchanging the token at that server ([GitHub OIDC](#github-oidc)).
    *(v0.2)* GitLab CI, CircleCI and Buildkite work the same way from their standard variables: `kind = "ci"`, `id = "<provider>:<user>"` (the login; the build creator's email on Buildkite), `via = "gitlab"`, `"circleci"` or `"buildkite"` ([integrations](integrations.md#ci-identity-and-context)).
 4. **Local** — `git config user.email` / `user.name`; `via = "git"`.
 5. **Fallback** — OS user name with `via = "env"` and a warning.
 
 **Browser-declared tester** *(v0.2)*: when the server has no verified identity for a web request (`iw serve` without `--identity-header`, or hosted `--public`), a valid `iw_tester` cookie set through the app's "Who's testing?" dialog replaces steps 4–5 for that request, with `kind = "human"` and `via = "browser"`. Behind Cloudflare Access or a trusted identity header the cookie is ignored. See [web.md](web.md#identity).
 
-Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors.
+Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity they run under stays in `actor.id`. The shipped skills do this ([agents.md](agents.md)). Approvals, reviews and waivers refuse agent actors. Approving a [visual baseline](concepts.md#visual-baselines) also refuses CI actors, and the model ignores `baseline` records whose actor is not `human`.
 
 ## Shared servers
 
@@ -51,7 +51,16 @@ Agents set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL`; the human or CI identity 
 - **Merges.** A body signed by a pinned key wins over an unsigned body with the same record ID whatever their log keys ([merge rules](sync.md#merge-rules)), so a direct bucket writer cannot overwrite a signed record by choosing an earlier key.
 - **Schema changes.** The signed bytes are the record as the current schema parses it, so a new record field must be optional without a default (a `.default()` would add the field to old records and break their signatures).
 - **Gate.** With `[gate] ignore_unverified = true`, `evaluateGate()` evaluates the gate as if unverified records (and the judgements in them) did not exist ([concepts](concepts.md#readiness-gate)). Status, the UI and reports still show them, marked.
-- **Not implemented yet.** GitHub OIDC signing — exchanging the job's OIDC token (`id-token: write`) for a short-lived signature, so CI needs no long-lived secret — is planned. Today CI signs with a key provisioned as a secret; anyone with that secret can sign records, scoped by the key's `via` list. Records written before signing was configured stay unverified.
+- **CI without a secret.** A CI job either signs with a key provisioned as a secret (anyone with that secret can sign records, scoped by the key's `via` list) or, on GitHub Actions, exchanges its OIDC token at the hosted server ([GitHub OIDC](#github-oidc)). Records written before signing was configured stay unverified.
+
+### GitHub OIDC
+
+*(v0.2, roadmap T-211b)* A GitHub Actions job gets a verifiable identity without a long-lived signing secret: the hosted server checks the job's OIDC ID token and signs the record with its own pinned key. Readers keep verifying only Ed25519 signatures by pinned keys, offline and long after GitHub rotates its token keys; the token itself never goes into a record.
+
+- **Setup.** The Worker has `IW_SIGNING_KEY`, and its public key is pinned in `[[signing_keys]]` with `github-oidc` in its `via` list (or no list). `[hosting] oidc_repositories` in `project.toml` lists the repositories whose tokens it accepts, as `owner/name` (compared without case) or as the numeric repository ID (the `repository_id` claim, which survives renames and cannot be reused); `iw deploy` pins the list as the Worker variable `OIDC_REPOSITORIES`, never read from a snapshot. With no list or no `IW_SIGNING_KEY`, the endpoint answers 404. The job grants `permissions: id-token: write` and sets `IW_OIDC_SIGNER` to the server's URL.
+- **Writer.** In GitHub Actions with `GITHUB_ACTOR`, `IW_OIDC_SIGNER` and `ACTIONS_ID_TOKEN_REQUEST_URL` set, and neither `IW_SIGNING_KEY` (which wins when set) nor `IW_ACTOR` (whose actor is `via = "env"`, so its records stay unsigned instead of being refused by the server), the CLI and the reporter resolve the actor `{ kind: "ci", id: "github:<GITHUB_ACTOR>", name: GITHUB_ACTOR, via: "github-oidc" }` and, for every record they write, request an ID token with the audience `indx-watch:<project id>` (reused until a minute before it expires) and send `POST <IW_OIDC_SIGNER>/api/sign` with `Authorization: Bearer <token>` and `{ "records": [record] }`. They keep their own record and take only the returned `sig`; a refused or failed exchange, or a malformed token or reply, fails that write (exit 4). `IW_OIDC_SIGNER` must be `https://` (or loopback `http://`); an Access service token (`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`) is sent along when set.
+- **Server.** `POST /api/sign` takes the token instead of a Cloudflare Access identity (the Worker does not ask for `Cf-Access-Jwt-Assertion` on this route; at the Cloudflare edge, add an Access *Bypass* policy for `/api/sign` or give the job a service token). It verifies the token's signature against GitHub's JWKS (`https://token.actions.githubusercontent.com/.well-known/jwks`, fetched by an adapter behind the `OidcVerifier` port), the issuer `https://token.actions.githubusercontent.com`, the audience `indx-watch:<project id>` of the served project and the expiry (so the token is checked at write time), then requires the `repository` or `repository_id` claim to be pinned. Each record (at most 1000 per request, each valid under the record schema) must belong to the project, have the actor `via = "github-oidc"` with `id = "github:<actor claim>"` (`kind` may be `ci` or `agent`), and, when it has a `ci` context, `ci.repository` and `ci.run_id` equal to the `repository` and `run_id` claims. Any mismatch refuses the whole request (401 for a bad token, 403 otherwise). Accepted records are signed exactly as the server signs its own writes, so a record whose judgements claim another verified identity comes back unsigned. Response: `{ "records": [signed record] }`. The server stores nothing.
+- **Limits.** Anyone who obtains a token within its lifetime (minutes) can get signatures for records with that job's actor; the token goes only to the server over https. Any workflow of a pinned repository, including on another branch, can sign; pin only repositories whose workflows you trust. Pull requests from forks get no OIDC token.
 
 ## Browser requests
 
@@ -88,7 +97,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 
 ## Hosted app
 
-- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
+- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz`, `POST /api/sign` (which requires a GitHub OIDC token instead, [GitHub OIDC](#github-oidc)) and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
 - The MCP endpoint `/mcp` is one of those routes: it resolves the identity exactly like `/api`, and its writes record that identity with `kind = "agent"` ([agents.md](agents.md#mcp-server)). It has no `approve`, `review` or `waive` tool, and `new` only writes AI drafts, at paths inside the bundle.
 - `iw deploy` prints the Access setup steps and refuses to deploy publicly unless `--public` is passed.
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.
@@ -107,7 +116,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 | Threat | Mitigation |
 |---|---|
 | Secret committed in a fixture | Secret scan in `iw check`, sync and export refuse; references only |
-| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access (and GitHub OIDC from v0.2); bucket write access limited to trusted principals. A record that claims a verified `via` without a valid signature by a key pinned in `project.toml` is shown as unverified, and `gate.ignore_unverified` keeps it out of the gate ([signed records](#signed-records)). Anyone holding a signing secret can still sign records within that key's `via` scope. |
+| Forged actor in a local or CI record | `via` is recorded and shown; verified identities via Access and GitHub OIDC (exchanged at the hosted server for a signature); bucket write access limited to trusted principals. A record that claims a verified `via` without a valid signature by a key pinned in `project.toml` is shown as unverified, and `gate.ignore_unverified` keeps it out of the gate ([signed records](#signed-records)). Anyone holding a signing secret can still sign records within that key's `via` scope. |
 | Tampering with past results | Records are immutable and content-addressed blobs are hash-verified on read; corrections are new judgements. Another body for a record ID is reported as a conflict; a signed body is never replaced by an unsigned one, but an unsigned record can be replaced by a body under an earlier log key (the [merge rule](sync.md#merge-rules) every replica applies alike). Sign every writer to protect records; a bucket with object versioning or WORM retention gives stronger guarantees. |
 | Malicious evidence (HTML/SVG with script) | Non-image media served as attachments; strict CSP |
 | Public exposure of the hosted app | Access in front of every route; `iw deploy` refuses public deploys without `--public` |
@@ -119,10 +128,12 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 
 ## Acceptance criteria
 
-- [x] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT; `github-oidc` is v0.2).
+- [x] Each identity source produces the documented `actor` (unit tests with faked env, git and JWT, `github-oidc` included).
 - [x] The hosted server rejects a request without a valid Access JWT with 401, and accepts one signed by a test JWKS with the right `aud`.
 - [x] `iw check` flags a fixture CSV containing an AWS access key ID and a `password = "…"` literal; `iw sync` then exits 1 without uploading.
 - [x] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).
 - [x] A record with `via = "cloudflare-access"` and no valid signature (none, a key that is not pinned, or tampered content) is unverified in the model, the API and reports; one signed by a pinned key is verified; with `gate.ignore_unverified = true` the gate leaves the forged record out.
 - [x] Records written with `IW_SIGNING_KEY` set (CLI, hosted Worker) carry a signature that verifies against the key `iw keygen` printed.
+- [x] `POST /api/sign` with a GitHub OIDC token signed by a fake issuer key (test JWKS) returns the records signed by the server's key, which verify as `github-oidc`; a token with another audience, issuer or key, an expired one, an unpinned repository or a record whose actor or `ci` does not match the claims is refused and nothing is signed.
+- [x] With `IW_OIDC_SIGNER` and the GitHub OIDC variables set (fake token endpoint and server), the writer resolves `via = "github-oidc"` and the signer the CLI and the reporter use returns records carrying the server's signature, requesting one token for several records; a refused exchange fails the write.
 - [x] On the Worker, `/s/<token>` of an active share link answers without an Access JWT, while `/api/*` still answers 401; the store endpoint refuses a log object with a `share` record (server and Worker tests).

@@ -219,6 +219,17 @@ describe('deploy wrangler config', () => {
     await dryRun(dir, dist, fakeExec({}).exec);
     expect(JSON.parse(readConfig(dir).vars.SIGNING_KEYS)).toEqual([key]);
   });
+
+  it('pins [hosting] oidc_repositories as the Worker var OIDC_REPOSITORIES', async () => {
+    const { dir, dist } = setup();
+    const toml = readFileSync(join(dir, 'project.toml'), 'utf8');
+    writeFileSync(
+      join(dir, 'project.toml'),
+      toml.replace('[hosting]\n', '[hosting]\noidc_repositories = ["INDXDev/shop"]\n'),
+    );
+    await dryRun(dir, dist, fakeExec({}).exec);
+    expect(JSON.parse(readConfig(dir).vars.OIDC_REPOSITORIES)).toEqual(['INDXDev/shop']);
+  });
 });
 
 describe('deploy', () => {

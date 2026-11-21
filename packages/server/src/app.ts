@@ -32,6 +32,8 @@ export interface ServerDeps extends AppDeps {
     files: Map<string, Uint8Array>,
     info: { actor: B.Actor; message?: string; changed: string[]; removed: string[] },
   ): Promise<string | undefined>;
+  /** sign records for a GitHub OIDC token (docs/spec/security.md#github-oidc); POST /api/sign answers 404 without it */
+  signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
@@ -107,8 +109,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   app.use('*', async (c, next) => {
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
-    // share links are the one public path besides /healthz (docs/spec/security.md#share-links)
-    if (deps.mode === 'hosted' && c.req.path !== '/healthz' && !/^\/s\/[^/]+$/.test(c.req.path))
+    // /api/sign is authenticated by its GitHub OIDC token instead of Access; share links are public
+    // (docs/spec/security.md#share-links)
+    if (deps.mode === 'hosted' && !['/healthz', '/api/sign'].includes(c.req.path) && !/^\/s\/[^/]+$/.test(c.req.path))
       await x.actor(c);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');

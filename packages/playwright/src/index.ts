@@ -5,11 +5,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { AnyRecord, Bundle, Evidence, RunRecord } from '@indx-watch/bundle';
-import { encodeRecord, loadBundle, newId, recordSigner, sha256Hex } from '@indx-watch/bundle';
+import { encodeRecord, loadBundle, newId, sha256Hex } from '@indx-watch/bundle';
 import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
 import { buildModel, type Model, type TestCaseNode } from '@indx-watch/core';
 import { createResultStore, type LocalReplica } from '@indx-watch/store';
-import { openObjectStore, openReplica, processContext, processIdentity } from '@indx-watch/store/node';
+import {
+  openObjectStore,
+  openReplica,
+  processContext,
+  processIdentity,
+  processSigner,
+} from '@indx-watch/store/node';
 import { pointerBlobs, syncOnce } from '@indx-watch/sync';
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import type { FullConfig, FullResult, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
@@ -185,7 +191,7 @@ export default class IndxWatchReporter implements Reporter {
     );
     if (this.opts.dryRun) for (const r of records) log(`would record ${encodeRecord(r)}`);
     else {
-      const sign = recordSigner(this.env.IW_SIGNING_KEY); // docs/spec/security.md#signed-records
+      const sign = processSigner(this.env); // docs/spec/security.md#signed-records
       for (const r of records) await this.replica!.putRecord(await sign(r));
     }
     const where = this.opts.dryRun

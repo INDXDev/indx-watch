@@ -3,6 +3,7 @@
  */
 import {
   type AnyRecord,
+  type BaselineRecord,
   type Bundle,
   type BundleRecord,
   DECISION_POLICY_DEFAULTS,
@@ -15,7 +16,7 @@ import {
   verifyRecord,
   type WaiverRecord,
 } from '@indx-watch/bundle';
-import { byAtThenId, decide } from './decide.js';
+import { byAtThenId, byTimeThenId, decide } from './decide.js';
 import type {
   CriterionNode,
   FeatureNode,
@@ -30,7 +31,17 @@ import type {
 export const PRIORITY_RANK: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** Snapshot order: by commit_time, then at, then id (docs/spec/sync.md#snapshots-from-people-v02). */
 const snapOrder = (r: BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
-const KINDS = new Set(['run', 'judgement', 'waiver', 'deployment', 'bundle', 'file', 'retraction', 'share']);
+const KINDS = new Set([
+  'run',
+  'judgement',
+  'waiver',
+  'deployment',
+  'bundle',
+  'file',
+  'retraction',
+  'baseline',
+  'share',
+]);
 const keyNum = (k: string) => Number(/(\d+)(?:\.(\d+))?$/.exec(k)?.[1] ?? 0);
 /** Sorts keys by their trailing number (`UC-2` before `UC-10`), then as strings. */
 export const byKey = (a: string, b: string) => keyNum(a) - keyNum(b) || (a < b ? -1 : a > b ? 1 : 0);
@@ -278,6 +289,8 @@ export function buildModel(
     runs,
     waivers: live(set, 'waiver') as WaiverRecord[],
     deployments: live(set, 'deployment') as DeploymentRecord[],
+    // only a person can approve a baseline (docs/spec/concepts.md#visual-baselines)
+    baselines: (live(set, 'baseline') as BaselineRecord[]).filter((r) => r.actor.kind === 'human'),
     shares: live(set, 'share'),
     snapshots: (live(set, 'bundle') as BundleRecord[]).sort((a, b) => (snapOrder(a) < snapOrder(b) ? 1 : -1)),
     keyOf: keyResolver(p.key, index.ids, runs),
@@ -291,6 +304,13 @@ export function buildModel(
     ).model;
   return { model, warnings };
 }
+
+/** The approved baseline of (test case ID, screenshot name, automation project): the latest by at, then id. */
+export const approvedBaseline = (model: Model, tcId: string, name: string, project?: string) =>
+  model.baselines
+    .filter((b) => b.test_case.id === tcId && b.name === name && b.automation_project === project)
+    .sort((a, b) => byTimeThenId(a.at, a.id, b.at, b.id))
+    .at(-1);
 
 /** verifyRecords() results per isolate or process: keys JSON → record JSON → valid (a rebuild re-checks nothing). */
 const verified = new Map<string, Map<string, boolean>>();

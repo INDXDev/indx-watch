@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import type { Actor, Build, CiContext, Via } from '@indx-watch/bundle';
+import { usesGithubOidc } from '../adapters/github-oidc.js';
 import type { ContextProvider, IdentityProvider } from '../ports.js';
 import { compact, parseJson } from '../util.js';
 import { exec } from './exec.js';
@@ -63,7 +64,8 @@ export function processIdentity(opts: Opts = {}): IdentityProvider {
       const kind = env.IW_ACTOR_KIND === 'ci' || env.IW_ACTOR_KIND === 'agent' ? env.IW_ACTOR_KIND : 'human';
       a = compact({ kind, id: env.IW_ACTOR, name: env.IW_ACTOR_NAME, via: 'env' });
     } else if (isGithub(env) && env.GITHUB_ACTOR) {
-      a = { kind: 'ci', id: `github:${env.GITHUB_ACTOR}`, name: env.GITHUB_ACTOR, via: 'github' };
+      const via = usesGithubOidc(env) ? 'github-oidc' : 'github'; // docs/spec/security.md#github-oidc
+      a = { kind: 'ci', id: `github:${env.GITHUB_ACTOR}`, name: env.GITHUB_ACTOR, via };
     } else if (other?.v.user) {
       const { provider: via, v } = other;
       a = { kind: 'ci', id: `${via}:${v.user}`, name: v.name || v.user, via };

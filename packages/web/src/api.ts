@@ -135,6 +135,7 @@ export const api = {
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),
   createRun: (input: ManualRunInput) => post<ManualRunResult>('api/runs', input),
   review: (id: string, input: ReviewInput) => post<unknown>(`api/runs/${id}/judgements`, input),
+  approveBaseline: (id: string, sha256: string) => post<unknown>(`api/runs/${id}/baselines`, { sha256 }),
   uploadBlob: (file: Blob, name: string) =>
     call<BlobResult>('api/blobs', {
       method: 'POST',
