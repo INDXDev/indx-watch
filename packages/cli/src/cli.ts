@@ -21,6 +21,7 @@ const GLOBAL: ArgsDef = {
   yes: B('Never prompt (iw never prompts without a TTY either)'),
 };
 const GROUPS: Record<string, string> = {
+  baseline: 'Visual baselines (approve)',
   deployment: 'Record deployments (add)',
   fixture: 'Fixture data files (add, fetch)',
   skills: 'Agent skills (install)',
