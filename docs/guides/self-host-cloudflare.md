@@ -142,6 +142,20 @@ $ npx indx-watch sync
 
 The bundle (definitions) still travels through git. CI on the default branch runs `iw sync --snapshot` (the [GitHub Action](../spec/integrations.md) does this) so the hosted UI shows the current test cases.
 
+## Demo site from GitHub Actions
+
+This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](../../.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](../../examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
+
+The job copies `examples/shop`, drops the Access keys from the copy's `[hosting]` so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`), runs `iw deploy --public`, waits for `/healthz`, then runs `iw sync` (sample results into the local replica) and `iw push --store <url>` (records, blobs and a bundle snapshot). The URL appears on the run's summary and on the `demo` environment.
+
+Setup, once per repository:
+
+1. Create a Cloudflare API token from the "Edit Cloudflare Workers" template, adding D1 Edit and Workers R2 Storage Edit.
+2. **Settings → Environments → New environment** `demo`; add the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` there (or with `gh secret set CLOUDFLARE_API_TOKEN --env demo`).
+3. Run the workflow once by hand.
+
+`--public` means anyone with the URL can read and write the demo, so only sample data goes there, and visitors' runs stay until you empty the bucket. To reset it, follow [Teardown](#teardown) for the demo name and run the workflow again. Never point a real project at a public deploy.
+
 ## Costs and limits
 
 The free tiers of Workers, R2 and D1 cover a small team. Watch the Workers CPU limit per request, the request body limit (keep large evidence such as videos small) and the D1 database size limit. The current numbers, with dates and sources, are in [platform notes](../research/platform-notes.md#limits) ([D1](../research/platform-notes.md#d1), [R2](../research/platform-notes.md#r2)); check them before relying on them.

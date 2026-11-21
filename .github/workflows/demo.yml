@@ -1,0 +1,89 @@
+name: Demo
+
+# Deploys a public demo of the web app on Cloudflare Workers: the server and UI built from this commit,
+# loaded with examples/shop (bundle snapshot + sample results). Guide: docs/guides/self-host-cloudflare.md#demo-site-from-github-actions.
+# Requires the `demo` environment with secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# The demo is deployed with --public: anyone with the URL can read and write it. Only sample data goes there.
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/**
+      - examples/shop/.indx-watch/**
+      - examples/shop/store/**
+      - .github/workflows/demo.yml
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Worker name (also the R2 bucket and D1 database)
+        type: string
+        default: indx-watch-demo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-${{ inputs.name || 'indx-watch-demo' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: demo
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      DEMO_NAME: ${{ inputs.name || 'indx-watch-demo' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      # runner.temp is not available in job-level env, so DEMO_DIR is set here.
+      - run: echo "DEMO_DIR=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Check the secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the 'demo' environment"; exit 1
+          fi
+      - name: Copy examples/shop and name its resources after the demo
+        # A throwaway copy: the Worker, bucket and database all take DEMO_NAME; no Access (deployed --public).
+        run: |
+          mkdir -p "$DEMO_DIR"
+          cp -r examples/shop/.indx-watch examples/shop/store "$DEMO_DIR/"
+          sed -i -E '/^(r2_bucket|d1_database|access_team|access_aud) =/d' "$DEMO_DIR/.indx-watch/project.toml"
+          pnpm iw check --dir "$DEMO_DIR/.indx-watch"
+      - name: Deploy
+        id: deploy
+        run: |
+          pnpm -s iw deploy --dir "$DEMO_DIR/.indx-watch" --name "$DEMO_NAME" --public --json > "$RUNNER_TEMP/deploy.json"
+          url=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).data.url ?? ''" "$RUNNER_TEMP/deploy.json")
+          test -n "$url" || { echo "::error::wrangler printed no URL"; cat "$RUNNER_TEMP/deploy.json"; exit 1; }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Wait for the Worker
+        run: |
+          for _ in $(seq 1 30); do
+            curl -fsS "${{ steps.deploy.outputs.url }}/healthz" && exit 0
+            sleep 5
+          done
+          echo "::error::/healthz did not answer"; exit 1
+      - name: Load the sample results and the bundle snapshot
+        # sync pulls examples/shop/store into the local replica; push uploads records, blobs and a snapshot.
+        run: |
+          pnpm -s iw sync --dir "$DEMO_DIR/.indx-watch"
+          pnpm -s iw push --dir "$DEMO_DIR/.indx-watch" --store "${{ steps.deploy.outputs.url }}" \
+            --message "Demo ${GITHUB_SHA::7}"
+      - name: Smoke test
+        run: |
+          curl -fsS "${{ steps.deploy.outputs.url }}/" | grep -qi '<html'
+          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > /dev/null || echo "::warning::/api/status did not answer yet"
+      - name: Summary
+        run: |
+          echo "### INDX Watch demo" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.deploy.outputs.url }} (commit \`${GITHUB_SHA::7}\`, examples/shop)" >> "$GITHUB_STEP_SUMMARY"
