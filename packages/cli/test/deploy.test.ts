@@ -230,6 +230,13 @@ describe('deploy wrangler config', () => {
     await dryRun(dir, dist, fakeExec({}).exec);
     expect(JSON.parse(readConfig(dir).vars.OIDC_REPOSITORIES)).toEqual(['INDXDev/shop']);
   });
+
+  it('pins [hosting.roles] as the Worker var ROLES', async () => {
+    const { dir, dist } = setup(); // examples/shop lists roles
+    await dryRun(dir, dist, fakeExec({}).exec);
+    const pinned = { lead: ['qa-leads@shop.test'], tester: ['qa@shop.test'], customer: ['uat@shop.test'] };
+    expect(JSON.parse(readConfig(dir).vars.ROLES)).toEqual(pinned);
+  });
 });
 
 describe('deploy', () => {

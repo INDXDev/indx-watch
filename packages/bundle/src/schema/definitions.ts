@@ -90,6 +90,15 @@ export const StoreConfig = z.strictObject({
 });
 export type StoreConfig = z.infer<typeof StoreConfig>;
 
+export const Role = z.enum(['lead', 'tester', 'viewer', 'customer']);
+export type Role = z.infer<typeof Role>;
+const principals = z.array(z.string().min(1)).optional();
+export const Roles = z.strictObject({
+  ...{ lead: principals, tester: principals, viewer: principals, customer: principals },
+  default: Role.optional(),
+});
+export type Roles = z.infer<typeof Roles>;
+
 export const HostingConfig = z.strictObject({
   provider: z.literal('cloudflare'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
@@ -106,6 +115,8 @@ export const HostingConfig = z.strictObject({
   branch: z.string().optional(),
   /** GitHub repositories (owner/name or repository ID) whose OIDC tokens the Worker signs for (docs/spec/security.md#github-oidc) */
   oidc_repositories: z.array(z.string().min(1)).optional(),
+  /** Access emails or groups per role on the hosted app (v0.3, docs/spec/security.md#roles) */
+  roles: Roles.optional(),
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
@@ -351,7 +362,7 @@ export const BlobPointer = z.strictObject({
 export type BlobPointer = z.infer<typeof BlobPointer>;
 
 // ---------- plans/<PLAN>-<slug>.toml ----------
-export const Assignee = z.string().regex(/^(ci|agent:[a-z0-9-]+|[^@\s]+@[^@\s]+)$/);
+export const Assignee = z.string().regex(/^(ci|agent:[a-z0-9-]+|group:\S.*|[^@\s]+@[^@\s]+)$/);
 export const PlanItem = z.strictObject({
   test_case: keyOf('testCase'),
   assignee: Assignee.optional(),

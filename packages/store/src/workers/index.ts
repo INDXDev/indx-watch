@@ -236,11 +236,44 @@ export function d1Index(db: unknown): Index {
   return index;
 }
 
+/** The id, name and email of an Access group object. */
+const pickNames = (g: unknown) => {
+  const { id, name, email } = (g ?? {}) as Record<string, unknown>;
+  return { id, name, email };
+};
+
 /** Identity from Cf-Access-Jwt-Assertion verified against https://<team>.cloudflareaccess.com/cdn-cgi/access/certs and aud. */
-export function accessIdentity(opts: { team: string; aud: string }): IdentityProvider {
+export function accessIdentity(opts: { team: string; aud: string; fetch?: typeof fetch }): IdentityProvider {
   const issuer = `https://${opts.team}.cloudflareaccess.com`;
   const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  const cache = new Map<string, { until: number; groups: Promise<string[]> }>();
+  /** get-identity with the (already verified) token as the CF_Authorization cookie; throws on a failure */
+  const lookup = async (token: string) => {
+    const f = opts.fetch ?? fetch;
+    const r = await f(`${issuer}/cdn-cgi/access/get-identity`, {
+      headers: { cookie: `CF_Authorization=${token}` },
+    });
+    if (!r.ok) throw new Error(`get-identity: ${r.status}`);
+    const body = (await r.json()) as { groups?: unknown };
+    const groups = Array.isArray(body.groups) ? (body.groups as unknown[]) : [];
+    const names = (g: unknown) => (typeof g === 'string' ? [g] : Object.values(pickNames(g)));
+    return groups.flatMap(names).filter((s): s is string => typeof s === 'string' && s !== '');
+  };
   return {
+    async groups(request) {
+      const token = request.headers.get('cf-access-jwt-assertion') ?? '';
+      const now = Date.now();
+      if (cache.size > 1000) cache.clear();
+      const hit = cache.get(token);
+      if (hit && hit.until > now) return hit.groups;
+      // a failed lookup means no groups for this request only: it is cached for 5 s, a success for 5 min
+      const groups = (token ? lookup(token) : Promise.resolve([])).catch(() => {
+        cache.set(token, { until: now + 5_000, groups });
+        return [];
+      });
+      cache.set(token, { until: now + 300_000, groups });
+      return groups;
+    },
     async current(request) {
       const token = request?.headers.get('cf-access-jwt-assertion');
       if (!token) throw new StoreError('unauthorized', 'missing Cf-Access-Jwt-Assertion');

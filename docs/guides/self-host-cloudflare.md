@@ -41,6 +41,7 @@ access_team = "example"    # your Zero Trust team name
 | `access_team`              | yes, unless `--public` | Team name of your Zero Trust organization                                                       |
 | `access_aud`               | after the first deploy | The Access application's Audience (AUD) tag. Until it is set, the Worker rejects every request. |
 | `oidc_repositories`        | no                     | *(v0.2)* GitHub repositories (`owner/name` or numeric ID) whose Actions jobs may get records signed by the Worker ([CI signing with GitHub OIDC](#ci-signing-with-github-oidc)). |
+| `roles`                    | no                     | *(v0.3)* `[hosting.roles]`: Access emails or groups per role (`lead`, `tester`, `viewer`, `customer`, optional `default`). Without it everyone Access lets in is `lead` ([roles](../spec/security.md#roles)). Run `iw deploy` again after changing it. |
 
 Nothing in `[hosting]` is secret. Never put API tokens in `project.toml`.
 
@@ -67,7 +68,7 @@ It also writes the generated Wrangler configuration to `.indx-watch/cache/deploy
 | `assets`              | The web UI build, binding `ASSETS`, `not_found_handling: "single-page-application"`, `run_worker_first: ["/api/*", "/healthz", "/mcp", "/mcp/*", "/s/*"]` |
 | `r2_buckets`          | Binding `STORE` → `r2_bucket`                                                                                                                     |
 | `d1_databases`        | Binding `DB` → `d1_database` (with its ID)                                                                                                        |
-| `vars`                | `ACCESS_TEAM`, `ACCESS_AUD`, `SIGNING_KEYS` and `OIDC_REPOSITORIES` when configured (and `PUBLIC = "true"` only with `--public`)               |
+| `vars`                | `ACCESS_TEAM`, `ACCESS_AUD`, `SIGNING_KEYS`, `OIDC_REPOSITORIES` and `ROLES` when configured (and `PUBLIC = "true"` only with `--public`)               |
 | `triggers.crons`      | `["* * * * *"]`: once a minute the Worker picks up new store objects into its index                                                               |
 | `compatibility_flags` | `["nodejs_compat"]`                                                                                                                               |
 

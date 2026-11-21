@@ -189,7 +189,7 @@ A plan item's scope is (`plan.release`, `item.environment` ?? `plan.environment`
 | `blocked` | Result is `blocked` |
 | `review` | Result is `needs_review` or `stale` |
 
-A test case may appear in a plan more than once only with different environments (`iw check`).
+A test case may appear in a plan more than once only with different environments (`iw check`). *(v0.3)* On the hosted app, a person with the `customer` role sees only the plan items assigned to them, by email or Access group ([roles](security.md#roles)).
 
 ### Release
 

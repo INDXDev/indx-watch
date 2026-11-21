@@ -1,6 +1,6 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
- * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
+ * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES, ROLES; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
  * Definitions: the `file` records in workspace mode, else the latest bundle snapshot record
  * (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
@@ -11,6 +11,7 @@ import {
   loadBundle,
   newId,
   newUlid,
+  Roles,
   recordSigner,
   SigningKey,
   sha256Hex,
@@ -44,6 +45,18 @@ export interface Env {
   SIGNING_KEYS?: string;
   /** JSON array of the GitHub repositories whose OIDC tokens get signatures, pinned by `iw deploy` */
   OIDC_REPOSITORIES?: string;
+  /** JSON of `[hosting.roles]`, pinned by `iw deploy`; never read from the bucket (docs/spec/security.md#roles) */
+  ROLES?: string;
+}
+
+/** The pinned roles; an invalid value lets nobody in. */
+function pinnedRoles(env: Env): Roles | undefined {
+  if (!env.ROLES) return undefined;
+  try {
+    return Roles.parse(JSON.parse(env.ROLES));
+  } catch {
+    return {};
+  }
 }
 
 /** keys this much older than the cursor are listed again: writers may land a little out of order */
@@ -184,7 +197,7 @@ async function openWorkspace(store: Store, records: AnyRecord[], view: View): Pr
 
 /** the vars an isolate's state depends on */
 const STATE_VARS =
-  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS OIDC_REPOSITORIES'.split(' ');
+  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS OIDC_REPOSITORIES ROLES'.split(' ');
 function setup(env: Env, outputs?: ToolOutputs): State {
   const key = STATE_VARS.map((k) => env[k as keyof Env]).join('|');
   const existing = states.get(env.STORE as object);
@@ -278,6 +291,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     putBlob: (data, type) => sha256Hex(data).then((sha) => store.putBlob(sha, data, type).then(() => sha)),
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
+    roles: identity && identity !== anon ? pinnedRoles(env) : undefined,
     objects,
     onLogObject: async (key) => void (await ingest((await store.readLog(key)).records, key)),
     syncInfo: () => ({ configured: true, store: objects.url, lastSyncAt: new Date(ingested.at).toJSON() }),

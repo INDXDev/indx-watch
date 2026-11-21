@@ -42,6 +42,7 @@ The HTML report is a single file with inline CSS, no JavaScript required, readab
 
 ## Sharing with customers
 
+- *(v0.3)* A person with the `customer` [role](security.md#roles) on the hosted app always gets `customer` reports, computed over their assigned plan items only.
 - `--audience customer` removes: bundle `notes`, run and step notes, judgement reasons, environment guides, base URLs and access methods, actor emails (replaced by display names or "QA team"), CI URLs, and anything under `[x]`. Fixture placeholders stay unresolved (`{{FX-3.username}}`). Evidence defaults to `none` (opt in with `--evidence embed`). *(v0.2: `--include-notes` and `--include-ci-links` to keep notes and CI links.)*
 - Account fixtures never appear in reports, in any audience; only their key and title.
 - On the hosted app, a report can be shared via a **share link**: an unguessable token (128 bits), an expiry (default 7 days, max 90), and a fixed audience. Share links serve a frozen snapshot rendered at creation time, not live data. Creating and opening share links are recorded as records with the actor. Share-link routes are the only routes that bypass Cloudflare Access; see [Share links](#share-links) and [security.md](security.md#share-links). *(v0.2)*

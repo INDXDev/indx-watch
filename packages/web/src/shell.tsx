@@ -167,6 +167,9 @@ export function AccountMenu({
                 {isVerified(me) ? '✓ ' : ''}
                 {t((VIA[me.via] ?? 'who.via.env') as 'who.via.git')}
               </div>
+              {info.mode === 'hosted' && info.role && (
+                <div className="small muted">{t(`role.${info.role}`)}</div>
+              )}
             </div>
           </div>
           {info.can.declare && (

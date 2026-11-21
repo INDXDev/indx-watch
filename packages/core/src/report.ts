@@ -15,7 +15,7 @@ import type { Model, Scope, StatusResult, TestCaseStatus } from './types.js';
 
 const OPEN = new Set(['fail', 'needs_review', 'blocked', 'stale', 'untested']);
 /** Name shown to customers instead of an e-mail address or an anonymous actor. */
-const QA_TEAM = 'QA team';
+export const QA_TEAM = 'QA team';
 
 /** What the report needs besides model and scope; `customer` redacts e-mails, notes and CI links. */
 interface ReportOptions {
