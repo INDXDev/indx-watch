@@ -21,6 +21,6 @@ source_hash = "bcc6116c0dcf"
 [i18n.ja]
 title = "チームがデータを別の場所に移す"
 actor = "メンテナー"
-goal = "何も失わずに移行または離脱する。"
+goal = "何も失わずに、利用をやめるか別の環境へ移行する。"
 status = "machine"
 source_hash = "8f29c9d16646"

@@ -9,6 +9,6 @@ files = ["catalog.json"]
 hook = "seed"
 
 [i18n.ja]
-title = "3 商品のカタログ"
+title = "商品 3 点のカタログ"
 status = "machine"
 source_hash = "c83fa24529ce"

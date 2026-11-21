@@ -24,7 +24,7 @@ key = "AC-4.2"
 text = "A wrong password shows \"Email or password is incorrect\" and the customer stays signed out."
 
 [criteria.i18n.ja]
-text = "パスワードを間違えると「Email or password is incorrect」と表示され、顧客はサインアウトのまま。"
+text = "パスワードを間違えると「Email or password is incorrect」と表示され、顧客はサインインしていない状態のまま。"
 status = "machine"
 source_hash = "285e558dee56"
 

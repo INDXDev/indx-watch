@@ -171,7 +171,7 @@ describe('renderReport on examples/shop: evidence, locale and gate', () => {
     const md = await render({ format: 'md', locale: 'ja' });
     expect(md).toContain('# Shop — リリース v1.2.0');
     expect(md).toContain('誤ったパスワードではサインインできない');
-    expect(md).toContain('ホームページにすべての商品が名前と価格つきで並ぶ。');
+    expect(md).toContain('トップページにすべての商品が名前と価格つきで並ぶ。');
   });
 
   it('a criterion without a translation falls back to the source text, marked with its locale', async () => {

@@ -24,7 +24,7 @@ expected = "The copy has the test files and results, and \"iw check\" exits 0."
 
 [steps.i18n.ja]
 instruction = "ストアの URL を指定して空のフォルダに「iw clone」を実行する。"
-expected = "コピーにテストファイルと結果があり、「iw check」は 0 で終わる。"
+expected = "コピーにテストファイルと結果があり、「iw check」は終了コード 0 で終わる。"
 status = "machine"
 source_hash = "f681fa76eca8"
 
