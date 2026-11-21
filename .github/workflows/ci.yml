@@ -41,6 +41,11 @@ jobs:
         # In CI a run takes its release from the CI context, so `record` names it.
         run: |
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP")
+          # The build only warns when the reporter or the web build is missing, so check the tarball itself.
+          tar -tzf "$RUNNER_TEMP"/indx-watch-*.tgz > "$RUNNER_TEMP/tarball.txt"
+          for f in package/dist/bin.js package/dist/playwright.js package/dist/web/index.html package/schemas/v1/; do
+            grep -q "^$f" "$RUNNER_TEMP/tarball.txt" || { echo "::error::tarball misses $f"; exit 1; }
+          done
           mkdir "$RUNNER_TEMP/cold" && cd "$RUNNER_TEMP/cold"
           npm init -y > /dev/null
           npm install --save-dev "$RUNNER_TEMP"/indx-watch-*.tgz

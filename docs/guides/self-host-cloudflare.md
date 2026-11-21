@@ -146,7 +146,7 @@ The bundle (definitions) still travels through git. CI on the default branch run
 
 This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](../../.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](../../examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
 
-The job copies `examples/shop`, drops the Access keys from the copy's `[hosting]` so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`), runs `iw deploy --public`, waits for `/healthz`, then runs `iw sync` (sample results into the local replica) and `iw push --store <url>` (records, blobs and a bundle snapshot). The URL appears on the run's summary and on the `demo` environment.
+The job copies `examples/shop`, drops the Access keys from the copy's `[hosting]` so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`), runs `iw deploy --public`, waits for `/healthz`, then runs `iw sync` (sample results into the local replica), copies the sample's blobs into the replica (sync fetches blobs lazily, and `iw push` holds back a record whose blobs are missing locally) and runs `iw push --store <url>` (records, blobs and a bundle snapshot). The smoke test fails when the demo's gate differs from `iw status` on the sample. The URL appears on the run's summary and on the `demo` environment.
 
 Setup, once per repository:
 

@@ -6,7 +6,7 @@ title = "Reports and portability"
 description = "Reports for stakeholders, export and import."
 
 [i18n.ja]
-title = "レポートと持ち運び"
+title = "レポートとデータの移行"
 description = "関係者向けのレポート、エクスポートとインポート。"
 status = "machine"
 source_hash = "de424f591c21"

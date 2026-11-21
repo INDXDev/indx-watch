@@ -34,10 +34,11 @@ jobs:
       url: ${{ steps.deploy.outputs.url }}
     env:
       DEMO_NAME: ${{ inputs.name || 'indx-watch-demo' }}
-      DEMO_DIR: ${{ runner.temp }}/demo
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      # runner.temp is not available in job-level env, so DEMO_DIR is set here.
+      - run: echo "DEMO_DIR=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
@@ -67,21 +68,26 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Wait for the Worker
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -fsS "${{ steps.deploy.outputs.url }}/healthz" && exit 0
             sleep 5
           done
           echo "::error::/healthz did not answer"; exit 1
       - name: Load the sample results and the bundle snapshot
         # sync pulls examples/shop/store into the local replica; push uploads records, blobs and a snapshot.
+        # sync fetches blobs lazily, and push holds back a record whose blobs are not in the replica, so copy them in.
         run: |
           pnpm -s iw sync --dir "$DEMO_DIR/.indx-watch"
+          mkdir -p "$DEMO_DIR/.indx-watch/runs" && cp -r "$DEMO_DIR/store/v1/blobs" "$DEMO_DIR/.indx-watch/runs/"
           pnpm -s iw push --dir "$DEMO_DIR/.indx-watch" --store "${{ steps.deploy.outputs.url }}" \
-            --message "Demo ${GITHUB_SHA::7}"
+            --message "Demo ${GITHUB_SHA::7}" --json
       - name: Smoke test
         run: |
           curl -fsS "${{ steps.deploy.outputs.url }}/" | grep -qi '<html'
-          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > /dev/null || echo "::warning::/api/status did not answer yet"
+          # sample records missing from the demo show as untested; visitors' runs may change the other values
+          pnpm -s iw status --dir "$DEMO_DIR/.indx-watch" --json > "$RUNNER_TEMP/local.json"
+          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > "$RUNNER_TEMP/demo.json"
+          node scripts/compare-gate.mjs "$RUNNER_TEMP/local.json" "$RUNNER_TEMP/demo.json"
       - name: Summary
         run: |
           echo "### INDX Watch demo" >> "$GITHUB_STEP_SUMMARY"

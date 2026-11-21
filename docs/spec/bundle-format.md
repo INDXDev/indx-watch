@@ -266,8 +266,8 @@ source_hash = "50c93fc9dcc3"
 
 [i18n.ja]
 title = "ゲストが購入時にクーポンを使う"
-actor = "ゲストの購入者"
-goal = "カートの商品を割引価格で購入したい。"
+actor = "ゲストの買い物客"
+goal = "カートの商品を割引価格で購入する。"
 status = "machine"
 source_hash = "9fba5a63e3e8"
 ```

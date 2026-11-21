@@ -39,6 +39,8 @@ Goal: the [definition of done](#v01-definition-of-done) below, offline-first, on
 
 ## v0.2 — agents and sharing
 
+The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first npm release, 0.1.0, alongside v0.1; the rest stay planned. See [CHANGELOG.md](../CHANGELOG.md).
+
 | ID | Task | Acceptance criteria | Status |
 |---|---|---|---|
 | T-201 | Agent execution mode via `BrowserProvider` (local Playwright, Cloudflare Browser Run) | An `agent` TC in `examples/shop` runs end to end and records evidence per step | ⏳ |

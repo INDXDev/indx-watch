@@ -14,7 +14,7 @@ key = "AC-1.1"
 text = "The home page lists every product with its name and price."
 
 [criteria.i18n.ja]
-text = "ホームページにすべての商品が名前と価格つきで並ぶ。"
+text = "トップページにすべての商品が名前と価格つきで並ぶ。"
 status = "machine"
 source_hash = "841fc1d4ed48"
 

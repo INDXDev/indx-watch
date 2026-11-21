@@ -29,7 +29,7 @@ status = "machine"
 source_hash = "10fcd91e3256"
 
 [i18n.ja]
-title = "リードがリリースできるかを確認する"
+title = "QA リードがリリースできるかを確認する"
 actor = "QA リード"
 goal = "計算された事実からリリース可否を決める。"
 status = "machine"

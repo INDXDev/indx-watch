@@ -14,7 +14,7 @@ expected = "The command exits 0 and \"iw check\" passes."
 
 [steps.i18n.ja]
 instruction = "空のディレクトリで「iw init demo」を実行する。"
-expected = "コマンドは 0 で終わり、「iw check」が通る。"
+expected = "コマンドは終了コード 0 で終わり、「iw check」が通る。"
 status = "machine"
 source_hash = "99b3310c8dba"
 
@@ -23,7 +23,7 @@ instruction = "Run \"iw new uc\" with one acceptance criterion and \"iw new tc\"
 expected = "Both files exist and \"iw check --json\" reports 0 errors."
 
 [steps.i18n.ja]
-instruction = "完了条件 1 つで「iw new uc」を、手順 1 つで「iw new tc」を、どちらも --ready つきで実行する。"
+instruction = "完了条件を 1 つ指定して「iw new uc」を、手順を 1 つ指定して「iw new tc」を、どちらも --ready つきで実行する。"
 expected = "両方のファイルがあり、「iw check --json」のエラーが 0 件になる。"
 status = "machine"
 source_hash = "ef5bf229ac22"
