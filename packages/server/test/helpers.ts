@@ -13,6 +13,7 @@ import {
 } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { buildModel } from '@indx-watch/core';
+import { TOOL_OUTPUTS } from '../../cli/src/tools.js';
 import type { ServerDeps } from '../src/index.js';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -171,6 +172,7 @@ export async function fakeDeps(o: { actor?: Actor; records?: AnyRecord[]; bundle
     context: { build: async () => build, ci: async () => ci },
     readFile: nodeFs(SHOP).read,
     now: () => NOW,
+    toolOutputs: TOOL_OUTPUTS,
   };
   return {
     deps,

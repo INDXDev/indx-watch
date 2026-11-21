@@ -14,6 +14,7 @@ export {
 } from './app.js';
 export * from './contract.js';
 export { type ReportTexts, renderReport, reportTexts } from './report.js';
+export * from './tools.js';
 export {
   memoryBundleFs,
   prepareUpload,

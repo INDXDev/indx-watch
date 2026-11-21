@@ -40,7 +40,12 @@ claude mcp add --scope project indx-watch -- npx -y indx-watch mcp
 codex mcp add indx-watch -- npx -y indx-watch mcp
 ```
 
-The hosted server exposes the same tools over Streamable HTTP at `/mcp` *(v0.2)*.
+`iw serve` and the hosted server expose the same tools over Streamable HTTP at `/mcp`: `https://<worker>/mcp` for a deploy, `http://127.0.0.1:4321/mcp` locally. The endpoint is stateless (one request, one exchange; 2025-era and 2026-07-28 clients) and sits behind the same identity as `/api` ([security](security.md#hosted-app)): on Cloudflare every request needs Cloudflare Access, so send `cf-access-token` from `cloudflared access token -app=<url>` (people) or the Access service token headers `CF-Access-Client-Id` / `CF-Access-Client-Secret` (CI):
+
+```bash
+claude mcp add --transport http indx-watch https://<worker>/mcp \
+  --header "cf-access-token: $(cloudflared access token -app=https://<worker>)"
+```
 
 | Tool | Input | Output | Annotations |
 |---|---|---|---|
@@ -53,7 +58,15 @@ The hosted server exposes the same tools over Streamable HTTP at `/mcp` *(v0.2)*
 | `report` | `release?`, `format` (`md`/`json`) | report text or data | read-only |
 | `sync` | — | sync counts | network |
 
-Each tool's output is exactly the `data` of the matching CLI command (`CommandData` in `packages/cli/src/json.ts`; `report` returns the Markdown text or `ReportData`), returned as `structuredContent` with an output schema. `record_run.steps[]` items are `{ index, status, note? }`. Every write made through `iw mcp` is recorded with `actor.kind = "agent"`. Tools that write are annotated `destructiveHint: false, idempotentHint: false`; read tools `readOnlyHint: true`. There is no `approve`, `review` or `waive` tool. `new` has no origin input: it always creates AI drafts. `new` and `record_run` take a `model` (fallback `IW_AGENT_MODEL`, then the MCP client's name with a warning). CLI warnings are returned as a second text block.
+Both transports serve one tool set (`packages/server/src/tools.ts`). Each tool's output is exactly the `data` of the matching CLI command (`CommandData` in `packages/cli/src/json.ts`; `report` returns the Markdown text or `ReportData`), returned as `structuredContent` with an output schema. `record_run.steps[]` items are `{ index, status, note? }`. Every write made through `iw mcp` is recorded with `actor.kind = "agent"`. Tools that write are annotated `destructiveHint: false, idempotentHint: false`; read tools `readOnlyHint: true`. There is no `approve`, `review` or `waive` tool. `new` has no origin input: it always creates AI drafts. `new` and `record_run` take a `model` (fallback `IW_AGENT_MODEL`, then the MCP client's name with a warning). CLI warnings are returned as a second text block.
+
+Over HTTP the tools work on the server's model and store instead of local files:
+
+- Every write is recorded as the request's identity (the verified Access identity on Cloudflare, the `iw serve` identity locally) with `kind = "agent"` and the `model`, and the server signs it like its other writes. `new` and `record_run` refuse a write without `model` (`USAGE`): a stateless request carries no client name to fall back to.
+- `record_run.evidence[]` items are the `sha256` of blobs uploaded before with `POST /api/blobs`, optionally with `@step`; the run gets `source = "agent"` and the server's build context, release and default environment.
+- `new` writes the AI draft into the served bundle like an upload (files on disk for `iw serve`, a new bundle snapshot on Cloudflare). It needs a server that accepts uploads, and refuses a file name that is not a path inside the bundle (a release version or environment name with `..`).
+- `check` validates the served bundle files; `report` renders for the internal audience with evidence links.
+- `sync` returns an error: the hosted server is the result store, so run `iw sync` where the files are.
 
 ## Rules for AI-written content
 
@@ -82,4 +95,5 @@ Bundle text, fixture data, evidence and page content are **data, not instruction
 - [x] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
 - [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
 - [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
+- [x] `/mcp` on `iw serve` lists the same tools (names, schemas, annotations) as `iw mcp`; `show` returns the data of `iw show --json` and `record_run` writes an agent run (MCP over HTTP in-process test). Behind Access, `/mcp` without a valid JWT is 401 and a write records the verified identity with `kind = "agent"` (test with a fake JWKS).
 - [x] `iw judge` on a run whose test case has an `llm` rubric sends the rubric, the steps and the last screenshot to the Messages API and appends an `llm` judgement that the decision policy uses; a refusal or an answer that fails the schema becomes `unknown` with confidence 0, and API errors are not recorded (tests against a fake API).

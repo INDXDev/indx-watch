@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { request } from 'node:http';
@@ -139,6 +140,53 @@ describe('startNodeServer: records and bundle edits', () => {
     await until(
       async () => (await api<TestCaseDetail>('/api/test-cases/TC-1')).data.title === 'Product list',
     );
+  });
+});
+
+describe('startNodeServer: records through the node:sqlite index', () => {
+  const PATHS = ['/api/project', '/api/status', '/api/specs', '/api/runs', '/api/runs?tc=TC-4', '/api/plans'];
+  PATHS.push('/api/snapshots', '/api/fixtures', '/api/test-cases/TC-2', '/api/test-cases/TC-4');
+  const read = async (url: string, paths = PATHS) =>
+    Promise.all(paths.map(async (p) => [p, await (await fetch(`${url}${p}`)).json()]));
+
+  it('answers like the in-memory path, and a restart reuses cache/index.sqlite', async () => {
+    const copy = mkdtempSync(join(tmpdir(), 'iw-server-index-'));
+    const at = copyShop(copy);
+    const records = sampleRecords(await shop());
+    const file = (r: { id: string; at: string }) =>
+      join(at, 'runs/records', r.at.slice(0, 7), `${r.id}.json`);
+    for (const r of records) {
+      mkdirSync(join(file(r), '..'), { recursive: true });
+      writeFileSync(file(r), JSON.stringify(r));
+    }
+    writeFileSync(join(at, 'runs/records/2026-11/run_broken.json'), '{"kind":"run"');
+    const tc4 = records.find((r) => r.kind === 'run' && r.test_case.key === 'TC-4')!;
+    const mtime = new Date('2026-11-01T00:00:00Z'); // whole milliseconds, so utimesSync() can restore it exactly
+    utimesSync(file(tc4), mtime, mtime);
+    const start = (index?: boolean) =>
+      startNodeServer({ dir: at, port: 0, sync: false, webRoot: web, index });
+    const [indexed, plain] = [await start(), await start(false)];
+    try {
+      const want = await read(plain.url);
+      expect(await read(indexed.url)).toEqual(want);
+      expect(JSON.stringify(want)).toContain('invalid record');
+      expect(existsSync(join(at, 'cache/index.sqlite'))).toBe(true);
+      await indexed.close();
+      // same mtime, other body: the restarted server answers from the index without reading the file again
+      writeFileSync(file(tc4), JSON.stringify({ ...tc4, environment: 'production' }));
+      utimesSync(file(tc4), mtime, mtime);
+      const again = await start();
+      try {
+        const runs = (await read(again.url, ['/api/runs?tc=TC-4']))[0]![1];
+        expect(runs).toEqual(want.find(([p]) => p === '/api/runs?tc=TC-4')![1]);
+        expect(JSON.stringify(runs)).not.toContain('production');
+      } finally {
+        await again.close();
+      }
+    } finally {
+      await plain.close();
+      rmSync(copy, { recursive: true, force: true });
+    }
   });
 });
 

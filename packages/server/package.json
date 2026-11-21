@@ -14,8 +14,10 @@
     "@indx-watch/core": "workspace:*",
     "@indx-watch/store": "workspace:*",
     "@indx-watch/sync": "workspace:*",
+    "@modelcontextprotocol/server": "^2.4.0",
     "hono": "^4.13.19",
     "jose": "^6.2.18",
-    "modern-tar": "^0.8.6"
+    "modern-tar": "^0.8.6",
+    "zod": "^4.6.7"
   }
 }

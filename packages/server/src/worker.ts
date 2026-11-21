@@ -22,6 +22,7 @@ import { accessIdentity, d1Index, r2ObjectStore } from '@indx-watch/store/worker
 import { isoSeconds, snapshotBundle, ulidFloor } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import { createApp, HttpError, type ServerDeps } from './app.js';
+import type { ToolOutputs } from './tools.js';
 import { memoryBundleFs } from './upload.js';
 
 export { memoryBundleFs };
@@ -154,10 +155,10 @@ async function openSnapshot(store: Store, snap: BundleRecord, files: Map<string,
 
 /** the vars an isolate's state depends on */
 const STATE_VARS = 'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS'.split(' ');
-function setup(env: Env): State {
+function setup(env: Env, outputs?: ToolOutputs): State {
   const key = STATE_VARS.map((k) => env[k as keyof Env]).join('|');
   const existing = states.get(env.STORE as object);
-  const s = existing?.key === key ? existing : create(env, key);
+  const s = existing?.key === key ? existing : create(env, key, outputs);
   states.set(env.STORE as object, s);
   return s;
 }
@@ -205,7 +206,7 @@ async function snapshotModel(store: Store, index: Index, pinned: Pinned, view: V
   return { model, problems: [...problems, ...(await warningProblems(index, bundle, pinned, warnings))] };
 }
 
-function create(env: Env, key: string) {
+function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   const objects = r2ObjectStore(env.STORE, env.STORE_PREFIX);
   const [store, index] = [S.createResultStore(objects), d1Index(env.DB)];
   const access = env.ACCESS_TEAM && env.ACCESS_AUD ? { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD } : null;
@@ -254,6 +255,7 @@ function create(env: Env, key: string) {
       return new Map(view.files);
     },
     publishBundle: (next, info) => publish(store, deps, next, info),
+    toolOutputs,
   };
   const s = { key, app: createApp(deps), store, index, open: !!identity, owner: newUlid(), ingested, trust };
   return s;
@@ -289,16 +291,20 @@ function fail(message: string): never {
   throw new HttpError(503, 'no-snapshot', message);
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const s = setup(env);
-    if (s.open || new URL(request.url).pathname === '/healthz') return s.app.fetch(request);
-    const message = 'Cloudflare Access is not configured (ACCESS_TEAM and ACCESS_AUD)';
-    return Response.json({ error: { code: 'unauthorized', message } }, { status: 401 });
-  },
-  async scheduled(_event: unknown, env: Env): Promise<void> {
-    const s = setup(env);
-    s.ingested.at = Date.now();
-    await catchUp(s.store, s.index, s.owner, { trust: s.trust });
-  },
-};
+/** The Worker; `/mcp` is served only with the tools' output schemas (packages/cli/src/worker.ts passes them). */
+export function createWorker(outputs?: ToolOutputs) {
+  return {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const s = setup(env, outputs);
+      if (s.open || new URL(request.url).pathname === '/healthz') return s.app.fetch(request);
+      const message = 'Cloudflare Access is not configured (ACCESS_TEAM and ACCESS_AUD)';
+      return Response.json({ error: { code: 'unauthorized', message } }, { status: 401 });
+    },
+    async scheduled(_event: unknown, env: Env): Promise<void> {
+      const s = setup(env, outputs);
+      s.ingested.at = Date.now();
+      await catchUp(s.store, s.index, s.owner, { trust: s.trust });
+    },
+  };
+}
+export default createWorker();

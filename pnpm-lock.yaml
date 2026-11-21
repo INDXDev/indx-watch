@@ -160,6 +160,9 @@ importers:
       '@indx-watch/sync':
         specifier: workspace:*
         version: link:../sync
+      '@modelcontextprotocol/server':
+        specifier: ^2.4.0
+        version: 2.4.0
       hono:
         specifier: ^4.13.19
         version: 4.13.19
@@ -169,6 +172,9 @@ importers:
       modern-tar:
         specifier: ^0.8.6
         version: 0.8.6
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
   packages/store:
     dependencies:
