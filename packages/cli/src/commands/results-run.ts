@@ -1,8 +1,9 @@
 /** Commands that add a run or a judgement to one: record and judge, with the helpers they share with results.ts. */
 import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
-import { type Build, newId, type Problem, StepStatus } from '@indx-watch/bundle';
+import { type Build, newId, StepStatus } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
+import { recordWarnings } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, csv, fail, iso, many, P, pick, S, str } from '../util.js';
@@ -85,18 +86,6 @@ const fixturesOf = (m: core.Model, tc: core.TestCaseNode, rows: string[]) =>
     const used = fx?.data.kind === 'dataset' && rows.length ? rows : f.rows;
     return fx ? [{ id: fx.data.id, key: fx.data.key, version: fx.version, rows: used }] : [];
   });
-
-type Check = { kind: string; conf?: number; verdict?: string; evidence: number; release?: string };
-/** Warnings about a run that may not count the way the recorder expects. */
-function recordWarnings(c: Check): Problem[] {
-  const llm = c.kind === 'llm';
-  const all = [
-    [llm && c.conf === undefined, 'no-confidence', 'Agent verdicts need --confidence'],
-    [llm && c.verdict === 'pass' && !c.evidence, 'no-evidence', 'An agent pass needs evidence'],
-    [!c.release, 'no-release', 'No release for this build; the run does not count towards one'],
-  ] as const;
-  return all.filter(([on]) => on).map(([, code, message]) => ({ severity: 'warning', code, message }));
-}
 
 /** Judgement kind by actor kind, and the confidence it carries. */
 const JUDGE_KIND = { agent: 'llm', ci: 'assert', human: 'human' } as const;

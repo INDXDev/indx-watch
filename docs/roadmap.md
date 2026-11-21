@@ -47,7 +47,7 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 | T-202 | LLM judge via `LlmClient` (Anthropic, optional AI gateway) | `llm` judgements with confidence; low confidence → `needs_review` | ✅ `iw judge` with the Anthropic adapter; tested against a fake Messages API (no live call in CI) |
 | T-203 | Report share links on the hosted app (frozen snapshots, expiry, audit records) | [reports.md](spec/reports.md#sharing-with-customers) | ⏳ |
 | T-204 | PR comment + check run from the GitHub Action | One comment per PR, updated in place | ✅ verified on this repository's PR #7 (comment edited in place on the next push, check run `INDX Watch (v0.1.0)`) |
-| T-205 | Streamable HTTP MCP endpoint on the hosted server | Same tools as `iw mcp` behind Access | ⏳ |
+| T-205 | Streamable HTTP MCP endpoint on the hosted server | Same tools as `iw mcp` behind Access | ✅ `/mcp` in `createApp` (Node and Workers) serves the one tool set of `packages/server/src/tools.ts` that `iw mcp` also uses; writes record the request identity as `kind = "agent"`; `sync` is refused on the server ([agents.md](spec/agents.md#mcp-server)) |
 | T-206 | Log compaction snapshots | New clone pulls 100k records in < 10 s from a snapshot | ⏳ |
 | T-207 | Visual judge with approved baselines | `visual` judgements; baseline approval is a human record | ⏳ |
 | T-208 | Other CI providers' context (GitLab, CircleCI, Buildkite) | Context detected from standard variables | ✅ `build`, `ci`, actor (`via` = `gitlab` / `circleci` / `buildkite`, verified only when signed) and run group ([integrations.md](spec/integrations.md#ci-identity-and-context)) |

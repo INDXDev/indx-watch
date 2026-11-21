@@ -17,6 +17,7 @@ import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watc
 import { fileStateStore, writerId } from '@indx-watch/sync/node';
 import { createApp, type ServerDeps } from './app.js';
 import type { ProjectInfo } from './contract.js';
+import type { ToolOutputs } from './tools.js';
 
 export interface NodeServerOptions {
   /** bundle directory (.indx-watch) */
@@ -32,6 +33,8 @@ export interface NodeServerOptions {
    * Without it, write requests from non-loopback addresses are rejected (docs/spec/security.md#shared-servers).
    */
   identityHeader?: string;
+  /** the MCP tools' output schemas (CommandData); `/mcp` is served only with them */
+  toolOutputs?: ToolOutputs;
   /** read records through the node:sqlite index in cache/index.sqlite (default); false reads every replica file */
   index?: boolean;
 }
@@ -223,6 +226,7 @@ function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: 
   const webRoot = opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   return {
     mode: 'local',
+    toolOutputs: opts.toolOutputs,
     loadModel: models.loadModel,
     writeRecord: (record) =>
       sign(record).then((r) => replica.putRecord(r).then(() => void models.invalidate())),

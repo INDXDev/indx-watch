@@ -3,9 +3,9 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { Actor, Bundle, BundleFs, Problem } from '@indx-watch/bundle';
-import { AnyRecord, loadBundle, newId, parseRef, parseToml, recordSigner } from '@indx-watch/bundle';
+import { AnyRecord, loadBundle, newId, parseToml, recordSigner } from '@indx-watch/bundle';
 import { findBundleDir, nodeFs } from '@indx-watch/bundle/node';
-import { buildVerifiedModel, type Model, type RunView } from '@indx-watch/core';
+import { buildVerifiedModel, type Model } from '@indx-watch/core';
 import type { LocalReplica } from '@indx-watch/store';
 import { openReplica, processContext, processIdentity } from '@indx-watch/store/node';
 import { type Args, type Ctx, fail, git, iso, str } from './util.js';
@@ -65,21 +65,7 @@ export async function append<K extends AnyRecord['kind']>(ctx: Ctx, p: Project, 
   return r as Extract<AnyRecord, { kind: K }>;
 }
 
-/** Any ref (key, ID, PROJECT:KEY) → key. */
-export function resolveKey(model: Model, ref: string): string {
-  const pr = parseRef(ref);
-  if (pr?.type === 'key' && pr.project && pr.project !== model.project.key)
-    fail('NOT_FOUND', `${ref} belongs to project ${pr.project}, not ${model.project.key}`);
-  return model.keyOf(pr?.type === 'key' ? pr.key : ref) ?? fail('NOT_FOUND', `${ref} not found`);
-}
-
-/** A run by ID or a unique prefix of ≥ 8 characters after run_. */
-export function resolveRun(model: Model, ref: string): RunView {
-  if (!/^run_[0-9A-Za-z]{8,}$/.test(ref)) fail('NOT_FOUND', `No run ${ref} (give ≥ 8 characters after run_)`);
-  const hits = [...model.runs.keys()].filter((id) => id.startsWith(`run_${ref.slice(4).toUpperCase()}`));
-  if (hits.length > 1) fail('AMBIGUOUS_REF', `${ref} matches ${hits.length} runs`, hits);
-  return model.runs.get(hits[0] ?? fail('NOT_FOUND', `Run ${ref} not found`))!;
-}
+export { resolveKey, resolveRun } from '@indx-watch/server';
 
 /** Field values from --from <file|-> (JSON or TOML), or the MCP input. */
 export async function fromInput(ctx: Ctx, a: Args): Promise<Record<string, unknown>> {
