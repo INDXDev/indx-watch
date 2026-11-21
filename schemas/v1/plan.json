@@ -46,7 +46,7 @@
           },
           "assignee": {
             "type": "string",
-            "pattern": "^(ci|agent:[a-z0-9-]+|[^@\\s]+@[^@\\s]+)$"
+            "pattern": "^(ci|agent:[a-z0-9-]+|group:\\S.*|[^@\\s]+@[^@\\s]+)$"
           },
           "environment": {
             "type": "string"

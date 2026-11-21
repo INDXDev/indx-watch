@@ -200,6 +200,49 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "roles": {
+          "type": "object",
+          "properties": {
+            "lead": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "tester": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "viewer": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "customer": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "default": {
+              "type": "string",
+              "enum": [
+                "lead",
+                "tester",
+                "viewer",
+                "customer"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [

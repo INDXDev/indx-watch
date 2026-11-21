@@ -48,7 +48,7 @@ function asDraft(data: Record<string, unknown>, who: B.Actor, at: string) {
 /** PATCH /api/test-cases/:key: apply the changed fields to the current file and append a `file` record. */
 export async function editTestCase(c: Context, x: Ctx) {
   const input = await c.req.json<TestCaseEdit>().catch(() => fail(bad('request body must be JSON')));
-  const m = await x.model();
+  const m = await x.model(c);
   if (!workspaceMode(m))
     throw new HttpError(409, 'conflict', 'definitions come from git here: edit the file');
   const t = m.testCases.get(m.keyOf(c.req.param('key')!) ?? '') ?? fail(notFound('test case'));

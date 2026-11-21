@@ -82,7 +82,7 @@ async function create(c: Context, x: Ctx) {
 }
 
 async function revoke(c: Context, x: Ctx) {
-  const [who, m, id] = [await sharer(c, x), await x.model(), c.req.param('id')];
+  const [who, m, id] = [await sharer(c, x), await x.model(null), c.req.param('id')];
   const r = creates(m).find((l) => l.id === id) ?? fail(notFound(`share link ${id}`));
   const [ev, link] = [events(m), { action: 'revoke' as const, link: r.id }];
   const all = view(r, ev, x.now()).revoked ? ev : [...ev, await write(x, m, who, link)];
@@ -91,7 +91,7 @@ async function revoke(c: Context, x: Ctx) {
 
 /** GET /s/<token>: the snapshot of an active link, recorded as an open; anything else is a 404 with nothing recorded. */
 async function open(c: Context, x: Ctx) {
-  const [m, hash] = [await x.model(), await B.sha256Hex(c.req.param('token') ?? '')];
+  const [m, hash] = [await x.model(null), await B.sha256Hex(c.req.param('token') ?? '')];
   const r = creates(m).find((l) => l.token_sha256 === hash);
   const active = r?.sha256 && view(r, events(m), x.now()).state === 'active';
   const html = active ? await x.deps.getBlob(r.sha256!) : null;
@@ -104,7 +104,7 @@ async function open(c: Context, x: Ctx) {
 export function registerShareRoutes(app: Hono, x: Ctx) {
   app.post('/api/shares', (c) => create(c, x));
   app.get('/api/shares', async (c) => {
-    const m = await x.model();
+    const m = await x.model(null);
     return c.json(creates(m).map((r) => view(r, events(m), x.now())));
   });
   app.delete('/api/shares/:id', (c) => revoke(c, x));

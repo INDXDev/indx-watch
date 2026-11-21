@@ -316,6 +316,49 @@ describe('worker: access and snapshots', () => {
     vi.restoreAllMocks();
   });
 
+  it('applies the pinned ROLES with groups from get-identity; an invalid ROLES lets nobody in; --public skips roles', async () => {
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
+    const groups: Record<string, string[]> = { 'kim@shop.test': ['qa'], 'viv@shop.test': [] };
+    const tokens = new Map<string, string>();
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      if (!String(url).endsWith('/get-identity')) return Response.json({ keys: [jwk] });
+      const token = new Headers(init?.headers).get('cookie')!.replace('CF_Authorization=', '');
+      return Response.json({ groups: groups[tokens.get(token)!] });
+    });
+    const as = async (email: string) => {
+      const jwt = await new SignJWT({ email, sub: email })
+        .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+        .setIssuer('https://shop.cloudflareaccess.com')
+        .setAudience('aud')
+        .setExpirationTime('5m')
+        .sign(privateKey);
+      tokens.set(jwt, email);
+      return { 'Cf-Access-Jwt-Assertion': jwt };
+    };
+    const { r2 } = await bucket();
+    const { PUBLIC: _, ...hosted } = publicEnv(r2);
+    const env = {
+      ...hosted,
+      ACCESS_TEAM: 'shop',
+      ACCESS_AUD: 'aud',
+      ROLES: JSON.stringify({ tester: ['QA'] }),
+    };
+    const [kim, viv] = [await as('kim@shop.test'), await as('viv@shop.test')];
+    const project = await call(env, '/api/project', { headers: kim });
+    expect(((await project.json()) as ProjectInfo).role).toBe('tester');
+    expect((await postJson(env, '/api/runs', RUN_TC9, kim)).status).toBe(201);
+    expect((await call(env, '/api/project', { headers: viv })).status).toBe(403);
+    expect((await call({ ...env, ROLES: '{"lead": "nope"}' }, '/api/project', { headers: kim })).status).toBe(
+      403,
+    );
+    expect(
+      (await call({ ...env, ROLES: '{"default": "viewer"}' }, '/api/project', { headers: viv })).status,
+    ).toBe(200);
+    const open = { ...publicEnv(r2), ROLES: JSON.stringify({ tester: ['qa'] }) };
+    expect(((await getJson<ProjectInfo>(open, '/api/project')) as ProjectInfo).role).toBe('lead');
+  });
+
   it('publishes a browser upload as a snapshot, also into an empty bucket', async () => {
     const files = await definitionFiles(nodeFs(SHOP));
     const tc3 = [...files.keys()].find((k) => k.endsWith('/TC-3-valid-coupon.toml'))!;

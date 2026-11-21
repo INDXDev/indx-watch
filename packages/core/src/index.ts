@@ -14,6 +14,8 @@ export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases 
  */
 export { approvedBaseline, buildModel, buildVerifiedModel, verifyRecords } from './model.js';
 export { reportData } from './report.js';
+/** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles). */
+export { assignedTo, customerModel, type Principal, roleOf } from './roles.js';
 /**
  * testCaseStatus(model, key, scope): latest relevant result of one test case in a scope.
  * computeStatus(model, scope): everything `iw status` shows.

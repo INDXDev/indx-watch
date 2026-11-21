@@ -39,6 +39,11 @@ r2_bucket = "shop-watch"
 d1_database = "shop-watch"
 access_team = "example"
 
+[hosting.roles]
+lead = ["qa-leads@shop.test"]
+tester = ["qa@shop.test"]
+customer = ["uat@shop.test"]
+
 [[glossary]]
 term = "Coupon"
 definition = "A code that reduces the order total."

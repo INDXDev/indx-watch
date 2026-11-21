@@ -66,7 +66,7 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 
 | ID | Task | Acceptance criteria | Status |
 |---|---|---|---|
-| T-301 | Roles from Access identity groups (viewer, tester, lead, customer) | A customer sees only assigned items | ⏳ |
+| T-301 | Roles from Access identity groups (viewer, tester, lead, customer) | A customer sees only assigned items | ✅ `[hosting.roles]` pinned by `iw deploy` as `ROLES` maps Access emails and groups (from `get-identity` through `IdentityProvider.groups`) to roles; one server middleware enforces the [role table](spec/security.md#roles) on the API and `/mcp`; a customer's responses come from `customerModel()`, limited to plan items assigned by email or `group:`; the web app hides actions by `can`. Tested with a fake identity and a fake `get-identity`; no live Access policy in CI (that is T-302) |
 | T-302 | Customer UAT flow: invite by email (Access one-time PIN), assigned plan items only | End-to-end with a test Access policy | ⏳ |
 | T-303 | Flaky test detection and quarantine view | Flake rate per TC over the last N runs | ✅ flake rate over the last 10 pass/fail runs in core, `iw status --json` and the API; Tests → Flaky view ([concepts](spec/concepts.md#flaky-tests)) |
 | T-304 | Impact analysis: suggest TCs for a PR from changed files and `[automation].files` | Suggestions listed in the PR summary | ✅ `impactedTestCases()` in core ([concepts](spec/concepts.md#impact-analysis)), [`iw impact --changed/--base`](spec/cli.md#iw-impact), and a "Suggested test cases" section in the action's PR comment and check run from the PR's changed files (seen in the PR #29 comment) |

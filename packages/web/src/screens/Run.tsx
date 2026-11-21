@@ -2,6 +2,7 @@
 
 import type { ReviewInput } from '@indx-watch/server';
 import { useState } from 'react';
+import { useApp } from '../App';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
@@ -25,7 +26,9 @@ export function RunView({ id }: { id: string }) {
 function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
   const { t, date } = useI18n();
   const rec = r.record;
-  const review = r.decision.verdict === 'needs_review';
+  const can = useApp().project.can;
+  const [canReview, canRun] = [can.review !== false, can.run !== false];
+  const review = r.decision.verdict === 'needs_review' && canReview;
   return (
     <>
       <div className="page-head">
@@ -47,7 +50,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
       {r.stale && (
         <div className="callout s-stale">
           {t('run.stale', { version: rec.test_case.version, current: r.testCase.currentVersion })}{' '}
-          <a href={href.runner(r.testCase.key)}>{t('dash.action.run')}</a>
+          {canRun && <a href={href.runner(r.testCase.key)}>{t('dash.action.run')}</a>}
         </div>
       )}
       {review && <ReviewForm id={rec.id} onDone={reload} prominent />}
@@ -56,7 +59,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
         <div className="stack">
           <Steps r={r} reload={reload} />
           <Judgements r={r} />
-          {!review && <ReviewForm id={rec.id} onDone={reload} />}
+          {!review && canReview && <ReviewForm id={rec.id} onDone={reload} />}
         </div>
         <div className="stack">
           <RunMeta r={r} />
@@ -245,7 +248,9 @@ function BaselineMark({ e, base }: { e: Shot; base: Base }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const canApprove = useApp().project.can.approve !== false;
   if (base.baselines.includes(e.sha256)) return <Chip>{t('run.baseline')}</Chip>;
+  if (!canApprove) return null;
   const approve = () => {
     setBusy(true);
     api
