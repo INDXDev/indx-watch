@@ -5,7 +5,7 @@
 [![CI](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> Status: **v0.1, pre-release, not yet on npm** — build from source to try it ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
+> Status: **v0.1** — try it with `npx indx-watch` ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
 
 > Live demo: <https://indx-watch-demo.i-248.workers.dev> — the web app loaded with the [`examples/shop`](examples/shop) sample, redeployed when `main` changes the app or the sample ([how it is deployed](docs/guides/self-host-cloudflare.md#demo-site-from-github-actions)). Anyone with the URL can read and write it, and visitors' runs stay until the demo is reset, so do not enter real data.
 
@@ -23,16 +23,6 @@ Read the [vision](docs/vision.md) for the full problem statement.
 
 Requires Node 22.13+.
 
-**Before the first npm release**, build the CLI from source (needs pnpm 10, e.g. `corepack enable`):
-
-```bash
-git clone https://github.com/INDXDev/indx-watch && cd indx-watch
-pnpm install && pnpm build
-npm install --global ./packages/cli   # puts `iw` on your PATH; or run `node packages/cli/dist/bin.js`
-```
-
-Then, in a folder outside the clone, type `iw` wherever the steps below say `npx indx-watch`. Once `indx-watch` is published on npm, `npx indx-watch` works without a clone.
-
 ```bash
 npx indx-watch init demo && cd demo
 npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
@@ -49,7 +39,7 @@ To run the test case in the browser instead of `record`, start the readiness das
 npx indx-watch serve --open   # http://127.0.0.1:4321
 ```
 
-Once installed, everything works offline. After publishing, install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+After the first download (or a global install), everything works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
 
 ## Features
 
@@ -104,7 +94,7 @@ Start at [docs/README.md](docs/README.md) — reading order for users, self-host
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). This repository manages its own QA with INDX Watch in [`.indx-watch/`](.indx-watch).
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (including [building the CLI from source](CONTRIBUTING.md#development-setup)) and [AGENTS.md](AGENTS.md). This repository manages its own QA with INDX Watch in [`.indx-watch/`](.indx-watch).
 
 ## License
 
