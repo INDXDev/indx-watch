@@ -1,5 +1,6 @@
 /** Test case: steps, fixtures, covered criteria with status, result in scope and run history. */
 
+import { type FormEvent, useState } from 'react';
 import { useApp } from '../App';
 import { api, type RunSummary, type TestCaseDetail } from '../api';
 import { useI18n } from '../i18n';
@@ -20,19 +21,45 @@ export function TestCaseView({ tcKey }: { tcKey: string }) {
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
   const acs = (specs.data?.features ?? []).flatMap((f) => f.useCases.flatMap((u) => u.criteria));
   const criteria = new Map(acs.map((c) => [c.key, c] as const));
-  return <Load state={tc}>{(d) => <Detail d={d} criteria={criteria} />}</Load>;
+  const [editing, setEditing] = useState(false);
+  const done = (saved: boolean) => [setEditing(false), saved && tc.reload()];
+  return (
+    <Load state={tc}>
+      {(d) =>
+        editing ? (
+          <EditForm d={d} done={done} />
+        ) : (
+          <Detail d={d} criteria={criteria} edit={() => setEditing(true)} />
+        )
+      }
+    </Load>
+  );
 }
 
 type CriterionLite = { key: string; text: string; status: string; i18n?: unknown };
 
 /** One test case: header, the "before you start" card, the steps and the collapsed details. */
-function Detail({ d, criteria }: { d: TestCaseDetail; criteria: Map<string, CriterionLite> }) {
+function Detail({
+  d,
+  criteria,
+  edit,
+}: {
+  d: TestCaseDetail;
+  criteria: Map<string, CriterionLite>;
+  edit(): void;
+}) {
   const { t } = useI18n();
+  const { project } = useApp();
   const tc = d.data;
   const values = placeholderValues(d.fixtures);
   return (
     <article className="tc-focus">
       <DetailHead d={d} />
+      {project.can.edit && (
+        <button type="button" className="btn btn-sm" onClick={edit}>
+          {t('tc.edit')}
+        </button>
+      )}
       {tc.origin === 'ai' && tc.status !== 'ready' && (
         <div className="callout s-needs_review">
           {t('tc.aiDraft', { model: tc.ai?.model ?? 'AI' })} <code>iw approve {d.key}</code>
@@ -82,6 +109,90 @@ function Detail({ d, criteria }: { d: TestCaseDetail; criteria: Map<string, Crit
       </ol>
       <MoreDetails d={d} criteria={criteria} />
     </article>
+  );
+}
+
+type StepDraft = { instruction: string; expected: string; k: number };
+let nextStep = 0;
+const draftsOf = (d: TestCaseDetail): StepDraft[] =>
+  d.data.steps.map(({ instruction, expected }) => ({ instruction, expected, k: nextStep++ }));
+const plain = (steps: StepDraft[]) => steps.map(({ instruction, expected }) => ({ instruction, expected }));
+
+/** Workspace mode: edit the title, priority and steps; saves only what changed (docs/spec/web.md#editing-in-workspace-mode). */
+function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean): void }) {
+  const { t } = useI18n();
+  const [title, setTitle] = useState(d.data.title);
+  const [priority, setPriority] = useState(d.data.priority ?? '');
+  const [steps, setSteps] = useState(() => draftsOf(d));
+  const [error, setError] = useState('');
+  const set = (k: number, field: 'instruction' | 'expected', v: string) =>
+    setSteps(steps.map((s) => (s.k === k ? { ...s, [field]: v } : s)));
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    const changed = JSON.stringify(plain(steps)) !== JSON.stringify(plain(draftsOf(d)));
+    const input = {
+      ...(title !== d.data.title && { title }),
+      ...(priority !== (d.data.priority ?? '') && { priority: priority || null }),
+      ...(changed && { steps: plain(steps) }),
+    };
+    await api.editTestCase(d.key, input).then(
+      () => done(true),
+      (x: Error) => setError(x.message),
+    );
+  };
+  return (
+    <form className="tc-focus stack" onSubmit={save}>
+      <label className="field">
+        <span>{t('tc.titleField')}</span>
+        <input value={title} required onChange={(e) => setTitle(e.target.value)} />
+      </label>
+      <label className="field">
+        <span>{t('common.priority')}</span>
+        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+          {['', 'P0', 'P1', 'P2', 'P3'].map((p) => (
+            <option key={p} value={p}>
+              {p || '—'}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ol className="steps">
+        {steps.map((s) => (
+          <li key={s.k} className="step stack-sm">
+            {(['instruction', 'expected'] as const).map((f) => (
+              <label key={f} className="field">
+                <span>{t(f === 'expected' ? 'tc.expected' : 'tc.instruction')}</span>
+                <textarea value={s[f]} required onChange={(e) => set(s.k, f, e.target.value)} />
+              </label>
+            ))}
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={steps.length === 1}
+              onClick={() => setSteps(steps.filter((x) => x.k !== s.k))}
+            >
+              {t('tc.removeStep')}
+            </button>
+          </li>
+        ))}
+      </ol>
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => setSteps([...steps, { instruction: '', expected: '', k: nextStep++ }])}
+      >
+        {t('tc.addStep')}
+      </button>
+      {error && <p className="callout s-fail">{error}</p>}
+      <p className="chips">
+        <button type="submit" className="btn btn-primary">
+          {t('tc.save')}
+        </button>
+        <button type="button" className="btn" onClick={() => done(false)}>
+          {t('common.cancel')}
+        </button>
+      </p>
+    </form>
   );
 }
 

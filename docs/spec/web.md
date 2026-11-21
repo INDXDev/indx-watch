@@ -140,6 +140,18 @@ The **CLI** button opens a panel with the commands that match what you are looki
 
 Without a store (local only), Clone shows `git clone` advice instead, because the definitions are files in the repository.
 
+## Editing in workspace mode
+
+*(v0.2)* In [workspace mode](sync.md#workspace-mode-v02) (`[store] mode = "workspace"`) definitions live in the store, so the app edits them; in git mode they are edited as files and reviewed in pull requests, and the app has no editor.
+
+- **Test case.** An **Edit** button on the test case screen turns the title, priority and steps (instruction and expected result; add and remove steps) into a form. **Save** sends only the fields that changed (`PATCH /api/test-cases/:key`); the server applies them to the current file, writes it with `formatToml()` and appends a `file` record whose parents are the current heads, attributed to the request's verified identity. So two people editing different fields both keep their edits; the same field keeps the last save. Invalid input (an empty title or step) is refused with the reason, and nothing is written.
+- **Agents** (an agent identity, e.g. `/mcp` or `iw serve` under a coding agent) can save only drafts: the server marks their edit `origin = "ai"`, `status = "draft"` with an `[ai]` table and drops `approved_by` and `approved_version`, so a person approves it again ([security](security.md#identity)).
+- On `iw serve` the file in `.indx-watch/` changes at once; the next `iw sync` publishes nothing new for it. Elsewhere the edit appears after the next sync.
+- Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy.
+- Upload is for git mode: in workspace mode the Upload button is hidden, and the API refuses uploads (409).
+
+Use cases, fixtures and plans are edited in a working copy in this version.
+
 ## Upload
 
 You can upload definitions in three ways:
@@ -189,3 +201,4 @@ You can upload definitions in three ways:
 - [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
+- [x] In workspace mode, editing a test case's title, priority and steps in the app writes a `file` record with the viewer's verified identity, and an agent's edit is saved as an AI draft; in git mode the server refuses the edit (409) (server and Worker tests; the form itself was checked by hand).

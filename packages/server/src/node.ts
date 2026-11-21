@@ -196,8 +196,12 @@ async function startSync(l: Local, m0: Model, enabled: boolean, invalidate: () =
       cfg.evidence ?? 'on-demand',
       project.signing_keys,
     ];
+    // workspace mode: each sync also publishes and applies definition files (docs/spec/sync.md#workspace-mode-v02)
+    const actor = () => SN.processIdentity({ cwd: l.dir }).current();
+    const sign = <R extends AnyRecord>(r: R) => recordSigner(process.env.IW_SIGNING_KEY)(r);
+    const workspace = cfg.mode === 'workspace' ? { fs: l.fs, actor: await actor(), sign } : undefined;
     const o = { replica: l.replica, store, state, projectId: project.id, keys, writer, evidence, extraBlobs };
-    return enabled ? syncWatch({ ...o, ...syncReporter(l.sync, invalidate) }) : undefined;
+    return enabled ? syncWatch({ ...o, workspace, ...syncReporter(l.sync, invalidate) }) : undefined;
   } catch (e) {
     l.sync.lastError = message(e);
     return undefined;
@@ -245,6 +249,8 @@ function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: 
     readFile: (path) => fs.read(path),
     declaredIdentity: !opts.identityHeader,
     bundleFiles: () => definitionFiles(fs),
+    records: () => l.records(),
+    writeFile: (path, data) => fs.write(path, data).then(() => void models.invalidate()),
     // local uploads are file edits: review and commit them with git (docs/spec/web.md#upload)
     async publishBundle(files, { changed, removed }) {
       for (const path of changed) await fs.write(path, files.get(path)!);

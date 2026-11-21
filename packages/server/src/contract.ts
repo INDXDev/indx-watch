@@ -26,6 +26,8 @@ export const ROUTES = {
   plan: 'GET /api/plans/:key',
   runs: 'GET /api/runs?tc=&release=&env=&limit=',
   run: 'GET /api/runs/:id',
+  editTestCase:
+    'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record }; docs/spec/web.md#editing-in-workspace-mode)',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
   approveBaseline: 'POST /api/runs/:id/baselines (humans only; docs/spec/web.md#visual-baselines)',
@@ -106,7 +108,7 @@ export interface ProjectInfo {
   /** source for `iw clone` (this hosted app, or the local `[store].url`) */
   share: { clone: string | null };
   /** "Not you?" (iw_tester cookie), uploads and (v0.2) creating report share links are possible here */
-  can: { declare: boolean; upload: boolean; share: boolean };
+  can: { declare: boolean; upload: boolean; share: boolean; edit?: boolean };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
 }
@@ -249,6 +251,13 @@ export interface BaselineInput {
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */
+/** PATCH /api/test-cases/:key body (v0.2, workspace mode): only the fields that changed; `priority: null` removes it. */
+export interface TestCaseEdit {
+  title?: string;
+  priority?: string | null;
+  steps?: { instruction: string; expected: string }[];
+}
+
 export interface ManualRunInput {
   test_case: string; // key
   release?: string;

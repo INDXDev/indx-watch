@@ -19,6 +19,7 @@ import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sni
 import { renderReport, reportTexts } from './report.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
+import { editTestCase, workspaceMode } from './workspace.js';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
 /** A non-empty query parameter. */
@@ -107,7 +108,10 @@ async function projectInfo(c: Context, { deps, actor, sharer }: Ctx) {
     ...{ identity: who, mode: deps.mode, problems },
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone },
-    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle, share: sharer(who) },
+    can: {
+      ...{ declare: !!deps.declaredIdentity, upload: !!deps.publishBundle && !workspaceMode(m) },
+      ...{ share: sharer(who), edit: workspaceMode(m) && !!deps.bundleFiles },
+    },
     snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);
@@ -201,6 +205,7 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/runs/:id/judgements', (c) => review(c, x));
   app.post('/api/runs/:id/baselines', (c) => approveBaseline(c, x));
   app.post('/api/blobs', (c) => uploadBlob(c, x));
+  app.patch('/api/test-cases/:key', (c) => editTestCase(c, x));
 }
 
 /** Release of a manual run (docs/spec/bundle-format.md#releasesversiontoml). */
@@ -212,8 +217,10 @@ export function resolveRelease(m: Model, explicit: string | undefined, build: B.
   return explicit ?? byRef?.version ?? (!ci || onMain ? m.project.current_release : undefined);
 }
 
-async function uploadBundle(c: Context, { deps: d, actor }: Ctx) {
+async function uploadBundle(c: Context, { deps: d, actor, model }: Ctx) {
   const input = await readJson<UploadInput>(c);
+  if (workspaceMode(await model().catch(() => undefined)))
+    throw new HttpError(409, 'conflict', 'workspace mode: edit definitions instead of uploading');
   const who = await actor(c);
   if (!d.publishBundle || !d.bundleFiles) throw new HttpError(403, 'forbidden', 'this server cannot write');
   if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
