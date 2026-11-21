@@ -10,10 +10,11 @@ import { nodeFs } from '@indx-watch/bundle/node';
 import { createResultStore, memoryIndex, memoryObjectStore } from '@indx-watch/store';
 import { r2ObjectStore } from '@indx-watch/store/workers';
 import { definitionFiles, snapshotBundle, ulidFloor } from '@indx-watch/sync';
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TOOL_OUTPUTS } from '../../cli/src/tools.js';
 import { fakeD1, fakeR2 } from '../../store/test/helpers/fakes.js';
-import type { ProjectInfo, RunSummary, StatusResult } from '../src/index.js';
+import type { ProjectInfo, RunSummary, ShareCreated, StatusResult } from '../src/index.js';
 import { catchUp, createWorker, memoryBundleFs } from '../src/worker.js';
 import { SHOP, sampleRecords, shop } from './helpers.js';
 import { mcpCall } from './mcp-helpers.js';
@@ -254,6 +255,65 @@ describe('worker: access and snapshots', () => {
     expect((await call(env, '/api/shares')).status).toBe(401);
     const opened = (await store.readLog((await store.listLog({})).keys.at(-1)!)).records[0];
     expect(opened).toMatchObject({ kind: 'share', action: 'open', link, actor: { id: 'anonymous' } });
+  });
+
+  it('creates a link on a Worker with pinned keys only when its record verifies; forged records never open', async () => {
+    const { publicKey, privateKey } = await generateKeyPair('RS256');
+    const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
+    vi.stubGlobal('fetch', async () => Response.json({ keys: [jwk] }));
+    const jwt = await new SignJWT({ email: 'kim@shop.test', sub: 'u1' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+      .setIssuer('https://shop.cloudflareaccess.com')
+      .setAudience('aud')
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    const { r2, b } = await bucket();
+    const k = await generateSigningKey('hosted');
+    const { PUBLIC: _, ...hosted } = publicEnv(r2);
+    const env = { ...hosted, ACCESS_TEAM: 'shop', ACCESS_AUD: 'aud', SIGNING_KEYS: JSON.stringify([k.key]) };
+    const share = (e: object) =>
+      call(e, '/api/shares?days=7', {
+        method: 'POST',
+        headers: { 'Cf-Access-Jwt-Assertion': jwt, 'X-IW-Request': '1' },
+      });
+    // keys pinned but no IW_SIGNING_KEY: the create record would never verify, so nothing is written
+    const refused = await share(env);
+    expect(refused.status).toBe(503);
+    expect(await refused.text()).toContain('IW_SIGNING_KEY');
+    const signed = { ...env, IW_SIGNING_KEY: k.secret };
+    const res = await share(signed);
+    expect(res.status).toBe(201);
+    const { link, url } = (await res.json()) as ShareCreated;
+    const store = bucketStore(r2);
+    const created = (await store.readLog((await store.listLog({})).keys.at(-1)!)).records[0]!;
+    expect(created).toMatchObject({ kind: 'share', action: 'create', id: link.id });
+    expect(await verifyRecord(created, [k.key])).toBe(true);
+    const opened = await call(signed, new URL(url).pathname);
+    expect(opened.status).toBe(200);
+    expect(await opened.text()).toContain('<html');
+
+    // direct bucket writes: an unsigned Access create, a self-asserted create and a revoke by git never count
+    const at = '2026-11-19T00:00:00Z';
+    const env0 = { v: 1, project: b.project.data.id, at, source: 'manual' };
+    const forge = async (token: string, actor: object) => ({
+      ...env0,
+      ...{ kind: 'share', id: newId('rec'), actor, action: 'create', token_sha256: await sha256Hex(token) },
+      ...{
+        expires_at: '2999-01-01T00:00:00Z',
+        audience: 'customer',
+        sha256: (created as { sha256: string }).sha256,
+      },
+    });
+    const [t1, t2] = ['1'.repeat(32), '2'.repeat(32)];
+    const git = { kind: 'human', id: 'eve@shop.test', via: 'git' };
+    const revoke = { ...env0, kind: 'share', id: newId('rec'), actor: git, action: 'revoke', link: link.id };
+    const forged = [await forge(t1, { ...git, via: 'cloudflare-access' }), await forge(t2, git), revoke];
+    await store.appendLog('x', forged as AnyRecord[]);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + AFTER_THROTTLE_MS);
+    expect((await call(signed, `/s/${t1}`)).status).toBe(404);
+    expect((await call(signed, `/s/${t2}`)).status).toBe(404);
+    expect((await call(signed, new URL(url).pathname)).status).toBe(200);
+    vi.restoreAllMocks();
   });
 
   it('publishes a browser upload as a snapshot, also into an empty bucket', async () => {

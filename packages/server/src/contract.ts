@@ -279,6 +279,8 @@ export interface AppDeps {
   loadModel(): Promise<{ model: Model; problems: ProjectInfo['problems'] }>;
   /** append a record (local replica on Node; store + index on Workers) */
   writeRecord(record: import('@indx-watch/bundle').AnyRecord): Promise<void>;
+  /** the signer writeRecord applies, so share links can refuse a record that would not verify (hosted) */
+  signRecord?<R extends import('@indx-watch/bundle').AnyRecord>(record: R): Promise<R>;
   putBlob(data: Uint8Array, contentType: string): Promise<string>;
   getBlob(sha256: string): Promise<Uint8Array | null>;
   identity: IdentityProvider;

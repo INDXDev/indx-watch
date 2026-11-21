@@ -8,7 +8,7 @@ import type { Model } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { ShareCreated, ShareLink } from './contract.js';
-import { bad, fail, HttpError, iso, notFound } from './http.js';
+import { bad, canShare, fail, HttpError, iso, notFound } from './http.js';
 import { HTML_REPORT, reportFor } from './routes.js';
 
 const DAY = 86_400_000;
@@ -27,10 +27,15 @@ async function sharer(c: Context, x: Ctx) {
   throw new HttpError(403, 'forbidden', 'share links need a person signed in through Cloudflare Access');
 }
 
-/** Links by their `create` records, newest first; with pinned signing keys, an unverified one never counts. */
+/** A create or revoke counts only by a person signed in through Access and, with pinned signing keys, only signed. */
+const trusted = (m: Model, r: B.ShareRecord) =>
+  canShare({ mode: 'hosted' }, r.actor) && !(m.project.signing_keys?.length && m.unverified?.has(r.id));
+/** The records links are built from: opens, and the creates and revokes that count. */
+const events = (m: Model) => m.shares.filter((r) => r.action === 'open' || trusted(m, r));
+/** Links by their `create` records, newest first. */
 const creates = (m: Model) =>
-  m.shares
-    .filter((r) => r.action === 'create' && !(m.project.signing_keys?.length && m.unverified?.has(r.id)))
+  events(m)
+    .filter((r) => r.action === 'create')
     .sort((a, b) => (a.id < b.id ? 1 : -1));
 
 /** The API view of a link, from its `create` record and the link's later events. */
@@ -44,13 +49,17 @@ function view(r: B.ShareRecord, events: B.ShareRecord[], now: string): ShareLink
   return { id, at, actor, audience, ...scope, expires_at, state, opens: of('open').length, ...revoked };
 }
 
-/** Write one `share` record. */
+/** Write one `share` record; refuse a create or revoke that would not count (pinned keys, no fitting signing key). */
 async function write(x: Ctx, m: Model, actor: B.Actor, fields: Partial<B.ShareRecord>) {
   const env = { kind: 'share', id: B.newId('rec'), v: 1, project: m.project.id, at: x.now(), actor };
   const record = B.ShareRecord.parse({ ...env, source: 'manual', ...fields });
+  const keys = m.project.signing_keys ?? [];
+  const sig = fields.action !== 'open' && keys.length && (await (x.deps.signRecord?.(record) ?? record));
+  if (sig && !(await B.verifyRecord(sig, keys))) throw new HttpError(503, 'unavailable', UNSIGNED);
   await x.deps.writeRecord(record);
   return record;
 }
+const UNSIGNED = 'with pinned signing keys, share links need IW_SIGNING_KEY with a key for cloudflare-access';
 
 async function create(c: Context, x: Ctx) {
   const who = await sharer(c, x);
@@ -75,17 +84,16 @@ async function create(c: Context, x: Ctx) {
 async function revoke(c: Context, x: Ctx) {
   const [who, m, id] = [await sharer(c, x), await x.model(), c.req.param('id')];
   const r = creates(m).find((l) => l.id === id) ?? fail(notFound(`share link ${id}`));
-  const events = view(r, m.shares, x.now()).revoked
-    ? m.shares
-    : [...m.shares, await write(x, m, who, { action: 'revoke', link: r.id })];
-  return c.json(view(r, events, x.now()));
+  const [ev, link] = [events(m), { action: 'revoke' as const, link: r.id }];
+  const all = view(r, ev, x.now()).revoked ? ev : [...ev, await write(x, m, who, link)];
+  return c.json(view(r, all, x.now()));
 }
 
 /** GET /s/<token>: the snapshot of an active link, recorded as an open; anything else is a 404 with nothing recorded. */
 async function open(c: Context, x: Ctx) {
   const [m, hash] = [await x.model(), await B.sha256Hex(c.req.param('token') ?? '')];
   const r = creates(m).find((l) => l.token_sha256 === hash);
-  const active = r?.sha256 && view(r, m.shares, x.now()).state === 'active';
+  const active = r?.sha256 && view(r, events(m), x.now()).state === 'active';
   const html = active ? await x.deps.getBlob(r.sha256!) : null;
   if (!r || !html) throw notFound('share link');
   await write(x, m, VISITOR, { action: 'open', link: r.id });
@@ -97,7 +105,7 @@ export function registerShareRoutes(app: Hono, x: Ctx) {
   app.post('/api/shares', (c) => create(c, x));
   app.get('/api/shares', async (c) => {
     const m = await x.model();
-    return c.json(creates(m).map((r) => view(r, m.shares, x.now())));
+    return c.json(creates(m).map((r) => view(r, events(m), x.now())));
   });
   app.delete('/api/shares/:id', (c) => revoke(c, x));
   app.get('/s/:token', (c) => open(c, x));

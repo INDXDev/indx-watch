@@ -80,7 +80,10 @@ function ShareLinks({ q }: { q: ReportQuery }) {
   const [url, setUrl] = useState<string>();
   const [error, setError] = useState<string>();
   const links = useApi(api.shares, []);
-  const act = (f: () => Promise<unknown>) => f().then(links.reload, (e: Error) => setError(e.message));
+  const act = (f: () => Promise<unknown>) => {
+    setError(undefined);
+    return f().then(links.reload, (e: Error) => setError(e.message));
+  };
   const create = () => act(() => api.createShare(q, Number(days)).then((r) => setUrl(r.url)));
   const revoke = (id: string) => window.confirm(t('share.confirm')) && act(() => api.revokeShare(id));
   const date = (iso: string) => new Date(iso).toLocaleDateString(locale);

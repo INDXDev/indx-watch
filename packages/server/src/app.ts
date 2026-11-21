@@ -108,7 +108,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
     // share links are the one public path besides /healthz (docs/spec/security.md#share-links)
-    if (deps.mode === 'hosted' && c.req.path !== '/healthz' && !c.req.path.startsWith('/s/'))
+    if (deps.mode === 'hosted' && c.req.path !== '/healthz' && !/^\/s\/[^/]+$/.test(c.req.path))
       await x.actor(c);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');

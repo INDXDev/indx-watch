@@ -64,6 +64,7 @@ describe('share links', () => {
     expect(((await (await h.send('/api/shares')).json()) as ShareLink[])[0]!.state).toBe('expired');
     // every other route still needs an identity
     expect((await h.app.fetch(req('/api/shares'))).status).toBe(401);
+    expect((await h.app.fetch(req('/s/a/b'))).status).toBe(401); // only /s/<token> is public
   });
 
   it('revokes a link at once and records who did', async () => {
