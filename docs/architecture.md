@@ -133,7 +133,7 @@ Build-time only: TypeScript, tsup (esbuild), Vite, React, Biome, Vitest, Playwri
 
 ## Acceptance criteria
 
-- [ ] `scripts/loc.mjs` reports every package within budget (CI).
-- [ ] Biome fails if `packages/core` or `packages/bundle` (outside `src/node/`) imports `node:fs`, `aws4fetch` or `hono` (`pnpm check:pure`, CI).
-- [ ] The packed `indx-watch` tarball contains the CLI, the reporter entry, the web build and `schemas/`, and, installed into an empty project (`npm install --save-dev ./indx-watch-*.tgz`), the README quickstart runs with `npx indx-watch` (CI).
-- [ ] The Worker bundle builds with `wrangler deploy --dry-run` from the same `createApp`, using the config `iw deploy` generates (`pnpm check:worker`, CI).
+- [x] `scripts/loc.mjs` reports every package within budget (CI).
+- [x] Biome fails if `packages/core` or `packages/bundle` (outside `src/node/`) imports `node:fs`, `aws4fetch` or `hono` (`pnpm check:pure`, CI).
+- [x] The packed `indx-watch` tarball contains the CLI, the reporter entry, the web build and `schemas/`, and, installed into an empty project (`npm install --save-dev ./indx-watch-*.tgz`), the README quickstart runs with `npx indx-watch` (CI).
+- [x] The Worker bundle builds with `wrangler deploy --dry-run` from the same `createApp`, using the config `iw deploy` generates (`pnpm check:worker`, CI).
