@@ -8,6 +8,7 @@ import { loadBundle } from '../src/load.js';
 import { findBundleDir, nodeFs } from '../src/node/index.js';
 import { decodeRecord, encodeRecord } from '../src/record-io.js';
 import { TestCase } from '../src/schema/definitions.js';
+import { verifiedClaims } from '../src/sign.js';
 import { parseToml } from '../src/toml.js';
 import { fixtureVersion, testCaseVersion, translationSourceHash } from '../src/versions.js';
 import { createDefinition, slugify } from '../src/write.js';
@@ -124,6 +125,13 @@ describe('records', () => {
     expect(decodeRecord({ ...run, at: 'yesterday' })).toBeNull();
     expect(decodeRecord({ kind: 'nope' })).toBeNull();
     expect(decodeRecord('not json')).toBeNull();
+  });
+  it('treats CI provider identities as claims that need a signature', () => {
+    for (const via of ['github', 'gitlab', 'circleci', 'buildkite'] as const)
+      expect(verifiedClaims(decodeRecord({ ...run, actor: { ...run.actor, via } })!)).toEqual([via]);
+    expect(
+      verifiedClaims(decodeRecord({ ...run, actor: { kind: 'human', id: 'a@shop.test', via: 'git' } })!),
+    ).toEqual([]);
   });
 });
 

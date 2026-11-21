@@ -45,11 +45,12 @@ export const DefStatus = z.enum(['draft', 'ready', 'deprecated']);
 export type DefStatus = z.infer<typeof DefStatus>;
 export const Origin = z.enum(['human', 'ai', 'import']);
 export type Origin = z.infer<typeof Origin>;
+const CI_VIA = ['gitlab', 'circleci', 'buildkite'] as const; // docs/spec/integrations.md#ci-identity-and-context
 /** How an actor was identified (docs/spec/security.md#identity). */
-export const Via = z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env', 'browser']);
+export const Via = z.enum(['git', 'github', 'github-oidc', 'cloudflare-access', 'env', 'browser', ...CI_VIA]);
 export type Via = z.infer<typeof Via>;
 /** `via` values that claim a verified source; such records need a valid signature (docs/spec/security.md#signed-records). */
-export const VERIFIED_VIA: readonly Via[] = ['cloudflare-access', 'github-oidc', 'github'];
+export const VERIFIED_VIA: readonly Via[] = ['cloudflare-access', 'github-oidc', 'github', ...CI_VIA];
 export const Tag = z.string().regex(/^[a-z0-9][a-z0-9-]*$/);
 /** Secret references only, never values (docs/spec/security.md#secrets). */
 export const SecretRef = z.string().regex(/^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$/);

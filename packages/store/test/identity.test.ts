@@ -159,6 +159,115 @@ describe('processContext', () => {
   });
 });
 
+describe('GitLab CI, CircleCI and Buildkite', () => {
+  const sha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  const cases = [
+    {
+      env: {
+        GITLAB_CI: 'true',
+        CI_COMMIT_SHA: sha,
+        CI_COMMIT_REF_NAME: 'coupon-fix',
+        GITLAB_USER_LOGIN: 'alex',
+        CI_MERGE_REQUEST_IID: '12',
+        CI_JOB_URL: 'https://gitlab.com/shop/web/-/jobs/7',
+        CI_PIPELINE_ID: '1001',
+        CI_JOB_NAME: 'e2e',
+        CI_PIPELINE_SOURCE: 'merge_request_event',
+        CI_PROJECT_PATH: 'shop/web',
+        GITLAB_USER_NAME: 'Alex Kim',
+        CI_JOB_RETRY_COUNT: '0',
+      },
+      ref: 'refs/heads/coupon-fix',
+      actor: { kind: 'ci', id: 'gitlab:alex', name: 'Alex Kim', via: 'gitlab' },
+      ci: {
+        provider: 'gitlab',
+        url: 'https://gitlab.com/shop/web/-/jobs/7',
+        run_id: '1001',
+        run_attempt: 1,
+        job: 'e2e',
+        event: 'merge_request_event',
+        repository: 'shop/web',
+        pr: 12,
+      },
+    },
+    {
+      env: {
+        CIRCLECI: 'true',
+        CIRCLE_SHA1: sha,
+        CIRCLE_BRANCH: 'main',
+        CIRCLE_TAG: 'v1.4.0',
+        CIRCLE_USERNAME: 'sam',
+        CIRCLE_PULL_REQUEST: 'https://github.com/shop/web/pull/34',
+        CIRCLE_BUILD_URL: 'https://circleci.com/gh/shop/web/88',
+        CIRCLE_WORKFLOW_ID: 'wf-1',
+        CIRCLE_JOB: 'e2e',
+      },
+      ref: 'refs/tags/v1.4.0',
+      actor: { kind: 'ci', id: 'circleci:sam', name: 'sam', via: 'circleci' },
+      ci: {
+        provider: 'circleci',
+        url: 'https://circleci.com/gh/shop/web/88',
+        run_id: 'wf-1',
+        job: 'e2e',
+        pr: 34,
+      },
+    },
+    {
+      env: {
+        BUILDKITE: 'true',
+        BUILDKITE_COMMIT: 'HEAD', // not a SHA: IW_COMMIT, else the checkout
+        IW_COMMIT: sha,
+        BUILDKITE_BRANCH: 'main',
+        BUILDKITE_BUILD_CREATOR: 'Kim Lee',
+        BUILDKITE_BUILD_CREATOR_EMAIL: 'kim@shop.test',
+        BUILDKITE_RETRY_COUNT: '2',
+        BUILDKITE_PULL_REQUEST: 'false',
+        BUILDKITE_BUILD_URL: 'https://buildkite.com/shop/web/builds/5',
+        BUILDKITE_BUILD_ID: 'b-5',
+        BUILDKITE_LABEL: ':playwright: e2e',
+        BUILDKITE_PIPELINE_SLUG: 'web',
+        BUILDKITE_SOURCE: 'webhook',
+      },
+      ref: 'refs/heads/main',
+      actor: { kind: 'ci', id: 'buildkite:kim@shop.test', name: 'Kim Lee', via: 'buildkite' },
+      ci: {
+        provider: 'buildkite',
+        url: 'https://buildkite.com/shop/web/builds/5',
+        run_id: 'b-5',
+        run_attempt: 3,
+        job: ':playwright: e2e',
+        workflow: 'web',
+        event: 'webhook',
+      },
+    },
+  ];
+  it.each(cases)('detects $ci.provider from its standard variables', async ({ env, ref, actor, ci }) => {
+    expect(await processIdentity({ env }).current()).toEqual(actor);
+    const ctx = processContext({ env });
+    expect(await ctx.build()).toEqual({ commit: sha, ref, dirty: false });
+    expect(await ctx.ci()).toEqual(ci);
+  });
+
+  it('prefers IW_ACTOR and GitHub Actions, and falls back to git without a user', async () => {
+    const env = cases[0]!.env;
+    expect((await processIdentity({ env: { ...env, IW_ACTOR: 'qa@shop.test' } }).current()).via).toBe('env');
+    const both = { ...env, GITHUB_ACTIONS: 'true', GITHUB_ACTOR: 'octocat', GITHUB_RUN_ID: '1' };
+    expect((await processIdentity({ env: both }).current()).via).toBe('github');
+    expect((await processContext({ env: both }).ci())?.provider).toBe('github');
+    const scheduled = { ...isolated(), ...env, GITLAB_USER_LOGIN: '' };
+    expect((await processIdentity({ env: scheduled, cwd: repo }).current()).via).toBe('git');
+  });
+
+  it('takes the first provider in table order, ignores a non-numeric PR and falls back to the checkout commit', async () => {
+    const env = { ...cases[1]!.env, ...cases[2]!.env, CIRCLE_PULL_REQUEST: 'none', IW_COMMIT: undefined };
+    const ci = await processContext({ env }).ci();
+    expect(ci).toMatchObject({ provider: 'circleci', run_id: 'wf-1' });
+    expect(ci?.pr).toBeUndefined();
+    const bk = { ...isolated(), ...cases[2]!.env, IW_COMMIT: undefined };
+    expect((await processContext({ env: bk, cwd: repo }).build()).commit).toBe(git('rev-parse', 'HEAD'));
+  });
+});
+
 describe('accessIdentity', () => {
   it('verifies the Access JWT against the team JWKS, issuer and aud', async () => {
     const { publicKey, privateKey } = await generateKeyPair('RS256');

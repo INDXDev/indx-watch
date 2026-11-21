@@ -210,7 +210,7 @@ export default class IndxWatchReporter implements Reporter {
     const rel = M.resolveRelease(bundle, build, { explicit, inCi: !!ci || !!this.env.CI });
     if (rel.warning) warn(rel.warning);
     const environment = this.environment(bundle);
-    return { actor, build, ci, release: rel.release, environment, group: M.runGroup(this.env) };
+    return { actor, build, ci, release: rel.release, environment, group: M.runGroup(this.env, ci) };
   }
 
   /** Seen tests that ran, grouped by (test case, Playwright project, annotated fixture rows). */

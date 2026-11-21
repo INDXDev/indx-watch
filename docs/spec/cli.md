@@ -345,7 +345,7 @@ Create an Ed25519 key pair for [signed records](security.md#signed-records). Pri
 | Flag | Default | |
 |---|---|---|
 | `--kid <id>` | `iw-<date>` | Key ID (letters, digits, `.`, `_`, `-`; at most 64) |
-| `--via <list>` | all | Comma-separated verified `via` values the key may vouch for: `cloudflare-access`, `github-oidc`, `github` |
+| `--via <list>` | all | Comma-separated verified `via` values the key may vouch for: `cloudflare-access`, `github-oidc`, `github`, `gitlab`, `circleci`, `buildkite` |
 
 `data`: `{ "kid": string, "public_key": string, "via"?: string[], "secret": string, "toml": string }`
 

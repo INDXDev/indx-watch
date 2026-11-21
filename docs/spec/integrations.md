@@ -46,7 +46,7 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 ### Sharding
 
-Every run gets `automation.group` = `IW_RUN_GROUP`, else `github:<run_id>:<attempt>` in GitHub Actions, else a fresh ID per invocation, so runs of one sharded execution are combined ([computed done](concepts.md#computed-done)). Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
+Every run gets `automation.group` = `IW_RUN_GROUP`, else `<ci.provider>:<ci.run_id>:<ci.run_attempt or 1>` in a detected CI (for example `github:<run_id>:<attempt>`, `gitlab:<pipeline id>:<job retries + 1>`), else a fresh ID per invocation, so runs of one sharded execution are combined ([computed done](concepts.md#computed-done)). A retried job must land in a new execution, or its failed attempt keeps the execution at `fail`: GitHub counts the run attempt, GitLab (`CI_JOB_RETRY_COUNT`, GitLab 19.3+) and Buildkite (`BUILDKITE_RETRY_COUNT`) count the job's retries, and CircleCI gives a rerun a new `CIRCLE_WORKFLOW_ID`. On older GitLab, without `CI_JOB_RETRY_COUNT`, a retried job joins its first attempt's execution; set `IW_RUN_GROUP: gitlab:$CI_PIPELINE_ID:$CI_JOB_ID` on jobs that are not split with `parallel:` to keep retries apart. Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
 
 ## CI identity and context
 The `ContextProvider` port detects the build and CI context and fills these record fields:
@@ -61,7 +61,20 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | `ci.pr` | PR number from the event payload | — |
 | `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }` | git identity |
 
-Other CI providers are detected by their standard variables in v0.2 (GitLab, CircleCI, Buildkite); until then set `IW_ACTOR` and `IW_COMMIT`.
+*(v0.2)* GitLab CI, CircleCI and Buildkite are detected by their standard variables (`GITLAB_CI`, `CIRCLECI`, `BUILDKITE` = `true`); GitHub Actions wins when several are set, then GitLab CI, then CircleCI, then Buildkite. `IW_COMMIT` overrides the commit and `IW_ACTOR` the actor on every provider, and any other CI can set those two. `build.dirty` is `false` in CI; a field whose variable is unset is left out. When the commit variable is not a SHA (Buildkite sets `HEAD` before checkout), `build.commit` comes from `git rev-parse HEAD`. Buildkite has no stable login, so its actor id uses the creator's notification email and the display name goes in `name`. Variable semantics are recorded in [platform notes](../research/platform-notes.md#other-ci-providers).
+
+| Field | GitLab CI | CircleCI | Buildkite |
+|---|---|---|---|
+| `build.commit` | `CI_COMMIT_SHA` | `CIRCLE_SHA1` | `BUILDKITE_COMMIT` |
+| `build.ref` | `refs/tags/$CI_COMMIT_TAG`, else `refs/heads/$CI_COMMIT_REF_NAME` | `refs/tags/$CIRCLE_TAG`, else `refs/heads/$CIRCLE_BRANCH` | `refs/tags/$BUILDKITE_TAG`, else `refs/heads/$BUILDKITE_BRANCH` |
+| `ci.provider` / `ci.url` | `gitlab` / `CI_JOB_URL` | `circleci` / `CIRCLE_BUILD_URL` | `buildkite` / `BUILDKITE_BUILD_URL` |
+| `ci.run_id`, `ci.job` | `CI_PIPELINE_ID`, `CI_JOB_NAME` | `CIRCLE_WORKFLOW_ID`, `CIRCLE_JOB` | `BUILDKITE_BUILD_ID`, `BUILDKITE_LABEL` |
+| `ci.run_attempt` | `CI_JOB_RETRY_COUNT` + 1 | — | `BUILDKITE_RETRY_COUNT` + 1 |
+| `ci.workflow`, `ci.event`, `ci.repository` | —, `CI_PIPELINE_SOURCE`, `CI_PROJECT_PATH` | — | `BUILDKITE_PIPELINE_SLUG`, `BUILDKITE_SOURCE`, — |
+| `ci.pr` | `CI_MERGE_REQUEST_IID` | trailing number of `CIRCLE_PULL_REQUEST` | `BUILDKITE_PULL_REQUEST` (unless `false`) |
+| `actor` | `{ kind: "ci", id: "gitlab:<GITLAB_USER_LOGIN>", name: GITLAB_USER_NAME, via: "gitlab" }` | `{ kind: "ci", id: "circleci:<CIRCLE_USERNAME>", via: "circleci" }` | `{ kind: "ci", id: "buildkite:<BUILDKITE_BUILD_CREATOR_EMAIL>", name: BUILDKITE_BUILD_CREATOR, via: "buildkite" }` |
+
+Without the user variable (for example a scheduled pipeline) the actor falls back to git, as on GitHub. Like `github`, the `gitlab`, `circleci` and `buildkite` identities are read from variables anyone running the job can set, so they claim a verified source and are only shown as verified when the record is signed ([signed records](security.md#signed-records)).
 
 **Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](security.md#signed-records)). Signing through GitHub OIDC instead of a stored secret is not built yet.
 
@@ -108,3 +121,4 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.
 - [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
 - [x] With `gate: true` and a failing P0 test case, the action step fails.
+- [x] With only GitLab CI, CircleCI or Buildkite variables set, `build`, `ci`, `actor` and `automation.group` come from the table above (store and reporter unit tests with fake environments).

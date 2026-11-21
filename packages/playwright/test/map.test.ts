@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { loadBundle } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
+import { processContext } from '@indx-watch/store/node';
 import { describe, expect, it } from 'vitest';
 import {
   annotatedRows,
@@ -39,15 +40,26 @@ describe('resolveRelease', () => {
 });
 
 describe('helpers', () => {
-  it('derives the run group from IW_RUN_GROUP, GitHub Actions or a fresh ID', () => {
-    expect(runGroup({ IW_RUN_GROUP: 'build-512', GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '1' })).toBe(
-      'build-512',
-    );
-    expect(runGroup({ GITHUB_ACTIONS: 'true', GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '2' })).toBe(
-      'github:42:2',
-    );
+  it('derives the run group from IW_RUN_GROUP, the CI run or a fresh ID', () => {
+    const gh = { provider: 'github', run_id: '42', run_attempt: 2 };
+    expect(runGroup({ IW_RUN_GROUP: 'build-512' }, gh)).toBe('build-512');
+    expect(runGroup({}, gh)).toBe('github:42:2');
+    expect(runGroup({}, { provider: 'gitlab', run_id: '1001' })).toBe('gitlab:1001:1');
+    expect(runGroup({}, { provider: 'buildkite' })).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(runGroup({})).not.toBe(runGroup({}));
+  });
+
+  it('starts a new execution when a GitLab or Buildkite job is retried', async () => {
+    const group = async (env: Record<string, string>) => runGroup(env, await processContext({ env }).ci());
+    const gl = { GITLAB_CI: 'true', CI_PIPELINE_ID: '1001' };
+    expect(await group({ ...gl, CI_JOB_RETRY_COUNT: '0' })).toBe('gitlab:1001:1');
+    expect(await group({ ...gl, CI_JOB_RETRY_COUNT: '1' })).toBe('gitlab:1001:2');
+    expect(await group(gl)).toBe('gitlab:1001:1'); // GitLab before 19.3: IW_RUN_GROUP keeps retries apart
+    expect(await group({ BUILDKITE: 'true', BUILDKITE_BUILD_ID: 'b-5', BUILDKITE_RETRY_COUNT: '1' })).toBe(
+      'buildkite:b-5:2',
+    );
+    expect(await group({ CIRCLECI: 'true', CIRCLE_WORKFLOW_ID: 'wf-2' })).toBe('circleci:wf-2:1');
   });
 
   it('reads rows from _iw.fixture annotations', () => {
