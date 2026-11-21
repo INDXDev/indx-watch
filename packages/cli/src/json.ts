@@ -123,6 +123,7 @@ export const CommandData = {
   /** docs/spec/security.md#customer-uat */
   invite: z.object({
     ...{ email: z.string(), plan: z.string(), file: z.string(), items: z.array(z.string()) },
+    reassigned: z.array(z.string()),
     ...{ revoked: z.boolean(), access: z.enum(['added', 'removed', 'kept', 'manual']) },
   }),
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),

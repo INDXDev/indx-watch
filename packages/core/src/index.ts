@@ -17,6 +17,7 @@ export { reportData } from './report.js';
 /** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles). */
 export {
   assignedTo,
+  canInvite,
   customerModel,
   EMAIL,
   inviteItems,

@@ -46,12 +46,22 @@ describe('iw invite', () => {
     expect(assigned(dir, 'pat@client.test')).toEqual(['TC-9']);
     expect((await run({ plan: 'PLAN-1', revoke: true })).data).toMatchObject({
       access: 'removed',
-      items: items(dir).map((i) => i.test_case),
+      items: ['TC-9'],
     });
     expect(assigned(dir, 'pat@client.test')).toEqual([]);
     expect(items(dir).find((i) => i.test_case === 'TC-6')?.assignee).toBe('alex@shop.test');
     expect(api.emails()).not.toContain('pat@client.test');
     await expect(run({ plan: 'PLAN-1', items: 'TC-1' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    // without --items: only the unassigned items; naming an assigned one reassigns it and says so
+    const before = items(dir);
+    const all = await run({ plan: 'plan-1' });
+    const free = before.filter((i) => !i.assignee).map((i) => i.test_case);
+    expect(all.data).toMatchObject({ items: free, reassigned: [] });
+    expect(items(dir).filter((i) => i.assignee !== 'pat@client.test')).toEqual(
+      before.filter((i) => i.assignee),
+    );
+    expect((await run({ plan: 'PLAN-1', items: 'TC-6' })).data).toMatchObject({ reassigned: ['TC-6'] });
+    await run({ plan: 'PLAN-1', revoke: true });
     // a failed API call: the plan is written, exit 4
     const failing = makeCtx(cleanEnv({ IW_ACCESS_POLICY: 'acc/pol', CLOUDFLARE_API_TOKEN: 'wrong' }), dir);
     await expect(

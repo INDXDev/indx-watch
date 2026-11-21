@@ -15,15 +15,17 @@ const names = (p: Principal) => new Set([p.id, ...p.groups].map((s) => s.toLower
 const ORDER: Role[] = ['lead', 'tester', 'viewer', 'customer'];
 
 /**
- * The highest role whose list names the actor ID or one of its groups (without case); else `customer` for an
- * invited email assignee, else `default` (docs/spec/security.md#customer-uat).
+ * The highest role whose list names the actor ID or one of its groups (without case); else `default`; else
+ * `customer` for an invited email assignee (docs/spec/security.md#customer-uat).
  */
 export function roleOf(roles: Roles, who: Principal, invited = false): Role | undefined {
   const n = names(who);
-  return (
-    ORDER.find((r) => roles[r]?.some((e) => n.has(e.toLowerCase()))) ?? (invited ? 'customer' : roles.default)
-  );
+  const listed = ORDER.find((r) => roles[r]?.some((e) => n.has(e.toLowerCase())));
+  return listed ?? roles.default ?? (invited ? 'customer' : undefined);
 }
+
+/** Invites need roles whose fallback for an unlisted invited email is `customer` (no `default`, or that one). */
+export const canInvite = (r?: Roles) => !!r && (r.default ?? 'customer') === 'customer';
 
 /** An email a customer can be invited with. */
 export const EMAIL = /^[^@\s:]+@[^@\s]+\.[^@\s]+$/;
@@ -33,19 +35,25 @@ export const isAssignee = (plans: { items?: PlanItem[] }[], email: string) =>
   plans.some((p) => p.items?.some((i) => same(i.assignee, email)));
 
 /**
- * A plan's items after inviting `email` to the items of `keys` (every item when empty), or revoking it from them;
- * `missing`: keys that are not items of the plan (docs/spec/security.md#customer-uat).
+ * A plan's items after inviting `email` to the items of `keys`, or revoking it from them. Without `keys`: every
+ * item, except that an invite leaves items assigned to someone else alone (naming them reassigns them).
+ * `changed`: the items whose assignee changed; `reassigned`: those taken from another assignee; `missing`: keys
+ * that are not items of the plan (docs/spec/security.md#customer-uat).
  */
 export function inviteItems(items: PlanItem[], email: string, keys: string[], revoke = false) {
   const want = new Set(keys.map((k) => k.toUpperCase()));
-  const hit = (i: PlanItem) => !want.size || want.has(i.test_case.toUpperCase());
   const missing = [...want].filter((k) => !items.some((i) => i.test_case.toUpperCase() === k));
+  const hit = (i: PlanItem) =>
+    want.size ? want.has(i.test_case.toUpperCase()) : revoke || !i.assignee || same(i.assignee, email);
+  const change = (i: PlanItem) => hit(i) && (revoke ? same(i.assignee, email) : !same(i.assignee, email));
   const next = items.map((i): PlanItem => {
-    if (!hit(i) || (revoke && !same(i.assignee, email))) return i;
+    if (!change(i)) return i;
     const { assignee: _, ...rest } = i;
     return revoke ? rest : { ...rest, assignee: email };
   });
-  return { items: next, selected: items.filter(hit).map((i) => i.test_case), missing };
+  const keysOf = (f: (i: PlanItem) => boolean) => items.filter(f).map((i) => i.test_case);
+  const reassigned = revoke ? [] : keysOf((i) => change(i) && !!i.assignee);
+  return { items: next, changed: keysOf(change), reassigned, missing };
 }
 
 /** A plan item is assigned to whoever its `assignee` names: that email, or `group:<name>` of one of their groups. */

@@ -251,7 +251,7 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
 /** A customer's Home: every plan item assigned to them, by plan (docs/spec/web.md#customer-view). */
 function Assigned({ d: { title, byKey }, plans }: { d: HomeData; plans: PlanView[] }) {
   const { t, locale } = useI18n();
-  const keys = plans.flatMap((p) => (p.items ?? []).map((i) => i.test_case));
+  const keys = [...new Set(plans.flatMap((p) => (p.items ?? []).map((i) => i.test_case)))];
   const row = (i: NonNullable<PlanView['items']>[number]) => {
     const x = byKey.get(i.test_case);
     const failed = x?.latestRun && x.status === 'fail' ? x.latestRun : undefined;

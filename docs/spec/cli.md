@@ -111,15 +111,15 @@ Approve a draft use case, test case or fixture (or a draft acceptance criterion)
 
 ### `iw invite <email>`
 
-*(v0.3)* Invite a customer to plan items for [customer UAT](security.md#customer-uat): set `assignee = "<email>"` on the items of `--plan` (written through `formatToml()`), then add the email to the Access policy named by `IW_ACCESS_POLICY` (`<account id>/<policy id>`) with `CLOUDFLARE_API_TOKEN`. Without those variables the plan is still written, `access` is `"manual"` and a warning says to add the email in the dashboard. Humans only (agents: exit 2). Exits 3 (`INVALID_CONFIG`) when `project.toml` has no `[hosting.roles]`, 2 (`NOT_FOUND`) for an unknown plan or a test case that is not in it, and 4 (`EXTERNAL_TOOL`) when the Cloudflare API call fails (the plan is already written; run it again).
+*(v0.3)* Invite a customer to plan items for [customer UAT](security.md#customer-uat): set `assignee = "<email>"` on the items of `--plan` (written through `formatToml()`), then add the email to the Access policy named by `IW_ACCESS_POLICY` (`<account id>/<policy id>`) with `CLOUDFLARE_API_TOKEN`. Without those variables the plan is still written, `access` is `"manual"` and a warning says to add the email in the dashboard. Humans only (agents: exit 2). Exits 3 (`INVALID_CONFIG`) when `project.toml` has no `[hosting.roles]` or gives them a `default` other than `customer`, 2 (`NOT_FOUND`) for an unknown plan or a test case that is not in it, and 4 (`EXTERNAL_TOOL`) when the Cloudflare API call fails (the plan is already written; run it again).
 
 | Flag | |
 |---|---|
 | `--plan <PLAN-n>` | Required. The plan |
-| `--items <TC-n,…>` | Only these items (default: every item of the plan) |
-| `--revoke` | Remove the email from the items' `assignee` instead; it leaves the Access policy once no plan item is assigned to it |
+| `--items <TC-n,…>` | These items, reassigning any that someone else is assigned to (default: every item of the plan that is unassigned or already the email's) |
+| `--revoke` | Remove the email from the items' `assignee` instead (default: every item assigned to it); it leaves the Access policy once no plan item is assigned to it |
 
-`data`: `{ "email": string, "plan": string, "file": string, "items": string[], "revoked": boolean, "access": "added" | "removed" | "kept" | "manual" }` (`kept`: a revoke left the policy entry because other items are still assigned)
+`data`: `{ "email": string, "plan": string, "file": string, "items": string[], "reassigned": string[], "revoked": boolean, "access": "added" | "removed" | "kept" | "manual" }` (`items`: the items whose assignee changed, the plan file is not written when there are none; `reassigned`: those taken from another assignee; `kept`: a revoke left the policy entry because other items are still assigned). The Access policy call runs even when no item changed, so running the command again repairs the policy.
 
 ### `iw status`
 

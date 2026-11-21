@@ -1,6 +1,6 @@
 /** Editing definitions in workspace mode (docs/spec/web.md#editing-in-workspace-mode): a `file` record per save. */
 import * as B from '@indx-watch/bundle';
-import { EMAIL, inviteItems, isAssignee, type Model } from '@indx-watch/core';
+import { canInvite, EMAIL, inviteItems, isAssignee, type Model } from '@indx-watch/core';
 import { headsOf, versionsByEntity } from '@indx-watch/sync';
 import type { Context } from 'hono';
 import type { Ctx } from './app.js';
@@ -72,6 +72,7 @@ async function saveFile(c: Context, x: Ctx, m: Model, t: Target, edit: Edit) {
   if (!parsed.success)
     throw bad(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
   const data = enc.encode(B.formatToml(t.type, parsed.data as Record<string, unknown>));
+  if (dec.decode(data) === dec.decode(current)) return { file }; // nothing changed: no new version
   const sha256 = await x.deps.putBlob(data, 'application/toml');
   const parents = headsOf(versionsByEntity(records).get(t.entity) ?? []).map((v) => v.id);
   const record = B.FileRecord.parse({
@@ -102,15 +103,17 @@ export async function editTestCase(c: Context, x: Ctx) {
 export async function invite(c: Context, x: Ctx, revoke: boolean) {
   const who = await x.actor(c);
   if (who.kind !== 'human') throw new HttpError(403, 'forbidden', 'only a person may invite');
-  if (!x.deps.roles) throw new HttpError(409, 'conflict', 'invites need [hosting.roles] pinned by iw deploy');
+  if (!canInvite(x.deps.roles))
+    throw new HttpError(409, 'conflict', 'invites need pinned [hosting.roles] with no default role');
   const body: Partial<InviteInput> = revoke
     ? {}
     : await c.req.json<InviteInput>().catch(() => fail(bad('request body must be JSON')));
-  const email = (revoke ? decodeURIComponent(c.req.param('email')!) : body.email) ?? '';
+  const email = (revoke ? c.req.param('email') : body.email) ?? '';
   if (!EMAIL.test(email)) throw bad('email must be an email address');
   const keys = revoke ? (c.req.query('items')?.split(',').filter(Boolean) ?? []) : (body.items ?? []);
   const m = await x.model(c);
-  const plan = m.plans.find((p) => p.key === c.req.param('key')) ?? fail(notFound('plan'));
+  const key = c.req.param('key')!.toUpperCase();
+  const plan = m.plans.find((p) => p.key.toUpperCase() === key) ?? fail(notFound('plan'));
   let r: ReturnType<typeof inviteItems> | undefined;
   const target = { entity: plan.id, type: 'plan' } as const;
   const saved = await saveFile(c, x, m, target, (data) => {
@@ -127,6 +130,7 @@ export async function invite(c: Context, x: Ctx, revoke: boolean) {
     await (revoke ? policy.revoke(email) : policy.allow(email)).catch((e: Error) => {
       throw new HttpError(502, 'access-policy', `the plan was saved; ${e.message}`);
     });
-  const out: InviteResult = { ...saved, email, plan: plan.key, items: r!.selected, revoked: revoke, access };
+  const { changed: items, reassigned } = r!;
+  const out: InviteResult = { ...saved, email, plan: plan.key, items, reassigned, revoked: revoke, access };
   return c.json(out, revoke ? 200 : 201);
 }

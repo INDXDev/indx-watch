@@ -85,13 +85,18 @@ describe('customer UAT on the Worker (fake Access API and issuer)', () => {
       access: 'added',
       revoked: false,
     });
-    expect(result.record.actor).toMatchObject({
+    expect(result.record!.actor).toMatchObject({
       kind: 'human',
       id: 'alex@shop.test',
       via: 'cloudflare-access',
     });
     expect(api.emails()).toContain('pat@client.test');
-    const plan = parseToml(new TextDecoder().decode((await store.getBlob(result.record.sha256!))!)) as {
+    // inviting again changes nothing: no new plan version
+    const again = (await (
+      await post(lead, '/api/plans/plan-1/invites', { email: 'pat@client.test', items: ['TC-9'] })
+    ).json()) as InviteResult;
+    expect([again.record, again.items, again.access]).toEqual([undefined, [], 'added']);
+    const plan = parseToml(new TextDecoder().decode((await store.getBlob(result.record!.sha256!))!)) as {
       items: { test_case: string; assignee?: string }[];
     };
     expect(plan.items.filter((i) => i.assignee === 'pat@client.test').map((i) => i.test_case)).toEqual([
@@ -156,6 +161,8 @@ describe('customer UAT on the Worker (fake Access API and issuer)', () => {
         env as never,
       );
     expect((await invite(base)).status).toBe(409); // no ROLES: everyone would be lead
+    const withDefault = JSON.stringify({ lead: ['qa-leads'], default: 'viewer' });
+    expect((await invite({ ...base, ROLES: withDefault })).status).toBe(409); // a customer would be a viewer
     const res = await invite({ ...base, ROLES: JSON.stringify({ lead: ['qa-leads'] }) });
     expect(res.status).toBe(201);
     expect(((await res.json()) as InviteResult).access).toBe('manual');

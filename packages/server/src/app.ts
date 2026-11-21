@@ -113,8 +113,9 @@ function appContext(deps: AppDeps) {
       actor(c).then(async ({ id }) => {
         if (!d.roles) return { role: 'lead' as const, who: { id, groups: [] } };
         const who = { id, groups: (await d.identity.groups?.(c.req.raw)) ?? [] };
-        const invited = isAssignee((await deps.loadModel()).model.plans, id);
-        return { role: roleOf(d.roles, who, invited), who };
+        // the model only for an identity no role list or `default` covers
+        const invited = async () => isAssignee((await deps.loadModel()).model.plans, id);
+        return { role: roleOf(d.roles, who) ?? roleOf(d.roles, who, await invited()), who };
       });
     grants.set(c.req.raw, g);
     return g;
