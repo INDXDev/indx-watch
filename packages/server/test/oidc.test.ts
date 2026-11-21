@@ -164,6 +164,10 @@ describe('writer', () => {
     for (const r of signed) expect(await verifyRecord(r, [s.key])).toBe(true);
     const refused = sign(s.record({ actor: { ...ACTOR, id: 'github:mallory' } }));
     await expect(refused).rejects.toBeInstanceOf(StoreError);
+    const garbled = async (input: string | URL | Request, init?: RequestInit) =>
+      new URL(String(input)).host === 'gh.test' ? fetchFake(input, init) : new Response('<html>');
+    const bad = oidcSigner(env, async () => ({}), garbled as typeof fetch)(s.record());
+    await expect(bad).rejects.toBeInstanceOf(StoreError); // a non-JSON reply exits 4, not as a key error
     expect(() => oidcSigner({ ...env, IW_OIDC_SIGNER: 'http://watch.test' }, async () => ({}))).toThrow(
       /https/,
     );

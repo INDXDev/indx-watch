@@ -2,10 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { generateSigningKey, verifyRecord } from '@indx-watch/bundle';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { processContext, processIdentity } from '../src/node/index.js';
+import { usesGithubOidc } from '../src/adapters/github-oidc.js';
+import { processContext, processIdentity, processSigner } from '../src/node/index.js';
 import { accessIdentity } from '../src/workers/index.js';
+import { runRecord } from './helpers/records.js';
 
 let dir: string;
 let repo: string;
@@ -330,5 +333,34 @@ describe('accessIdentity', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('GitHub OIDC signer choice (docs/spec/security.md#github-oidc)', () => {
+  const oidc = {
+    GITHUB_ACTIONS: 'true',
+    GITHUB_ACTOR: 'octocat',
+    IW_OIDC_SIGNER: 'http://watch.test',
+    ACTIONS_ID_TOKEN_REQUEST_URL: 'https://gh.test/token',
+  };
+
+  it('signs through OIDC only when the actor is GITHUB_ACTOR and no IW_SIGNING_KEY is set', async () => {
+    expect(usesGithubOidc(oidc)).toBe(true);
+    expect(() => processSigner(oidc)).toThrow(/https/); // the OIDC signer was chosen (and refuses http://)
+    for (const env of [{ IW_ACTOR: 'bot@shop.test' }, { GITHUB_ACTOR: '' }, { IW_SIGNING_KEY: 'k' }])
+      expect(usesGithubOidc({ ...oidc, ...env })).toBe(false);
+  });
+
+  it('keeps IW_ACTOR records via env and unsigned instead of failing the exchange', async () => {
+    const env = { ...oidc, IW_ACTOR: 'bot@shop.test', IW_ACTOR_KIND: 'ci' };
+    expect((await processIdentity({ env }).current()).via).toBe('env');
+    const r = runRecord();
+    expect(await processSigner(env)(r)).toEqual(r);
+  });
+
+  it('prefers IW_SIGNING_KEY over OIDC', async () => {
+    const { secret, key } = await generateSigningKey('ci');
+    const signed = await processSigner({ ...oidc, IW_SIGNING_KEY: secret })(runRecord());
+    expect(await verifyRecord(signed, [key])).toBe(true);
   });
 });
