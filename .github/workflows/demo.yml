@@ -34,10 +34,11 @@ jobs:
       url: ${{ steps.deploy.outputs.url }}
     env:
       DEMO_NAME: ${{ inputs.name || 'indx-watch-demo' }}
-      DEMO_DIR: ${{ runner.temp }}/demo
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      # runner.temp is not available in job-level env, so DEMO_DIR is set here.
+      - run: echo "DEMO_DIR=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
@@ -67,7 +68,7 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Wait for the Worker
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -fsS "${{ steps.deploy.outputs.url }}/healthz" && exit 0
             sleep 5
           done
