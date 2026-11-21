@@ -233,8 +233,15 @@ async function placeholders(p: cx.Project, m: core.Model, tc: core.TestCaseNode,
   return (text: string) => text.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (all, ref) => values.get(ref) ?? all);
 }
 
+/** A step the agent reported failed is the model's own fail judgement, so the final judge cannot overrule it. */
+const agentFail = ({ steps, judgement: j }: Awaited<ReturnType<typeof runAgent>>) =>
+  steps.flatMap((r) =>
+    r.status === 'fail'
+      ? [{ ...j, verdict: 'fail' as const, confidence: 1, reason: `Step ${r.index}: ${r.note}` }]
+      : [],
+  );
+
 export type AgentPorts = { browser: BrowserProvider; llm: LlmClient };
-const step = (r: core.RunView['record']['steps'][number]) => `step ${r.index} ${r.status}`;
 
 /** iw run with the given ports (tests pass fakes); the run is recorded with source "agent" and evidence per step. */
 export async function runAgentCase(ctx: Ctx, a: Args, ports: () => Promise<AgentPorts>) {
@@ -271,11 +278,10 @@ export async function runAgentCase(ctx: Ctx, a: Args, ports: () => Promise<Agent
       const shas = evidence.filter((e) => e.step === index).map((e) => e.sha256);
       return { index, status, note, evidence: shas.length ? shas : undefined };
     }),
-    ...{ evidence, judgements: [llmJudgement(out.judgement)] },
+    ...{ evidence, judgements: [out.judgement, ...agentFail(out)].map(llmJudgement) },
   });
   const { decision } = (await cx.loadModel(p)).runs.get(run.id)!;
-  const { verdict, confidence, reason } = out.judgement;
-  const text = `Ran ${tc.data.key}: ${run.steps.map(step).join(', ')}; llm ${verdict} (${confidence}): ${reason}\nRecorded ${run.id}: ${decision.verdict} (rule ${decision.rule}: ${decision.reason})`;
+  const text = `Ran ${tc.data.key}: ${run.steps.map((r) => `step ${r.index} ${r.status}`).join(', ')}; llm ${out.judgement.verdict} (${out.judgement.confidence}): ${out.judgement.reason}\nRecorded ${run.id}: ${decision.verdict} (rule ${decision.rule}: ${decision.reason})`;
   return { data: { run, verdict: decision.verdict, rule: decision.rule }, text };
 }
 

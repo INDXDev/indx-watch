@@ -90,6 +90,22 @@ describe('iw run (fake browser and LLM)', () => {
     expect(blocked.data).toMatchObject({ verdict: 'blocked', run: { reported: 'blocked' } });
   });
 
+  it('a step the agent reported failed fails the run even when the judge says pass', async () => {
+    const failing = (i: AgentStepInput): AgentAction =>
+      i.step.index === 1 ? { type: 'step_done', status: 'fail', note: 'No product list' } : plan(i);
+    const llm = fakeLlmClient(() => ({ verdict: 'pass', confidence: 0.9 }), failing);
+    const browser = fakeBrowserProvider(pages);
+    const out = await runAgentCase(ctx(shop()), { tc: 'TC-10' }, async () => ({ browser, llm }));
+    expect(out.data).toMatchObject({ verdict: 'fail', rule: 4 });
+    const run = out.data.run as RunRecord;
+    expect(run.steps.map((s) => s.status)).toEqual(['fail', 'skipped']);
+    expect(run.judgements.map((j) => [j.verdict, j.confidence])).toEqual([
+      ['pass', 0.9],
+      ['fail', 1],
+    ]);
+    expect(run.judgements[1]!.reason).toBe('Step 1: No product list');
+  });
+
   it('refuses test cases that are not agent or hybrid, and Browser Run without credentials', async () => {
     const dir = shop();
     const r = iwJson(dir, 'run', ['run', 'TC-3']);
