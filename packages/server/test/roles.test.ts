@@ -209,5 +209,31 @@ describe('a customer sees only assigned plan items', () => {
     expect(info).toMatchObject({ role: 'customer', problems: [], share: { clone: null } });
     expect(info.can).toMatchObject({ run: true, review: false, approve: false, upload: false, share: false });
     expect(info.snapshot).toBeUndefined();
+    expect(info.environments.map((e) => [e.guide, e.access])).toEqual(
+      info.environments.map(() => [undefined, undefined]),
+    );
+    const fixtures = JSON.parse(await text('/api/fixtures')) as { key: string }[];
+    expect(fixtures.map((f) => f.key)).toEqual(['FX-3']);
+    expect((await h.send('customer', '/api/fixtures/FX-1')).status).toBe(404);
+  });
+
+  it("without other people's emails, notes, judgement reasons or CI links, as in customer reports", async () => {
+    const h = await hosted();
+    const note = { ...MANUAL('TC-8'), note: 'internal: flaky on staging', reason: 'checked by kim' };
+    expect((await h.sendJson('tester', '/api/runs', note)).status).toBe(201);
+    expect((await h.sendJson('customer', '/api/runs', MANUAL('TC-8'))).status).toBe(201);
+    const ids = ((await (await h.send('lead', '/api/runs?tc=TC-8')).json()) as { id: string }[]).map(
+      (r) => r.id,
+    );
+    const details = async (user: string) =>
+      (await Promise.all(ids.map(async (id) => (await h.send(user, `/api/runs/${id}`)).text()))).join();
+    expect(await details('viewer')).toContain('internal: flaky');
+    for (const path of ['/api/runs', '/api/test-cases/TC-8', ...ids.map((id) => `/api/runs/${id}`)]) {
+      // their own email and the FX-3 account they test with stay
+      const body = (await (await h.send('customer', path)).text()).replace(/(sam|casey)@shop\.test/g, '');
+      expect(body, path).not.toMatch(/@shop\.test|internal:|checked by/);
+    }
+    expect(await (await h.send('customer', '/api/runs?tc=TC-8')).text()).toContain('sam@shop.test');
+    expect(await (await h.send('viewer', '/api/runs?tc=TC-8')).text()).toContain('kim@shop.test');
   });
 });

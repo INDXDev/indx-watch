@@ -87,8 +87,9 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   app.get('/api/report', (c) => report(c, x));
 }
 
-async function projectInfo(c: Context, { deps, actor, sharer, grant }: Ctx) {
-  const [{ model: m, problems }, { role }] = [await deps.loadModel(), await grant(c)];
+async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ctx) {
+  // a customer's model has no environment guides or access methods (docs/spec/security.md#roles)
+  const [{ problems }, m, { role }] = [await deps.loadModel(), await model(c), await grant(c)];
   const [lead, customer] = [role === 'lead', role === 'customer'];
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
