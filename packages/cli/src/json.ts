@@ -181,12 +181,20 @@ export const CommandData = {
     archive: z.string(),
     manifest: z.object({ sha256: z.string(), files: z.number(), records: z.number(), blobs: z.number() }),
   }),
-  import: z.object({
-    archive: z.string(),
-    manifest: z.object({ sha256: z.string(), files: z.number(), records: z.number(), blobs: z.number() }),
-    dryRun: z.boolean(),
-    changes: z.array(z.string()),
-  }),
+  import: z.union([
+    z.object({
+      archive: z.string(),
+      manifest: z.object({ sha256: z.string(), files: z.number(), records: z.number(), blobs: z.number() }),
+      dryRun: z.boolean(),
+      changes: z.array(z.string()),
+    }),
+    /** iw import playwright-plan: one draft test case per planner scenario */
+    z.object({
+      plan: z.string(),
+      uc: z.string(),
+      created: z.array(z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() })),
+    }),
+  ]),
   deploy: z.object({
     resources: z.array(
       z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() }),
