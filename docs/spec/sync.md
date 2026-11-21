@@ -70,7 +70,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Field | |
 |---|---|
-| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction` (`file` is reserved for workspace mode) |
+| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction`, `share` (*v0.2*) (`file` is reserved for workspace mode) |
 | `id` | `{prefix}_{ULID}`, generated at creation (offline) |
 | `v` | `1` |
 | `project` | project machine ID |
@@ -119,6 +119,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment (`iw deployment add`). |
 | `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over the sorted lines `<path> <sha256>\n` of every definition file — excluding `cache/`, `runs/` and dot-files — to skip unchanged snapshots), `files` (count), `dirty` and `message` (*v0.2*, [snapshots from people](#snapshots-from-people-v02)) | A snapshot of definitions for hosted viewers in git mode. |
 | `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
+| `share` | `action` (`create`, `open`, `revoke`); `link` (the `create` record's ID, on `open` and `revoke`); on `create`: `token_sha256`, `expires_at`, `audience`, `locale`, `release`, `environment`, `plan`, `sha256` (blob: the frozen HTML report) | *v0.2*: a [report share link](reports.md#share-links) was created, opened or revoked. Written only by the hosted server; a retracted `create` record also ends its link. |
 | `file` | reserved | Workspace mode (v0.2). |
 
 ## Merge rules

@@ -6,7 +6,7 @@ import type { HostingConfig, SigningKey } from '@indx-watch/bundle';
 
 /** nodejs_compat is on by default from 2026-08-04; the flag is kept explicit (redundant flags are ignored). */
 export const COMPATIBILITY_DATE = '2026-11-01';
-export const WORKER_FIRST_ROUTES = ['/api/*', '/healthz', '/mcp', '/mcp/*'];
+export const WORKER_FIRST_ROUTES = ['/api/*', '/healthz', '/mcp', '/mcp/*', '/s/*'];
 /** Placeholder for a D1 database that does not exist yet (only ever written by --dry-run). */
 export const PENDING_ID = '<created by wrangler d1 create>';
 

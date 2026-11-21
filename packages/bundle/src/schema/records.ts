@@ -213,6 +213,27 @@ export const RetractionRecord = z.strictObject({
 });
 export type RetractionRecord = z.infer<typeof RetractionRecord>;
 
+/** A report share link was created, opened or revoked on the hosted app (v0.2, docs/spec/reports.md#share-links). */
+export const ShareRecord = z.strictObject({
+  kind: z.literal('share'),
+  id: idOf('rec'),
+  ...envelope,
+  action: z.enum(['create', 'open', 'revoke']),
+  /** the link's `create` record (open and revoke) */
+  link: idOf('rec').optional(),
+  /** create only: SHA-256 of the URL token, never the token */
+  token_sha256: Sha256.optional(),
+  expires_at: DateTime.optional(),
+  audience: z.enum(['internal', 'customer']).optional(),
+  locale: Locale.optional(),
+  release: z.string().optional(),
+  environment: z.string().optional(),
+  plan: z.string().optional(),
+  /** blob: the frozen HTML report */
+  sha256: Sha256.optional(),
+});
+export type ShareRecord = z.infer<typeof ShareRecord>;
+
 export const AnyRecord = z.discriminatedUnion('kind', [
   RunRecord,
   JudgementRecord,
@@ -221,6 +242,7 @@ export const AnyRecord = z.discriminatedUnion('kind', [
   BundleRecord,
   FileRecord,
   RetractionRecord,
+  ShareRecord,
 ]);
 export type AnyRecord = z.infer<typeof AnyRecord>;
 export type RecordKind = AnyRecord['kind'];

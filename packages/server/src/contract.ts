@@ -36,6 +36,11 @@ export const ROUTES = {
   storePut: 'PUT /api/store/objects/* (create-only: 412 when it exists; manifest, log objects, blobs)',
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
   mcp: 'POST /mcp (MCP over Streamable HTTP, stateless; docs/spec/agents.md#mcp-server)',
+  createShare:
+    'POST /api/shares?release=&env=&plan=&audience=&locale=&evidence=none|embed&days= (v0.2, hosted)',
+  shares: 'GET /api/shares',
+  revokeShare: 'DELETE /api/shares/:id',
+  openShare: 'GET /s/:token (no identity; the frozen HTML report of an active link, else 404)',
 } as const;
 
 /**
@@ -98,10 +103,31 @@ export interface ProjectInfo {
   problems: { severity: string; message: string; file?: string }[];
   /** source for `iw clone` (this hosted app, or the local `[store].url`) */
   share: { clone: string | null };
-  /** "Not you?" (iw_tester cookie) and uploads are possible on this server */
-  can: { declare: boolean; upload: boolean };
+  /** "Not you?" (iw_tester cookie), uploads and (v0.2) creating report share links are possible here */
+  can: { declare: boolean; upload: boolean; share: boolean };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+}
+
+/** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */
+export interface ShareLink {
+  id: string;
+  at: string;
+  actor: Actor;
+  audience: 'internal' | 'customer';
+  locale?: Locale;
+  release?: string;
+  environment?: string;
+  plan?: string;
+  expires_at: string;
+  state: 'active' | 'expired' | 'revoked';
+  opens: number;
+  revoked?: { at: string; actor: Actor };
+}
+/** POST /api/shares response (201): the URL is returned only here. */
+export interface ShareCreated {
+  link: ShareLink;
+  url: string;
 }
 
 /** GET /api/snapshots item: a bundle record (newest first). */

@@ -1417,6 +1417,166 @@
         "reason"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "share"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^rec_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "v": {
+          "type": "number",
+          "const": 1
+        },
+        "project": {
+          "type": "string",
+          "pattern": "^prj_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "ci",
+                "agent"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "via": {
+              "type": "string",
+              "enum": [
+                "git",
+                "github",
+                "github-oidc",
+                "cloudflare-access",
+                "env",
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
+              ]
+            },
+            "model": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "via"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "playwright",
+            "agent",
+            "cli",
+            "ci",
+            "import"
+          ]
+        },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "create",
+            "open",
+            "revoke"
+          ]
+        },
+        "link": {
+          "type": "string",
+          "pattern": "^rec_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "token_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "customer"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "ja"
+          ]
+        },
+        "release": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "v",
+        "project",
+        "at",
+        "actor",
+        "source",
+        "action"
+      ],
+      "additionalProperties": false
     }
   ],
   "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/record.json",

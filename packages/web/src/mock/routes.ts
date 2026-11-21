@@ -32,7 +32,7 @@ function decideByHuman(s: MockState, r: Run, verdict: Verdict) {
 }
 
 const project: Handler = () =>
-  json({ ...D.project, share: { clone: null }, can: { declare: true, upload: false } });
+  json({ ...D.project, share: { clone: null }, can: { declare: true, upload: false, share: false } });
 const testCase: Handler = (s, m) => (s.testCase(m[1]!) ? json(s.testCase(m[1]!)) : notFound(m[1]!));
 const fixture: Handler = (_s, m) => {
   const f = D.fixtures.find((x) => x.key === m[1]);

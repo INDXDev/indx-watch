@@ -18,6 +18,7 @@ import type {
   Project,
   Release,
   RunRecord,
+  ShareRecord,
   TestCase,
   UseCase,
   VerdictValue,
@@ -129,6 +130,8 @@ export interface Model {
   runs: Map<string, RunView>; // by run ID
   waivers: WaiverRecord[];
   deployments: DeploymentRecord[];
+  /** report share link events (create, open, revoke), docs/spec/reports.md#share-links */
+  shares: ShareRecord[];
   /** bundle snapshots, newest first (by commit_time, then at, then id) */
   snapshots: BundleRecord[];
   /**

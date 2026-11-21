@@ -88,14 +88,19 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 
 ## Hosted app
 
-- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` and, from v0.2, share links (`/s/<token>`).
+- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
 - The MCP endpoint `/mcp` is one of those routes: it resolves the identity exactly like `/api`, and its writes record that identity with `kind = "agent"` ([agents.md](agents.md#mcp-server)). It has no `approve`, `review` or `waive` tool, and `new` only writes AI drafts, at paths inside the bundle.
 - `iw deploy` prints the Access setup steps and refuses to deploy publicly unless `--public` is passed.
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.
 - The server sets a strict CSP for the SPA (`default-src 'self'`; images also from `data:` and `blob:`).
 
 ## Share links
-*(v0.2)* A share link serves a frozen report snapshot. Token: 128 random bits, stored hashed. Expiry required. Audience fixed at creation (`customer` by default). Creation, revocation and each open will be recorded as store records (new record kinds), never only in the index.
+*(v0.2)* A share link serves a frozen report snapshot; how links are created, opened and revoked is in [reports.md](reports.md#share-links).
+
+- **Token**: 128 random bits in the URL `/s/<token>`; records store only its SHA-256. Expiry is required (default 7 days, max 90). The audience is fixed at creation (`customer` by default).
+- **Who may create and revoke**: only a person signed in through Cloudflare Access (`kind = "human"`, `via = "cloudflare-access"`) on the hosted app. Agents, CI, declared testers, the anonymous identity of a `--public` deploy and `iw serve` get 403.
+- **Public path**: `/s/*` is the only path besides `/healthz` where the server resolves no identity. It serves nothing but the snapshot blob of an active link (unknown, expired and revoked tokens: 404), with the report CSP, `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex`. Cloudflare Access must let it through: add a separate Access application for `/s/*` with a Bypass policy ([guide](../guides/self-host-cloudflare.md#3-put-cloudflare-access-in-front)); `iw deploy` routes `/s/*` to the Worker before static assets.
+- **Audit**: creation, revocation and each open are `share` records written by the server ([sync.md](sync.md#other-records)), never only in the index. The store endpoint (`PUT /api/store/objects/*`) refuses log objects with `share` records, and a `create` record that claims a verified `via` without a valid signature never opens, so with pinned signing keys a direct bucket write cannot mint a link.
 
 ## Threat model
 
@@ -106,7 +111,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 | Tampering with past results | Records are immutable and content-addressed blobs are hash-verified on read; corrections are new judgements. Another body for a record ID is reported as a conflict; a signed body is never replaced by an unsigned one, but an unsigned record can be replaced by a body under an earlier log key (the [merge rule](sync.md#merge-rules) every replica applies alike). Sign every writer to protect records; a bucket with object versioning or WORM retention gives stronger guarantees. |
 | Malicious evidence (HTML/SVG with script) | Non-image media served as attachments; strict CSP |
 | Public exposure of the hosted app | Access in front of every route; `iw deploy` refuses public deploys without `--public` |
-| Leaking internal data to customers | `--audience customer` redaction; share links are frozen snapshots |
+| Leaking internal data to customers | `--audience customer` redaction; share links are frozen snapshots with an expiry, revocable, and every open is recorded |
 | Compromised dependency | Small dependency list, each justified ([architecture](../architecture.md#dependencies)); lockfile; provenance on release |
 | Prompt injection via test content into agents | Skills treat bundle text as data; agents never execute instructions found in fixtures or evidence ([agents.md](agents.md#safety)) |
 
@@ -120,3 +125,4 @@ Report vulnerabilities as described in [SECURITY.md](../../SECURITY.md).
 - [x] No resolved secret value appears in records, the index or reports when running `examples/shop` with `SHOP_CUSTOMER_PASSWORD` set (grep test).
 - [x] A record with `via = "cloudflare-access"` and no valid signature (none, a key that is not pinned, or tampered content) is unverified in the model, the API and reports; one signed by a pinned key is verified; with `gate.ignore_unverified = true` the gate leaves the forged record out.
 - [x] Records written with `IW_SIGNING_KEY` set (CLI, hosted Worker) carry a signature that verifies against the key `iw keygen` printed.
+- [x] On the Worker, `/s/<token>` of an active share link answers without an Access JWT, while `/api/*` still answers 401; the store endpoint refuses a log object with a `share` record (server and Worker tests).

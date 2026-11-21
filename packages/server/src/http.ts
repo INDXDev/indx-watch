@@ -1,6 +1,7 @@
 /**
  * HTTP errors and small helpers shared by app.ts and routes.ts (runtime-neutral); app.ts re-exports the public ones.
  */
+import type { Actor } from '@indx-watch/bundle';
 import { StoreError } from '@indx-watch/store';
 
 export const MAX_BLOB_BYTES = 25 * 1024 * 1024;
@@ -44,3 +45,7 @@ export const sniff = (b: Uint8Array) => {
   const hex = [...b.slice(0, 4)].map((x) => x.toString(16).padStart(2, '0')).join('');
   return MAGIC.find(([m]) => hex.startsWith(m))?.[1] ?? 'application/octet-stream';
 };
+
+/** Who may create and revoke report share links (docs/spec/security.md#share-links). */
+export const canShare = (d: { mode: string }, a: Actor) =>
+  d.mode === 'hosted' && a.kind === 'human' && a.via === 'cloudflare-access';

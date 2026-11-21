@@ -44,7 +44,17 @@ The HTML report is a single file with inline CSS, no JavaScript required, readab
 
 - `--audience customer` removes: bundle `notes`, run and step notes, judgement reasons, environment guides, base URLs and access methods, actor emails (replaced by display names or "QA team"), CI URLs, and anything under `[x]`. Fixture placeholders stay unresolved (`{{FX-3.username}}`). Evidence defaults to `none` (opt in with `--evidence embed`). *(v0.2: `--include-notes` and `--include-ci-links` to keep notes and CI links.)*
 - Account fixtures never appear in reports, in any audience; only their key and title.
-- On the hosted app, a report can be shared via a **share link**: an unguessable token (128 bits), an expiry (default 7 days, max 90), and a fixed audience. Share links serve a frozen snapshot rendered at creation time, not live data. Creating and opening share links are recorded as records with the actor. Share-link routes are the only routes that bypass Cloudflare Access; see [security.md](security.md#share-links). *(v0.2)*
+- On the hosted app, a report can be shared via a **share link**: an unguessable token (128 bits), an expiry (default 7 days, max 90), and a fixed audience. Share links serve a frozen snapshot rendered at creation time, not live data. Creating and opening share links are recorded as records with the actor. Share-link routes are the only routes that bypass Cloudflare Access; see [Share links](#share-links) and [security.md](security.md#share-links). *(v0.2)*
+
+### Share links
+
+*(v0.2)* The share action lives on the web app's Report screen ([web.md](web.md#report)); the API is part of [`contract.ts`](../../packages/server/src/contract.ts).
+
+- **Create**: `POST /api/shares` with the query of `GET /api/report` (`release`, `env`, `plan`, `audience`, `locale`, `evidence`) plus `days` (1–90, default 7). The server renders the HTML report once and stores it as a blob; the link serves those bytes, so later results never change it. The audience defaults to `customer`. Evidence defaults to `none` for customers and `embed` for internal reports; `links` is refused, because evidence links point at routes behind Access. The response (`ShareCreated`) holds the URL `<origin>/s/<token>`: the token is 128 random bits (32 hex characters) and only its SHA-256 is stored, so the URL is shown once.
+- **Who**: a person signed in through Cloudflare Access (`actor.kind = "human"`, `via = "cloudflare-access"`) on the hosted app. Agents, CI service tokens, declared testers (`via = "browser"`) and the anonymous identity of a `--public` deploy get 403, and so does `iw serve`. Roles (T-301) will narrow this further.
+- **Open**: `GET /s/<token>` needs no identity. It answers with the snapshot, the report CSP, `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex`. An unknown, expired or revoked token answers 404 with nothing recorded.
+- **Revoke**: `DELETE /api/shares/<id>` (the same people as create) ends a link at once. `GET /api/shares` lists every link, newest first, with its scope, audience, expiry, state (`active`, `expired`, `revoked`) and number of opens; never the token.
+- **Audit**: creating, each open and revoking write one `share` record each ([sync.md](sync.md#other-records)), with the actor (opens: `{ "kind": "human", "id": "anonymous", "via": "env" }`). Links are read from these records, never only from the index, so a replica or an archive keeps the full history.
 
 ## Example
 
@@ -56,3 +66,5 @@ For `examples/shop` with the sample results in `examples/shop/store/`, `IW_NOW=2
 - [x] `--audience customer` output contains no email addresses and no `notes` text from the bundle (tested on `examples/shop`).
 - [x] The Markdown report for `examples/shop`, generated with the fixed `IW_NOW` and `IW_ACTOR`, matches the committed example byte-for-byte.
 - [x] The gate section of the report equals the `gate` object of `iw status --json` for the same scope.
+- [x] A share link serves its frozen snapshot without an identity, unchanged by later results; after its expiry or revocation it answers 404 (server and Worker tests).
+- [x] Creating, opening and revoking a share link each write a `share` record with the actor; only a person signed in through Cloudflare Access on the hosted app can create or revoke one (server test).

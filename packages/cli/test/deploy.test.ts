@@ -116,7 +116,7 @@ describe('planDeploy', () => {
         directory: '../web',
         binding: 'ASSETS',
         not_found_handling: 'single-page-application',
-        run_worker_first: ['/api/*', '/healthz', '/mcp', '/mcp/*'],
+        run_worker_first: ['/api/*', '/healthz', '/mcp', '/mcp/*', '/s/*'],
       },
       r2_buckets: [{ binding: 'STORE', bucket_name: 'b' }],
       d1_databases: [{ binding: 'DB', database_name: 'd', database_id: UUID }],

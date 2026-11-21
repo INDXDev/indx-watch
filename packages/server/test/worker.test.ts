@@ -231,6 +231,31 @@ describe('worker: access and snapshots', () => {
     expect((await call(full, '/healthz')).status).toBe(200);
   });
 
+  it('serves an active share link without an Access JWT and records the open; /api still needs one', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ keys: [] }));
+    const html = new TextEncoder().encode('<!doctype html><title>frozen</title>');
+    const [token, sha] = ['0123456789abcdef0123456789abcdef', await sha256Hex(html)];
+    const b = await shop();
+    const link = newId('rec');
+    const create = {
+      ...{ kind: 'share', id: link, v: 1, project: b.project.data.id, at: '2026-11-18T00:00:00Z' },
+      ...{ actor: { kind: 'human', id: 'kim@shop.test', via: 'cloudflare-access' }, source: 'manual' },
+      ...{ action: 'create', token_sha256: await sha256Hex(token), expires_at: '2999-01-01T00:00:00Z' },
+      ...{ audience: 'customer', sha256: sha },
+    } as AnyRecord;
+    const { r2, store } = await bucket([create]);
+    await store.putBlob(sha, html, 'text/html');
+    const { PUBLIC: _, ...hosted } = publicEnv(r2);
+    const env = { ...hosted, ACCESS_TEAM: 'shop', ACCESS_AUD: 'aud' };
+    const res = await call(env, `/s/${token}`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('frozen');
+    expect((await call(env, '/s/ffffffffffffffffffffffffffffffff')).status).toBe(404);
+    expect((await call(env, '/api/shares')).status).toBe(401);
+    const opened = (await store.readLog((await store.listLog({})).keys.at(-1)!)).records[0];
+    expect(opened).toMatchObject({ kind: 'share', action: 'open', link, actor: { id: 'anonymous' } });
+  });
+
   it('publishes a browser upload as a snapshot, also into an empty bucket', async () => {
     const files = await definitionFiles(nodeFs(SHOP));
     const tc3 = [...files.keys()].find((k) => k.endsWith('/TC-3-valid-coupon.toml'))!;
