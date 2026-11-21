@@ -40,6 +40,7 @@ const KINDS = new Set([
   'file',
   'retraction',
   'baseline',
+  'share',
 ]);
 const keyNum = (k: string) => Number(/(\d+)(?:\.(\d+))?$/.exec(k)?.[1] ?? 0);
 /** Sorts keys by their trailing number (`UC-2` before `UC-10`), then as strings. */
@@ -290,6 +291,7 @@ export function buildModel(
     deployments: live(set, 'deployment') as DeploymentRecord[],
     // only a person can approve a baseline (docs/spec/concepts.md#visual-baselines)
     baselines: (live(set, 'baseline') as BaselineRecord[]).filter((r) => r.actor.kind === 'human'),
+    shares: live(set, 'share'),
     snapshots: (live(set, 'bundle') as BundleRecord[]).sort((a, b) => (snapOrder(a) < snapOrder(b) ? 1 : -1)),
     keyOf: keyResolver(p.key, index.ids, runs),
   };

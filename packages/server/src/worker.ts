@@ -239,9 +239,10 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   const deps: ServerDeps = {
     mode: 'hosted',
     loadModel,
+    // read on each write: a malformed key fails the write, not every request (reads, /healthz, catch-up)
+    signRecord: (record) => recordSigner(env.IW_SIGNING_KEY)(record),
     writeRecord: async (record) => {
-      // read on each write: a malformed key fails the write, not every request (reads, /healthz, catch-up)
-      const signed = await recordSigner(env.IW_SIGNING_KEY)(record);
+      const signed = await deps.signRecord!(record);
       const [key] = await store.appendLog('hosted', [signed]);
       await ingest([signed], key);
     },

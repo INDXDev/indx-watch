@@ -87,7 +87,7 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   app.get('/api/report', (c) => report(c, x));
 }
 
-async function projectInfo(c: Context, { deps, actor }: Ctx) {
+async function projectInfo(c: Context, { deps, actor, sharer }: Ctx) {
   const { model: m, problems } = await deps.loadModel();
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
@@ -99,14 +99,15 @@ async function projectInfo(c: Context, { deps, actor }: Ctx) {
     return { version, title, state, i18n };
   };
   const clone = deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null);
+  const who = await actor(c);
   const info: ProjectInfo = {
     project: { key, name, source_locale, locales, default_environment, current_release },
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
-    ...{ identity: await actor(c), mode: deps.mode, problems },
+    ...{ identity: who, mode: deps.mode, problems },
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone },
-    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle },
+    can: { declare: !!deps.declaredIdentity, upload: !!deps.publishBundle, share: sharer(who) },
     snapshot: m.snapshots[0] && V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);
@@ -139,16 +140,18 @@ async function blob(c: Context, { deps, uploads }: Ctx) {
   return new Response(data as Uint8Array<ArrayBuffer>, { headers });
 }
 
-/** Validated `?format=&audience=&locale=&evidence=` of a report. */
-function reportOptions(c: Context, m: Model) {
-  const format = q(c, 'format') ?? 'md';
-  const audience = q(c, 'audience') ?? 'internal';
+/** Validated `?format=&audience=&locale=&evidence=` of a report (`format` fixed for share links). */
+function reportOptions(c: Context, m: Model, fixed?: 'html') {
+  const format = fixed ?? q(c, 'format') ?? 'md';
+  const audience = q(c, 'audience') ?? (fixed ? 'customer' : 'internal');
   const locale = q(c, 'locale') ?? m.project.source_locale;
   if (format !== 'md' && format !== 'html') throw bad('format must be md or html');
   if (audience !== 'internal' && audience !== 'customer') throw bad('audience: internal or customer');
   if (locale !== 'en' && locale !== 'ja') throw bad('locale must be en or ja');
-  const fallback = audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links';
-  return { format, audience, locale, evidence: (q(c, 'evidence') ?? fallback) as 'none' } as const;
+  const evidence =
+    q(c, 'evidence') ?? (audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links');
+  if (fixed && evidence === 'links') throw bad('share links embed evidence or leave it out');
+  return { format, audience, locale, evidence: evidence as 'none' } as const;
 }
 
 type ReportOf = { scope: Scope; audience: 'internal' | 'customer'; locale: B.Locale; plan?: string };
@@ -162,15 +165,28 @@ export async function reportOf({ deps }: Ctx, m: Model, a: B.Actor, o: ReportOf)
   });
 }
 
-async function report(c: Context, x: Ctx) {
+/** The report a request asks for, rendered (GET /api/report; POST /api/shares fixes `html`). */
+export async function reportFor(c: Context, x: Ctx, fixed?: 'html') {
   const [m, a, plan] = [await x.model(), await x.actor(c), q(c, 'plan')];
-  const { format, audience, locale, evidence } = reportOptions(c, m);
+  const { format, audience, locale, evidence } = reportOptions(c, m, fixed);
   const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
   const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
   const data = await reportOf(x, m, a, { scope, audience, locale, plan });
   const text = await renderReport(data, { format, locale, evidence, getBlob: x.deps.getBlob });
-  const html = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP_REPORT };
-  return c.body(text, 200, format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : html);
+  return { m, format, audience, locale, plan, scope, text };
+}
+
+export const HTML_REPORT = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Content-Security-Policy': CSP_REPORT,
+};
+async function report(c: Context, x: Ctx) {
+  const { format, text } = await reportFor(c, x);
+  return c.body(
+    text,
+    200,
+    format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : HTML_REPORT,
+  );
 }
 
 // ---------- writes ----------
@@ -399,6 +415,7 @@ async function checkLog(key: string, data: Uint8Array, project: string | undefin
     const r = checkRecord(raw);
     if ('error' in r) throw bad(`${key}: ${r.error}`);
     if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
+    if (r.record.kind === 'share') throw bad(`${r.record.id}: share records are written by the server only`);
   }
 }
 

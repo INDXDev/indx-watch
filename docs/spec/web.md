@@ -97,6 +97,17 @@ The Focus **runner** turns a series of tests into a session. After you save a re
 | `⌘V` / `Ctrl+V` | Paste a screenshot into the step |
 | `→` / `←` | Next or previous test, when no field has focus |
 
+### Report
+
+Home's **Share report** opens `#/report`: a preview of the server-rendered HTML report with the audience (customer by default), the language and the plan (or the whole release), plus "Open HTML" and "Download Markdown".
+
+*(v0.2)* On the hosted app, a person signed in through Cloudflare Access (`can.share` in `GET /api/project`) also sees **Share links** below the preview ([reports.md](reports.md#share-links)):
+
+- **Create link** with an expiry of 7, 30 or 90 days freezes the report exactly as previewed (same audience, language and plan) and shows its URL once, with a copy button and a note that it cannot be shown again.
+- A table of the existing links, newest first: created (who, when), audience, release or plan, expiry, state (active, expired, revoked) and opens. Active links have **Revoke**, which asks for confirmation.
+
+Elsewhere the section is not shown.
+
 ## Identity
 
 Every record carries an `actor` ([security](security.md#identity)). The app shows that actor everywhere a result appears: an avatar (initials, with a color derived from the ID), the name, and a small "verified" mark for identities that come from Cloudflare Access, a trusted proxy header or GitHub OIDC.
@@ -176,4 +187,5 @@ You can upload definitions in three ways:
 - [x] A run that claims `via = "github"` without a valid signature comes from the API with `unverified: true` and is shown with the "unverified" chip instead of ✓ (server and Worker tests; the chip itself is not tested automatically).
 - [x] `POST /api/runs/<run>/baselines` by a human writes a `baseline` record, after which the run detail lists that screenshot in `baselines`; an agent gets 403 and a non-PNG or unknown blob 400 (server test; the button itself is not tested automatically).
 - [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).
+- [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).

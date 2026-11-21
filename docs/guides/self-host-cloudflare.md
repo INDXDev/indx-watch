@@ -64,7 +64,7 @@ It also writes the generated Wrangler configuration to `.indx-watch/cache/deploy
 | Setting               | Value                                                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `main`                | The Worker bundle shipped in the `indx-watch` package                                                                                             |
-| `assets`              | The web UI build, binding `ASSETS`, `not_found_handling: "single-page-application"`, `run_worker_first: ["/api/*", "/healthz", "/mcp", "/mcp/*"]` |
+| `assets`              | The web UI build, binding `ASSETS`, `not_found_handling: "single-page-application"`, `run_worker_first: ["/api/*", "/healthz", "/mcp", "/mcp/*", "/s/*"]` |
 | `r2_buckets`          | Binding `STORE` → `r2_bucket`                                                                                                                     |
 | `d1_databases`        | Binding `DB` → `d1_database` (with its ID)                                                                                                        |
 | `vars`                | `ACCESS_TEAM`, `ACCESS_AUD`, `SIGNING_KEYS` and `OIDC_REPOSITORIES` when configured (and `PUBLIC = "true"` only with `--public`)               |
@@ -103,7 +103,7 @@ INDX Watch has no login of its own. The Worker checks the `Cf-Access-Jwt-Asserti
    Cloudflare Access: team example.cloudflareaccess.com, audience set. Requests without a valid Access token get 401.
    ```
 
-The Worker lets only `/healthz` through without a valid token. Access itself still covers `/healthz`; to monitor it from outside, add a separate Access application for that path with a Bypass policy.
+The Worker lets only `/healthz` and report share links (`/s/<token>`) through without a valid token. Access itself still covers both; to monitor `/healthz` from outside, add a separate Access application for that path with a Bypass policy. To let customers open [share links](../spec/reports.md#share-links), add one more Access application for the path `/s/*` with a Bypass policy: the Worker serves only frozen report snapshots of active links there. If `project.toml` pins `[[signing_keys]]`, set the `IW_SIGNING_KEY` secret too (a pinned key whose `via` allows `cloudflare-access`): share links only count signed records there, and creating one answers 503 without it.
 
 ### Policies
 

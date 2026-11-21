@@ -19,6 +19,7 @@ import type {
   Project,
   Release,
   RunRecord,
+  ShareRecord,
   TestCase,
   UseCase,
   VerdictValue,
@@ -132,6 +133,8 @@ export interface Model {
   deployments: DeploymentRecord[];
   /** baseline records by humans (docs/spec/concepts.md#visual-baselines) */
   baselines: BaselineRecord[];
+  /** report share link events (create, open, revoke), docs/spec/reports.md#share-links */
+  shares: ShareRecord[];
   /** bundle snapshots, newest first (by commit_time, then at, then id) */
   snapshots: BundleRecord[];
   /**

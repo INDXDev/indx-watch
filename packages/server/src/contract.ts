@@ -38,6 +38,11 @@ export const ROUTES = {
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
   sign: 'POST /api/sign (Authorization: Bearer <GitHub OIDC token>; { records } → { records } signed; docs/spec/security.md#github-oidc)',
   mcp: 'POST /mcp (MCP over Streamable HTTP, stateless; docs/spec/agents.md#mcp-server)',
+  createShare:
+    'POST /api/shares?release=&env=&plan=&audience=&locale=&evidence=none|embed&days= (v0.2, hosted)',
+  shares: 'GET /api/shares',
+  revokeShare: 'DELETE /api/shares/:id',
+  openShare: 'GET /s/:token (no identity; the frozen HTML report of an active link, else 404)',
 } as const;
 
 /**
@@ -100,10 +105,31 @@ export interface ProjectInfo {
   problems: { severity: string; message: string; file?: string }[];
   /** source for `iw clone` (this hosted app, or the local `[store].url`) */
   share: { clone: string | null };
-  /** "Not you?" (iw_tester cookie) and uploads are possible on this server */
-  can: { declare: boolean; upload: boolean };
+  /** "Not you?" (iw_tester cookie), uploads and (v0.2) creating report share links are possible here */
+  can: { declare: boolean; upload: boolean; share: boolean };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+}
+
+/** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */
+export interface ShareLink {
+  id: string;
+  at: string;
+  actor: Actor;
+  audience: 'internal' | 'customer';
+  locale?: Locale;
+  release?: string;
+  environment?: string;
+  plan?: string;
+  expires_at: string;
+  state: 'active' | 'expired' | 'revoked';
+  opens: number;
+  revoked?: { at: string; actor: Actor };
+}
+/** POST /api/shares response (201): the URL is returned only here. */
+export interface ShareCreated {
+  link: ShareLink;
+  url: string;
 }
 
 /** GET /api/snapshots item: a bundle record (newest first). */
@@ -262,6 +288,8 @@ export interface AppDeps {
   loadModel(): Promise<{ model: Model; problems: ProjectInfo['problems'] }>;
   /** append a record (local replica on Node; store + index on Workers) */
   writeRecord(record: import('@indx-watch/bundle').AnyRecord): Promise<void>;
+  /** the signer writeRecord applies, so share links can refuse a record that would not verify (hosted) */
+  signRecord?<R extends import('@indx-watch/bundle').AnyRecord>(record: R): Promise<R>;
   putBlob(data: Uint8Array, contentType: string): Promise<string>;
   getBlob(sha256: string): Promise<Uint8Array | null>;
   identity: IdentityProvider;

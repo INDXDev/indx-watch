@@ -78,7 +78,7 @@ export function blobRefs(record: AnyRecord): string[] {
     for (const e of record.evidence ?? []) out.add(e.sha256);
     for (const s of record.steps ?? []) for (const h of s.evidence ?? []) out.add(h);
   } else if (record.kind === 'bundle' || record.kind === 'baseline') out.add(record.sha256);
-  else if (record.kind === 'file' && record.sha256) out.add(record.sha256);
+  else if ((record.kind === 'file' || record.kind === 'share') && record.sha256) out.add(record.sha256);
   return [...out];
 }
 

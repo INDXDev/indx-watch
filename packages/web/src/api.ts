@@ -11,6 +11,8 @@ import type {
   ReviewInput,
   RunDetail,
   RunSummary,
+  ShareCreated,
+  ShareLink,
   SnapshotSummary,
   SpecTree,
   StatusResult,
@@ -25,6 +27,7 @@ export type {
   ProjectInfo,
   RunDetail,
   RunSummary,
+  ShareLink,
   SnapshotSummary,
   SpecTree,
   StatusResult,
@@ -145,6 +148,16 @@ export const api = {
     }),
   report: (q: ReportQuery) => call<string>(reportPath(q), undefined, 'text'),
   snapshots: () => call<SnapshotSummary[]>('api/snapshots'),
+  shares: () => call<ShareLink[]>('api/shares'),
+  createShare: (q: ReportQuery, days: number) =>
+    call<ShareCreated>(
+      `api/shares${query({ ...scopeQ(q), plan: q.plan, audience: q.audience, locale: q.locale, days })}`,
+      {
+        method: 'POST',
+        headers: WRITE,
+      },
+    ),
+  revokeShare: (id: string) => call<ShareLink>(`api/shares/${id}`, { method: 'DELETE', headers: WRITE }),
   /** 422 still carries the preview (check errors): return it instead of throwing */
   uploadBundle: (input: UploadInput) =>
     post<UploadResult>('api/bundle', input).catch((e: unknown) => {
