@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Agent execution mode: `iw run <TC>` lets Claude follow an `agent` test case's steps in a browser (actions chosen from Playwright's accessibility snapshot) and records the run with a note and a screenshot per step and one `llm` judgement. A step the agent reports failed fails the run, and the agent can navigate only within the base URL's origin. `--browser local` uses the project's Playwright (imported only when a run starts); `--browser cloudflare` uses Cloudflare Browser Run over CDP. `examples/shop` gains the agent test case TC-10 (T-201).
 - Workspace mode for teams without git (`[store] mode = "workspace"`): `iw sync` publishes changed definition files as `file` records (canonical TOML blobs, versions keyed by record ID) and writes the store's current definitions into the working tree; concurrent edits merge field by field, and edits of one field on both sides leave a `<name>.conflict-<sha8>.toml` file that fails `iw check` until resolved. `iw sync` refuses while git tracks the bundle, and an agent's changes are published only as AI drafts. The hosted app serves definitions from the `file` records and edits a test case's title, priority and steps (`PATCH /api/test-cases/:key`) as `file` records of the signed-in person; uploads are refused in workspace mode (T-209).
 
+### Fixed
+
+- `iw run --browser local` loads Playwright from the project (the current directory) before the copy next to the CLI, so `npx indx-watch run` finds the project's `playwright` (T-201).
+
 ## [0.1.0] - 2026-11-21
 
 ### Added
