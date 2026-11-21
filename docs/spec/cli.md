@@ -401,6 +401,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 | `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](security.md#signed-records)) |
+| `IW_OIDC_SIGNER` | writes, reporter (GitHub Actions) | Hosted server URL: with `id-token: write` and no `IW_SIGNING_KEY` or `IW_ACTOR`, record `via = "github-oidc"` and sign through the server ([GitHub OIDC](security.md#github-oidc)) |
 | `IW_LLM_MODEL` | judge | Model for `iw judge` (default `claude-opus-5-5`) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` | judge | Anthropic credential and optional gateway URL |
 

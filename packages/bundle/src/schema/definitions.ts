@@ -104,6 +104,8 @@ export const HostingConfig = z.strictObject({
   access_team: z.string().optional(),
   access_aud: z.string().optional(),
   branch: z.string().optional(),
+  /** GitHub repositories (owner/name or repository ID) whose OIDC tokens the Worker signs for (docs/spec/security.md#github-oidc) */
+  oidc_repositories: z.array(z.string().min(1)).optional(),
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 

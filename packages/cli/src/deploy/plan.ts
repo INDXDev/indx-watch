@@ -77,6 +77,7 @@ export function planDeploy(hosting: HostingConfig, existing: Existing, opts: Pla
   if (hosting.access_aud) vars.ACCESS_AUD = hosting.access_aud;
   if (opts.public) vars.PUBLIC = 'true';
   if (opts.signingKeys?.length) vars.SIGNING_KEYS = JSON.stringify(opts.signingKeys);
+  if (hosting.oidc_repositories?.length) vars.OIDC_REPOSITORIES = JSON.stringify(hosting.oidc_repositories);
 
   const steps: string[][] = [];
   if (!hasBucket) steps.push(['r2', 'bucket', 'create', bucket]);
