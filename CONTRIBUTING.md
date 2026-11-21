@@ -68,4 +68,4 @@ See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 ## Releasing (maintainers)
 
 1. Update the version in `packages/cli/package.json` and move the "Unreleased" entries in [CHANGELOG.md](CHANGELOG.md) under the new version, dated with the publish day. If that version already has an entry (0.1.0 does), add the entries to it and update its date.
-2. Push a tag `vX.Y.Z`. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `pnpm verify`, packs the package, publishes it to npm with provenance (secret `NPM_TOKEN`) and creates a GitHub release whose notes are generated from merged PRs (`--generate-notes`), not from CHANGELOG.md. Run it manually with `dry-run` to only build and pack.
+2. Push a tag `vX.Y.Z` (or create it by publishing a release on GitHub's release page; the workflow then attaches the tarball to that release). [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `pnpm verify`, packs the package, publishes it to npm with provenance (secret `NPM_TOKEN`) and creates a GitHub release whose notes are generated from merged PRs (`--generate-notes`), not from CHANGELOG.md. Run it manually with `dry-run` to only build and pack.
