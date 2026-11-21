@@ -59,7 +59,11 @@ export async function editTestCase(c: Context, x: Ctx) {
       'conflict',
       'no workspace in this store yet: run `iw sync` in a working copy first',
     );
-  const current = (await x.deps.bundleFiles?.())?.get(t.file) ?? fail(notFound(t.file));
+  const files = (await x.deps.bundleFiles?.()) ?? new Map<string, Uint8Array>();
+  // saving on top of a conflict would silently drop the other value: it is resolved in a working copy
+  if ([...files.keys()].some((p) => B.CONFLICT_FILE.test(p) && p.replace(B.CONFLICT_FILE, '$1') === t.file))
+    throw new HttpError(409, 'conflict', `${t.file} has a conflict: resolve it in a working copy first`);
+  const current = files.get(t.file) ?? fail(notFound(t.file));
   const [who, at] = [await x.actor(c), x.now()];
   const edited = applyEdit(B.parseToml(dec.decode(current)), input);
   const parsed = B.TestCase.safeParse(who.kind === 'agent' ? asDraft(edited, who, at) : edited);

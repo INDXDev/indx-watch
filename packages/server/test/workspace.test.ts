@@ -123,7 +123,7 @@ describe('workspace mode: local editing', () => {
       records: async () => [],
       writeFile: async (p: string, d: Uint8Array) => void wrote.set(p, d),
     });
-    return { ...a, wrote };
+    return { ...a, files, wrote };
   };
   const patch = (body: unknown) => req('/api/test-cases/TC-3', { method: 'PATCH', json: body });
 
@@ -143,6 +143,15 @@ describe('workspace mode: local editing', () => {
     });
     expect(saved.approved_by).toBeUndefined();
     expect(await sha256Hex(a.wrote.get(TC3)!)).toBe(record.sha256);
+  });
+
+  it('refuses edits while the test case has a conflict file', async () => {
+    const a = await local(true);
+    a.files.set(TC3.replace('.toml', '.conflict-1a2b3c4d.toml'), a.files.get(TC3)!);
+    const res = await a.app.fetch(patch({ priority: 'P1' }));
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain('resolve it in a working copy');
+    expect(a.written).toEqual([]);
   });
 
   it('refuses edits in git mode', async () => {

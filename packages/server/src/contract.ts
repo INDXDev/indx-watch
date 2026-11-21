@@ -250,7 +250,6 @@ export interface BaselineInput {
   sha256: string;
 }
 
-/** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */
 /** PATCH /api/test-cases/:key body (v0.2, workspace mode): only the fields that changed; `priority: null` removes it. */
 export interface TestCaseEdit {
   title?: string;
@@ -258,6 +257,7 @@ export interface TestCaseEdit {
   steps?: { instruction: string; expected: string }[];
 }
 
+/** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */
 export interface ManualRunInput {
   test_case: string; // key
   release?: string;

@@ -2,6 +2,7 @@
  * Node entry used by `iw serve`: the web UI, the API over a bundle directory and its replica, and background sync.
  * CONTRACT: signatures frozen; implementation T-107.
  */
+import { spawnSync } from 'node:child_process';
 import { watch as fsWatch } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
@@ -199,7 +200,8 @@ async function startSync(l: Local, m0: Model, enabled: boolean, invalidate: () =
     // workspace mode: each sync also publishes and applies definition files (docs/spec/sync.md#workspace-mode-v02)
     const actor = () => SN.processIdentity({ cwd: l.dir }).current();
     const sign = <R extends AnyRecord>(r: R) => recordSigner(process.env.IW_SIGNING_KEY)(r);
-    const workspace = cfg.mode === 'workspace' ? { fs: l.fs, actor: await actor(), sign } : undefined;
+    const workspace =
+      cfg.mode === 'workspace' ? { fs: l.fs, actor: await actor(), sign, guard: gitGuard(l.dir) } : undefined;
     const o = { replica: l.replica, store, state, projectId: project.id, keys, writer, evidence, extraBlobs };
     return enabled ? syncWatch({ ...o, workspace, ...syncReporter(l.sync, invalidate) }) : undefined;
   } catch (e) {
@@ -207,6 +209,14 @@ async function startSync(l: Local, m0: Model, enabled: boolean, invalidate: () =
     return undefined;
   }
 }
+
+/** Workspace mode refuses to sync while git tracks files of the bundle (docs/spec/sync.md#workspace-mode-v02). */
+const gitGuard = (cwd: string) => () => {
+  if (spawnSync('git', ['ls-files', '--', '.'], { cwd, encoding: 'utf8' }).stdout?.trim())
+    throw new Error(
+      'workspace mode, but git tracks this bundle: set [store] mode = "git" or git rm -r --cached it',
+    );
+};
 
 /** Sync callbacks that keep the sync info of /api/project current. */
 function syncReporter(sync: ProjectInfo['sync'], invalidate: () => void) {
