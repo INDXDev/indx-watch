@@ -7,6 +7,6 @@ description = "Recording runs manually, from Playwright, and syncing them."
 
 [i18n.ja]
 title = "結果"
-description = "手動、Playwright からの結果の記録と同期。"
+description = "手動実行と Playwright からの結果の記録、およびその同期。"
 status = "machine"
 source_hash = "e4436246cdc9"

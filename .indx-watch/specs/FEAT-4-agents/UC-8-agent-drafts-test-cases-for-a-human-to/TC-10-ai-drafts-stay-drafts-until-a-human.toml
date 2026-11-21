@@ -24,7 +24,7 @@ expected = "The agent attempt exits 2; the human approval sets status \"ready\" 
 
 [steps.i18n.ja]
 instruction = "IW_ACTOR_KIND=agent で「iw approve」を実行し、次に人として実行する。"
-expected = "エージェントの試みは 2 で終わり、人の承認で status が「ready」になり approved_by が設定される。"
+expected = "エージェントとしての実行は終了コード 2 で終わり、人の承認で status が「ready」になり approved_by が設定される。"
 status = "machine"
 source_hash = "26af160ae50a"
 

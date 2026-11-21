@@ -24,7 +24,7 @@ expected = "The command exits 1 because P0 test cases are untested."
 
 [steps.i18n.ja]
 instruction = "「iw status --release v1.2.0 --gate」を実行する。"
-expected = "P0 のテストケースが未実施なので、コマンドは 1 で終わる。"
+expected = "P0 のテストケースが未実施なので、コマンドは終了コード 1 で終わる。"
 status = "machine"
 source_hash = "deced2d2bf2b"
 
