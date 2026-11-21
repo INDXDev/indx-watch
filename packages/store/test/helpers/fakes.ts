@@ -80,11 +80,13 @@ export function fakeD1() {
 
 /**
  * The Cloudflare API's reusable Access policy `acc/pol` (docs/spec/security.md#customer-uat): `fetch` answers GET and
- * PUT of it for the token `cf-token` (anything else: undefined, so a test can route other URLs); `requests` logs calls.
+ * PUT of it for the token `cf-token` (anything else: undefined, so a test can route other URLs); `requests` logs calls;
+ * the first `lostPuts` PUTs are lost, as if a concurrent PUT had overwritten them.
  */
-export function fakeAccessApi(base = 'https://api.cloudflare.com/client/v4') {
+export function fakeAccessApi(base = 'https://api.cloudflare.com/client/v4', o = { lostPuts: 0 }) {
   let policy: Record<string, unknown> = {
     ...{ id: 'pol', name: 'UAT customers', decision: 'allow', session_duration: '24h', created_at: 'x' },
+    ...{ approval_required: true, purpose_justification_required: true, app_count: 1, reusable: true },
     ...{ include: [{ email: { email: 'placeholder@shop.test' } }], exclude: [], require: [] },
   };
   const requests: { method: string; body?: Record<string, unknown> }[] = [];
@@ -97,7 +99,8 @@ export function fakeAccessApi(base = 'https://api.cloudflare.com/client/v4') {
     requests.push({ method, body });
     if (new Headers(init.headers).get('authorization') !== 'Bearer cf-token')
       return Response.json({ success: false, errors: [{ message: 'auth' }] }, { status: 403 });
-    if (method === 'PUT') policy = { ...body, id: 'pol' };
+    // a lost PUT stands for a concurrent writer's PUT that overwrote ours
+    if (method === 'PUT' && o.lostPuts-- <= 0) policy = { ...body, id: 'pol', app_count: 1, reusable: true };
     return Response.json({ success: true, result: policy });
   };
   return { fetch, requests, emails };

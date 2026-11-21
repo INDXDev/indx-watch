@@ -8,16 +8,17 @@ const ENV = { IW_ACCESS_POLICY: 'acc/pol', CLOUDFLARE_API_TOKEN: 'cf-token' };
 describe('cloudflareAccessPolicy', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('adds and removes an email in include with GET then PUT, keeping the other rules and fields', async () => {
+  it('adds and removes an email in include with GET, PUT, GET, keeping every writable field', async () => {
     const api = fakeAccessApi();
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => (await api.fetch(url, init)) ?? fail());
     const policy = cloudflareAccessPolicy(ENV)!;
     expect(await policy.allow('pat@client.test')).toBe(true);
     expect(api.emails()).toEqual(['placeholder@shop.test', 'pat@client.test']);
-    const put = api.requests.at(-1)!;
-    expect(put.method).toBe('PUT');
-    expect(Object.keys(put.body!).sort()).toEqual(
-      ['decision', 'exclude', 'include', 'name', 'require', 'session_duration'].sort(),
+    expect(api.requests.map((r) => r.method)).toEqual(['GET', 'PUT', 'GET']);
+    expect(Object.keys(api.requests[1]!.body!).sort()).toEqual(
+      ['approval_required', 'decision', 'exclude', 'include', 'name', 'purpose_justification_required']
+        .concat(['require', 'session_duration'])
+        .sort(),
     );
     // present (without case) → no PUT
     expect(await policy.allow('PAT@client.test')).toBe(false);
@@ -25,6 +26,19 @@ describe('cloudflareAccessPolicy', () => {
     expect(await policy.revoke('Pat@Client.test')).toBe(true);
     expect(api.emails()).toEqual(['placeholder@shop.test']);
     expect(await policy.revoke('pat@client.test')).toBe(false);
+  });
+
+  it('puts again when a concurrent PUT dropped the email, and gives up after two lost PUTs', async () => {
+    const api = fakeAccessApi(undefined, { lostPuts: 1 });
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => (await api.fetch(url, init)) ?? fail());
+    expect(await cloudflareAccessPolicy(ENV)!.allow('pat@client.test')).toBe(true);
+    expect(api.requests.map((r) => r.method)).toEqual(['GET', 'PUT', 'GET', 'PUT', 'GET']);
+    const lossy = fakeAccessApi(undefined, { lostPuts: 2 });
+    vi.stubGlobal(
+      'fetch',
+      async (url: string, init?: RequestInit) => (await lossy.fetch(url, init)) ?? fail(),
+    );
+    await expect(cloudflareAccessPolicy(ENV)!.allow('pat@client.test')).rejects.toThrow(/changed meanwhile/);
   });
 
   it('is off without its variables; a refused call or a plain http base fails with a StoreError', async () => {

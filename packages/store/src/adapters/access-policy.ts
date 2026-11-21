@@ -4,11 +4,11 @@ import { SECURE_URL } from '../util.js';
 
 type Rule = { email?: { email?: string } };
 type Policy = { include?: Rule[] } & Record<string, unknown>;
-const KEPT = ['name', 'decision', 'include', 'exclude', 'require', 'session_duration'];
 
 /**
- * `IW_ACCESS_POLICY` (`<account id>/<policy id>`) and `CLOUDFLARE_API_TOKEN`: GET the policy, PUT it back with the
- * email added to or removed from `include`. `CLOUDFLARE_API_BASE_URL` replaces the API base (https or loopback; tests).
+ * `IW_ACCESS_POLICY` (`<account id>/<policy id>`) and `CLOUDFLARE_API_TOKEN`: GET the policy, PUT back every field
+ * read (but the read-only ones) with the email added to or removed from `include`, then GET again to verify, since
+ * a concurrent PUT can drop it. `CLOUDFLARE_API_BASE_URL` replaces the API base (https or loopback; tests).
  */
 export function cloudflareAccessPolicy(env: Record<string, string | undefined>): AccessPolicy | undefined {
   const [account, policy] = env.IW_ACCESS_POLICY?.split('/') ?? [];
@@ -27,14 +27,15 @@ export function cloudflareAccessPolicy(env: Record<string, string | undefined>):
     return body.result;
   };
   const change = async (email: string, add: boolean) => {
-    const p = await call({ method: 'GET' });
-    const include = p.include ?? [];
     const has = (r: Rule) => r.email?.email?.toLowerCase() === email.toLowerCase();
-    if (include.some(has) === add) return false;
-    const next = add ? [...include, { email: { email } }] : include.filter((r) => !has(r));
-    const body = Object.fromEntries(KEPT.filter((k) => k in p).map((k) => [k, p[k]]));
-    await call({ method: 'PUT', body: JSON.stringify({ ...body, include: next }) });
-    return true;
+    for (let put = 0; ; put++) {
+      const { id: _, created_at: _c, updated_at: _u, app_count: _a, reusable: _r, ...p } = await call({});
+      const include = p.include ?? [];
+      if (include.some(has) === add) return put > 0;
+      if (put === 2) throw new StoreError('conflict', 'the Access policy changed meanwhile: invite again');
+      const next = add ? [...include, { email: { email } }] : include.filter((r) => !has(r));
+      await call({ method: 'PUT', body: JSON.stringify({ ...p, include: next }) });
+    }
   };
   return { allow: (email) => change(email, true), revoke: (email) => change(email, false) };
 }
