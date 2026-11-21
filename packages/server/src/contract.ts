@@ -112,7 +112,7 @@ export interface ProjectInfo {
     approve?: boolean;
   };
   /** (v0.3) the role of this identity (docs/spec/security.md#roles); `lead` where no roles are configured */
-  role?: 'lead' | 'tester' | 'viewer' | 'customer';
+  role?: import('@indx-watch/bundle').Role;
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
 }
