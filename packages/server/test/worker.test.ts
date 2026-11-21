@@ -15,6 +15,7 @@ import { fakeD1, fakeR2 } from '../../store/test/helpers/fakes.js';
 import type { ProjectInfo, RunSummary, StatusResult } from '../src/index.js';
 import worker, { catchUp, memoryBundleFs } from '../src/worker.js';
 import { SHOP, sampleRecords, shop } from './helpers.js';
+import { mcpCall } from './mcp-helpers.js';
 
 const assets = {
   fetch: async () =>
@@ -145,6 +146,16 @@ describe('worker: signing', () => {
     expect(await verifyRecord(written, [k.key])).toBe(true);
     const runs = await getJson<RunSummary[]>(signed, '/api/runs?tc=TC-1');
     expect(runs[0]).toMatchObject({ actor: { via: 'github' }, unverified: true });
+    // /mcp on the Worker: an agent run, signed like every write of the server
+    const viaWorker = (r: Request) => worker.fetch(r, signed as never);
+    const args = { test_case: 'TC-9', verdict: 'fail', note: 'Coupon lost', model: 'claude-test' };
+    const mr = await mcpCall(viaWorker, 'https://watch.example.com', 'record_run', args);
+    expect(mr.structuredContent.run).toMatchObject({
+      source: 'agent',
+      actor: { kind: 'agent', model: 'claude-test' },
+    });
+    const agentRun = (await store.readLog((await store.listLog({})).keys.at(-1)!)).records[0] as AnyRecord;
+    expect(await verifyRecord(agentRun, [k.key])).toBe(true);
   });
 
   it('trusts only the keys pinned at deploy (SIGNING_KEYS), never keys from a snapshot', async () => {

@@ -2,33 +2,18 @@
 import { relative } from 'node:path';
 import { newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
+import { listItems, showEntity, statusData } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { B, csv, fail, git, iso, P, pick, S, str } from '../util.js';
+
+const FILTERS = ['status', 'tag', 'priority', 'mode', 'uc', 'tc', 'release'] as const;
+
 import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
 
 export { mediaType } from './results-run.js';
 
-const runSummary = (v: core.RunView) => ({
-  ...pick(v.record, 'id at source release environment'),
-  testCase: v.record.test_case.key,
-  version: v.record.test_case.version,
-  ...pick(v.decision, 'verdict rule'),
-  actor: v.record.actor.id,
-  commit: v.record.build.commit,
-  ...pick(v, 'stale retracted'),
-});
-const newest = (x: core.RunView, y: core.RunView) =>
-  x.record.at + x.record.id < y.record.at + y.record.id ? 1 : -1;
-/** Runs of the given test cases, newest first. */
-const runsOf = (m: core.Model, tcs: string[], limit = 10) =>
-  [...m.runs.values()]
-    .filter((v) => tcs.includes(v.record.test_case.key))
-    .sort(newest)
-    .slice(0, limit)
-    .map(runSummary);
-
-function statusText(s: ReturnType<typeof core.computeStatus>, release?: string, env?: string) {
+function statusText(s: ReturnType<typeof statusData>, release?: string, env?: string) {
   const counts = Object.entries(s.counts).map(([k, n]) => `${k} ${n}`);
   return [
     `Release ${release ?? '(none)'} · environment ${env ?? 'any'} · gate ${s.gate.passed ? 'PASSED' : 'FAILED'}`,
@@ -58,14 +43,10 @@ export const resultCommands: Record<string, Spec> = {
       const scope = { release: cx.releaseOf(ctx, p, a), environment: str(a.env) ?? ctx.env.IW_ENV };
       const m = await cx.loadModel(p);
       const warnings = cx.checkScope(m, a, scope);
-      const s = core.computeStatus(m, scope);
-      const data = {
-        ...s,
-        scope: { release: scope.release ?? null, environment: scope.environment ?? null },
-      };
-      const text = statusText(s, scope.release, scope.environment);
-      const failed = s.gate.checks.filter((c) => !c.passed);
-      if (a.gate && !s.gate.passed) fail('GATE_FAILED', 'The readiness gate failed', failed, data, text);
+      const data = statusData(m, scope);
+      const text = statusText(data, scope.release, scope.environment);
+      const failed = data.gate.checks.filter((c) => !c.passed);
+      if (a.gate && !data.gate.passed) fail('GATE_FAILED', 'The readiness gate failed', failed, data, text);
       return { data, warnings, text };
     },
   },
@@ -115,45 +96,7 @@ export const resultCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
-      const m = await cx.loadModel(p);
-      const ref = str(a.ref)!;
-      if (ref.startsWith('run_')) {
-        const v = cx.resolveRun(m, ref);
-        return { data: { id: v.record.id, ...v } };
-      }
-      const named = m.environments.find((e) => e.name === ref) ?? m.releases.find((r) => r.version === ref);
-      if (named) return { data: { ...named, runs: [] } };
-      const key = cx.resolveKey(m, ref);
-      const scope = { release: cx.releaseOf(ctx, p, a) };
-      const [tc, uc, fx] = [m.testCases.get(key), m.useCases.get(key), m.fixtures.get(key)];
-      const plan = m.plans.find((x) => x.key === key);
-      const feature = m.features.find((f) => f.data.key === key);
-      const ac = [...m.useCases.values()].flatMap((u) => u.criteria).find((c) => c.data.key === key);
-      const refs = (c: NonNullable<typeof ac>) => ({
-        ...c.data,
-        ...pick(c, 'useCase testCases draftTestCases'),
-      });
-      let e: Record<string, unknown>;
-      if (tc)
-        e = {
-          ...tc.data,
-          ...pick(tc, 'file useCase version priority'),
-          result: core.testCaseStatus(m, key, scope),
-        };
-      else if (uc) {
-        const result = core.computeStatus(m, scope).useCases.find((u) => u.key === key);
-        e = { ...uc.data, ...pick(uc, 'file feature'), criteria: uc.criteria.map(refs), result };
-      } else if (fx) e = { ...fx.data, ...pick(fx, 'file version dataFiles usedBy') };
-      else if (plan)
-        e = {
-          ...plan,
-          items: plan.items?.map((it, i) => ({ ...it, status: core.planItemStatus(m, key, i) })),
-        };
-      else if (feature)
-        e = { ...feature.data, file: feature.file, useCases: feature.useCases.map((u) => u.data.key) };
-      else e = refs(ac ?? fail('NOT_FOUND', `${ref} not found`));
-      const covering = uc?.criteria.flatMap((c) => [...c.testCases, ...c.draftTestCases]);
-      e.runs = runsOf(m, plan?.items?.map((i) => i.test_case) ?? covering ?? fx?.usedBy ?? [key]);
+      const e = showEntity(await cx.loadModel(p), str(a.ref)!, { release: cx.releaseOf(ctx, p, a) });
       if (a.versions && typeof e.file === 'string') {
         const log = git(p.dir, 'log', '--format=%H %cI %an', '--', e.file) ?? '';
         const line = (l: string) => ({ commit: l.slice(0, 40), at: l.split(' ')[1], author: l.slice(62) });
@@ -172,60 +115,10 @@ export const resultCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
-      const m = await cx.loadModel(p);
       const scope = { release: cx.releaseOf(ctx, p, a), environment: ctx.env.IW_ENV };
-      const [uc, tc] = [str(a.uc) && cx.resolveKey(m, str(a.uc)!), str(a.tc) && cx.resolveKey(m, str(a.tc)!)];
-      const inUc = (t: { useCase: string; data: { covers: string[] } }) =>
-        !uc || t.useCase === uc || t.data.covers.some((c) => c.startsWith(`AC-${uc.slice(3)}.`));
-      const lists: Record<string, () => Record<string, unknown>[]> = {
-        tc: () =>
-          [...m.testCases.values()].filter(inUc).map((t) => {
-            const { status: result, latestRun } = core.testCaseStatus(m, t.data.key, scope);
-            const def = { status: 'draft', ...pick(t.data, 'key id title status mode covers tags') };
-            return { ...def, ...pick(t, 'priority useCase file version'), result, latestRun };
-          }),
-        uc: () => {
-          const st = core.computeStatus(m, scope).useCases;
-          return [...m.useCases.values()].map((u) => ({
-            ...{
-              status: 'draft',
-              ...pick(u.data, 'key id title status priority tags'),
-              ...pick(u, 'feature file'),
-            },
-            criteria: u.criteria.map((c) => c.data.key),
-            result: st.find((s) => s.key === u.data.key)?.status,
-          }));
-        },
-        feature: () =>
-          m.features.map((f) => ({ ...f.data, file: f.file, useCases: f.useCases.map((u) => u.data.key) })),
-        fixture: () =>
-          [...m.fixtures.values()].map((f) => ({
-            ...{
-              status: 'draft',
-              ...pick(f.data, 'key id title status kind tags'),
-              ...pick(f, 'file version usedBy'),
-            },
-            files: f.dataFiles.map((d) => d.name),
-          })),
-        env: () => m.environments,
-        release: () => m.releases,
-        plan: () => m.plans,
-        run: () => runsOf(m, [...new Set([...m.runs.values()].map((v) => v.record.test_case.key))], Infinity),
-      };
-      const what = (str(a.what) ?? '').replace(/s$/, '');
-      const list = lists[what] ?? fail('USAGE', `Unknown list ${a.what}; see iw list --help`);
-      const has = (x: Record<string, unknown>, k: string, v?: string) =>
-        !v || x[k] === v || (Array.isArray(x[k]) && (x[k] as unknown[]).includes(v));
-      const s = str(a.status);
-      let items = list().filter(
-        (x) =>
-          (!s || [x.status, x.result, x.verdict].includes(s)) &&
-          has(x, 'tags', str(a.tag)) &&
-          has(x, 'priority', str(a.priority)) &&
-          has(x, 'mode', str(a.mode)) &&
-          (what !== 'run' || ((!tc || x.testCase === tc) && has(x, 'release', str(a.release)))),
-      );
-      if (str(a.limit)) items = items.slice(0, Number(a.limit));
+      const f = Object.fromEntries(FILTERS.map((k) => [k, str(a[k])]));
+      const limit = str(a.limit) ? Number(a.limit) : undefined;
+      const items = listItems(await cx.loadModel(p), str(a.what) ?? '', f, scope, limit);
       const label = (x: Record<string, unknown>) => [
         x.key ?? x.id ?? x.name ?? x.version,
         x.result ?? x.verdict ?? x.status ?? x.state,

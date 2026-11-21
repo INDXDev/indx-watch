@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Flaky tests: a flake rate per test case over its last 10 pass/fail runs (`flaky: true` judgements and pass/fail flips on the same build or back and forth) in `iw status --json`, the API and a Flaky (quarantine) view on the Tests screen; it never changes verdicts or the gate (T-303).
 - GitLab CI, CircleCI and Buildkite context: the reporter and the CLI fill `build`, `ci`, the actor (`via = "gitlab"`, `"circleci"`, `"buildkite"`, verified only when signed) and the run group (a retried job starts a new execution) from each provider's standard variables (T-208).
 - Impact analysis: `iw impact --changed <paths>` or `--base <ref>` suggests the test cases a change touches, from `[automation].files` (paths or globs), the test case and use case files and referenced fixtures; the GitHub Action adds a "Suggested test cases" section to its PR comment and check run (T-304).
+- MCP over Streamable HTTP: `iw serve` and the hosted Worker serve the `iw mcp` tools at `/mcp`, behind the same identity as `/api` (Cloudflare Access on a deploy); writes record that identity with `kind = "agent"`, `record_run` evidence names uploaded blobs, and `new` publishes AI drafts into the served bundle (T-205).
 
 ## [0.1.0] - 2026-11-21
 

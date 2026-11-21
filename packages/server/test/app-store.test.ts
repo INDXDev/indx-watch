@@ -9,6 +9,7 @@ import type { ProjectInfo, StoreListResponse } from '../src/index.js';
 import { createApp } from '../src/index.js';
 import { app, get, OTHER_PROJECT } from './app-helpers.js';
 import { fakeDeps, req, SHOT, SHOT_SHA, sampleRecords } from './helpers.js';
+import { mcpCall, mcpRequest } from './mcp-helpers.js';
 
 const LOG = `v1/log/${newUlid()}.json`;
 const MANIFEST = 'indx-watch-store.json';
@@ -170,6 +171,13 @@ describe('hosted mode with Cloudflare Access', () => {
       id: 'kim@shop.test',
       name: 'Kim',
       via: 'cloudflare-access',
+    });
+    // /mcp is behind Access too; its writes record the verified identity as an agent
+    expect((await mcpRequest(a.fetch, 'http://127.0.0.1', 'tools/list', {})).status).toBe(401);
+    const args = { test_case: 'TC-9', verdict: 'fail', note: 'Coupon lost', model: 'claude-test' };
+    const mr = await mcpCall(a.fetch, 'http://127.0.0.1', 'record_run', args, h);
+    expect(mr.structuredContent.run.actor).toEqual({
+      ...{ kind: 'agent', id: 'kim@shop.test', name: 'Kim', via: 'cloudflare-access', model: 'claude-test' },
     });
     const page = await a.fetch(req('/', { headers: h }));
     expect(page.headers.get('content-security-policy')).toContain("default-src 'self'");

@@ -343,7 +343,7 @@ Upgrade the bundle to the current `schema_version`. In v0.1 there is only versio
 
 ### `iw mcp`
 
-Start the MCP server on stdio. See [agents.md](agents.md#mcp-server).
+Start the MCP server on stdio. See [agents.md](agents.md#mcp-server). `iw serve` and the hosted server serve the same tools over Streamable HTTP at `/mcp`.
 
 ### `iw skills install`
 

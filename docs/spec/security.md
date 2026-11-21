@@ -89,6 +89,7 @@ Roles (viewer / tester / lead / customer) are designed for v0.3 on the hosted ap
 ## Hosted app
 
 - The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` and, from v0.2, share links (`/s/<token>`).
+- The MCP endpoint `/mcp` *(v0.2)* is one of those routes: it resolves the identity exactly like `/api`, and its writes record that identity with `kind = "agent"` ([agents.md](agents.md#mcp-server)). It has no `approve`, `review` or `waive` tool, and `new` only writes AI drafts.
 - `iw deploy` prints the Access setup steps and refuses to deploy publicly unless `--public` is passed.
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.
 - The server sets a strict CSP for the SPA (`default-src 'self'`; images also from `data:` and `blob:`).

@@ -7,6 +7,7 @@ import type { ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
 import { errorResponse, HttpError, iso, notFound } from './http.js';
+import { registerMcpRoute } from './mcp.js';
 import { registerReadRoutes, registerStoreRoutes, registerWriteRoutes } from './routes.js';
 
 export { errorResponse, HttpError, MAX_BLOB_BYTES } from './http.js';
@@ -110,5 +111,6 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   registerReadRoutes(app, x);
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);
+  registerMcpRoute(app, x);
   return { fetch: async (request: Request) => app.fetch(request) };
 }

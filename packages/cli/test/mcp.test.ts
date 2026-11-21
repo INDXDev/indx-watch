@@ -1,4 +1,7 @@
 /** `iw mcp` in process (docs/spec/agents.md#acceptance-criteria). */
+import { join } from 'node:path';
+
+import { startNodeServer } from '@indx-watch/server/node';
 import { InMemoryTransport, type JSONRPCMessage } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { describe, expect, it } from 'vitest';
@@ -136,5 +139,52 @@ describe('iw mcp', () => {
     const { call } = await connect(shop());
     const r = await call('report', { format: 'json' });
     expect(r.structuredContent.project.key).toBe('SHOP');
+  });
+});
+
+describe('/mcp on iw serve', () => {
+  /** one stateless JSON-RPC POST to /mcp; the reply is JSON or a one-message SSE stream */
+  // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC results
+  const post = async (url: string, method: string, params: object = {}): Promise<any> => {
+    const res = await fetch(`${url}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    const text = await res.text();
+    return JSON.parse(text.startsWith('{') ? text : /^data: (.*)$/m.exec(text)![1]!).result;
+  };
+
+  it('serves the same tools as iw mcp over Streamable HTTP, reads and writes the same project', async () => {
+    const dir = shop();
+    const server = await startNodeServer({
+      dir: join(dir, '.indx-watch'),
+      port: 0,
+      sync: false,
+      webRoot: dir,
+    });
+    try {
+      const { request } = await connect(dir);
+      const { tools } = await post(server.url, 'tools/list');
+      expect(tools.map((t: { name: string }) => t.name)).toHaveLength(8);
+      expect(tools).toEqual((await request('tools/list', {})).tools); // names, schemas and annotations
+      const call = (name: string, args: object) => post(server.url, 'tools/call', { name, arguments: args });
+      const show = await call('show', { ref: 'TC-9' });
+      expect(show.structuredContent).toEqual(iw(dir, ['show', 'TC-9', '--json']).json.data);
+      const args = {
+        test_case: 'TC-9',
+        verdict: 'fail',
+        note: 'Coupon lost',
+        confidence: 0.9,
+        model: 'claude-x',
+      };
+      const r = await call('record_run', args);
+      expect(r.structuredContent.run.actor).toMatchObject({ kind: 'agent', model: 'claude-x' });
+      expect(CommandData.record.safeParse(r.structuredContent).success).toBe(true);
+      const recorded = iw(dir, ['show', r.structuredContent.run.id, '--json']).json.data;
+      expect(recorded.record.source).toBe('agent');
+    } finally {
+      await server.close();
+    }
   });
 });

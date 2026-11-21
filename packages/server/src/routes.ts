@@ -140,26 +140,31 @@ function reportOptions(c: Context, m: Model) {
   return { format, audience, locale, evidence: (q(c, 'evidence') ?? fallback) as 'none' } as const;
 }
 
-async function report(c: Context, { deps, actor, model }: Ctx) {
-  const [m, a, plan] = [await model(), await actor(c), q(c, 'plan')];
+type ReportOf = { scope: Scope; audience: 'internal' | 'customer'; locale: B.Locale; plan?: string };
+/** Report data with its texts (also the MCP `report` tool). */
+export async function reportOf({ deps }: Ctx, m: Model, a: B.Actor, o: ReportOf) {
+  const [commit, cursor] = [(await deps.context?.build())?.commit, [...m.runs.keys()].sort().at(-1)];
+  const by = { audience: o.audience, generatedBy: a.name ?? a.id, now: deps.now?.() ?? new Date() };
+  const extra = { ...(o.plan && { plan: o.plan }), ...(commit && { commit }), ...(cursor && { cursor }) };
+  return Object.assign(reportData(m, o.scope, { ...by, ...extra }), {
+    texts: await reportTexts(m, o.locale),
+  });
+}
+
+async function report(c: Context, x: Ctx) {
+  const [m, a, plan] = [await x.model(), await x.actor(c), q(c, 'plan')];
   const { format, audience, locale, evidence } = reportOptions(c, m);
   const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
-  const [commit, cursor] = [(await deps.context?.build())?.commit, [...m.runs.keys()].sort().at(-1)];
   const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
-  const now = deps.now?.() ?? new Date();
-  const by = { audience: audience as 'customer', generatedBy: a.name ?? a.id, now };
-  const extra = { ...(plan && { plan }), ...(commit && { commit }), ...(cursor && { cursor }) };
-  const data = reportData(m, scope, { ...by, ...extra });
-  const texts = await reportTexts(m, locale);
-  const ro = { format, locale, evidence, getBlob: deps.getBlob } as const;
-  const text = await renderReport(Object.assign(data, { texts }), ro);
+  const data = await reportOf(x, m, a, { scope, audience, locale, plan });
+  const text = await renderReport(data, { format, locale, evidence, getBlob: x.deps.getBlob });
   const html = { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP_REPORT };
   return c.body(text, 200, format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : html);
 }
 
 // ---------- writes ----------
 
-type TestCase = ReturnType<typeof tcOf>;
+type TestCase = Model['testCases'] extends Map<string, infer T> ? T : never;
 const localeOf = <L extends string>(l?: L) => (['en', 'ja'].includes(l ?? '') ? l : undefined);
 
 /** Register the write routes. */
@@ -205,10 +210,11 @@ function checkManualRun(input: ManualRunInput, m: Model) {
 }
 
 /** Evidence of one step: a blob uploaded before, named and typed by its upload. */
-async function evidenceOf({ deps, uploads }: Ctx, sha: string, i: number): Promise<B.Evidence> {
+export async function evidenceOf({ deps, uploads }: Ctx, sha: string, i?: number): Promise<B.Evidence> {
   const data = /^[0-9a-f]{64}$/.test(sha) ? await deps.getBlob(sha) : null;
-  if (!data) throw bad(`step ${i}: evidence ${sha} was not uploaded`);
-  const { type = sniff(data), name = `step-${i}.${type.split('/')[1]}` } = uploads.get(sha) ?? {};
+  if (!data) throw bad(`${i ? `step ${i}: ` : ''}evidence ${sha} was not uploaded`);
+  const { type = sniff(data), name = `${i ? `step-${i}` : 'evidence'}.${type.split('/')[1]}` } =
+    uploads.get(sha) ?? {};
   const kind = type.startsWith('image/') ? 'screenshot' : 'file';
   return { sha256: sha, name, media_type: type, size: data.byteLength, kind, step: i };
 }
@@ -226,7 +232,7 @@ async function stepEvidence(x: Ctx, t: TestCase, steps: ManualRunInput['steps'])
 }
 
 /** Fixtures the test case uses, limited to the rows the tester ran. */
-function runFixtures(m: Model, t: TestCase, input: unknown) {
+export function runFixtures(m: Model, t: TestCase, input: unknown) {
   const rows = Array.isArray(input) ? (input as string[]) : undefined;
   return (t.data.fixtures ?? []).flatMap(({ ref, rows: wanted }) => {
     const fx = m.fixtures.get(ref);

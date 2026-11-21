@@ -4,23 +4,17 @@ import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
+import { knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
 
-/** Keys used by records (test cases and fixtures), so retired keys are never reused. */
-const used = (r: iwb.AnyRecord) =>
-  r.kind === 'run' ? [r.test_case, ...(r.fixtures ?? [])] : r.kind === 'waiver' ? [r.test_case] : [];
-export const knownKeys = (records: iwb.AnyRecord[]) => records.flatMap(used).map((x) => x.key);
+export { knownKeys };
 /** Where `iw fixture fetch` puts a pointer blob. */
 export const cacheBlob = (p: cx.Project, sha: string) => join(p.dir, 'cache', 'blobs', sha);
 
-const KINDS: Record<string, iwb.NewKind> = {
-  ...{ feature: 'feature', uc: 'use-case', ac: 'criterion', tc: 'test-case', fixture: 'fixture' },
-  ...{ env: 'environment', release: 'release', plan: 'plan' },
-};
 const parseStep = (s: string) =>
   s.includes('=>')
     ? { instruction: s.split('=>')[0]!.trim(), expected: s.slice(s.indexOf('=>') + 2).trim() }
@@ -213,7 +207,8 @@ export const specCommands: Record<string, Spec> = {
       },
     },
     async run(ctx, a) {
-      const kind = KINDS[str(a.entity) ?? ''] ?? fail('USAGE', `Unknown kind ${a.entity}; see iw new --help`);
+      const kind =
+        NEW_KINDS[str(a.entity) ?? ''] ?? fail('USAGE', `Unknown kind ${a.entity}; see iw new --help`);
       const p = await cx.openProject(ctx, a);
       const fields = await newFields(ctx, a, kind);
       const { origin, model } = await originOf(ctx, a);
