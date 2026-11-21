@@ -105,15 +105,19 @@ async function merge3(base: Side | undefined, a: Side, b: Side) {
   const path = a.path === b.path || base?.path !== a.path ? a.path : b.path;
   const s0 = base?.sha ?? null;
   const pick = (s: Side) => ({ side: { ...s, path }, conflict: false });
-  if (a.sha === b.sha || s0 === b.sha || !b.data) return pick(a);
-  if (s0 === a.sha || !a.data) return pick(b);
+  const moved = a.path !== b.path && base?.path !== a.path && base?.path !== b.path;
+  if (a.sha === b.sha || s0 === b.sha || !b.data) return { ...pick(a), conflict: moved && !!b.data };
+  if (s0 === a.sha || !a.data) return { ...pick(b), conflict: moved && !!a.data };
   const [o, x, y] = [tomlOf(base) ?? {}, tomlOf(a), tomlOf(b)];
   if (!x || !y) return { side: { ...a, path }, conflict: true };
   const c = { conflict: false };
   const merged = mergeValue(o, x, y, c) as Record<string, unknown>;
   const type = fileTypeOf(path);
   const text = type && type in FILE_TYPES ? formatToml(type as FileType, merged) : canonicalBody(merged);
-  return { side: { path, data: enc.encode(text), sha: await sha256Hex(text) }, conflict: c.conflict };
+  return {
+    side: { path, data: enc.encode(text), sha: await sha256Hex(text) },
+    conflict: c.conflict || moved,
+  };
 }
 
 /** `<stem>.conflict-<sha8>.<ext>` next to the file. */
@@ -153,16 +157,18 @@ export async function workspaceFiles(records: AnyRecord[], read: Read) {
   return { files, warnings };
 }
 
-/** The working tree's definition files by entity (the `id` inside a TOML file, else the path). */
+/** The working tree's definition files by entity (the `id` inside a TOML file, else the path); unparsable TOML is `broken`. */
 async function localFiles(fs: BundleFs) {
-  const out = new Map<string, Side>();
+  const [out, broken] = [new Map<string, Side>(), new Set<string>()];
   for (const [path, data] of await definitionFiles(fs)) {
     if (CONFLICT_FILE.test(path)) continue;
-    const id = tomlOf({ path, data, sha: null })?.id;
+    const toml = tomlOf({ path, data, sha: null });
+    if (path.endsWith('.toml') && !toml && broken.add(path)) continue;
+    const id = toml?.id;
     const entity = typeof id === 'string' && id ? id : `path:${path}`;
     if (!out.has(entity)) out.set(entity, { path, data, sha: await sha256Hex(data) });
   }
-  return out;
+  return { local: out, broken };
 }
 
 export interface ApplyOptions {
@@ -202,7 +208,7 @@ async function writeCurrent(
   l?: Side,
   old: string[] = [],
 ) {
-  const remove = async (path: string) => void (await o.fs.remove(path), res.removed.push(path));
+  const remove = (path: string) => o.fs.remove(path).then(() => void res.removed.push(path));
   if (!r.data && l) await remove(l.path);
   if (r.data && (!l || l.sha !== r.sha || l.path !== r.path)) {
     await o.fs.write(r.path, r.data);
@@ -224,7 +230,7 @@ const aiDraft = (l?: Side) =>
 /** Publish changed working-tree files as versions, then write the current content back (docs/spec/sync.md#workspace-mode-v02). */
 export async function applyWorkspace(o: ApplyOptions) {
   const res: WorkspaceResult = { published: [], written: [], removed: [], conflicts: [], held: [] };
-  const [versions, local, base] = [
+  const [versions, { local, broken }, base] = [
     versionsByEntity(await o.replica.records()),
     await localFiles(o.fs),
     { ...o.base },
@@ -232,6 +238,9 @@ export async function applyWorkspace(o: ApplyOptions) {
   for (const e of new Set([...versions.keys(), ...local.keys(), ...Object.keys(base)])) {
     const [L, B, vs] = [local.get(e), base[e], versions.get(e) ?? []];
     let R = vs.length ? await resolveEntity(vs, o.read) : undefined;
+    // a TOML file that does not parse (mid-edit) is held: neither a delete of its entity nor overwritten
+    const was = L ? undefined : (B?.path ?? R?.path);
+    if (was && broken.has(was) && res.held.push(was)) continue;
     const gone = R && B?.conflicts?.length && eq(B.heads, R.heads) ? await missing(o.fs, B.conflicts) : false;
     const adopted = R && (L?.sha ?? null) === R.sha && (!L || L.path === R.path) && !gone;
     if (!adopted && (gone || (L?.sha ?? null) !== (B?.sha256 ?? null) || (L && B && L.path !== B.path))) {

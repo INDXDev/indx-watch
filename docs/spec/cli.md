@@ -232,13 +232,13 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | Flag | |
 |---|---|
 | `--watch` | Keep running; push local writes immediately and poll the store (default every 3 s, `--interval`) |
-| `--pull-only`, `--push-only` | |
+| `--pull-only`, `--push-only` | `--push-only` skips the workspace-mode apply, so it publishes no definition edits |
 | `--evidence <on-demand\|all\|none>` | Override `[store].evidence` |
 | `--store <url>` | Override `[store].url` |
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string, "workspace"?: { "published": string[], "written": string[], "removed": string[], "conflicts": string[], "held": string[] } }`. `workspace` (workspace mode only) lists bundle-relative paths: files published as new versions, written or removed in the working tree, conflict files present after the sync, and an agent's changes kept local. `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string, "workspace"?: { "published": string[], "written": string[], "removed": string[], "conflicts": string[], "held": string[] } }`. `workspace` (workspace mode only) lists bundle-relative paths: files published as new versions, written or removed in the working tree, conflict files present after the sync, and changes kept local (an agent's change that is not an AI draft, or a TOML file that does not parse). `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
 ### `iw compact`
 

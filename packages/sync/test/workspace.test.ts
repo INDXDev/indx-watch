@@ -42,7 +42,7 @@ async function setup() {
     const text = (p = TC3) => dec.decode(files.get(p) ?? new Uint8Array());
     const edit = (from: string, to: string, p = TC3) =>
       void files.set(p, enc.encode(text(p).replace(from, to)));
-    return { ...c, fs, files, sync, text, edit };
+    return { ...c, syncWith: c.sync, fs, files, sync, text, edit };
   };
   const a = make(new Map(shopFiles), 'wa');
   const b = make(new Map(), 'wb');
@@ -123,6 +123,45 @@ describe('workspace mode', () => {
       '[ai]\nmodel = "claude-opus-5-5"\ncreated_at = 2026-11-21T00:00:00Z\n\n[[fixtures]]',
     );
     expect((await a.sync(agent)).workspace?.published).toEqual([TC3]);
+  });
+
+  it('holds a TOML file that does not parse instead of publishing a delete of its entity', async () => {
+    const { objects, a, b } = await setup();
+    const before = (await storeRecords(objects)).length;
+    a.edit('title = "Valid coupon', 'title = Valid coupon');
+    const broken = a.text();
+    const r = await a.sync();
+    expect(r.workspace).toMatchObject({ published: [], written: [], removed: [], held: [TC3] });
+    expect(r.warnings?.some((w) => w.includes('does not parse'))).toBe(true);
+    expect(a.text()).toBe(broken);
+    expect((await storeRecords(objects)).length).toBe(before);
+    expect((await b.sync()).workspace?.removed).toEqual([]);
+    // once fixed, the edit is published as usual
+    a.edit('title = Valid coupon', 'title = "Fixed coupon');
+    expect((await a.sync()).workspace?.published).toEqual([TC3]);
+  });
+
+  it('marks a file moved to different paths on both sides as a conflict', async () => {
+    const { a, b } = await setup();
+    const [toA, toB] = [TC3.replace('TC-3-valid', 'TC-3-a'), TC3.replace('TC-3-valid', 'TC-3-b')];
+    a.files.set(toA, a.files.get(TC3)!);
+    a.files.delete(TC3);
+    b.files.set(toB, b.files.get(TC3)!);
+    b.files.delete(TC3);
+    await a.sync();
+    const rb = await b.sync();
+    await a.sync();
+    expect(rb.workspace?.conflicts).toHaveLength(1);
+    expect(a.files).toEqual(b.files);
+    expect(await errors(a.fs)).toEqual(['workspace-conflict']);
+  });
+
+  it('runs the guard before applying, so a git-owned bundle is not synced', async () => {
+    const { a } = await setup();
+    const guard = () => {
+      throw new Error('git tracks this bundle');
+    };
+    await expect(a.syncWith({ workspace: { fs: a.fs, actor: human, guard } })).rejects.toThrow('git tracks');
   });
 
   it('gives the hosted view the same files as the clones', async () => {

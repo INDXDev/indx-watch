@@ -56,7 +56,7 @@ export interface SyncOptions {
   /** blobs to upload besides those records reference: fixture pointers (`pointerBlobs(bundle)`); skipped when not in the replica */
   extraBlobs?: string[];
   /** workspace mode: publish changed definition files and write the current ones into this working tree */
-  workspace?: Pick<ApplyOptions, 'fs' | 'actor' | 'sign'>;
+  workspace?: Pick<ApplyOptions, 'fs' | 'actor' | 'sign'> & { guard?: () => void };
   /** lookback window in ms (default 15 min) */
   lookbackMs?: number;
   now?: () => number;
@@ -114,6 +114,7 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   if (opts.direction !== 'push' || !c.state.lastFullAt) await pullPhase(c);
   // workspace mode: between pull and push, so the versions it publishes go out in this sync
   if (opts.workspace && opts.direction !== 'push') {
+    opts.workspace.guard?.(); // throws when git owns the definitions
     const read = async (sha: string) => {
       const data = (await opts.replica.getBlob(sha)) ?? (await opts.store.getBlob(sha));
       if (data) await opts.replica.putBlob(data);
@@ -123,7 +124,8 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
     const { result, base } = await applyWorkspace({ ...o, base: c.state.workspace ?? {} });
     c.state.workspace = base;
     c.result.workspace = result;
-    for (const p of result.held) c.warn(`${p}: an agent's change that is not an AI draft was not published`);
+    for (const p of result.held)
+      c.warn(`${p}: held back (an agent's change that is not an AI draft, or TOML that does not parse)`);
     await c.save();
   }
   if (opts.direction !== 'pull') await pushPhase(c);
