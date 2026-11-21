@@ -37,7 +37,7 @@ To run the test case in the browser instead of `record`, start the readiness das
 npx indx-watch serve --open   # http://127.0.0.1:4321
 ```
 
-Once installed, everything works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+After the first download (or a global install), everything works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
 
 ## Features
 

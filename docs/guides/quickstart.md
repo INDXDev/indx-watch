@@ -1,6 +1,6 @@
 # Quickstart
 
-From an empty folder to a shareable readiness report in about a minute, fully offline. You need Node 22.13 or later.
+From an empty folder to a shareable readiness report in about a minute, offline after the first download of the package. You need Node 22.13 or later.
 
 `iw` and `npx indx-watch` are the same CLI ([cli.md](../spec/cli.md)). This guide uses `npx indx-watch` in step 1 and `iw` after that. To get the short name, install the package (`npm install --global indx-watch`) or define `alias iw="npx indx-watch"`.
 
