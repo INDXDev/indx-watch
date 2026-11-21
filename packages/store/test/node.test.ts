@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,8 +8,10 @@ import {
   awsCredentials,
   type Exec,
   type ExecSync,
+  indexedRecords,
   openNodeIndex,
   openObjectStore,
+  openReplica,
 } from '../src/node/index.js';
 import { SCHEMA_VERSION, withoutSqliteWarning } from '../src/node/sqlite-index.js';
 import { runRecord } from './helpers/records.js';
@@ -209,5 +211,82 @@ describe('accessHeaders', () => {
       'CF-Access-Client-Id': 'id',
     });
     expect(await accessHeaders('http://watch.shop.test', {}, fakeExec({}))).toEqual({});
+  });
+});
+
+describe('indexedRecords (replica records through cache/index.sqlite)', () => {
+  const tmp = () => mkdtemp(join(tmpdir(), 'iw-replica-index-'));
+  /** a record file, by ID, or at `key` under runs/ */
+  const put = async (dir: string, body: unknown, key?: string) => {
+    const r = body as { id: string; at: string };
+    const file = join(dir, 'runs', key ?? `records/${r.at.slice(0, 7)}/${r.id}.json`);
+    await mkdir(join(file, '..'), { recursive: true });
+    await writeFile(file, typeof body === 'string' ? body : JSON.stringify(body));
+    return file;
+  };
+  const both = async (dir: string) => {
+    const [a, b] = [[] as string[], [] as string[]];
+    const viaIndex = indexedRecords(await openNodeIndex(dir), join(dir, 'runs'));
+    const indexed = await viaIndex((f, e) => a.push(`${f}: ${e}`));
+    const plain = await openReplica(dir).records((f, e) => b.push(`${f}: ${e}`));
+    return { indexed, plain, invalid: [a, b] };
+  };
+
+  it('returns what the replica returns, in the same order, with the same invalid files', async () => {
+    const dir = await tmp();
+    try {
+      const [old, mid, now] = [Date.parse('2025-01-02'), Date.parse('2026-03-04'), Date.now()];
+      const runs = [runRecord({ at: now }), runRecord({ at: old }), runRecord({ at: mid })];
+      for (const r of runs) await put(dir, r);
+      await put(dir, '{"kind":"run"', 'records/2026-03/run_01JQ0000000000000000000000.json');
+      await put(dir, runRecord({ at: mid }), 'records/2026-03/misnamed.json');
+      await put(dir, runs[0], 'records/2026-03/.tmp-1.json');
+      const first = await both(dir);
+      expect(first.indexed).toEqual(first.plain);
+      expect(first.invalid[0]).toEqual(first.invalid[1]);
+      expect(first.indexed.map((r) => r.at.slice(0, 4))).toEqual(['2025', '2026', '2026', '2026']);
+      const again = await both(dir); // a second read through a new index object on the same file
+      expect(again.indexed).toEqual(again.plain);
+      expect(again.invalid[0]).toEqual(first.invalid[0]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses the index after a restart and rebuilds it when a file is rewritten or removed', async () => {
+    const dir = await tmp();
+    try {
+      const [a, b] = [runRecord({ at: Date.parse('2026-01-01') }), runRecord()];
+      const [fa, fb] = [await put(dir, a), await put(dir, b)];
+      expect((await both(dir)).indexed).toEqual([a, b]);
+      // same mtime, other body: a restart does not read the file again, so the indexed body is returned
+      const { mtime } = await stat(fa);
+      const edited = { ...a, environment: 'production' };
+      await put(dir, edited);
+      await utimes(fa, mtime, mtime);
+      expect((await both(dir)).indexed).toEqual([a, b]);
+      // a newer mtime is a rewrite (sync applying the merge rule): the index is rebuilt
+      await utimes(fa, new Date(), new Date(Date.now() + 1000));
+      expect((await both(dir)).indexed).toEqual([edited, b]);
+      await rm(fb);
+      const gone = await both(dir);
+      expect(gone.indexed).toEqual([edited]);
+      expect(gone.plain).toEqual([edited]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('deletes an index file that is not a SQLite database and starts over', async () => {
+    const dir = await tmp();
+    try {
+      await mkdir(join(dir, 'cache'), { recursive: true });
+      await writeFile(join(dir, 'cache', 'index.sqlite'), 'not a database '.repeat(20));
+      const r = runRecord();
+      await put(dir, r);
+      expect((await both(dir)).indexed).toEqual([r]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
