@@ -3,14 +3,15 @@
  */
 import { type FSWatcher, watch as fsWatch, mkdirSync, readdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
-import type { StoreConfig } from '@indx-watch/bundle';
+import { recordSigner, type StoreConfig } from '@indx-watch/bundle';
+import { oidcSigner, usesGithubOidc } from '../adapters/github-oidc.js';
 import { httpObjectStore } from '../adapters/http.js';
 import { memoryIndex } from '../adapters/memory.js';
 import { s3ObjectStore } from '../adapters/s3.js';
 import type { Index, LocalReplica, ObjectStore } from '../ports.js';
 import { StoreError } from '../ports.js';
 import { createReplica } from '../replica.js';
-import { compact } from '../util.js';
+import { compact, SECURE_URL } from '../util.js';
 import { exec as defaultExec, type ExecSync, execSync } from './exec.js';
 import { fsObjectStore } from './fs-store.js';
 import { sqliteIndex } from './sqlite-index.js';
@@ -58,7 +59,7 @@ export async function accessHeaders(
   env: Env,
   run = defaultExec,
 ): Promise<Record<string, string>> {
-  const secure = /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$))/.test(url);
+  const secure = SECURE_URL.test(url);
   if (!secure && (env.IW_ACCESS_TOKEN || (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET)))
     throw new StoreError(
       'invalid',
@@ -75,6 +76,13 @@ export async function accessHeaders(
   const args = ['access', 'token', `-app=${url}`];
   const token = (await run('cloudflared', args, { env: { ...process.env, ...env } }))?.trim();
   return token && !/\s/.test(token) ? { 'cf-access-token': token } : {};
+}
+
+/** The record signer of this process: IW_SIGNING_KEY, else GitHub OIDC (docs/spec/security.md#github-oidc), else none. */
+export function processSigner(env: Env = process.env) {
+  if (!usesGithubOidc(env)) return recordSigner(env.IW_SIGNING_KEY);
+  let h: Promise<Record<string, string>> | undefined;
+  return oidcSigner(env, () => (h ??= accessHeaders(env.IW_OIDC_SIGNER!.replace(/\/+$/, ''), env)));
 }
 
 /** ObjectStore for a store URL (file://, s3://, https://). file:// paths resolve relative to bundleDir. */

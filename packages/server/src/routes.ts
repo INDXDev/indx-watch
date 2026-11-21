@@ -323,6 +323,7 @@ export function registerStoreRoutes(app: Hono, x: Ctx) {
     return c.body(data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'application/octet-stream' });
   });
   app.put('/api/store/objects/*', (c) => putObject(c, x));
+  app.post('/api/sign', (c) => signRecords(c, x));
   app.get('/api/store/list', async (c) => {
     const limit = Math.min(Number(q(c, 'limit')) || 1000, 1000);
     const [prefix, startAfter] = [c.req.query('prefix') ?? '', q(c, 'startAfter')];
@@ -330,6 +331,21 @@ export function registerStoreRoutes(app: Hono, x: Ctx) {
     const keys = r.keys.map(({ key, size, etag }) => ({ key, size, ...(etag && { etag }) }));
     return c.json({ keys, truncated: r.truncated });
   });
+}
+
+/** GitHub OIDC exchange (docs/spec/security.md#github-oidc): signs the records for the token; stores nothing. */
+async function signRecords(c: Context, x: Ctx) {
+  const exchange = x.deps.signForGithub ?? fail(notFound('GitHub OIDC signing'));
+  const auth = /^Bearer (\S+)$/i.exec(c.req.header('authorization') ?? '')?.[1];
+  const token = auth ?? fail(new HttpError(401, 'unauthorized', 'missing GitHub OIDC token'));
+  const raw = (await readJson<{ records?: unknown }>(c)).records;
+  if (!Array.isArray(raw) || !raw.length || raw.length > 1000) throw bad('records: 1 to 1000 records');
+  const records = raw.map((r) => {
+    const checked = checkRecord(r);
+    return 'error' in checked ? fail(bad(checked.error)) : checked.record;
+  });
+  const project = (await storeProject(x, true)) ?? fail(notFound('project'));
+  return c.json({ records: await exchange(token, records, project) });
 }
 
 /** project of the served model (none before the first snapshot), else of the store manifest */

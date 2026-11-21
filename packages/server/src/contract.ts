@@ -35,6 +35,7 @@ export const ROUTES = {
   storeHead: 'HEAD /api/store/objects/*',
   storePut: 'PUT /api/store/objects/* (create-only: 412 when it exists; manifest, log objects, blobs)',
   storeList: 'GET /api/store/list?prefix=&startAfter=&limit=',
+  sign: 'POST /api/sign (Authorization: Bearer <GitHub OIDC token>; { records } → { records } signed; docs/spec/security.md#github-oidc)',
   mcp: 'POST /mcp (MCP over Streamable HTTP, stateless; docs/spec/agents.md#mcp-server)',
 } as const;
 

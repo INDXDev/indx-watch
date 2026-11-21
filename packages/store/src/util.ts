@@ -92,6 +92,9 @@ export function httpError(status: number, what: string): StoreError {
   return new StoreError(status >= 500 ? 'network' : 'invalid', `${what}: HTTP ${status}`);
 }
 
+/** https://, or plain http to this machine (tests): where credentials may be sent. */
+export const SECURE_URL = /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$))/;
+
 export async function guardedFetch(what: string, f: () => Promise<Response>): Promise<Response> {
   try {
     return await f();

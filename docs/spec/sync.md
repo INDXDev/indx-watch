@@ -62,7 +62,7 @@ Writes use `If-None-Match: *` (on GCS: `x-goog-if-generation-match: 0`), so noth
 
 ### Store HTTP endpoints
 
-A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; always create-only: 412 when the key exists, with or without `If-None-Match`; 400 for keys outside the layout, invalid manifests or log objects, records of another project, and blobs whose content does not match their key), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
+A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; always create-only: 412 when the key exists, with or without `If-None-Match`; 400 for keys outside the layout, invalid manifests or log objects, records of another project, and blobs whose content does not match their key), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. *(v0.2)* `POST /api/sign` (a GitHub OIDC token instead of Access) signs records for a CI job without a key and returns them; it writes nothing to the store ([GitHub OIDC](security.md#github-oidc)). Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
 
 ## Records
 
@@ -82,7 +82,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 ### Signed records
 
-*(v0.2)* A writer with `IW_SIGNING_KEY` adds `sig = { "alg": "Ed25519", "kid", "value" }` to every record it writes: an Ed25519 signature (base64url) over `indx-watch/record/v1\n` + the canonical record JSON without `sig`. Readers recompute those bytes from the record they decoded, so a reader whose schema lacks a field a newer writer signed sees the record as unverified until it is upgraded. Signing never changes merge rules: a signed and an unsigned body with the same ID are two different bodies. Which keys are trusted, and what "unverified" means for the UI, reports and the gate: [security.md](security.md#signed-records).
+*(v0.2)* A writer with `IW_SIGNING_KEY` adds `sig = { "alg": "Ed25519", "kid", "value" }` to every record it writes: an Ed25519 signature (base64url) over `indx-watch/record/v1\n` + the canonical record JSON without `sig`. Readers recompute those bytes from the record they decoded, so a reader whose schema lacks a field a newer writer signed sees the record as unverified until it is upgraded. Signing never changes merge rules: a signed and an unsigned body with the same ID are two different bodies. A GitHub Actions job without a key gets the same signature from the hosted server by exchanging its OIDC token (`POST /api/sign`, [GitHub OIDC](security.md#github-oidc)); the token never goes into the record. Which keys are trusted, and what "unverified" means for the UI, reports and the gate: [security.md](security.md#signed-records).
 
 ### Run record
 

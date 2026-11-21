@@ -1,6 +1,6 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
- * Vars: ACCESS_TEAM, ACCESS_AUD, PROJECT_ID, STORE_PREFIX, SIGNING_KEYS; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
+ * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
  * Definitions: the latest bundle snapshot record (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
  */
@@ -22,6 +22,7 @@ import { accessIdentity, d1Index, r2ObjectStore } from '@indx-watch/store/worker
 import { isoSeconds, snapshotBundle, ulidFloor } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import { createApp, HttpError, type ServerDeps } from './app.js';
+import { githubOidcSigning, pinnedRepositories } from './oidc.js';
 import type { ToolOutputs } from './tools.js';
 import { memoryBundleFs } from './upload.js';
 
@@ -40,6 +41,8 @@ export interface Env {
   IW_SIGNING_KEY?: string;
   /** JSON array of the [[signing_keys]] trusted for verification, pinned by `iw deploy`; never read from the bucket */
   SIGNING_KEYS?: string;
+  /** JSON array of the GitHub repositories whose OIDC tokens get signatures, pinned by `iw deploy` */
+  OIDC_REPOSITORIES?: string;
 }
 
 /** keys this much older than the cursor are listed again: writers may land a little out of order */
@@ -154,7 +157,8 @@ async function openSnapshot(store: Store, snap: BundleRecord, files: Map<string,
 }
 
 /** the vars an isolate's state depends on */
-const STATE_VARS = 'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS'.split(' ');
+const STATE_VARS =
+  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS OIDC_REPOSITORIES'.split(' ');
 function setup(env: Env, outputs?: ToolOutputs): State {
   const key = STATE_VARS.map((k) => env[k as keyof Env]).join('|');
   const existing = states.get(env.STORE as object);
@@ -255,6 +259,11 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
       return new Map(view.files);
     },
     publishBundle: (next, info) => publish(store, deps, next, info),
+    signForGithub: githubOidcSigning({
+      verifier: S.githubOidcVerifier(),
+      repositories: pinnedRepositories(env.OIDC_REPOSITORIES),
+      secret: env.IW_SIGNING_KEY,
+    }),
     toolOutputs,
   };
   const s = { key, app: createApp(deps), store, index, open: !!identity, owner: newUlid(), ingested, trust };
