@@ -168,9 +168,7 @@ function Quarantine({ tree, needle }: { tree: SpecTree; needle: string }) {
           </a>
           <span className="queue-actions">
             <strong>{Math.round(x.flaky!.rate * 100)}%</strong>
-            <span className="muted">
-              {t('specs.flakes', { flakes: x.flaky!.flakes, runs: x.flaky!.runs })}
-            </span>
+            <span className="muted">{t('specs.flakes', x.flaky)}</span>
           </span>
         </li>
       ))}

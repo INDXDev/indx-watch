@@ -1,5 +1,5 @@
 // buildModel, testCaseStatus (variants, ordering, scope, staleness, waivers), plan items and localize.
-import { type AnyRecord, type Bundle, testCaseVersion } from '@indx-watch/bundle';
+import { type AnyRecord, type Bundle, type RunRecord, testCaseVersion } from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   buildModel,
@@ -213,6 +213,22 @@ describe('test case status: flakiness', () => {
     const fixed = run(b, 'TC-2', { verdict: 'pass', ended: at(1) });
     expect(testCaseStatus(model([old, fixed]), 'TC-2', scope).flaky).toBeUndefined();
     expect(testCaseStatus(model([p!, f!]), 'TC-2', scope).flaky).toEqual({ rate: 0.5, flakes: 1, runs: 2 });
+  });
+
+  it('a lone change across builds is a regression or a fix, not a flake; back and forth is', () => {
+    const build = (r: RunRecord, commit: string) => ({ ...r, build: { commit } });
+    const steady = series(['pass', 'pass', 'fail', 'fail', 'pass']).map((r, i) =>
+      build(r, i < 2 ? 'aaaaaaa' : i < 4 ? 'bbbbbbb' : 'ccccccc'),
+    );
+    expect(testCaseStatus(model(steady), 'TC-2', scope).flaky).toBeUndefined();
+    const back = series(['pass', 'fail', 'pass']).map((r, i) => build(r, `${i}`.repeat(7)));
+    expect(testCaseStatus(model(back), 'TC-2', scope).flaky).toEqual({ rate: 1 / 3, flakes: 1, runs: 3 });
+  });
+
+  it('compares a run with the previous run of the same test case version', () => {
+    const [p1, , f1] = series(['pass', 'fail', 'fail']);
+    const v2 = run(b, 'TC-2', { verdict: 'fail', version: 'tcv:000000000000', ended: at(1) });
+    expect(testCaseStatus(model([p1!, v2, f1!]), 'TC-2', scope).flaky).toMatchObject({ flakes: 1 });
   });
 
   it('changes neither the status nor the gate', () => {

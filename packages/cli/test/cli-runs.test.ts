@@ -28,6 +28,10 @@ describe('commands: status, show and list', () => {
     expect(s.json.data.counts.uncovered).toBe(1);
     const g = iwJson(dir, 'status', ['status', '--gate', '--env', 'staging']);
     expect([g.code, g.json.error.code, g.json.data.scope.environment]).toEqual([1, 'GATE_FAILED', 'staging']);
+    // pass → fail → pass: the verdict went back and forth, so TC-4 has a flake rate (concepts.md#flaky-tests)
+    for (const v of ['pass', 'fail', 'pass']) iwJson(dir, 'record', ['record', 'TC-4', '--verdict', v]);
+    const tcs = iwJson(dir, 'status', ['status']).json.data.testCases;
+    expect(tcs.find((t: { key: string }) => t.key === 'TC-4').flaky).toMatchObject({ flakes: 1 });
   });
 
   it('show: use case, test case, fixture, plan, environment and a run by prefix', () => {

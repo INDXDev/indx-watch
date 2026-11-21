@@ -61,14 +61,16 @@ function flakiness(runs: RunView[]): TestCaseStatus['flaky'] {
   const decided = runs
     .filter((r) => r.decision.verdict === 'pass' || r.decision.verdict === 'fail')
     .sort((a, b) => byTimeThenId(a.record.ended_at, a.record.id, b.record.ended_at, b.record.id));
-  const seen: RunView[] = [];
+  const key = (x: RunView) => `${x.variant}#${x.record.test_case.version}`;
+  const seen: { r: RunView; flip: boolean }[] = [];
   const flakes = decided.map((r) => {
-    // the previous decided run of the same variant from another execution, on the same test case version
-    const p = seen.findLast((x) => x.variant === r.variant && x.group !== r.group);
-    seen.push(r);
-    const flip =
-      p?.record.test_case.version === r.record.test_case.version && p.decision.verdict !== r.decision.verdict;
-    return flip || r.judgements.some((j) => j.flaky);
+    // p: previous run, same variant and version, other execution. A flip counts on the same build or when it
+    // reverts p's own flip (p f p); a lone change is a regression or a fix (docs/spec/concepts.md#flaky-tests).
+    const p = seen.findLast(({ r: x }) => key(x) === key(r) && x.group !== r.group);
+    const flip = !!p && p.r.decision.verdict !== r.decision.verdict;
+    seen.push({ r, flip });
+    const sameBuild = !!r.record.build.commit && p?.r.record.build.commit === r.record.build.commit;
+    return (flip && (sameBuild || !!p?.flip)) || r.judgements.some((j) => j.flaky);
   });
   const window = flakes.slice(-FLAKY_WINDOW);
   const n = window.filter(Boolean).length;

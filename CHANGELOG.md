@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- Flaky tests: a flake rate per test case over its last 10 pass/fail runs (`flaky: true` judgements and pass/fail flips) in `iw status --json`, the API and a Flaky (quarantine) view on the Tests screen; it never changes verdicts or the gate (T-303).
+- Flaky tests: a flake rate per test case over its last 10 pass/fail runs (`flaky: true` judgements and pass/fail flips on the same build or back and forth) in `iw status --json`, the API and a Flaky (quarantine) view on the Tests screen; it never changes verdicts or the gate (T-303).
 
 ## [0.1.0] - 2026-11-21
 

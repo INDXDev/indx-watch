@@ -223,8 +223,14 @@ A test case may appear in a plan more than once only with different environments
 `testCaseStatus()` (and so `computeStatus()`) also reports how flaky a test case is in the scope. It is information only: it changes no verdict, status, count or gate check.
 
 1. **Decided runs**: the scope's relevant runs (as in [computed done](#computed-done)) whose verdict from the decision policy is `pass` or `fail`, ordered by `ended_at` as instants (ties: run ID). `blocked`, `skipped` and `needs_review` runs say nothing about flakiness and are left out.
-2. A decided run is a **flake** when any of its judgements has `flaky: true` (e.g. a Playwright test that passed on retry, [integrations](integrations.md#playwright-reporter)), or when its verdict differs from the previous decided run of the same variant and test case version that belongs to another execution (a pass/fail flip without a change to the test).
-3. **Flake rate** = flakes ÷ decided runs among the last **10** decided runs. `flaky = { rate, flakes, runs }` is present only when there is at least one flake in that window.
+2. A decided run is a **flake** when any of its judgements has `flaky: true` (e.g. a Playwright test that passed on retry, [integrations](integrations.md#playwright-reporter)), or when its verdict **flips** against `p`, the previous decided run of the same variant and test case version that belongs to another execution, and either
+   - both runs name the same `build.commit` (the app did not change), or
+   - `p` itself flipped against its own `p` (the verdict went back and forth, e.g. pass → fail → pass).
+
+   A single change that then holds (pass, pass, fail, fail…) is a regression, and the change back is a fix; neither is a flake. A change of test case version is not a flip either.
+3. **Flake rate** = flakes ÷ decided runs among the last **10** decided runs. The window counts runs, not executions: an execution that reports a test case through several run records (shards) fills several places. `flaky = { rate, flakes, runs }` is present only when there is at least one flake in that window.
+
+`flaky: true` is read from every judgement on the run, including unverified ones ([signed records](security.md#signed-records)), as the flake rate is information only and `gate.ignore_unverified` affects only the gate.
 
 **Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
 
