@@ -365,5 +365,11 @@
   "who.via.github": "GitHub で検証済み",
   "who.via.access": "Cloudflare Access で検証済み",
   "tc.version": "版",
-  "activity.more": "さらに表示"
+  "activity.more": "さらに表示",
+  "tc.edit": "編集",
+  "tc.save": "保存",
+  "tc.titleField": "タイトル",
+  "tc.instruction": "手順",
+  "tc.addStep": "手順を追加",
+  "tc.removeStep": "この手順を削除"
 }

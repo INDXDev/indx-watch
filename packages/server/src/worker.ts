@@ -1,7 +1,8 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
  * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES, ROLES; secret IW_SIGNING_KEY. CONTRACT; implementation T-107.
- * Definitions: the latest bundle snapshot record (docs/spec/sync.md#the-hosted-server-and-the-index);
+ * Definitions: the `file` records in workspace mode, else the latest bundle snapshot record
+ * (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
  */
 import type { Actor, AnyRecord, Bundle, BundleRecord } from '@indx-watch/bundle';
@@ -20,7 +21,7 @@ import { buildVerifiedModel } from '@indx-watch/core';
 import type { Index, ResultStore as Store, Trust } from '@indx-watch/store';
 import * as S from '@indx-watch/store';
 import { accessIdentity, d1Index, r2ObjectStore } from '@indx-watch/store/workers';
-import { isoSeconds, snapshotBundle, ulidFloor } from '@indx-watch/sync';
+import { isoSeconds, snapshotBundle, ulidFloor, workspaceFiles } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import { createApp, HttpError, type ServerDeps } from './app.js';
 import { githubOidcSigning, pinnedRepositories } from './oidc.js';
@@ -162,11 +163,36 @@ const anon: S.IdentityProvider = { current: async () => ({ kind: 'human', id: 'a
 
 async function openSnapshot(store: Store, snap: BundleRecord, files: Map<string, Uint8Array>) {
   const tar = (await store.getBlob(snap.sha256)) ?? fail(`snapshot blob ${snap.sha256} is missing`);
+  const entries = (await unpackTar(tar)).filter((e) => (e.header.type ?? 'file') === 'file');
+  return openFiles(
+    snap.id,
+    new Map(entries.map((e) => [e.header.name, new Uint8Array(e.data ?? [])])),
+    files,
+  );
+}
+
+/** Load definition files into the view's files. */
+async function openFiles(id: string, from: Map<string, Uint8Array>, files: Map<string, Uint8Array>) {
   files.clear();
-  for (const e of await unpackTar(tar))
-    if ((e.header.type ?? 'file') === 'file') files.set(e.header.name, new Uint8Array(e.data ?? []));
+  for (const [path, data] of from) files.set(path, data);
   const { bundle, problems } = await loadBundle(memoryBundleFs(files));
-  return { id: snap.id, bundle: bundle ?? fail(problems[0]?.message ?? 'snapshot has no project'), problems };
+  return { id, bundle: bundle ?? fail(problems[0]?.message ?? 'snapshot has no project'), problems };
+}
+
+/** Workspace mode: the current content of the `file` records (docs/spec/sync.md#workspace-mode-v02). */
+async function openWorkspace(store: Store, records: AnyRecord[], view: View): Promise<Snapshot> {
+  if (view.blobs.size > 5000) view.blobs.clear();
+  const read = async (sha: string) => {
+    const data = view.blobs.get(sha) ?? (await store.getBlob(sha));
+    if (data) view.blobs.set(sha, data);
+    return data;
+  };
+  const { files, warnings } = await workspaceFiles(records, read);
+  const s = await openFiles('workspace', files, view.files);
+  return {
+    ...s,
+    problems: [...s.problems, ...warnings.map((message) => ({ severity: 'warning', message }))],
+  };
 }
 
 /** the vars an isolate's state depends on */
@@ -209,15 +235,18 @@ async function warningProblems(index: Index, bundle: Bundle, { valid, keys }: Pi
 }
 
 /** the newest snapshot opened so far and its files */
-type View = { files: Map<string, Uint8Array>; snapshot?: Snapshot };
+type View = { files: Map<string, Uint8Array>; snapshot?: Snapshot; blobs: Map<string, Uint8Array> };
 /** The model of the newest snapshot over the indexed records; opens the snapshot when it changed. */
 async function snapshotModel(store: Store, index: Index, pinned: Pinned, view: View): Promise<Loaded> {
   const records = await index.records();
+  if (records.some((r) => r.kind === 'file')) view.snapshot = await openWorkspace(store, records, view);
   const bundles = records.filter((r): r is BundleRecord => r.kind === 'bundle');
   const latest = bundles.sort((a, b) => (order(a) < order(b) ? 1 : -1))[0];
-  if (!latest) fail('No bundle snapshot yet: run `iw sync --snapshot` on the default branch.');
-  if (view.snapshot?.id !== latest.id) view.snapshot = await openSnapshot(store, latest, view.files);
-  const { bundle, problems } = view.snapshot;
+  const workspace = view.snapshot?.id === 'workspace';
+  if (!latest && !workspace) fail('No bundle snapshot yet: run `iw sync --snapshot` on the default branch.');
+  if (!workspace && view.snapshot?.id !== latest!.id)
+    view.snapshot = await openSnapshot(store, latest!, view.files);
+  const { bundle, problems } = view.snapshot!;
   const project = { ...bundle.project, data: { ...bundle.project.data, signing_keys: pinned.keys } };
   const { model, warnings } = await buildVerifiedModel({ ...bundle, project }, records);
   return { model, problems: [...problems, ...(await warningProblems(index, bundle, pinned, warnings))] };
@@ -231,7 +260,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   const ingested = { at: 0 };
   const pinned = pinnedKeys(env);
   const { trust } = pinned;
-  const view: View = { files: new Map() };
+  const view: View = { files: new Map(), blobs: new Map() };
   let cache: { rev: string; value: Loaded } | undefined;
   const ingest = async (records: AnyRecord[], key?: string) => {
     if (await index.ingest(records, key, trust)) await index.setMeta('records.rev', newUlid());
@@ -269,6 +298,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     assets: (request) => env.ASSETS.fetch(request),
     readFile: async (path) => view.files.get(path) ?? null,
     declaredIdentity: env.PUBLIC === 'true',
+    records: () => index.records(),
     bundleFiles: async () => {
       await loadModel().catch(() => undefined); // opens the newest snapshot; none yet → empty
       return new Map(view.files);

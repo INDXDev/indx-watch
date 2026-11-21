@@ -47,6 +47,10 @@ const RULES: [RegExp, FileType | 'template' | null][] = [
   [/^templates\/(test-case|use-case|fixture)\.[a-z0-9][a-z0-9-]*\.toml$/, 'template'],
   [/(^|\/)README\.md$|^\.gitignore$/, null],
 ];
+/** A conflict file left by a workspace-mode merge (docs/spec/sync.md#workspace-mode-v02). */
+export const CONFLICT_FILE = /\.conflict-[0-9a-f]{8}(\.[^./]+)?$/;
+/** The file type of a bundle path by the layout (null: allowed, not a definition; undefined: not in the layout). */
+export const fileTypeOf = (path: string) => RULES.find(([re]) => re.test(path))?.[1];
 const dec = new TextDecoder();
 const TEXT = /\.(csv|tsv|json|ndjson|txt|md|toml|ya?ml|xml|html?|sql)$/i;
 const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/'));
@@ -98,7 +102,16 @@ async function classify(l: Loader) {
   const unknownFiles: string[] = [];
   const fixtureFiles = new Set<string>();
   for (const path of l.paths) {
-    const type = RULES.find(([re]) => re.test(path))?.[1];
+    if (CONFLICT_FILE.test(path)) {
+      l.add(
+        'error',
+        'workspace-conflict',
+        path,
+        'Concurrent edits conflict: merge this file into the original, then delete it',
+      );
+      continue;
+    }
+    const type = fileTypeOf(path);
     if (type === undefined && /^fixtures\/[^/]+\/[^/]+$/.test(path)) fixtureFiles.add(path);
     else if (type === undefined) unknownFiles.push(path);
     if (!type) continue;

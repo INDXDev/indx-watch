@@ -4,6 +4,7 @@
 import type { AnyRecord, Bundle, BundleFs, Problem, SigningKey } from '@indx-watch/bundle';
 import type { LocalReplica, ResultStore, StoreError } from '@indx-watch/store';
 import { pullPhase, pushPhase, syncContext } from './phases.js';
+import { type ApplyOptions, applyWorkspace, type WorkspaceBase, type WorkspaceResult } from './workspace.js';
 
 export interface SyncState {
   /** greatest log key seen */
@@ -18,6 +19,8 @@ export interface SyncState {
   keys?: Record<string, string>;
   /** record ID → warning, for records the store has two bodies of (`iw check` and the UI show them) */
   conflicts?: Record<string, string>;
+  /** workspace mode: what the last apply wrote, per entity (docs/spec/sync.md#workspace-mode-v02) */
+  workspace?: WorkspaceBase;
 }
 
 export interface StateStore {
@@ -52,6 +55,8 @@ export interface SyncOptions {
   keys?: SigningKey[];
   /** blobs to upload besides those records reference: fixture pointers (`pointerBlobs(bundle)`); skipped when not in the replica */
   extraBlobs?: string[];
+  /** workspace mode: publish changed definition files and write the current ones into this working tree */
+  workspace?: Pick<ApplyOptions, 'fs' | 'actor' | 'sign'> & { guard?: () => void };
   /** lookback window in ms (default 15 min) */
   lookbackMs?: number;
   now?: () => number;
@@ -68,11 +73,14 @@ export interface SyncResult {
   held?: Problem[];
   /** the log snapshot a full listing started from */
   logSnapshot?: string;
+  /** workspace mode: paths published, written, removed, in conflict and held back */
+  workspace?: WorkspaceResult;
 }
 
 export { type CompactResult, compactLog } from './compact.js';
 export { isoSeconds, ulidFloor } from './phases.js';
 export { definitionFiles, definitionsHash, snapshotBundle } from './snapshot.js';
+export * from './workspace.js';
 
 export const emptyState = (): SyncState => ({
   cursor: null,
@@ -104,6 +112,22 @@ export async function syncOnce(opts: SyncOptions): Promise<SyncResult> {
   // Pull first: a full listing rebuilds the pushed set, so deleting cache/ never causes a double push.
   // For the same reason a push-only sync on a fresh state (no full listing yet) lists the log once too.
   if (opts.direction !== 'push' || !c.state.lastFullAt) await pullPhase(c);
+  // workspace mode: between pull and push, so the versions it publishes go out in this sync
+  if (opts.workspace && opts.direction !== 'push') {
+    opts.workspace.guard?.(); // throws when git owns the definitions
+    const read = async (sha: string) => {
+      const data = (await opts.replica.getBlob(sha)) ?? (await opts.store.getBlob(sha));
+      if (data) await opts.replica.putBlob(data);
+      return data;
+    };
+    const o = { ...opts.workspace, replica: opts.replica, read, project: opts.projectId, now: opts.now };
+    const { result, base } = await applyWorkspace({ ...o, base: c.state.workspace ?? {} });
+    c.state.workspace = base;
+    c.result.workspace = result;
+    for (const p of result.held)
+      c.warn(`${p}: held back (an agent's change that is not an AI draft, or TOML that does not parse)`);
+    await c.save();
+  }
   if (opts.direction !== 'pull') await pushPhase(c);
   c.result.cursor = c.state.cursor;
   return c.result;

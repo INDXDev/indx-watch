@@ -37,6 +37,10 @@ export interface ServerDeps extends AppDeps {
   signForGithub?(token: string, records: B.AnyRecord[], project: string): Promise<B.AnyRecord[]>;
   /** roles pinned by the deploy (docs/spec/security.md#roles); without them every identity is `lead` */
   roles?: B.Roles;
+  /** every record (workspace mode: the `file` records a definition edit builds on) */
+  records?(): Promise<B.AnyRecord[]>;
+  /** write a definition file into the working tree after a workspace edit (Node) */
+  writeFile?(path: string, data: Uint8Array): Promise<void>;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
