@@ -1,11 +1,21 @@
 /** Roles from Access identity groups (docs/spec/security.md#roles): the allow/deny matrix and what a customer sees. */
-import { type Actor, newUlid } from '@indx-watch/bundle';
+import {
+  type Actor,
+  type Bundle,
+  FileRecord,
+  newId,
+  newUlid,
+  parseToml,
+  sha256Hex,
+} from '@indx-watch/bundle';
+import { nodeFs } from '@indx-watch/bundle/node';
 import { memoryObjectStore } from '@indx-watch/store';
+import { definitionFiles } from '@indx-watch/sync';
 import { describe, expect, it } from 'vitest';
 import { permits } from '../src/app.js';
 import type { ProjectInfo } from '../src/index.js';
 import { createApp, HttpError, type ServerDeps } from '../src/index.js';
-import { fakeDeps, req, SHOT_SHA, sampleRecords } from './helpers.js';
+import { fakeDeps, req, SHOP, SHOT_SHA, sampleRecords, shop } from './helpers.js';
 import { mcpCall } from './mcp-helpers.js';
 
 const ROLES = { lead: ['QA-Leads'], tester: ['qa'], viewer: ['viv@shop.test'], customer: ['uat'] };
@@ -22,8 +32,12 @@ function human(id: string): Actor {
 }
 
 /** A hosted app whose fake Access identity and groups come from the x-test-user header. */
-async function hosted(roles: ServerDeps['roles'] | null = ROLES) {
-  const f = await fakeDeps();
+async function hosted(
+  roles: ServerDeps['roles'] | null = ROLES,
+  extra: Partial<ServerDeps> = {},
+  bundle?: Bundle,
+) {
+  const f = await fakeDeps({ bundle });
   const objects = memoryObjectStore();
   const who = (r: Request) =>
     PEOPLE[r.headers.get('x-test-user') ?? ''] ?? fail(new HttpError(401, 'unauthorized', 'no token'));
@@ -37,6 +51,7 @@ async function hosted(roles: ServerDeps['roles'] | null = ROLES) {
     identity,
     objects,
     roles: roles ?? undefined,
+    ...extra,
   } as ServerDeps);
   const send = (user: string, path: string, init: RequestInit & { json?: unknown } = {}) =>
     app.fetch(req(path, { ...init, headers: { ...(init.headers ?? {}), 'x-test-user': user } }));
@@ -169,6 +184,53 @@ describe('roles on the hosted app', () => {
     const draft = { kind: 'feature', fields: { title: 'X' }, model: 'claude-test' };
     expect(JSON.stringify(await call('tester', 'new', draft))).toContain('tester role cannot write');
     expect((await call('customer', 'status', {})).status).toBe(403);
+  });
+});
+
+/** A hosted app in workspace mode whose store already holds the test case files as `file` records. */
+async function workspaceHosted() {
+  const b = await shop();
+  const project = { ...b.project.data, store: { ...b.project.data.store!, mode: 'workspace' as const } };
+  const files = await definitionFiles(nodeFs(SHOP));
+  const records: FileRecord[] = [];
+  for (const [path, data] of files) {
+    const entity = path.endsWith('.toml') ? parseToml(new TextDecoder().decode(data)).id : undefined;
+    const env = { kind: 'file', id: newId('rec'), v: 1, project: project.id, at: '2026-11-18T00:00:00Z' };
+    const actor = { kind: 'human', id: 'alex@shop.test', via: 'git' };
+    records.push(
+      FileRecord.parse({ ...env, actor, source: 'cli', path, entity, sha256: await sha256Hex(data) }),
+    );
+  }
+  const extra = { bundleFiles: async () => files, records: async () => records };
+  return hosted(ROLES, extra, { ...b, project: { ...b.project, data: project } });
+}
+
+describe('roles: definition edits in workspace mode', () => {
+  it('only leads edit (PATCH /api/test-cases/:key); others, customers included, are refused before the lookup', async () => {
+    const h = await workspaceHosted();
+    const patch = (user: string, key: string) => {
+      const r = req(`/api/test-cases/${key}`, { method: 'PATCH', json: { priority: 'P1' } });
+      r.headers.set('x-test-user', user);
+      return h.app.fetch(r);
+    };
+    expect(permits('tester', 'PATCH', '/api/test-cases/TC-3')).toBe(false);
+    for (const user of ['viewer', 'tester', 'customer', 'nobody']) {
+      expect((await patch(user, 'TC-3')).status, user).toBe(403);
+      // an unknown or unassigned key answers 403 too, so a customer learns nothing about it
+      expect((await patch(user, 'TC-999')).status, user).toBe(403);
+    }
+    expect(h.written).toEqual([]);
+    const res = await patch('lead', 'TC-3');
+    expect(res.status).toBe(201);
+    expect(h.written).toMatchObject([{ kind: 'file', actor: { id: 'alex@shop.test' } }]);
+    const can = async (user: string) =>
+      ((await (await h.send(user, '/api/project')).json()) as ProjectInfo).can.edit;
+    expect([await can('lead'), await can('tester'), await can('viewer'), await can('customer')]).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });
 
