@@ -124,5 +124,5 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] In GitHub Actions, the run's `ci.url` points to the job (with `IW_CHECK_RUN_ID`, else to the run attempt) and `ci.pr` is set on pull requests; the job summary contains the report.
 - [x] With `gate: true` and a failing P0 test case, the action step fails.
 - [x] The "Suggested test cases" section for a change to `examples/shop/tests/coupon.spec.ts` lists TC-3 and TC-4 (`iw impact` human output, CLI test).
-- [ ] On this repository's pull requests (`comment: true` in CI), the PR comment carries that section (to confirm on the T-304 pull request).
+- [x] On this repository's pull requests (`comment: true` in CI), the PR comment carries that section (seen on PR #29).
 - [x] With only GitLab CI, CircleCI or Buildkite variables set, `build`, `ci`, `actor` and `automation.group` come from the table above (store and reporter unit tests with fake environments).
