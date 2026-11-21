@@ -120,6 +120,11 @@ export const CommandData = {
   'baseline approve': z.object({ baselines: z.array(z.record(z.string(), z.unknown())) }),
   waive: z.object({ waiver: z.record(z.string(), z.unknown()) }),
   approve: z.object({ ref: z.string(), file: z.string(), version: z.string(), approved_by: z.string() }),
+  /** docs/spec/security.md#customer-uat */
+  invite: z.object({
+    ...{ email: z.string(), plan: z.string(), file: z.string(), items: z.array(z.string()) },
+    ...{ revoked: z.boolean(), access: z.enum(['added', 'removed', 'kept', 'manual']) },
+  }),
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
   'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
   login: z.object({ url: z.string() }),

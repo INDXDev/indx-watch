@@ -116,6 +116,27 @@ The Worker lets only `/healthz` and report share links (`/s/<token>`) through wi
 
 Keep the session duration short for customers (for example 24 hours). Removing an address from the policy revokes access at the next login.
 
+### Invite customers (UAT)
+
+*(v0.3)* `iw invite` assigns a customer to plan items and adds their email to the customer policy for you ([customer UAT](../spec/security.md#customer-uat)). Set it up once:
+
+1. **One-time PIN**: Zero Trust → **Integrations → Identity providers → Add new → One-time PIN** (or the Identity Providers API with type `onetimepin`). In the application's **Login methods**, enable One-time PIN, together with your team's IdP. If your customers' mail gateways filter mail, allowlist `noreply@notify.cloudflare.com`.
+2. **Customer policy**: Zero Trust → Access → **Policies → Add a policy** (a reusable policy): action **Allow**, name `UAT customers`, a short session duration, and an _Emails_ rule with a placeholder address you control. Attach it to the INDX Watch application. Copy the policy ID from its URL and your account ID from the dashboard.
+3. **API token**: My Profile → **API Tokens → Create Token → Custom**, permission **Account → Access: Apps and Policies → Edit**, limited to your account.
+4. **Roles**: `[hosting.roles]` must exist in `project.toml` (an invited email that matches no entry becomes a `customer`); `iw deploy` again after adding it.
+5. For `iw invite` in a working copy, export `IW_ACCESS_POLICY=<account id>/<policy id>` and `CLOUDFLARE_API_TOKEN`. For invites from the hosted app (workspace mode), store both on the Worker: `npx wrangler secret put IW_ACCESS_POLICY --name shop-watch` and `npx wrangler secret put CLOUDFLARE_API_TOKEN --name shop-watch`.
+
+Then:
+
+```console
+$ npx indx-watch invite pat@client.test --plan PLAN-2 --items TC-6,TC-8
+Invited pat@client.test to PLAN-2 (TC-6, TC-8); Access policy: added
+$ npx indx-watch push                               # git mode: publish the changed plan (or iw sync --snapshot in CI)
+$ npx indx-watch invite pat@client.test --plan PLAN-2 --revoke
+```
+
+The customer opens the app, enters their email, types the PIN from the Access mail and sees only their items. CI never calls the Cloudflare API: try the whole flow once against your real policy with a test address before inviting customers.
+
 ### CI: service tokens
 
 1. **Zero Trust → Access → Service credentials → Service Tokens → Create**. Copy the Client ID and Client Secret (the secret is shown once).

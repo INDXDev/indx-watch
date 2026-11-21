@@ -72,6 +72,10 @@ Gate checks, counts by status and the use case table move to **Release details**
 
 **Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases shows `iw new` examples and a "Write test cases with your agent" link to [agents.md](agents.md).
 
+### Customer view
+
+*(v0.3, [customer UAT](security.md#customer-uat))* For a `customer` (`role` in `GET /api/project`), Home is a focused page: the verdict hero over their items, then **Your acceptance tests**, every plan item assigned to them grouped by plan, each row with its status, key, title in the chosen language, due date and **Run** (or **Inspect** for a failed run), which opens the Focus runner over that item and the rest of the list. The summary cards, Recent activity and Release details are not shown. The runner is the normal manual runner; a run is recorded with the customer's Access identity. With nothing assigned the page says "No tests are assigned to you yet".
+
 ### Visual baselines
 
 *(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
@@ -153,7 +157,7 @@ Without a store (local only), Clone shows `git clone` advice instead, because th
 - Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy. While a test case has a conflict file, saving it is refused (409), because the edit would silently drop the other value.
 - Upload is for git mode: in workspace mode the Upload button is hidden, and the API refuses uploads (409).
 
-Use cases, fixtures and plans are edited in a working copy in this version.
+Use cases, fixtures and plans are edited in a working copy in this version; only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](security.md#customer-uat)), which append a `file` record for the plan the same way.
 
 ## Upload
 
@@ -203,6 +207,7 @@ You can upload definitions in three ways:
 - [x] `POST /api/runs/<run>/baselines` by a human writes a `baseline` record, after which the run detail lists that screenshot in `baselines`; an agent gets 403 and a non-PNG or unknown blob 400 (server test; the button itself is not tested automatically).
 - [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
+- [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
 - [x] In workspace mode, editing a test case's title, priority and steps in the app writes a `file` record with the viewer's verified identity, and an agent's edit is saved as an AI draft; in git mode the server refuses the edit (409) (server and Worker tests; the form itself was checked by hand).

@@ -266,6 +266,8 @@
   "home.card.coverage": "Criteria covered",
   "home.card.upload": "Last upload",
   "home.card.noUpload": "No uploads yet",
+  "home.uat": "Your acceptance tests",
+  "home.uat.empty": "No tests are assigned to you yet.",
   "home.queue": "Your queue",
   "home.queue.empty": "Nothing left to test. Nice work.",
   "home.seeAll": "See all {count}",

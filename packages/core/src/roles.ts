@@ -14,10 +14,38 @@ export interface Principal {
 const names = (p: Principal) => new Set([p.id, ...p.groups].map((s) => s.toLowerCase()));
 const ORDER: Role[] = ['lead', 'tester', 'viewer', 'customer'];
 
-/** The highest role whose list names the actor ID or one of its groups (without case), else `default`. */
-export function roleOf(roles: Roles, who: Principal): Role | undefined {
+/**
+ * The highest role whose list names the actor ID or one of its groups (without case); else `customer` for an
+ * invited email assignee, else `default` (docs/spec/security.md#customer-uat).
+ */
+export function roleOf(roles: Roles, who: Principal, invited = false): Role | undefined {
   const n = names(who);
-  return ORDER.find((r) => roles[r]?.some((e) => n.has(e.toLowerCase()))) ?? roles.default;
+  return (
+    ORDER.find((r) => roles[r]?.some((e) => n.has(e.toLowerCase()))) ?? (invited ? 'customer' : roles.default)
+  );
+}
+
+/** An email a customer can be invited with. */
+export const EMAIL = /^[^@\s:]+@[^@\s]+\.[^@\s]+$/;
+const same = (a: string | undefined, b: string) => a?.toLowerCase() === b.toLowerCase();
+/** Is `email` the assignee of any plan item. */
+export const isAssignee = (plans: { items?: PlanItem[] }[], email: string) =>
+  plans.some((p) => p.items?.some((i) => same(i.assignee, email)));
+
+/**
+ * A plan's items after inviting `email` to the items of `keys` (every item when empty), or revoking it from them;
+ * `missing`: keys that are not items of the plan (docs/spec/security.md#customer-uat).
+ */
+export function inviteItems(items: PlanItem[], email: string, keys: string[], revoke = false) {
+  const want = new Set(keys.map((k) => k.toUpperCase()));
+  const hit = (i: PlanItem) => !want.size || want.has(i.test_case.toUpperCase());
+  const missing = [...want].filter((k) => !items.some((i) => i.test_case.toUpperCase() === k));
+  const next = items.map((i): PlanItem => {
+    if (!hit(i) || (revoke && !same(i.assignee, email))) return i;
+    const { assignee: _, ...rest } = i;
+    return revoke ? rest : { ...rest, assignee: email };
+  });
+  return { items: next, selected: items.filter(hit).map((i) => i.test_case), missing };
 }
 
 /** A plan item is assigned to whoever its `assignee` names: that email, or `group:<name>` of one of their groups. */
