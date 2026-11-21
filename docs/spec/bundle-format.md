@@ -133,6 +133,11 @@ r2_bucket = "shop-watch"
 d1_database = "shop-watch"
 access_team = "example"
 
+[hosting.roles]
+lead = ["qa-leads@shop.test"]
+tester = ["qa@shop.test"]
+customer = ["uat@shop.test"]
+
 [[glossary]]
 term = "Coupon"
 definition = "A code that reduces the order total."
@@ -149,7 +154,7 @@ definition = "A code that reduces the order total."
 | `[gate]` | no | Readiness gate thresholds; defaults in [concepts](concepts.md#readiness-gate). |
 | `[decision_policy]` | no | Project defaults; a test case may override. |
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default; `workspace` is reserved for v0.2). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
-| `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](security.md#github-oidc)). |
+| `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](security.md#roles)). |
 | `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](security.md#signed-records). |
 
 ## `environments/<name>.toml`
@@ -463,7 +468,7 @@ source_hash = "862ca86fb166"
 ```
 
 - `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](i18n.md#content-translations)).
-- `assignee`: an email, `ci`, or `agent:<name>`.
+- `assignee`: an email, `ci`, `agent:<name>`, or *(v0.3)* `group:<name>` for everyone in an Access group (matched against the group's ID, name or email). On the hosted app a `customer` sees only the items assigned to them ([roles](security.md#roles)).
 - An item may override `environment` and `due`. Item status is computed ([concepts](concepts.md#plan-item-computed)).
 
 ## Templates
