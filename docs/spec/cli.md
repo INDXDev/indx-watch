@@ -137,7 +137,7 @@ A test case has `flaky` only when it has at least one flake among its last 10 pa
 
 ### `iw impact`
 
-Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](integrations.md#github-action).
+Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4); `--base` reads non-ASCII paths unquoted (`core.quotePath=false`). `--changed` splits on commas, so pass a path that contains a comma through `--changed -` (stdin, one path per line). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](integrations.md#github-action).
 
 | Flag | |
 |---|---|

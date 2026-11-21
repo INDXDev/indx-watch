@@ -81,7 +81,9 @@ export const resultCommands: Record<string, Spec> = {
       const p = await cx.openProject(ctx, a);
       const base = str(a.base);
       const given = csv(a.changed);
-      const diff = base ? git(p.root, 'diff', '--name-only', `${base}...HEAD`) : '';
+      const diff = base
+        ? git(p.root, '-c', 'core.quotePath=false', 'diff', '--name-only', `${base}...HEAD`)
+        : '';
       if (diff === null) fail('EXTERNAL_TOOL', `git diff --name-only ${base}...HEAD failed in ${p.root}`);
       if (!base && !given.length) fail('USAGE', 'Pass --changed <paths> or --base <ref>');
       const stdin = given.includes('-') ? (await ctx.stdin()).split('\n') : [];

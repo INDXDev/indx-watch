@@ -12,7 +12,8 @@ export type ImpactSuggestion = { key: string; id: string; title: string; status:
 
 /** A path or glob: `*` and `?` stay within one segment, `**` spans segments, a trailing `/` covers a folder. */
 export function globMatch(pattern: string, path: string): boolean {
-  const p = pattern.endsWith('/') ? `${pattern}**` : pattern;
+  const q = pattern.replace(/^\.\//, '');
+  const p = q.endsWith('/') ? `${q}**` : q;
   const re = p.replace(/\*\*\/|\*\*|[*?]|[.+^${}()|[\]\\]/g, (t) =>
     t === '**/' ? '(?:.*/)?' : t === '**' ? '.*' : t === '*' ? '[^/]*' : t === '?' ? '[^/]' : `\\${t}`,
   );

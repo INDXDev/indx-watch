@@ -21,6 +21,7 @@ describe('globMatch', () => {
     expect(globMatch('tests/**/*.ts', 'tests/x/y/a.ts')).toBe(true);
     expect(globMatch('tests/', 'tests/x/a.ts')).toBe(true);
     expect(globMatch('tests/', 'other/tests/a.ts')).toBe(false);
+    expect(globMatch('./tests/a.ts', 'tests/a.ts')).toBe(true);
   });
 });
 

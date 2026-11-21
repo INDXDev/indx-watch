@@ -43,9 +43,12 @@ describe('iw impact', () => {
     g('add', '.');
     g('commit', '-qm', 'shop');
     appendFileSync(join(dir, '.indx-watch/specs/FEAT-3-account/UC-4-customer-signs-in/use-case.toml'), '\n');
-    g('commit', '-qam', 'touch UC-4');
+    appendFileSync(join(dir, '日本.ts'), '\n'); // non-ASCII paths come through unquoted
+    g('add', '.');
+    g('commit', '-qm', 'touch UC-4');
     const r = iwJson(dir, 'impact', ['impact', '--base', 'HEAD~1']);
     expect(r.json.data.base).toBe('HEAD~1');
+    expect(r.json.data.changed).toContain('日本.ts');
     expect(keys(r)).toEqual(['TC-7', 'TC-8']);
     expect(r.json.data.testCases[0].reasons[0].kind).toBe('definition');
     expect(iw(dir, ['impact', '--base', 'no-such-ref']).code).toBe(4);

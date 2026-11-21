@@ -110,7 +110,7 @@ runs:
         IW_IN_COMMENT: ${{ inputs.comment }}
         IW_IN_CHECK: ${{ inputs.check }}
         IW_PR: ${{ github.event.pull_request.number }}
-        GH_TOKEN: ${{ inputs.token }}
+        IW_TOKEN: ${{ inputs.token }}
       run: |
         set -o pipefail
         # A second use of the action in the same job gets its own folder and artifact name.
@@ -197,7 +197,7 @@ runs:
 
         # Suggested test cases for the PR comment and check run: `iw impact` over the PR's changed files.
         if [ -n "$IW_PR" ] && { [ "$IW_IN_COMMENT" = true ] || [ "$IW_IN_CHECK" = true ]; }; then
-          if gh api "repos/$GITHUB_REPOSITORY/pulls/$IW_PR/files" --paginate --jq '.[].filename' > "$out/changed.txt" \
+          if GH_TOKEN="$IW_TOKEN" gh api "repos/$GITHUB_REPOSITORY/pulls/$IW_PR/files" --paginate --jq '.[].filename' > "$out/changed.txt" \
             && iw impact "${common[@]}" --changed - < "$out/changed.txt" > "$out/impact.md"; then
             echo "impact=$out/impact.md" >> "$GITHUB_OUTPUT"
           else
