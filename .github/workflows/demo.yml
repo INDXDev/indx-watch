@@ -75,14 +75,19 @@ jobs:
           echo "::error::/healthz did not answer"; exit 1
       - name: Load the sample results and the bundle snapshot
         # sync pulls examples/shop/store into the local replica; push uploads records, blobs and a snapshot.
+        # sync fetches blobs lazily, and push holds back a record whose blobs are not in the replica, so copy them in.
         run: |
           pnpm -s iw sync --dir "$DEMO_DIR/.indx-watch"
+          mkdir -p "$DEMO_DIR/.indx-watch/runs" && cp -r "$DEMO_DIR/store/v1/blobs" "$DEMO_DIR/.indx-watch/runs/"
           pnpm -s iw push --dir "$DEMO_DIR/.indx-watch" --store "${{ steps.deploy.outputs.url }}" \
-            --message "Demo ${GITHUB_SHA::7}"
+            --message "Demo ${GITHUB_SHA::7}" --json
       - name: Smoke test
         run: |
           curl -fsS "${{ steps.deploy.outputs.url }}/" | grep -qi '<html'
-          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > /dev/null || echo "::warning::/api/status did not answer yet"
+          # sample records missing from the demo show as untested; visitors' runs may change the other values
+          pnpm -s iw status --dir "$DEMO_DIR/.indx-watch" --json > "$RUNNER_TEMP/local.json"
+          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > "$RUNNER_TEMP/demo.json"
+          node scripts/compare-gate.mjs "$RUNNER_TEMP/local.json" "$RUNNER_TEMP/demo.json"
       - name: Summary
         run: |
           echo "### INDX Watch demo" >> "$GITHUB_STEP_SUMMARY"
