@@ -69,7 +69,7 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--fix` | Canonicalize files, regenerate slugs, renumber duplicate keys (prints mapping) |
 | `--strict` | Treat warnings as errors |
 
-Reference checks: see [concepts invariants](concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](sync.md#merge-rules)).
+Reference checks: see [concepts invariants](concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
 `data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "changed": string[], "renumbered": { "from": string, "to": string, "id": string }[] }`
 
@@ -227,7 +227,7 @@ Add a data file to a fixture (pointer if large, or with `--blob`) / download poi
 
 ### `iw sync`
 
-Exchange records and blobs between the local replica (`.indx-watch/runs/`) and the store in `project.toml`. In git mode, also publishes a bundle snapshot when the bundle changed. See [sync.md](sync.md).
+Exchange records and blobs between the local replica (`.indx-watch/runs/`) and the store in `project.toml`. With `--snapshot`, also publishes a bundle snapshot when the bundle changed. *(v0.2)* In [workspace mode](sync.md#workspace-mode-v02) it also publishes changed definition files as `file` records and writes the store's current definitions into the working tree, with conflict files where concurrent edits of one field disagree; it refuses (exit 1, `CONFLICT`) while git tracks files of the bundle. See [sync.md](sync.md).
 
 | Flag | |
 |---|---|
@@ -238,7 +238,7 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string }`. `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string, "workspace"?: { "published": string[], "written": string[], "removed": string[], "conflicts": string[], "held": string[] } }`. `workspace` (workspace mode only) lists bundle-relative paths: files published as new versions, written or removed in the working tree, conflict files present after the sync, and an agent's changes kept local. `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
 ### `iw compact`
 
