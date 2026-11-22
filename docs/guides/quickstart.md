@@ -66,7 +66,7 @@ The agent finds the data each test case needs and says what the tester does with
 
 "My features" are the features you own. For Alex, who owns Checkout, that is TC-3–TC-6: the agent runs the Playwright tests of TC-3, TC-4 and TC-5 and reports each in one line. For a manual test case such as TC-6, or when you ask to be walked through one, it first explains the test in three lines:
 
-> **What it checks:** a guest gets the coupon's discount (AC-2.1).
+> **What it checks:** coupons let shoppers pay less; a valid code lowers the cart total by its discount (AC-2.1).
 > **Where to start:** open http://localhost:4173/cart with one "Canvas Tote" (40.00) in the cart; use the coupon code SUMMER10 from FX-1.
 > **What to look for:** after "Apply", the discount line shows "-4.00" and the total "36.00"; after "Place order", an order number.
 

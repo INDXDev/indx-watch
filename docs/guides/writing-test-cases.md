@@ -113,7 +113,7 @@ Say on each fixture reference what the tester does with it (`use`, `note`; see [
 | ------------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `manual`     | A person follows the steps in the browser runner (or records with `iw record`)                                            | `human`          |
 | `playwright` | A Playwright test tagged `@TC-n` implements it; list the file in `[automation] files` ([Playwright guide](playwright.md)) | `assert`         |
-| `agent`      | An LLM browser agent follows the plain-language steps (`iw run`)                                                          | `llm`            |
+| `agent`      | An LLM browser agent follows the plain-language steps (`iw run`)                                                          | `assert` + `llm` |
 | `hybrid`     | An agent or script executes, a person confirms; always ends in `needs_review` until a human judges                        | any + `human`    |
 
 Write the steps of a `playwright` test case as carefully as a manual one: they are the specification the test implements, and step results map by number when the test uses `test.step('1. …')`.

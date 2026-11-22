@@ -96,7 +96,7 @@ The web app shows the same test case on one page, so you can also run it there: 
 
 ![TC-9 on one page: What this tests, Before you start with the FX-3 account card and the FX-4 photo download, Steps with checks, Result and Run manually](../design/screenshots/test-case-1280.png)
 
-On a phone the page keeps the same order, with Run manually at the bottom:
+On a phone the page keeps the same order. The top of TC-6 at 390 px wide:
 
 ![TC-6 at 390 px wide: What this tests, the covered criterion and Before you start with the Open link](../design/screenshots/test-case-390.png)
 
