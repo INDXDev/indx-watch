@@ -36,7 +36,7 @@ Definitions say **what done means**. Results say **what actually happened**, wit
 | Release | `releases/<version>.toml` | `v1.2.0` | A version under test. Runs are attributed to a release. |
 | Build | (in run records) | `a1b2c3d` | A commit SHA, plus optional ref and CI build URL. |
 | Deployment | `deployment` record | `staging@a1b2c3d` | A build on an environment at a time. Posted by CI or the GitHub Action. |
-| Feature | `specs/<FEAT>/feature.toml` | `FEAT-1` | A group of use cases (e.g. "Cart & checkout"). |
+| Feature | `specs/<FEAT>/feature.toml` | `FEAT-1` | A group of use cases (e.g. "Cart & checkout"), optionally with [owners](#feature-owners). |
 | Use case | `specs/<FEAT>/<UC>/use-case.toml` | `UC-12` | Who wants to achieve what. Has an actor, a goal, a priority. |
 | Acceptance criterion (AC) | inside the use case file | `AC-12.2` | An observable, binary statement that must hold for the use case to be done. Numbered within its use case. |
 | Test case (TC) | `specs/<FEAT>/<UC>/TC-<n>-<slug>.toml` | `TC-128` | Steps with expected results that verify one or more ACs. Has a mode, fixtures, judges and a decision policy. |
@@ -256,6 +256,12 @@ Changed paths are relative to the repository root with `/` separators, as `git d
 3. **fixture**: lies inside the directory of a fixture the test case references.
 
 Each suggestion carries every reason that applies (`kind`, the changed `file`, and for `automation` the matching entry as `pattern`). Suggestions are ordered by priority (P0 first), then key. Drafts are included; their definition `status` tells them apart.
+
+## Feature owners
+
+*(v0.4)* A feature's optional `owners` ([bundle format](bundle-format.md#specsfeatfeaturetoml)) name the people who look after its tests: emails (or other actor IDs) and `group:<name>` entries. "My features" for a person are the features whose owners name their actor ID or, where groups are known (the hosted app with [roles](security.md#roles)), `group:<name>` of one of their groups, without case, exactly like a plan item's assignee (one matcher in `packages/core/src/roles.ts`).
+
+`ownedFeatures(model, who)` lists a person's features, and `ownedModel(model, features)` is the one place that narrows a model to them: their features and use cases, the test cases of those use cases plus any test case that covers one of their criteria, and every record. Status, the gate and counts are computed by the usual functions over that model, so `iw status --mine`, `GET /api/status?mine=1` and the web app's "My features" describe only those features; the gate shown there is the gate of that slice, not the release's. Owners are a view, not a permission: anyone may still see and run every test case ("All features").
 
 ## Readiness gate
 
