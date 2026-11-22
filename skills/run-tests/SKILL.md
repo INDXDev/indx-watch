@@ -26,7 +26,7 @@ A run is one execution of one test case version against one build and environmen
    Release and environment default to `current_release` and `default_environment` in `project.toml`; pass `--release` / `--env` only when the user names them. Draft test cases may be run.
 2. **Prepare.** Check that the environment's `base_url` answers. For a fixture with `apply = "before_run"`, send its JSON to the environment's seed hook. For a `file` fixture stored as a pointer (`*.blob.toml`), run `iw fixture fetch FX-n --json` first. For an `account` fixture, check that the variable in its `secret_ref` (e.g. `env:SHOP_CUSTOMER_PASSWORD`) is set; never print it.
 3. **Execute by mode.**
-   - `playwright`: run the linked test by tag, anchored so `@TC-1` does not match `@TC-12`:
+   - `playwright`: run the linked test by tag, anchored so `@TC-1` does not match `@TC-10`:
 
      ```bash
      IW_ACTOR_KIND=agent IW_AGENT_MODEL=M npx playwright test --grep "@TC-3(\s|$)"

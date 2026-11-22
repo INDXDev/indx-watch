@@ -7,15 +7,12 @@ import { join } from 'node:path';
 import { parseToml } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import { setupAgents } from '../src/agents.js';
-import { iwJson, ROOT } from './helpers.js';
+import { iwJson, PORTABLE, ROOT } from './helpers.js';
 
 const SKILLS = join(ROOT, 'skills');
 const names = readdirSync(SKILLS, { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
-const PORTABLE = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
-/** Claude Code keys a source skill may add; they stay in the .claude/ copies only. */
-const CLAUDE = ['argument-hint', 'disable-model-invocation'];
 const MCP = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
 const read = (dir: string, path: string) => readFileSync(join(dir, path), 'utf8');
 
@@ -29,15 +26,25 @@ function frontmatterKeys(text: string): string[] {
 }
 
 describe('skills', () => {
-  it('every source SKILL.md has only portable or Claude Code keys, including name and description', () => {
-    expect(names.length).toBeGreaterThanOrEqual(6);
-    for (const n of names) {
-      const keys = frontmatterKeys(readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8'));
-      expect(
-        keys.filter((k) => ![...PORTABLE, ...CLAUDE].includes(k)),
-        n,
-      ).toEqual([]);
-      expect(keys, n).toEqual(expect.arrayContaining(['name', 'description']));
+  it('job skills (docs/spec/agents.md#job-skills-v04) follow the shared conventions a script can check', () => {
+    const jobs = {
+      'iw-setup': 'indx-watch',
+      'iw-design': 'write-test-cases',
+      'iw-data': 'manage-fixtures',
+      'iw-test': 'run-tests',
+      'iw-triage': 'triage-failure',
+      'iw-status': 'release-report',
+    };
+    for (const [n, ref] of Object.entries(jobs)) {
+      const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
+      const description = /^description: (.+)$/m.exec(text)![1]!;
+      expect(description.length, n).toBeLessThanOrEqual(1024);
+      expect(description, n).toMatch(/Use when .*「/); // triggers in English and Japanese
+      expect(frontmatterKeys(text), n).toContain('argument-hint');
+      expect(frontmatterKeys(text), n).not.toContain('disable-model-invocation');
+      expect(text, n).toContain(`(../${ref}/SKILL.md)`);
+      expect(text, n).toMatch(/Next: .+\(iw-[a-z]+\)/);
+      expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
     }
   });
 
