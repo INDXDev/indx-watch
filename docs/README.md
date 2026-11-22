@@ -6,7 +6,7 @@ INDX Watch keeps test cases, fixtures and results as typed files, syncs results 
 
 | You are… | Read |
 |---|---|
-| **A user** trying it out | [Quickstart](guides/quickstart.md) → [Writing good test cases](guides/writing-test-cases.md) → [Fixtures](guides/fixtures.md) → [Playwright](guides/playwright.md) → [GitHub Actions](guides/github-actions.md) → [S3 sync](guides/s3-sync.md) |
+| **A user** trying it out | [Quickstart](guides/quickstart.md) (install once, then ask your agent) → [Testing with Claude Code or Codex](guides/testing-with-agents.md) → [Writing good test cases](guides/writing-test-cases.md) → [Fixtures](guides/fixtures.md) → [Playwright](guides/playwright.md) → [GitHub Actions](guides/github-actions.md) → [S3 sync](guides/s3-sync.md) |
 | **Self-hosting** a shared instance | [Cloudflare](guides/self-host-cloudflare.md) or [Node/Docker](guides/self-host-node.md), then [Security](spec/security.md) |
 | **A maintainer / contributor** | [Vision](vision.md) → [Concepts](spec/concepts.md) → [Architecture](architecture.md) → [Bundle format](spec/bundle-format.md) → [Sync](spec/sync.md) → [ADRs](adr/README.md) → [Roadmap](roadmap.md) → [CONTRIBUTING](../CONTRIBUTING.md) |
 | **A coding agent** | [AGENTS.md](../AGENTS.md) (working on this repo) or [Agents spec](spec/agents.md) (using INDX Watch from an agent) |

@@ -13,6 +13,8 @@ These folders are [Agent Skills](https://agentskills.io/specification): a `SKILL
 
 Job skills (v0.4) hold a whole conversation for one job: they read first, ask one question at a time with a recommended answer, explain test cases in plain words, write only what the user accepted, stop where a person must decide and end with a "Next:" line. They use the skills above as references for command details.
 
+What each job looks like from the user's side (what you say, what happens, what you approve): [Testing with Claude Code or Codex](../docs/guides/testing-with-agents.md).
+
 | Skill                                | Use it to                                                                                                          |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | [`iw-setup`](iw-setup/SKILL.md)      | Connect a repository: bundle, environment, release, features and proposed owners, Playwright reporter and CI       |
