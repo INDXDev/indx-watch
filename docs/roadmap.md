@@ -71,6 +71,54 @@ The rows marked ✅ here (T-202, T-204, T-211, T-213–T-216) ship in the first 
 | T-303 | Flaky test detection and quarantine view | Flake rate per TC over the last N runs | ✅ flake rate over the last 10 pass/fail runs in core, `iw status --json` and the API; Tests → Flaky view ([concepts](spec/concepts.md#flaky-tests)) |
 | T-304 | Impact analysis: suggest TCs for a PR from changed files and `[automation].files` | Suggestions listed in the PR summary | ✅ `impactedTestCases()` in core ([concepts](spec/concepts.md#impact-analysis)), [`iw impact --changed/--base`](spec/cli.md#iw-impact), and a "Suggested test cases" section in the action's PR comment and check run from the PR's changed files (seen in the PR #29 comment) |
 
+## v0.4 — skills first, guided testing
+
+Goal: after one install command, everything a team does with INDX Watch starts from a skill in Claude Code or Codex. Nobody needs to learn the CLI. A tester sees only the features they own. A person who has never seen the app can run a test case from one page without guessing what it checks, where to start or which file to use. Format changes are additive within `schema_version = 1`, and test cases without the new fields keep their version hashes.
+
+### Install once
+
+`npx indx-watch init` (and `iw skills install` in an existing project) sets up the repository for both agents. Platform facts are in [platform notes](research/platform-notes.md#agent-skills).
+
+| Writes | For | Why |
+|---|---|---|
+| `.claude/skills/<name>/SKILL.md` | Claude Code | Project skills; invoked as `/<name>`; committed so the team gets them |
+| `.agents/skills/<name>/SKILL.md` + `agents/openai.yaml` | Codex and other Agent Skills clients | Codex scans `.agents/skills` up to the repository root; invoked as `$<name>` or from `/skills` |
+| `.mcp.json` | Claude Code | Project MCP server `indx-watch` (`npx -y indx-watch mcp`); each person approves it once |
+| `.codex/config.toml` `[mcp_servers.indx-watch]` | Codex | Project MCP server; loaded once the project is trusted |
+| A marked block in `AGENTS.md` (created if missing; `CLAUDE.md` gets `@AGENTS.md` if it exists without it) | both | Says the job skills exist and when to use them |
+
+The two skill folders are generated from one source in `skills/`. Each copy keeps only the frontmatter keys its client accepts: Claude Code copies may add `argument-hint` and `disable-model-invocation`, and `.agents/` copies use the portable keys plus `agents/openai.yaml`. Re-running the command updates the files it wrote and leaves the rest alone. `--no-agents` skips all of it.
+
+### Job skills
+
+Six skills, one per job. The user talks in plain words. The skill runs `iw` or the MCP tools itself, asks one question at a time with a recommended answer, explains every test case in plain language (what it is for, where to start, what to check), and ends with the next step. The v0.1 skills (`indx-watch`, `write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`) stay installed; the job skills use them as references.
+
+| Skill | Job | The user says | The agent does | A human decides |
+|---|---|---|---|---|
+| `iw-setup` | Connect the project | "set up testing for this repo" | Finds the app's URL, environments, Playwright and CI; fills `project.toml`, environments and features; wires the reporter and the GitHub Action; assigns feature owners | Commits; who owns which feature |
+| `iw-design` | Design tests | "what should we test in checkout?" | Reads the source (routes, screens, APIs, existing tests) and proposes use cases, criteria and test cases with purpose, start and checks; writes AI drafts only for the proposals the user accepts | Accepts or edits proposals; approves drafts |
+| `iw-data` | Prepare test data | "the coupon tests need data" | Finds the data the test cases need and creates fixtures with a usage note (download, upload, enter, seeded); secrets stay references | Approves fixtures |
+| `iw-test` | Run tests | "test my features", "walk me through TC-3" | Runs Playwright and agent test cases, or guides a person through a manual one in chat, check by check, and records it with evidence | Reviews `needs_review` runs |
+| `iw-triage` | Fix failures | "why did TC-3 fail?" | Classifies the failure with evidence and proposes a fix or an issue text | Reviews, waives |
+| `iw-status` | Know where we are | "what's left for me?", "can we ship 1.2.0?" | Shows progress by feature and owner, open items, the gate and who must act next; writes the report | Ships |
+
+### Tasks
+
+| ID | Task | Acceptance criteria | Status |
+|---|---|---|---|
+| T-400 | Design the job skills before building them: in [agents.md](spec/agents.md), each skill's conversations (what the user says, what the agent asks and writes, where it stops for a human), shared conventions (one question at a time with a recommendation, a "next step" line, plain-language test explanations, commands shown only on request), and the relation to the v0.1 skills | Reviewed and merged before T-405–T-407 start; every conversation uses `examples/shop` | ⏳ |
+| T-401 | One-command agent setup: `iw init` and `iw skills install` write the files in [Install once](#install-once) with per-client frontmatter, idempotently; `--no-agents`; spec in [cli.md](spec/cli.md) and [agents.md](spec/agents.md) | Tests on a temp copy of `examples/shop`: both skill folders, `.mcp.json`, `.codex/config.toml` and the `AGENTS.md` block are written once and updated in place; claude.ai-portable keys only under `.agents/`; checked by hand that Claude Code lists `/iw-test` and Codex lists `$iw-test` | ⏳ |
+| T-402 | Feature owners and "my features": `owners` on `feature.toml` (people, `group:` names); Home, Tests and the Focus runner default to the signed-in person's features with an "All features" switch; `iw status --mine` and the API filter | [bundle-format.md](spec/bundle-format.md), [web.md](spec/web.md) updated; shop features get owners; e2e: a tester who owns Checkout sees only TC-3–TC-6 by default | ⏳ |
+| T-403 | Test case guidance fields: `purpose`, `start` (a path on the environment's `base_url` plus an optional sentence), per-step `checks` (yes/no observations next to `expected`) and per-fixture `use` (`download`, `upload`, `enter`, `seeded`) with a `note`; translations, schemas, `formatToml()`, version hash (new fields hashed only when present); `iw check` warns on a `ready` manual test case without `purpose` or `start`; `examples/shop` filled in en and ja | Existing shop version hashes unchanged; `iw check --dir examples/shop/.indx-watch` clean | ⏳ |
+| T-404 | One-page test case with inline manual run: *What this tests* → *Before you start* (open link from `start`, test data cards with what to do and a download button per file, preconditions as a checklist) → *Steps* with `checks` as checkboxes → *Result*. "Run manually" opens the runner in place without a route change; ticked checks are recorded on step results (additive); `#/tc/<TC>/run` opens the same page with the runner open; Focus sessions advance in place | [web.md](spec/web.md) updated; e2e: run TC-3 from `#/tc/TC-3` without the path changing, a fail with an unticked check, TC-9's photo card offers its download and names the upload step | ⏳ |
+| T-405 | `iw-setup`, `iw-design`, `iw-data` skills | Dry run of each on a copy of `examples/shop` recorded in the PR; `iw-design` writes nothing before the user accepts | ⏳ |
+| T-406 | `iw-test`, `iw-triage`, `iw-status` skills, including the guided manual run in chat and "my features" | Dry run of each on `examples/shop` recorded in the PR; a guided run of TC-3 records a run with checks | ⏳ |
+| T-407 | Skill lint in `pnpm test`: frontmatter per client, every `iw` command exists in [cli.md](spec/cli.md), examples only from shop, length limits | Fails on a bad key or an unknown command | ⏳ |
+| T-408 | Dogfood: `.indx-watch/` test cases for T-402 and T-404 with e2e tests tagged `@TC-n`; this repository installs its own skills with `iw skills install` | CI green; `iw status` covers the new criteria | ⏳ |
+| T-409 | Docs: quickstart rewritten as "install, then ask your agent"; a "Testing with Claude Code or Codex" guide by job; screenshots of the new test case page | `pnpm check:docs`; every example from shop | ⏳ |
+
+Order: T-400, T-401 and T-403 first; then T-402, T-404 and T-405–T-407 in parallel; then T-408 and T-409.
+
 ## v1.0 — stable format
 
 - Freeze `schema_version = 1` (or migrate to 2 with `iw migrate`), publish JSON Schemas to the Schema Store, semantic versioning of CLI JSON output.
