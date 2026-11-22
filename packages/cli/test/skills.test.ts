@@ -7,13 +7,12 @@ import { join } from 'node:path';
 import { parseToml } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
 import { setupAgents } from '../src/agents.js';
-import { iwJson, ROOT } from './helpers.js';
+import { iwJson, PORTABLE, ROOT } from './helpers.js';
 
 const SKILLS = join(ROOT, 'skills');
 const names = readdirSync(SKILLS, { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
-const PORTABLE = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
 const MCP = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
 const read = (dir: string, path: string) => readFileSync(join(dir, path), 'utf8');
 

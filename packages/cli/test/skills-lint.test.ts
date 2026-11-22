@@ -5,10 +5,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { setupAgents } from '../src/agents.js';
-import { ROOT } from './helpers.js';
+import { PORTABLE, ROOT } from './helpers.js';
 
 const SKILLS = join(ROOT, 'skills');
-const PORTABLE = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
 /** Claude Code keys a source skill may add (docs/spec/agents.md#skills). */
 const SOURCE = [...PORTABLE, 'argument-hint', 'disable-model-invocation'];
 const XML = /<\/?[A-Za-z][\w-]*(\s[^<>]*)?\/?>/;
@@ -120,7 +119,8 @@ function shopKeys(): Set<string> {
 
 const COMMANDS = cliCommands();
 const KEYS = shopKeys();
-const MENTION = /(?:^|[\s(;&|$])(?:iw|npx\s+(?:-y\s+)?indx-watch)\s+([a-z][\w-]*)(?:\s+([a-z][\w-]*))?/g;
+const MENTION =
+  /(?:^|[\s(;&|$])(?:iw|npx\s+(?:(?:-y|--yes)\s+)?indx-watch(?:@\S+)?)\s+([a-z][\w-]*)(?:\s+([a-z][\w-]*))?/g;
 
 /** `iw <command>` mentions in code (fenced blocks and inline spans), skipping lines marked planned. */
 function commandProblems(text: string): string[] {
@@ -282,13 +282,15 @@ describe('skill lint', () => {
       'npx -y indx-watch mcp',
       'iw frobnicate --json',
       '```',
-      'Then `iw fixture remove FX-1` and `npx indx-watch nope`.',
+      'Then `iw fixture remove FX-1`, `npx indx-watch nope`, `npx --yes indx-watch nah` and `npx indx-watch@latest meh`.',
       'Later `iw guide TC-3` (*planned*, T-999).',
     ].join('\n');
     expect(lintSkills(fixture(skill([], body), { 'references/more.md': 'Use `iw wat`.\n' }))).toEqual([
       'demo/SKILL.md: unknown command "iw frobnicate" (not in docs/spec/cli.md)',
       'demo/SKILL.md: unknown command "iw fixture remove" (not in docs/spec/cli.md)',
       'demo/SKILL.md: unknown command "iw nope" (not in docs/spec/cli.md)',
+      'demo/SKILL.md: unknown command "iw nah" (not in docs/spec/cli.md)',
+      'demo/SKILL.md: unknown command "iw meh" (not in docs/spec/cli.md)',
       'demo/references/more.md: unknown command "iw wat" (not in docs/spec/cli.md)',
     ]);
   });
