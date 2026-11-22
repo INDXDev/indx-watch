@@ -7,6 +7,7 @@ import { shortHash } from './hash.js';
 import {
   FIXTURE_VERSION_EXCLUDED,
   Fixture,
+  FixtureRef,
   type Fixture as FixtureT,
   Step,
   TEST_CASE_VERSION_FIELDS,
@@ -23,14 +24,14 @@ const VersionTable = z.strictObject({
   criteria: z.array(z.string()).optional(),
   mode: TestCase.shape.mode,
   preconditions: TestCase.shape.preconditions,
-  fixtures: TestCase.shape.fixtures,
-  steps: z.array(Step.omit({ i18n: true })),
+  fixtures: z.array(FixtureRef.omit({ use: true, note: true, i18n: true })).optional(),
+  steps: z.array(Step.omit({ i18n: true, checks: true })),
   judges: TestCase.shape.judges,
   decision_policy: TestCase.shape.decision_policy,
 });
 
 /**
- * 'tcv:' + 12 hex over canonicalBody of TEST_CASE_VERSION_FIELDS (steps without i18n) plus
+ * 'tcv:' + 12 hex over canonicalBody of TEST_CASE_VERSION_FIELDS (steps and fixtures without guidance or i18n) plus
  * `criteria` = texts of the covered criteria in `covers` order (docs/spec/concepts.md#versions-and-staleness).
  */
 export async function testCaseVersion(
@@ -39,7 +40,9 @@ export async function testCaseVersion(
 ): Promise<string> {
   const table: Record<string, unknown> = Object.fromEntries(TEST_CASE_VERSION_FIELDS.map((k) => [k, tc[k]]));
   table.criteria = tc.covers.flatMap((k) => criterionText.get(k) ?? []);
-  table.steps = tc.steps.map(({ i18n: _, ...s }) => s);
+  // guidance fields are not part of the version
+  table.steps = tc.steps.map(({ i18n: _, checks: _c, ...s }) => s);
+  table.fixtures = tc.fixtures?.map(({ use: _, note: _n, i18n: _i, ...f }) => f);
   return `tcv:${await shortHash(formatBody(VersionTable, table, true))}`;
 }
 
@@ -69,8 +72,9 @@ export const TRANSLATABLE_FIELDS = {
   feature: ['title', 'description'],
   'use-case': ['title', 'actor', 'goal'],
   criterion: ['text'],
-  'test-case': ['title', 'preconditions'],
-  step: ['instruction', 'expected'],
+  'test-case': ['title', 'preconditions', 'purpose', 'start_note'],
+  step: ['instruction', 'expected', 'checks'],
+  'fixture-use': ['note'],
   fixture: ['title'],
   environment: ['title', 'guide'],
   release: ['title'],

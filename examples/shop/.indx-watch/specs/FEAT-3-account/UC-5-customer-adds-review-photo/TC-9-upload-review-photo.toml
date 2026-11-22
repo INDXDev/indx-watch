@@ -8,41 +8,64 @@ origin = "ai"
 tags = ["reviews"]
 covers = ["AC-5.1"]
 mode = "manual"
+purpose = "Photos make reviews more helpful. This test proves that a photo attached to a review shows up as a thumbnail."
+start = "/sign-in"
+start_note = "Open the sign-in page."
 
 [[fixtures]]
 ref = "FX-3"
+use = "enter"
+note = "Sign in with this account in step 1."
+
+[fixtures.i18n.ja]
+note = "ステップ 1 でこのアカウントでサインインする。"
+status = "machine"
+source_hash = "5ec459764961"
 
 [[fixtures]]
 ref = "FX-4"
+use = "upload"
+note = "Download the photo, then attach it in step 2."
+
+[fixtures.i18n.ja]
+note = "写真をダウンロードし、ステップ 2 で添付する。"
+status = "machine"
+source_hash = "284e20c889b5"
 
 [[steps]]
 instruction = "Sign in with {{FX-3.username}} and open \"Canvas Tote\"."
 expected = "The product page shows a \"Write a review\" form."
+checks = ["The \"Write a review\" form is shown."]
 
 [steps.i18n.ja]
 instruction = "{{FX-3.username}} でサインインし、「Canvas Tote」を開く。"
 expected = "商品ページに「Write a review」フォームが表示される。"
+checks = ["「Write a review」フォームが表示される。"]
 status = "machine"
-source_hash = "aaa8dcc77464"
+source_hash = "cf599959983d"
 
 [[steps]]
 instruction = "Attach the file from FX-4 and press \"Post review\"."
 expected = "The review appears with a thumbnail of the photo."
+checks = ["The new review appears.", "It shows a thumbnail of the photo."]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "FX-4 のファイルを添付して「Post review」を押す。"
 expected = "写真のサムネイルつきでレビューが表示される。"
+checks = ["新しいレビューが表示される。", "写真のサムネイルがある。"]
 status = "machine"
-source_hash = "5021d7a7b95c"
+source_hash = "bdf800a43fda"
 
 [[judges]]
 kind = "human"
 
 [i18n.ja]
 title = "アップロードしたレビュー写真がサムネイルで表示される"
+purpose = "写真があるとレビューがもっと役に立ちます。このテストは、レビューに添付した写真がサムネイルで表示されることを確かめます。"
+start_note = "サインインページを開く。"
 status = "machine"
-source_hash = "efaab31b731c"
+source_hash = "15e7b86a3c43"
 
 [ai]
 model = "claude-opus-5-5"

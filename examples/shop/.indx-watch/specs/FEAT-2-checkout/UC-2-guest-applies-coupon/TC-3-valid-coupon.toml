@@ -7,36 +7,57 @@ status = "ready"
 tags = ["coupon", "smoke"]
 covers = ["AC-2.1"]
 mode = "playwright"
+purpose = "Coupons let shoppers pay less. This test proves that a valid code lowers the cart total by its discount."
+start = "/cart"
+start_note = "Open the cart."
 preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
 
 [[fixtures]]
 ref = "FX-1"
 rows = ["SUMMER10"]
+use = "enter"
+note = "Type this code in the coupon field in step 1."
+
+[fixtures.i18n.ja]
+note = "ステップ 1 でこのコードをクーポン欄に入力する。"
+status = "machine"
+source_hash = "cfae022ab34a"
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
 expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
+checks = ["The discount line shows \"-4.00\".", "The total is \"36.00\"."]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
 expected = "割引行に「-4.00」と表示され、合計が「36.00」になる。"
+checks = ["割引行に「-4.00」と表示される。", "合計が「36.00」になる。"]
 status = "machine"
-source_hash = "2419bce9941f"
+source_hash = "801aea0ad4be"
 
 [[steps]]
 instruction = "Press \"Place order\"."
 expected = "The confirmation page shows an order number."
+checks = ["The confirmation page opens.", "It shows an order number."]
 
 [steps.i18n.ja]
 instruction = "「Place order」を押す。"
 expected = "確認ページに注文番号が表示される。"
+checks = ["確認ページが開く。", "注文番号が表示される。"]
 status = "machine"
-source_hash = "f52f16d20298"
+source_hash = "4eb8bade5144"
 
 [[judges]]
 kind = "assert"
@@ -47,5 +68,7 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 [i18n.ja]
 title = "有効なクーポンで合計が下がる"
 preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+purpose = "クーポンを使うと、買い物客は安く買えます。このテストは、有効なコードでカートの合計が割引分だけ下がることを確かめます。"
+start_note = "カートを開く。"
 status = "machine"
-source_hash = "21a0e3b40174"
+source_hash = "72d5db16627a"
