@@ -75,6 +75,29 @@ describe('manual runs: recording', () => {
   });
 });
 
+describe('manual runs: ticked checks', () => {
+  it('records which checks were ticked and refuses a list of the wrong length', async () => {
+    const f = await app();
+    const post = (checks: boolean[]) =>
+      f.app.fetch(
+        req('/api/runs', {
+          json: {
+            test_case: 'TC-8',
+            steps: [{ index: 1, status: 'fail', checks }],
+            verdict: 'fail',
+            note: 'No message',
+          },
+        }),
+      );
+    const res = await post([false]);
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as ManualRunResult).run.steps).toEqual([
+      { index: 1, status: 'fail', checks: [false] },
+    ]);
+    expect((await post([true, true])).status).toBe(400);
+  });
+});
+
 describe('manual runs: validation and release', () => {
   it('applies the reason rule, reported, and release resolution', async () => {
     const f = await app();

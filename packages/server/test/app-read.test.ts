@@ -111,6 +111,21 @@ describe('read routes: specs and test cases', () => {
     expect(await res.json()).toEqual({ error: { code: 'not-found', message: 'test case TC-99 not found' } });
   });
 
+  it('lists fixture files on the test case and serves them as blobs, from git or a pointer', async () => {
+    const { app: a } = await app();
+    const tc9 = await get<TestCaseDetail>(a, '/api/test-cases/TC-9');
+    const photo = tc9.fixtures.find((x) => x.key === 'FX-4')!.files![0]!;
+    expect(photo).toMatchObject({ name: 'review-photo.png', media_type: 'image/png', size: 8295 });
+    expect(photo.sha256).toBe(SHOT_SHA);
+    const tc3 = await get<TestCaseDetail>(a, '/api/test-cases/TC-3');
+    const csv = tc3.fixtures[0]!.files![0]!;
+    const res = await a.fetch(req(`/api/blobs/${csv.sha256}`));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('text/csv');
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="coupons.csv"');
+    expect(await res.text()).toContain('SUMMER10');
+  });
+
   it("GET /api/test-cases/:key marks an edited step's translation stale", async () => {
     const before = await get<TestCaseDetail>((await app()).app, '/api/test-cases/TC-4');
     expect(jaStatus(before.data.steps[0]!)).toBe('reviewed');
