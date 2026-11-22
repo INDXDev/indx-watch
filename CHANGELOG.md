@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- `iw record` and the MCP `record_run` tool now answer with the verdict `iw show` and `iw status` compute: an agent's pass of a test case that declares a judge it has no judgement from (e.g. a `human` judge) is `needs_review` (rule 10), not `pass`. Every caller passes the test case's facts to `decide()` through `runFacts()` (T-406).
 - `iw run --browser local` loads Playwright from the project (the current directory) before the copy next to the CLI, so `npx indx-watch run` finds the project's `playwright` (T-201).
 
 ## [0.1.0] - 2026-11-21

@@ -16,7 +16,7 @@ import {
   verifyRecord,
   type WaiverRecord,
 } from '@indx-watch/bundle';
-import { byAtThenId, byTimeThenId, decide } from './decide.js';
+import { byAtThenId, byTimeThenId, decide, runFacts } from './decide.js';
 import type {
   CriterionNode,
   FeatureNode,
@@ -224,12 +224,9 @@ function runView(r: RunRecord, later: Judgement[], ctx: RunContext): RunView {
   const judgements = [...inline, ...later].sort(byAtThenId);
   const used = r.fixtures ?? [];
   const rows = used.flatMap((f) => f.rows ?? []).sort();
-  const decision = decide(judgements, tc?.policy ?? ctx.index.policy, {
-    priority: tc?.priority ?? 'P2',
-    mode: tc?.data.mode ?? '',
-    reported: r.reported ?? null,
-    judges: tc?.data.judges?.map((j) => j.kind),
-  });
+  const reported = r.reported ?? null;
+  const facts = tc ? runFacts(tc, reported) : { priority: 'P2' as const, mode: '', reported };
+  const decision = decide(judgements, tc?.policy ?? ctx.index.policy, facts);
   const fixtureChanged = used.some((f) => ctx.index.fxById.get(f.id)?.version !== f.version);
   return {
     record: r,

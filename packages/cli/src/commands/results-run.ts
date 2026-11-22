@@ -142,8 +142,7 @@ const record: Spec = {
       evidence: [...((input.evidence as unknown[]) ?? []), ...evidence],
       judgements: [...((input.judgements as unknown[]) ?? []), ...judgement],
     });
-    const facts = { priority: tc.priority, mode: tc.data.mode, reported: run.reported };
-    const d = core.decide(run.judgements, tc.policy, facts);
+    const d = core.decide(run.judgements, tc.policy, core.runFacts(tc, run.reported));
     const text = `Recorded ${run.id} for ${tc.data.key}: ${d.verdict} (rule ${d.rule}: ${d.reason})`;
     return { data: { run, verdict: d.verdict, rule: d.rule }, warnings, text };
   },

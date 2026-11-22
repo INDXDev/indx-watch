@@ -2,7 +2,7 @@
  * 判定ポリシー（docs/spec/concepts.md#decision-policy, ADR 0013）。上から順に評価し、最初に当てはまった規則で決まる。
  */
 import type { DecisionPolicy, Judgement, Priority } from '@indx-watch/bundle';
-import type { Decision, Verdict } from './types.js';
+import type { Decision, TestCaseNode, Verdict } from './types.js';
 
 const HUMAN_VERDICTS = new Set(['pass', 'fail', 'blocked', 'skipped']);
 
@@ -12,6 +12,12 @@ export const byTimeThenId = (at: string | undefined, a: string, bt: string | und
 
 /** Judgement order: by `at`, then `id`. */
 export const byAtThenId = (a: Judgement, b: Judgement): number => byTimeThenId(a.at, a.id, b.at, b.id);
+
+/** The facts `decide` needs about a run of `tc`, with its declared judge kinds (rule 8); every caller passes these. */
+export const runFacts = (tc: TestCaseNode, reported: 'blocked' | 'skipped' | null) => ({
+  ...{ priority: tc.priority, mode: tc.data.mode, reported },
+  judges: tc.data.judges?.map((j) => j.kind),
+});
 
 export function decide(
   judgements: readonly Judgement[],

@@ -200,7 +200,8 @@ describe('agent skills (docs/spec/agents.md): the worked examples on examples/sh
     expect(iwJson(dir, 'check', ['check'], { env }).json.data.errors).toBe(0);
     const runArgs = ['record', 'TC-11', '--verdict', 'pass', '--confidence', '0.9', '--step', '1=pass'];
     const run = iwJson(dir, 'record', runArgs, { env });
-    expect(run.json.data).toMatchObject({ verdict: 'pass', rule: 8 });
+    // TC-11 declares a human judge: the agent's pass waits for a person (rule 10)
+    expect(run.json.data).toMatchObject({ verdict: 'needs_review', rule: 10 });
   });
 });
 
