@@ -13,26 +13,26 @@ These folders are [Agent Skills](https://agentskills.io/specification): a `SKILL
 
 ## Install
 
-In the repository that has your `.indx-watch/` folder:
+`npx indx-watch init` installs them with a new project (skip with `--no-agents`). In a repository that already has an `.indx-watch/` folder:
 
 ```bash
-npx indx-watch skills install            # both locations below
-npx indx-watch skills install --claude   # only .claude/skills/
-npx indx-watch skills install --codex    # only .agents/skills/
+npx indx-watch skills install            # Claude Code and Codex
+npx indx-watch skills install --claude   # only Claude Code
+npx indx-watch skills install --codex    # only Codex
 ```
 
-| Agent                                | Location                         |
-| ------------------------------------ | -------------------------------- |
-| Claude Code                          | `.claude/skills/<name>/SKILL.md` |
-| Codex and other Agent Skills clients | `.agents/skills/<name>/SKILL.md` |
+| Agent                                | Skills                                                      | MCP server                                      |
+| ------------------------------------ | ----------------------------------------------------------- | ----------------------------------------------- |
+| Claude Code                          | `.claude/skills/<name>/` (`/<name>`)                        | `.mcp.json`                                     |
+| Codex and other Agent Skills clients | `.agents/skills/<name>/` + `agents/openai.yaml` (`$<name>`) | `.codex/config.toml` `[mcp_servers.indx-watch]` |
 
-Commit the installed folders so everyone who opens the repository gets them. Re-run the command after upgrading `indx-watch` to refresh them.
+Both also get a marked block in `AGENTS.md` that lists the skills and when to use them (and `@AGENTS.md` in an existing `CLAUDE.md`). Commit the result so everyone who opens the repository gets it. Re-run the command after upgrading `indx-watch`: it updates what it wrote and leaves your other servers and text alone. Details: [docs/spec/agents.md](../docs/spec/agents.md#install).
 
 **Manual install.** Copy each folder of this directory (with its `references/`) to `.claude/skills/` and/or `.agents/skills/` of your repository, or to `~/.claude/skills/` / `~/.agents/skills/` for all your projects. The folder name must stay equal to the skill's `name`.
 
 **With the `skills` CLI.** The third-party [`skills`](https://www.npmjs.com/package/skills) installer (Node 22.20+) can install them straight from GitHub, e.g. `npx skills add INDXDev/indx-watch --skill write-test-cases -a claude-code`.
 
-**claude.ai.** The frontmatter uses only the portable keys (`name`, `description`, `license`, `compatibility`, `metadata`), so a zipped skill folder also uploads to claude.ai. There the agent needs a shell with Node to run `iw`.
+**claude.ai.** The `.agents/skills/` copies keep only the portable frontmatter keys (`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`), so a zipped folder from there also uploads to claude.ai. There the agent needs a shell with Node to run `iw`.
 
 ## MCP instead of a shell
 

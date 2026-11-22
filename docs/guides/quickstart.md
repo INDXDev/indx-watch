@@ -22,6 +22,8 @@ cd demo
 └── specs/FEAT-1-general/feature.toml
 ```
 
+It also sets up Claude Code and Codex in `demo/`: the INDX Watch skills in `.claude/skills/` and `.agents/skills/`, the MCP server in `.mcp.json` and `.codex/config.toml`, and a short block in `AGENTS.md` ([details](../spec/agents.md#install); skip with `--no-agents`).
+
 Want a full example instead? `npx indx-watch init demo --example` copies the [`examples/shop`](../../examples/shop) bundle.
 
 ## 2. Write a use case and a test case
@@ -89,7 +91,7 @@ iw check
 ## 4. Keep it in git
 
 ```bash
-git init && git add .indx-watch && git commit -m "Add INDX Watch bundle"
+git init && git add .indx-watch .claude .agents .mcp.json .codex AGENTS.md && git commit -m "Add INDX Watch bundle"
 ```
 
 Definitions travel through git and pull requests. Results stay out of git (`runs/` is ignored) and travel through a result store. From now on every run records the commit it tested.
@@ -160,4 +162,4 @@ iw report --format html --out report.html
 - [Writing good test cases](writing-test-cases.md) and [fixtures](fixtures.md)
 - Link automated tests: [Playwright](playwright.md), then [GitHub Actions](github-actions.md)
 - Share results with your team: [S3 sync](s3-sync.md)
-- Let a coding agent help: `iw skills install` ([skills](../../skills/README.md))
+- Let a coding agent help: `iw init` already installed the skills and the MCP server for Claude Code and Codex; in an existing project run `iw skills install` ([skills](../../skills/README.md))

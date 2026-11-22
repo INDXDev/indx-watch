@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- One-command agent setup: `iw init` (unless `--no-agents`) and `iw skills install` write the skills to `.claude/skills/` and `.agents/skills/` (portable frontmatter plus `agents/openai.yaml` for Codex), the project MCP server `indx-watch` in `.mcp.json` and `.codex/config.toml`, and a marked block in `AGENTS.md` listing the skills and when to use them (`@AGENTS.md` added to an existing `CLAUDE.md`). Other MCP servers and text are kept, and re-running updates only what it wrote; `--json` adds `files` (and `agents` on `iw init`) (T-401).
 - A `node:sqlite` index on Node with the D1 schema and merge writes; `iw reindex` builds it in `.indx-watch/cache/index.sqlite` instead of a throwaway in-memory index; an index file from another schema version is emptied when opened (T-210).
 - `iw serve` reads records through `cache/index.sqlite`: a start or a replica change parses only record files the index does not hold yet, with the same API results; a removed or rewritten file rebuilds the index, an index file that is not a SQLite database is replaced, and an unusable index falls back to reading the replica (T-217).
 - `iw import playwright-plan <file.md> --uc <UC>`: each scenario of a Playwright Test Agents planner plan becomes an AI-written draft test case; sample plan in `examples/shop/specs/` (T-212).

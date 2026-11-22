@@ -12,14 +12,22 @@ INDX Watch is built so a coding agent can go from "read the spec" to "write test
 | Skills | Task recipes that teach the agent the workflow and the rules below. |
 
 ## Skills
-Skills follow the open Agent Skills format (`SKILL.md` with YAML frontmatter), which both Claude Code and Codex load. They live once in [`skills/`](../../skills) and are installed into a repository with `iw skills install`:
+Skills follow the open Agent Skills format (`SKILL.md` with YAML frontmatter), which both Claude Code and Codex load. They live once in [`skills/`](../../skills) and are installed into a repository by `iw init` or `iw skills install` ([install](#install)).
 
-| Agent | Installed to |
-|---|---|
-| Claude Code | `.claude/skills/<name>/SKILL.md` |
-| Codex (and other Agent Skills clients) | `.agents/skills/<name>/SKILL.md` |
+Source frontmatter uses the portable fields (`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`) and may add the Claude Code fields `argument-hint` and `disable-model-invocation`. Installed copies keep only the keys their client accepts, so an `.agents/skills/` folder also uploads to claude.ai.
 
-Frontmatter uses only portable fields (`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`) so the same file also uploads to claude.ai.
+### Install
+`npx indx-watch init` (unless `--no-agents`) and `iw skills install` in an existing project write, in the repository root ([cli.md](cli.md#iw-skills-install)):
+
+| Writes | For | Content |
+|---|---|---|
+| `.claude/skills/<name>/` | Claude Code (`/<name>`) | The source folder as is |
+| `.agents/skills/<name>/` | Codex (`$<name>`, `/skills`) and other Agent Skills clients | The source folder with only portable frontmatter keys, plus `agents/openai.yaml` (`interface.display_name`, `interface.short_description` from the description's first sentence, `policy.allow_implicit_invocation: true`) unless the source has one |
+| `.mcp.json` `mcpServers.indx-watch` | Claude Code | `npx -y indx-watch mcp`; each person approves it once |
+| `.codex/config.toml` `[mcp_servers.indx-watch]` | Codex | The same server; loaded once the project is trusted. Appended when the table is absent |
+| `AGENTS.md` block between `<!-- indx-watch:start -->` and `<!-- indx-watch:end -->` | both | One line per skill: how to call it and when to use it (the `Use when …` sentence of its description). `CLAUDE.md` gets an `@AGENTS.md` line if it exists without one |
+
+Re-running replaces the installed skill folders' files, the `indx-watch` server entries and the marked block in place, and leaves other servers, settings and text alone. Commit the result so the whole team gets the same setup.
 
 | Skill | What it does | Main commands |
 |---|---|---|
@@ -116,6 +124,7 @@ sequenceDiagram
 ## Acceptance criteria
 
 - [x] `iw skills install` copies every skill to `.claude/skills/` and `.agents/skills/`; each `SKILL.md` has only portable frontmatter keys (test).
+- [x] On a temp copy of `examples/shop`, `iw init` and `iw skills install` write both skill folders, `agents/openai.yaml`, `.mcp.json`, `.codex/config.toml` and the `AGENTS.md` block once, and a re-run changes nothing or updates them in place; other `.mcp.json` servers survive; `.agents/` copies keep only portable keys; `--no-agents` writes none of it (test). Listing `/indx-watch` in Claude Code and `$indx-watch` in Codex is checked by hand.
 - [x] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
 - [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
 - [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
