@@ -135,12 +135,14 @@ async function translateTarget(t: Target, given: Record<string, string>, to: Int
   const hash = await iwb.translationSourceHash(t.source, TF[t.kind]);
   const old = tableOf(t, to.locale) ?? {};
   const fresh = old.source_hash === hash;
+  // only a field with source text is translated; a translation of a removed field is dropped
+  const has = (f: string) => !!(t.source[f] as { length?: number } | undefined)?.length;
   const fields: Record<string, unknown> = {};
   for (const [k, v] of mine) {
     const [, f = '', n] = at(k)!;
     const src = t.source[f];
-    if (!names.includes(f) || Array.isArray(src) !== !!n || Number(n) > (src as string[]).length)
-      fail('USAGE', `${k} is not a translatable field of ${to.owner}`);
+    if (!names.includes(f) || !has(f) || Array.isArray(src) !== !!n || Number(n) > (src as string[]).length)
+      fail('USAGE', `${k} is not a translatable field of ${to.owner} with source text`);
     const list = (fields[f] ?? (fresh && Array.isArray(old[f]) ? [...old[f]] : [])) as string[];
     fields[f] = n ? Object.assign(list, { [Number(n) - 1]: v }) : v;
   }
@@ -149,12 +151,13 @@ async function translateTarget(t: Target, given: Record<string, string>, to: Int
     const [src, mine] = [t.source[f], fields[f] as string[] | undefined];
     if (Array.isArray(src) && mine)
       return src.flatMap((_, i) => (typeof mine[i] === 'string' ? [] : [`${f}.${i + 1}`]));
-    return !fresh && old[f] !== undefined && !mine ? [f] : [];
+    return !fresh && old[f] !== undefined && !mine && has(f) ? [f] : [];
   });
   if (outdated.length) fail('USAGE', `Also translate ${outdated.map((f) => `${t.prefix}${f}`).join(', ')}`);
+  const kept = Object.fromEntries(Object.entries(old).filter(([f]) => !names.includes(f) || has(f)));
   const i18n = {
     ...(t.source.i18n as object),
-    [to.locale]: { ...old, ...fields, status: to.status, source_hash: hash },
+    [to.locale]: { ...kept, ...fields, status: to.status, source_hash: hash },
   };
   Object.assign(t.source, { i18n }); // targets alias owner.data (or its steps / criteria)
   return mine.map(([k]) => k);

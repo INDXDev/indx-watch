@@ -202,4 +202,23 @@ describe('commands: approve and translate', () => {
     expect(read(dir, TC3)).toContain('checks = ["d1", "c2"]');
     expect(iwJson(dir, 'translate', ['translate', 'TC-3', '--locale', 'ja', '--set', 'nope=x']).code).toBe(2);
   });
+
+  it('translate refuses fields without source text and drops translations of removed fields', () => {
+    const dir = shop();
+    const tr = (ref: string, ...kv: string[]) =>
+      iwJson(dir, 'translate', ['translate', ref, '--locale', 'ja', ...kv.flatMap((x) => ['--set', x])]);
+    expect(tr('TC-8', 'preconditions=x').json.error.code).toBe('USAGE'); // TC-8 has no preconditions
+    const src = read(dir, TC3);
+    writeFileSync(
+      join(dir, '.indx-watch', TC3),
+      src.replace(/^checks = \["The discount.*\n/m, '').replace(/^note = "Type this code.*\n/m, ''),
+    );
+    expect(tr('TC-3', 'steps.1.checks.1=x').json.error.code).toBe('USAGE');
+    expect(tr('TC-3', 'fixtures.1.note=x').json.error.code).toBe('USAGE');
+    const step = tr('TC-3', 'steps.1.instruction=a', 'steps.1.expected=b');
+    expect(step.json.data.written).toEqual(['steps.1.instruction', 'steps.1.expected']);
+    expect(read(dir, TC3)).not.toContain('割引行に');
+    const problems = iwJson(dir, 'check', ['check']).json.data.problems as { code: string; path?: string }[];
+    expect(problems.filter((x) => x.path === 'steps[0].i18n.ja' && x.code !== 'missing-literal')).toEqual([]);
+  });
 });
