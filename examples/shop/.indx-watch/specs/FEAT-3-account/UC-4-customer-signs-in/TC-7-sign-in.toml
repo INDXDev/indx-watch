@@ -7,20 +7,32 @@ status = "ready"
 tags = ["auth", "smoke"]
 covers = ["AC-4.1"]
 mode = "playwright"
+purpose = "Customers sign in to see their account and write reviews. This test proves that the right email and password sign them in."
+start = "/sign-in"
+start_note = "Open the sign-in page."
 
 [[fixtures]]
 ref = "FX-3"
+use = "enter"
+note = "Sign in with this email and the account's password."
+
+[fixtures.i18n.ja]
+note = "このメールアドレスとアカウントのパスワードでサインインする。"
+status = "machine"
+source_hash = "e20cc2d343d8"
 
 [[steps]]
 instruction = "Open \"Sign in\", enter {{FX-3.username}} and the account password, and press \"Sign in\"."
 expected = "The header shows \"Welcome back, Casey\"."
+checks = ["The header shows \"Welcome back, Casey\"."]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "「Sign in」を開き、{{FX-3.username}} とアカウントのパスワードを入力して「Sign in」を押す。"
 expected = "ヘッダーに「Welcome back, Casey」と表示される。"
+checks = ["ヘッダーに「Welcome back, Casey」と表示される。"]
 status = "machine"
-source_hash = "2e8d5986ddae"
+source_hash = "c1b28262ba48"
 
 [[judges]]
 kind = "assert"
@@ -30,5 +42,7 @@ files = ["examples/shop/tests/sign-in.spec.ts"]
 
 [i18n.ja]
 title = "正しい認証情報でサインインできる"
+purpose = "顧客はサインインしてアカウントを確認したりレビューを書いたりします。このテストは、正しいメールアドレスとパスワードでサインインできることを確かめます。"
+start_note = "サインインページを開く。"
 status = "machine"
-source_hash = "469ea696614e"
+source_hash = "9a4b0ac1d5e2"

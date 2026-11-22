@@ -7,31 +7,48 @@ status = "ready"
 tags = ["smoke"]
 covers = ["AC-3.1", "AC-3.2"]
 mode = "playwright"
+purpose = "Placing an order is how a sale completes. This test proves that the shopper gets an order number and that the cart is emptied."
+start = "/"
+start_note = "Open the home page."
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Add \"Enamel Mug\" to the cart, open the cart and press \"Place order\"."
 expected = "The page shows \"Thank you for your order\" and an order number like \"SHOP-1001\"."
+checks = [
+  "The page shows \"Thank you for your order\".",
+  "An order number like \"SHOP-1001\" is shown.",
+]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "「Enamel Mug」をカートに入れ、カートを開いて「Place order」を押す。"
 expected = "「Thank you for your order」と「SHOP-1001」のような注文番号が表示される。"
+checks = ["「Thank you for your order」と表示される。", "「SHOP-1001」のような注文番号が表示される。"]
 status = "machine"
-source_hash = "3369b147343c"
+source_hash = "df418b5096f0"
 
 [[steps]]
 instruction = "Open the cart again."
 expected = "The cart shows \"Your cart is empty\"."
+checks = ["The cart shows \"Your cart is empty\"."]
 
 [steps.i18n.ja]
 instruction = "もう一度カートを開く。"
 expected = "カートに「Your cart is empty」と表示される。"
+checks = ["カートに「Your cart is empty」と表示される。"]
 status = "machine"
-source_hash = "6b54c2e6ce2a"
+source_hash = "5528d676a4c0"
 
 [[judges]]
 kind = "assert"
@@ -41,5 +58,7 @@ files = ["examples/shop/tests/checkout.spec.ts"]
 
 [i18n.ja]
 title = "注文すると確認が表示され、カートが空になる"
+purpose = "注文することで販売が完了します。このテストは、買い物客に注文番号が示され、カートが空になることを確かめます。"
+start_note = "トップページを開く。"
 status = "machine"
-source_hash = "3e1b33955389"
+source_hash = "0a8ec810ebb0"

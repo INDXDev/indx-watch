@@ -1,5 +1,13 @@
 // buildModel, testCaseStatus (variants, ordering, scope, staleness, waivers), plan items and localize.
-import { type Actor, type AnyRecord, type Bundle, type RunRecord, testCaseVersion } from '@indx-watch/bundle';
+import {
+  type Actor,
+  type AnyRecord,
+  type Bundle,
+  type RunRecord,
+  TRANSLATABLE_FIELDS,
+  testCaseVersion,
+  translationSourceHash,
+} from '@indx-watch/bundle';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   approvedBaseline,
@@ -259,6 +267,21 @@ describe('plan items', () => {
       'done',
     ]);
     expect(() => planItemStatus(m, 'PLAN-1', 99)).toThrow();
+  });
+});
+
+describe('test case guidance', () => {
+  it('localizes purpose and start_note and keeps results current when it changes', async () => {
+    const tc = b.testCases.find((t) => t.data.key === 'TC-3')!.data;
+    const currentSourceHash = await translationSourceHash(tc, TRANSLATABLE_FIELDS['test-case']);
+    expect(localize(tc, 'purpose', 'ja', { currentSourceHash }).text).toContain('クーポン');
+    expect(localize(tc, 'start_note', 'ja', { currentSourceHash, sourceLocale: 'en' }).fallback).toBe(false);
+    const edited = {
+      ...tc,
+      purpose: 'Other words.',
+      steps: tc.steps.map((s) => ({ ...s, checks: ['Looks right.'] })),
+    };
+    expect(await testCaseVersion(edited, criterionText(b))).toBe(versionOf(b, 'TC-3'));
   });
 });
 

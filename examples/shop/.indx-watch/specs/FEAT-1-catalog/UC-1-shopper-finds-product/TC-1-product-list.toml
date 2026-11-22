@@ -7,21 +7,37 @@ status = "ready"
 tags = ["catalog", "smoke"]
 covers = ["AC-1.1"]
 mode = "playwright"
+purpose = "The product list is how shoppers see what the shop sells. This test proves that every product shows its name and price."
+start = "/"
+start_note = "Open the home page."
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Open the home page."
 expected = "Three products are listed, each with a name and a price, including \"Canvas Tote\" at \"40.00\"."
+checks = [
+  "Three products are listed.",
+  "Each product shows a name and a price.",
+  "\"Canvas Tote\" costs \"40.00\".",
+]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "トップページを開く。"
 expected = "3 つの商品がそれぞれ名前と価格つきで並び、「Canvas Tote」が「40.00」で表示される。"
+checks = ["3 つの商品が並ぶ。", "どの商品にも名前と価格がある。", "「Canvas Tote」は「40.00」。"]
 status = "machine"
-source_hash = "03a8e18611a5"
+source_hash = "a4c58dfffeb1"
 
 [[judges]]
 kind = "assert"
@@ -31,5 +47,7 @@ files = ["examples/shop/tests/catalog.spec.ts"]
 
 [i18n.ja]
 title = "商品一覧に名前と価格が表示される"
+purpose = "商品一覧は、ショップが何を売っているかを買い物客が知る場所です。このテストは、すべての商品に名前と価格が表示されることを確かめます。"
+start_note = "トップページを開く。"
 status = "machine"
-source_hash = "ef00b87ed26d"
+source_hash = "3c686262b394"

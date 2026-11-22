@@ -7,26 +7,43 @@ status = "ready"
 tags = ["mobile", "visual"]
 covers = ["AC-3.1"]
 mode = "manual"
+purpose = "Many shoppers order from a phone. This test proves that the order confirmation is readable on a small screen."
+start = "/"
+start_note = "Open the shop on a phone or in a 390 px wide browser window."
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "On a phone (or a 390 px wide browser window), add any product to the cart and place the order."
 expected = "The confirmation page fits the screen without horizontal scrolling and the order number is fully visible."
+checks = [
+  "The page fits the screen without scrolling sideways.",
+  "The whole order number is visible.",
+]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "スマートフォン（または幅 390 px のブラウザウィンドウ）で、任意の商品をカートに入れて注文する。"
 expected = "確認ページが横スクロールなしで画面に収まり、注文番号がすべて見える。"
+checks = ["横にスクロールせずにページが画面に収まる。", "注文番号がすべて見える。"]
 status = "machine"
-source_hash = "7125e891e53e"
+source_hash = "ade35b4f1862"
 
 [[judges]]
 kind = "human"
 
 [i18n.ja]
 title = "確認ページがスマートフォンで読める"
+purpose = "多くの買い物客はスマートフォンから注文します。このテストは、注文の確認が小さな画面でも読めることを確かめます。"
+start_note = "スマートフォン、または幅 390 px のブラウザウィンドウでショップを開く。"
 status = "machine"
-source_hash = "4bf8672b6671"
+source_hash = "be46f039fdc1"
