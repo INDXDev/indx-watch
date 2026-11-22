@@ -17,6 +17,7 @@
       "!**/*.md",
       "!examples/shop/.indx-watch",
       "!.indx-watch",
+      "!.mcp.json",
       "!**/*.toml"
     ]
   },

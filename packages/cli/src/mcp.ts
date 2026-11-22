@@ -34,10 +34,12 @@ export function createMcpServer(base: Ctx, dir?: string): McpServer {
         return data && typeof data === 'object' ? toolData(data) : toolError(code, message, details);
       }
     };
-    const steps = (s: { index: number; status: string; note?: string }[] = []) =>
-      s.map((x) => `${x.index}=${x.status}${x.note ? `:${x.note}` : ''}`);
+    type Step = { index: number; status: string; note?: string; checks?: boolean[] };
+    const steps = (s: Step[] = []) => s.map((x) => `${x.index}=${x.status}${x.note ? `:${x.note}` : ''}`);
+    const ticks = (s: Step[] = []) =>
+      s.flatMap((x) => (x.checks ? [`${x.index}=${x.checks.map(Number).join(',')}`] : []));
     return {
-      status: (i) => call(R.status!, { release: i.release, env: i.environment }),
+      status: (i) => call(R.status!, { release: i.release, env: i.environment, mine: i.mine }),
       list: ({ kind, limit, ...f }) => call(R.list!, { what: kind, ...f, limit: limit?.toString() }),
       show: ({ ref }) => call(R.show!, { ref }),
       check: () => call(specCommands.check!, {}),
@@ -46,7 +48,7 @@ export function createMcpServer(base: Ctx, dir?: string): McpServer {
         call(specCommands.new!, { entity: kind, skill, uc, feature }, { input: fields, model }),
       record_run: (i) => {
         const run = { tc: i.test_case, verdict: i.verdict, note: i.note, evidence: i.evidence ?? [] };
-        const more = { step: steps(i.steps), confidence: i.confidence?.toString() };
+        const more = { step: steps(i.steps), checks: ticks(i.steps), confidence: i.confidence?.toString() };
         return call(R.record!, { ...run, ...more }, { model: i.model });
       },
       report: async ({ release, format }) => {

@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW status"
+  short_description: "Say where an INDX Watch release stands and write the release report"
+policy:
+  allow_implicit_invocation: true

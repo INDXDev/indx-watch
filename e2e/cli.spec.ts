@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { fixtureRows, iw, shopCopy, tempDir } from './helpers';
@@ -180,5 +181,35 @@ test('push and clone the test files', { tag: ['@TC-14'] }, async () => {
     expect(r.json.data.pulled.records).toBeGreaterThan(0);
     expect(existsSync(join(parent, 'copy/.indx-watch/project.toml'))).toBe(true);
     expect(iw(['check'], { cwd: join(parent, 'copy') }).code).toBe(0);
+  });
+});
+
+// docs/spec/agents.md#install
+test('one command sets up Claude Code and Codex', { tag: ['@TC-18'] }, async () => {
+  const dir = shopCopy();
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  writeFileSync(join(dir, 'CLAUDE.md'), '# Shop\n');
+  const read = (path: string) => readFileSync(join(dir, path), 'utf8');
+  await test.step('1. iw skills install writes the skills, both MCP entries and the AGENTS.md block', async () => {
+    const r = iw(['skills', 'install', '--json'], { cwd: dir });
+    expect(r.code, r.stderr).toBe(0);
+    for (const base of ['.claude/skills', '.agents/skills'])
+      expect(existsSync(join(dir, base, 'iw-test/SKILL.md')), base).toBe(true);
+    const mcp = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
+    expect(JSON.parse(read('.mcp.json')).mcpServers['indx-watch']).toEqual(mcp);
+    expect(read('.codex/config.toml')).toContain('[mcp_servers.indx-watch]');
+    expect(read('AGENTS.md')).toMatch(
+      /<!-- indx-watch:start -->[\s\S]*`iw-test`[\s\S]*<!-- indx-watch:end -->/,
+    );
+    expect(read('CLAUDE.md')).toMatch(/^@AGENTS\.md$/m);
+  });
+  await test.step('2. a second run changes nothing and keeps another MCP server', async () => {
+    const config = JSON.parse(read('.mcp.json'));
+    config.mcpServers.other = { command: 'other-mcp' };
+    writeFileSync(join(dir, '.mcp.json'), `${JSON.stringify(config, null, 2)}\n`);
+    const r = iw(['skills', 'install', '--json'], { cwd: dir });
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.json.data.files).toEqual([]);
+    expect(JSON.parse(read('.mcp.json')).mcpServers.other).toEqual({ command: 'other-mcp' });
   });
 });

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 import { type Build, type Judgement, newId, type RunRecord, StepStatus } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
-import { recordWarnings, testCaseDetail } from '@indx-watch/server';
+import { checksError, recordWarnings, testCaseDetail } from '@indx-watch/server';
 import { type BrowserProvider, type LlmClient, runAgent } from '@indx-watch/store';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -74,12 +74,25 @@ function confidenceOf(a: Args) {
 const STEP = /^(\d+)=(pass|fail|blocked|skipped)(?::([\s\S]*))?$/;
 const parseSteps = (a: Args) =>
   many(a.step).map((s) => STEP.exec(s) ?? fail('USAGE', `--step ${s}: use <n>=<status>[:note]`));
-/** Parsed --step values with the evidence of each step. */
-const stepsOf = (parsed: RegExpExecArray[], evidence: Evidence) =>
-  parsed.map(([, n, status, note]) => {
-    const shas = evidence.filter((e) => e.step === Number(n)).map((e) => e.sha256);
-    return { index: Number(n), status, note, evidence: shas.length ? shas : undefined };
+const TICKS = /^(\d+)=([01](?:,[01])*)$/;
+const tick = (s: string) => TICKS.exec(s) ?? fail('USAGE', `--checks ${s}: use <n>=<1|0>[,<1|0>…]`);
+/** Parsed --step values with the evidence and the ticked checks (--checks <n>=1,0) of each step. */
+function stepsOf(a: Args, tc: core.TestCaseNode, evidence: Evidence) {
+  const ticks = new Map(
+    many(a.checks)
+      .map(tick)
+      .map(([, n, t]) => [+n!, t!.split(',').map((x) => x === '1')]),
+  );
+  if (ticks.size < many(a.checks).length) fail('USAGE', '--checks: give each step at most once');
+  const steps = parseSteps(a).map(([, n, status, note]) => {
+    const [index, shas] = [+n!, evidence.filter((e) => e.step === +n!).map((e) => e.sha256)];
+    return { index, status, note, evidence: shas.length ? shas : undefined, checks: ticks.get(index) };
   });
+  for (const n of ticks.keys())
+    if (!steps.some((s) => s.index === n)) fail('USAGE', `--checks ${n}=…: give --step ${n}=<status> too`);
+  const wrong = steps.map((s) => checksError(tc.data.steps, s)).find(Boolean);
+  return wrong ? fail('USAGE', wrong) : steps;
+}
 
 /** Fixtures of the test case at their current versions; --rows replaces the rows of a dataset. */
 const fixturesOf = (m: core.Model, tc: core.TestCaseNode, rows: string[]) =>
@@ -98,11 +111,12 @@ const CARRIED = 'fixtures build started_at ended_at reported locale note steps a
 
 const record: Spec = {
   description: 'Record a run executed outside the browser runner',
-  repeat: ['step', 'evidence'],
+  repeat: ['step', 'evidence', 'checks'],
   args: {
     tc: P('Test case (TC-n)'),
     verdict: VERDICT,
     step: S('<n>=<status>[:note] (repeatable)'),
+    checks: S("<n>=1,0,… which of step n's checks hold (repeatable)"),
     evidence: S('<path>[@step] (repeatable)'),
     ...{ note: S(), confidence: S('0-1 (agents)'), release: S(), env: S(), commit: S() },
     rows: S('Dataset rows used, comma-separated'),
@@ -117,7 +131,6 @@ const record: Spec = {
     const verdict = str(a.verdict) ? verdictOf(a.verdict) : undefined;
     if (!verdict && !input.judgements) fail('USAGE', '--verdict is required');
     const conf = confidenceOf(a);
-    const parsed = parseSteps(a);
     const evidence = await storeEvidence(ctx, p, many(a.evidence));
     const actor = await cx.actorOf(ctx);
     const kind = JUDGE_KIND[actor.kind];
@@ -129,7 +142,7 @@ const record: Spec = {
     const judgement = verdict
       ? [{ id: newId('jdg'), kind, verdict, confidence, reason: str(a.note), by: actor, at }]
       : [];
-    const steps = stepsOf(parsed, evidence);
+    const steps = stepsOf(a, tc, evidence);
     const reported = verdict === 'blocked' || verdict === 'skipped' ? verdict : null;
     const run = await cx.append(ctx, p, 'run', {
       test_case: { id: tc.data.id, key: tc.data.key, version: tc.version },

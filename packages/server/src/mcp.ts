@@ -48,7 +48,11 @@ function hostedTools(x: Ctx, c: Context, server: McpServer): T.ToolHandlers {
   };
   const read = (f: (m: Model) => unknown) => run(async () => T.toolData(f(await x.model(c))));
   return {
-    status: (i) => read((m) => T.statusData(m, scope(m, i.release, i.environment))),
+    status: (i) =>
+      run(async () => {
+        const [m, who] = [await x.model(c), i.mine ? (await x.grant(c)).who : undefined];
+        return T.toolData(T.statusData(m, scope(m, i.release, i.environment), who));
+      }),
     list: ({ kind, limit, ...f }) => read((m) => ({ items: T.listItems(m, kind, f, scope(m), limit) })),
     show: ({ ref }) => read((m) => T.showEntity(m, ref, scope(m))),
     check: () =>
@@ -119,6 +123,8 @@ async function recordRun(x: Ctx, i: RunInput, agent: Agent) {
     evidence.push(await evidenceOf(x, sha, step ? Number(step) : undefined));
   }
   const shas = (n: number) => evidence.filter((e) => e.step === n).map((e) => e.sha256);
+  const wrong = (i.steps ?? []).map((s) => T.checksError(tc.data.steps, s)).find(Boolean);
+  if (wrong) fail('INVALID_INPUT', wrong);
   const steps = (i.steps ?? []).map((s) => ({
     ...s,
     ...(shas(s.index).length && { evidence: shas(s.index) }),

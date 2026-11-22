@@ -1,7 +1,15 @@
 /** `iw skills install`, the agent setup of `iw init` and the frontmatter rules (docs/spec/agents.md#install). */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseToml } from '@indx-watch/bundle';
@@ -174,5 +182,15 @@ describe('skills', () => {
     expect(iwJson(repo, 'init', ['init', 'demo']).json.data.agents.files).toContain('AGENTS.md');
     expect(existsSync(join(repo, 'demo/AGENTS.md'))).toBe(true);
     expect(readdirSync(repo).sort()).toEqual(['.git', 'demo']);
+  });
+
+  it("this repository's own agent files (CONTRIBUTING.md#dogfooding) are what iw skills install writes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iw-self-'));
+    for (const f of ['.claude/skills', '.agents/skills', '.mcp.json', '.codex', 'AGENTS.md', 'CLAUDE.md'])
+      cpSync(join(ROOT, f), join(dir, f), { recursive: true });
+    const r = await setupAgents(dir, SKILLS, { claude: true, codex: true });
+    expect(r.files, 'run pnpm iw skills install at the repository root').toEqual([]);
+    for (const base of ['.claude/skills', '.agents/skills'])
+      expect(readdirSync(join(ROOT, base)).sort(), `stale folders in ${base}`).toEqual([...names].sort());
   });
 });

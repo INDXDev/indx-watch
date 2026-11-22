@@ -1,0 +1,60 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M82AJQEP1VJ8Y97XGG0S348C"
+key = "TC-18"
+title = "One command sets up Claude Code and Codex"
+status = "draft"
+origin = "ai"
+covers = ["AC-10.1", "AC-10.2"]
+mode = "playwright"
+purpose = "A developer should get the INDX Watch skills and MCP server in Claude Code and Codex with one command. This test proves that \"iw skills install\" writes every agent file once and that a second run changes nothing."
+start_note = "In a terminal: a git repository holding a copy of the examples/shop .indx-watch folder and a CLAUDE.md."
+
+[[steps]]
+instruction = "Run \"iw skills install\" at the repository root"
+expected = "The skills, both MCP server entries and the AGENTS.md block are written, and CLAUDE.md imports AGENTS.md."
+checks = [
+  ".claude/skills/iw-test/SKILL.md and .agents/skills/iw-test/SKILL.md exist.",
+  ".mcp.json and .codex/config.toml start the indx-watch MCP server.",
+  "AGENTS.md has the indx-watch block, and CLAUDE.md has an @AGENTS.md line.",
+]
+
+[steps.i18n.ja]
+instruction = "リポジトリのルートで「iw skills install」を実行する。"
+expected = "スキル、両方の MCP サーバー設定、AGENTS.md のブロックが書かれ、CLAUDE.md が AGENTS.md を読み込む。"
+checks = [
+  ".claude/skills/iw-test/SKILL.md と .agents/skills/iw-test/SKILL.md がある。",
+  ".mcp.json と .codex/config.toml が indx-watch の MCP サーバーを起動する。",
+  "AGENTS.md に indx-watch のブロックがあり、CLAUDE.md に @AGENTS.md の行がある。",
+]
+status = "machine"
+source_hash = "1f1729c573a9"
+
+[[steps]]
+instruction = "Add another server to .mcp.json and run \"iw skills install\" again"
+expected = "Nothing changes, and the other server stays in .mcp.json."
+checks = ["The second run lists no changed files.", "The other server is still in .mcp.json."]
+
+[steps.i18n.ja]
+instruction = ".mcp.json に別のサーバーを追加し、もう一度「iw skills install」を実行する。"
+expected = "何も変わらず、別のサーバーは .mcp.json に残る。"
+checks = ["2 回目の実行は変更したファイルを挙げない。", "別のサーバーが .mcp.json に残っている。"]
+status = "machine"
+source_hash = "9317c8399dd5"
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/cli.spec.ts"]
+
+[i18n.ja]
+title = "1 つのコマンドで Claude Code と Codex を設定する"
+purpose = "開発者は 1 つのコマンドで、Claude Code と Codex に INDX Watch のスキルと MCP サーバーを入れられるべきです。このテストは、「iw skills install」がエージェント用のファイルを一度書き、2 回目の実行では何も変えないことを確かめます。"
+start_note = "ターミナルで: examples/shop の .indx-watch フォルダのコピーと CLAUDE.md がある git リポジトリ。"
+status = "machine"
+source_hash = "8876e91ae38e"
+
+[ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:58Z

@@ -301,6 +301,20 @@ describe('write', () => {
       ready: true,
       now,
     });
+    ({ bundle } = await loadBundle(fs));
+    // an AI use case's criteria are drafts with their own [ai] table, like `iw new ac`
+    const aiUc = await createDefinition(fs, bundle!, {
+      kind: 'use-case',
+      fields: { title: 'Customer changes the email', criteria: ['A confirmation is sent'] },
+      ...{ origin: 'ai', ai: { model: 'm' }, now },
+    });
+    expect(parseToml(fs.text(aiUc.file)!).criteria).toEqual([
+      expect.objectContaining({
+        status: 'draft',
+        origin: 'ai',
+        ai: { model: 'm', created_at: expect.any(String) },
+      }),
+    ]);
     const r = await checkBundle(fs);
     expect(r.problems.filter((p) => p.severity === 'error')).toEqual([]);
     await expect(

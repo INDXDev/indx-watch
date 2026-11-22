@@ -48,6 +48,10 @@ describe('/mcp', () => {
     const report = await mcpCall(app.fetch, BASE, 'report', { release: 'v1.2.0' });
     expect(report.content[0].text).toContain('TC-4');
     expect((await mcpCall(app.fetch, BASE, 'sync')).isError).toBe(true);
+    // mine: the features the request's identity (alex@shop.test) owns, like iw status --mine
+    const mine = (await mcpCall(app.fetch, BASE, 'status', { mine: true })).structuredContent;
+    expect(mine.mine).toEqual({ actor: 'alex@shop.test', features: ['FEAT-2'] });
+    expect(mine.testCases.map((t: { key: string }) => t.key)).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
   });
 
   it('record_run writes an agent run as the request identity, with evidence uploaded before', async () => {
@@ -55,13 +59,18 @@ describe('/mcp', () => {
     const app = createApp(f.deps);
     const r = await mcpCall(app.fetch, BASE, 'record_run', {
       ...{ test_case: 'TC-9', verdict: 'pass', confidence: 0.6, model: 'claude-test' },
-      ...{ steps: [{ index: 1, status: 'pass' }], evidence: [`${SHOT_SHA}@1`] },
+      ...{ steps: [{ index: 1, status: 'pass', checks: [true] }], evidence: [`${SHOT_SHA}@1`] },
     });
     expect(r.structuredContent).toMatchObject({ verdict: 'needs_review', rule: 6 });
     const run = f.written[0] as Extract<(typeof f.written)[number], { kind: 'run' }>;
     expect(run.actor).toEqual({ ...ALEX, kind: 'agent', model: 'claude-test' });
     expect(run).toMatchObject({ source: 'agent', judgements: [{ kind: 'llm', confidence: 0.6 }] });
-    expect(run.steps[0]).toMatchObject({ index: 1, evidence: [SHOT_SHA] });
+    expect(run.steps[0]).toMatchObject({ index: 1, evidence: [SHOT_SHA], checks: [true] });
+    const ticks = await mcpCall(app.fetch, BASE, 'record_run', {
+      ...{ test_case: 'TC-9', verdict: 'fail', model: 'claude-test' },
+      steps: [{ index: 2, status: 'fail', checks: [true] }], // step 2 has two checks
+    });
+    expect(JSON.parse(ticks.content[0].text)).toMatchObject({ code: 'INVALID_INPUT' });
     const unknown = await mcpCall(app.fetch, BASE, 'record_run', {
       ...{ test_case: 'TC-9', verdict: 'pass', evidence: ['0'.repeat(64)], model: 'claude-test' },
     });

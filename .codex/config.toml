@@ -1,0 +1,3 @@
+[mcp_servers.indx-watch]
+command = "npx"
+args = [ "-y", "indx-watch", "mcp" ]

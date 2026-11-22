@@ -60,6 +60,38 @@ text = "すべての実行に記録した人が表示され、検証済みの ID
 status = "machine"
 source_hash = "9d482f6cea32"
 
+[[criteria]]
+id = "ac_01M82AGF539ZWZD5RA7V13KWNJ"
+key = "AC-3.5"
+text = "The test case page reads top to bottom (what it tests, before you start, steps with their checks, result), and \"Run manually\" runs it in place, recording the ticked checks on each step."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:07:44Z
+
+[criteria.i18n.ja]
+text = "テストケースのページは上から順に（何をテストするか、始める前に、チェックつきの手順、結果）読め、「Run manually」でその場で実行でき、各ステップでチェックした項目が記録される。"
+status = "machine"
+source_hash = "aab51a91ca6a"
+
+[[criteria]]
+id = "ac_01M82AGFP57J3M0GQC8DMHPDZS"
+key = "AC-3.6"
+text = "Each test data card says what to do with the data, offers its files for download and names the step that uses them."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:07:44Z
+
+[criteria.i18n.ja]
+text = "テストデータの各カードは、そのデータで何をするかを示し、ファイルのダウンロードを提供し、それを使うステップを示す。"
+status = "machine"
+source_hash = "ac84104d5f90"
+
 [i18n.ja]
 title = "テスターがブラウザでテストケースを実行する"
 actor = "テスター"

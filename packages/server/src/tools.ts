@@ -12,9 +12,10 @@ const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 const NETWORK = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true };
 const opt = z.string().optional();
 const STATUS = z.enum(['pass', 'fail', 'blocked', 'skipped']);
+const TICKS = z.array(z.boolean()).optional().describe("Which of the step's checks hold, in order");
 
 export const TOOL_INPUTS = {
-  status: z.object({ release: opt, environment: opt }),
+  status: z.object({ release: opt, environment: opt, mine: z.boolean().optional() }),
   list: z.object({
     kind: z.enum(['features', 'ucs', 'tcs', 'fixtures', 'envs', 'releases', 'plans', 'runs']),
     ...{ status: opt, tag: opt, priority: opt, mode: opt, uc: opt, tc: opt, release: opt },
@@ -35,7 +36,9 @@ export const TOOL_INPUTS = {
   }),
   record_run: z.object({
     ...{ test_case: z.string(), verdict: STATUS, note: opt, confidence: z.number().min(0).max(1).optional() },
-    steps: z.array(z.object({ index: z.number().int().positive(), status: STATUS, note: opt })).optional(),
+    steps: z
+      .array(z.object({ index: z.number().int().positive(), status: STATUS, note: opt, checks: TICKS }))
+      .optional(),
     evidence: z
       .array(z.string())
       .optional()
@@ -54,7 +57,7 @@ export const NEW_KINDS: Record<string, B.NewKind> = {
   ...{ env: 'environment', release: 'release', plan: 'plan' },
 };
 const ABOUT: Record<ToolName, [string, object]> = {
-  status: ['Coverage, use case status and the readiness gate (= iw status --json)', READ],
+  status: ['Coverage, use case status and the readiness gate (= iw status --json; mine = --mine)', READ],
   list: ['List features, ucs, tcs, fixtures, envs, releases, plans or runs', READ],
   show: ['One entity (UC-n, TC-n, FX-n, PLAN-n, a run ID or prefix) with references and runs', READ],
   check: ['Validate the bundle; read problems[] (file, path, message)', READ],
@@ -103,6 +106,12 @@ export function writeModel(server: McpServer, given?: string, fallback?: string)
   const message = `No model ID given; recorded the MCP client ${model} instead`;
   return { model, warnings: client ? [{ severity: 'warning' as const, code: 'no-model', message }] : [] };
 }
+
+/** A step's ticked checks need one entry per check of the step (docs/spec/sync.md#run-record). */
+export const checksError = (steps: { checks?: string[] }[], s: { index: number; checks?: boolean[] }) =>
+  s.checks && s.checks.length !== (steps[s.index - 1]?.checks?.length ?? 0)
+    ? `step ${s.index}: checks must have one entry per check of the step`
+    : undefined;
 
 /** Warnings about a run that may not count the way the recorder expects. */
 export function recordWarnings(c: {
@@ -172,11 +181,15 @@ const runsOf = (m: core.Model, tcs: string[], limit = 10) =>
     .slice(0, limit)
     .map(runSummary);
 
-/** `iw status` data. */
-export const statusData = (m: core.Model, scope: core.Scope) => ({
-  ...core.computeStatus(m, scope),
-  scope: { release: scope.release ?? null, environment: scope.environment ?? null },
-});
+/** `iw status` data; with `who`, of the features they own, listed in `mine` (docs/spec/concepts.md#feature-owners). */
+export function statusData(m: core.Model, scope: core.Scope, who?: core.Principal) {
+  const features = who ? core.ownedFeatures(m, who) : [];
+  return {
+    ...core.computeStatus(who ? core.ownedModel(m, features) : m, scope),
+    scope: { release: scope.release ?? null, environment: scope.environment ?? null },
+    ...(who && { mine: { actor: who.id, features } }),
+  };
+}
 
 /** `iw show` data (without --versions). */
 export function showEntity(m: core.Model, ref: string, scope: core.Scope): Record<string, unknown> {

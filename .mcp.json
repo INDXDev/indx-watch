@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "indx-watch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "indx-watch",
+        "mcp"
+      ]
+    }
+  }
+}

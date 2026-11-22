@@ -1,0 +1,5 @@
+interface:
+  display_name: "INDX watch"
+  short_description: "Overview of INDX Watch, the file-first test management tool whose use cases, acceptance criteria, test cases and…"
+policy:
+  allow_implicit_invocation: true
