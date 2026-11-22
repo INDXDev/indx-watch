@@ -29,6 +29,12 @@ export const stepStatus = (s: StepState): StepStatus | undefined =>
 /** A failed or blocked step with an unticked check asks for a note. Pure; tested. */
 export const asksNote = (s: StepState) =>
   ['fail', 'blocked'].includes(stepStatus(s) ?? '') && s.checks.includes(false);
+/** Ticks or unticks check `j`; unticking a check drops an explicit Pass, so the step falls back to the suggestion. Pure; tested. */
+export const tickCheck = (s: StepState, j: number, on: boolean): StepState => ({
+  ...s,
+  checks: s.checks.map((c, k) => (k === j ? on : c)),
+  ...(!on && s.status === 'pass' ? { status: undefined } : {}),
+});
 /** The step can be left with Next: it has a result, and the note it asks for. Pure; tested. */
 export const stepDone = (s: StepState) => !!stepStatus(s) && (!asksNote(s) || s.note.trim() !== '');
 

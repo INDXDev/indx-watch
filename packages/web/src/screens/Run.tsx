@@ -122,6 +122,9 @@ function Steps({ r, reload }: { r: RunDetail; reload: () => void }) {
   // the checks' wording comes from the current test case (it is not part of the version)
   const tc = useApi(() => api.testCase(r.testCase.key, {}), [r.testCase.key]);
   const texts = useChecks();
+  // positional ticks: when the step's checks changed in number, fall back to "Check n"
+  const wording = (i: number, n: number) =>
+    texts(tc.data?.data.steps[i - 1] ?? {}).filter((_, __, a) => a.length === n);
   return (
     <Section title={t('run.steps')}>
       {steps.length === 0 && <p className="muted">{t('run.noSteps')}</p>}
@@ -133,11 +136,11 @@ function Steps({ r, reload }: { r: RunDetail; reload: () => void }) {
               <Badge status={s.status} />
               {s.checks && (
                 <ul className="checklist" aria-label={t('run.checks')}>
-                  {s.checks.map((ok, j) => (
+                  {s.checks.map((ok, j, all) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: checks are positional
                     <li key={j}>
                       <Icon status={ok ? 'pass' : 'fail'} />{' '}
-                      {texts(tc.data?.data.steps[s.index - 1] ?? {})[j] ?? t('run.check', { n: j + 1 })}
+                      {wording(s.index, all.length)[j] ?? t('run.check', { n: j + 1 })}
                     </li>
                   ))}
                 </ul>

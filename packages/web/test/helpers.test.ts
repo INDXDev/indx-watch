@@ -15,6 +15,7 @@ import {
   stepDone,
   stepStatus,
   suggestVerdict,
+  tickCheck,
 } from '../src/screens/runner/model';
 import { firstOpen } from '../src/screens/runner/useRun';
 import { testOrder } from '../src/screens/Tests';
@@ -255,6 +256,13 @@ describe('test case page and in-place runner', () => {
     expect(stepDone({ ...failed, note: 'Total is 40.00' })).toBe(true);
     expect(asksNote(st({ status: 'fail' }))).toBe(false);
     expect(stepDone(st({ checks: [false] }))).toBe(false);
+  });
+  it('unticking a check after Pass drops the explicit pass', () => {
+    const passed = st({ status: 'pass', checks: [true, true] });
+    expect(tickCheck(passed, 1, false)).toEqual(st({ status: undefined, checks: [true, false] }));
+    expect(stepStatus(tickCheck(passed, 1, false))).toBeUndefined();
+    expect(tickCheck(st({ status: 'fail', checks: [true, true] }), 0, false).status).toBe('fail');
+    expect(stepStatus(tickCheck(st({ checks: [true, false] }), 1, true))).toBe('pass');
   });
   it('Next opens the first step without a result, then the Result block', () => {
     expect(firstOpen([st({ status: 'pass' }), st({}), st({})])).toBe(1);

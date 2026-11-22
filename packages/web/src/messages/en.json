@@ -377,8 +377,8 @@
   "tc.open": "Open {url}",
   "tc.guide": "How to reach {env}",
   "tc.use.download": "Download this file to use in the test.",
-  "tc.use.upload": "Download this file, then attach it in this step:",
-  "tc.use.enter": "Type or paste these values in this step:",
+  "tc.use.upload": "Download this file, then attach it where a step asks for it.",
+  "tc.use.enter": "Type or paste these values where a step asks for them.",
   "tc.use.seeded": "Already in the app. Nothing to do.",
   "tc.download": "Download {name}",
   "tc.resultBlock": "Result",
@@ -388,6 +388,7 @@
   "runner.next": "Next step",
   "runner.pickResult": "Tick what you saw, or choose a result.",
   "runner.later": "Steps after this one: {count}",
+  "runner.leave": "Leave this test case? The steps you recorded are not saved.",
   "run.check": "Check {n}",
   "run.checks": "Checks"
 }

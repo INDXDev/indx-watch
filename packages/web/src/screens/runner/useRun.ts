@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../App';
 import { api, type TestCaseDetail } from '../../api';
 import { useI18n } from '../../i18n';
-import { href, navigate } from '../../router';
+import { href, leave, navigate } from '../../router';
 import { placeholderValues } from '../guide';
 import {
   buildRunInput,
@@ -14,6 +14,7 @@ import {
   type StepStatus,
   stepStatus,
   suggestVerdict,
+  tickCheck,
   type Verdict,
 } from './model';
 
@@ -70,12 +71,12 @@ function useSteps(d: TestCaseDetail) {
     if (v === 'pass') setActive(firstOpen(steps.map((s, j) => (j === i ? { ...s, ...p } : s))));
   };
   const tick = (i: number, j: number, on: boolean) =>
-    patch(i, { checks: steps[i]!.checks.map((c, k) => (k === j ? on : c)) });
+    setSteps((all) => all.map((s, k) => (k === i ? tickCheck(s, j, on) : s)));
   /** Next: the first step still without a result, or the Result block. */
   const advance = () => setActive(firstOpen(steps));
   useWindowEvent('paste', (e) => {
     const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
-    if (files.length === 0) return;
+    if (files.length === 0 || active >= steps.length) return;
     e.preventDefault();
     addFiles(active, files);
   });
@@ -90,10 +91,11 @@ export function useEnv() {
 
 /** The manual runner's state; `session` is the queue of test cases this run belongs to. */
 export function useRun(d: TestCaseDetail, session: string[] | undefined) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const { scope } = useApp();
   const env = useEnv();
   const started = useRef(nowIso());
+  const saved = useRef(false);
   const stepState = useSteps(d);
   const { steps, active, mark } = stepState;
   const [chosen, setChosen] = useState<Verdict | undefined>();
@@ -109,9 +111,8 @@ export function useRun(d: TestCaseDetail, session: string[] | undefined) {
   const canSave = !!verdict && (!needsReason(verdict) || note.trim() !== '') && !uploading && !busy;
 
   useWindowEvent('keydown', (e) => {
-    if (typing(e) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (typing(e) || e.altKey || e.ctrlKey || e.metaKey || active >= steps.length) return;
     const k = e.key.toLowerCase();
-    if (active >= steps.length) return;
     if (KEYS[k]) mark(active, KEYS[k]);
     else if (k === 'n') {
       e.preventDefault();
@@ -120,6 +121,13 @@ export function useRun(d: TestCaseDetail, session: string[] | undefined) {
   });
   useWindowEvent('beforeunload', (e) => {
     if (dirty && !busy) e.preventDefault();
+  });
+  // moving to another test case (← / →, swipe, links) asks before dropping unsaved work
+  useEffect(() => {
+    leave.stay = () => dirty && !saved.current && !window.confirm(t('runner.leave'));
+    return () => {
+      leave.stay = undefined;
+    };
   });
 
   const save = async () => {
@@ -130,15 +138,15 @@ export function useRun(d: TestCaseDetail, session: string[] | undefined) {
     const head = { release: scope.release, environment, started_at: started.current, locale, verdict };
     try {
       const res = await api.createRun(buildRunInput(d, steps, head, note));
+      saved.current = true;
       navigate(next ? href.runner(next, session) : href.run(res.run.id));
     } catch (e) {
       setError(message(e));
       setBusy(false);
     }
   };
-  const values = placeholderValues(d.fixtures);
-  const form = { chosen, setChosen, note, setNote, busy, error, verdict, canSave, save };
-  return { ...stepState, ...form, env, values, next, recorded, uploading };
+  const form = { chosen, setChosen, note, setNote, busy, error, verdict, canSave, save, next, recorded };
+  return { ...stepState, ...form, env, values: placeholderValues(d.fixtures), uploading };
 }
 
 /** What `useRun` returns; the runner's sections read from it. */

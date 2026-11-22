@@ -377,8 +377,8 @@
   "tc.open": "{url} を開く",
   "tc.guide": "{env} へのアクセス方法",
   "tc.use.download": "このファイルをダウンロードしてテストで使う。",
-  "tc.use.upload": "このファイルをダウンロードし、次の手順で添付する:",
-  "tc.use.enter": "次の手順でこの値を入力または貼り付ける:",
+  "tc.use.upload": "このファイルをダウンロードし、手順で求められたら添付する。",
+  "tc.use.enter": "手順で求められたらこの値を入力または貼り付ける。",
   "tc.use.seeded": "アプリに登録済み。何もしなくてよい。",
   "tc.download": "{name} をダウンロード",
   "tc.resultBlock": "結果",
@@ -388,6 +388,7 @@
   "runner.next": "次の手順へ",
   "runner.pickResult": "確認できた項目にチェックを入れるか、結果を選んでください。",
   "runner.later": "この後の手順: {count}",
+  "runner.leave": "このテストケースを離れますか？記録した手順は保存されていません。",
   "run.check": "確認項目 {n}",
   "run.checks": "確認項目"
 }

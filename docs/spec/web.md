@@ -92,7 +92,7 @@ Gate checks, counts by status and the use case table move to **Release details**
 - **Moving between items.** `←` / `→` keys, horizontal swipe on touch screens (at least 60 px, mostly horizontal), or the footer buttons. Each item has its own URL, so the browser's Back button steps back through the items.
 - **Order.** The order and filters of the List view the user came from. "Open" filters (not passing) are kept, so stepping through them works like a queue.
 
-The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?session=TC-3,TC-6`). Each test case opens with its [runner open in place](#manual-run-in-place); ← / → and the footer step through the session, and after you save a result the next open test of the session opens the same way, without returning to Home. A bar above the page shows the session's progress ("Test 2 of 5"). Keyboard shortcuts while the runner is open:
+The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?session=TC-3,TC-6`). Each test case opens with its [runner open in place](#manual-run-in-place); ← / → and the footer step through the session, and after you save a result the next open test of the session opens the same way, without returning to Home. A bar above the page shows the session's progress ("Test 2 of 5"). Leaving a test case whose runner holds unsaved step results asks first. Keyboard shortcuts while the runner is open:
 
 | Key | Action |
 |---|---|
@@ -114,8 +114,8 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
      | `use` | The card says | It shows |
      |---|---|---|
      | `download` | "Download this file" | A download button per file |
-     | `upload` | "Download this file, then attach it in step N: …", naming every step whose instruction mentions the fixture key | A download button per file |
-     | `enter` | "Enter these values" (with the step that uses them, as for `upload`) | The selected row's values, each ready to copy |
+     | `upload` | "Download this file, then attach it where a step asks for it", then "Step N: …" for every step whose instruction mentions the fixture key | A download button per file |
+     | `enter` | "Type or paste these values where a step asks for them" (with the steps that use them, as for `upload`) | The selected row's values, each ready to copy |
      | `seeded` | "Already in the app. Nothing to do." | — |
 
      Without `use`, the card shows the values and files the fixture has. An account fixture shows the username and says the password is in the team's secret store. Download buttons fetch the file from `GET /api/blobs/<sha256>`, which serves a fixture file whether it is stored in git or as a blob pointer.
@@ -128,13 +128,14 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 **Run manually**, in the Focus footer, opens the runner on the same page: the URL does not change, the blocks above stay where they are, and the Steps block turns into the runner.
 
 - **One step at a time.** The current step shows its instruction, expected result, its `checks` as checkboxes, the result buttons (Pass, Fail, Blocked, Skip), a note and screenshots (upload or paste). Recorded steps collapse to one line with their result, and a click reopens one. Later steps are not shown until you get there.
-- **Checks.** Ticking every check suggests Pass; choosing Pass (or pressing `P`) ticks every check. A Fail or Blocked step with an unticked check asks for a note ("Which check did not hold, and what did you see?").
+- **Checks.** Ticking every check suggests Pass; choosing Pass (or pressing `P`) ticks every check, and unticking one afterwards drops the Pass, so the step needs a result again. A Fail or Blocked step with an unticked check asks for a note ("Which check did not hold, and what did you see?").
 - **Next** records the step and opens the next one. It stays disabled until the step has a result, and the note it asks for. After the last step the **Result** block opens with the verdict suggested from the steps, the reason (required for every verdict except pass) and **Save result** (**Save and next** in a session).
 - **What is recorded.** For each recorded step: its status, note, screenshots and which checks were ticked (`checks`, booleans in the order of the step's source `checks`, [sync.md](sync.md#run-record)).
 - **Cancel** closes the runner without saving and keeps the page.
-- **Sessions.** Pressed in the Focus view, Run manually runs the rest of that list as a session: after saving, **Save and next** opens the next test case with its runner open. Without a next test case, saving opens the run viewer.
+- **Sessions.** Pressed in the Focus view, Run manually runs the rest of that list as a session: the session bar appears, ← / →, swipes and the footer step through the session, and after saving, **Save and next** opens the next test case with its runner open. Without a next test case, saving opens the run viewer.
+- **Unsaved work.** While a step has a result, a tick, a note or a screenshot, moving to another page (keys, swipe, links, Back) asks first; closing the tab asks through the browser.
 
-`#/tc/<TC>/run` opens the same page with the runner already open, without a session unless the URL has one (`?session=`). The run viewer lists each step's checks with ✓ or ✗, worded from the current test case in the chosen language.
+`#/tc/<TC>/run` opens the same page with the runner already open, without a session unless the URL has one (`?session=`). The run viewer lists each step's checks with ✓ or ✗, worded from the current test case in the chosen language; when the step now has a different number of checks than were recorded, they read "Check 1", "Check 2", ….
 
 ### Report
 

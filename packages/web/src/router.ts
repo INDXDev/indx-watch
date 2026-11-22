@@ -66,10 +66,14 @@ export const navigate = (to: string): void => {
   window.location.hash = to.replace(/^#/, '');
 };
 
+/** While `stay` is set, a hash change first asks it; `true` keeps the page (unsaved runner work) and the URL. */
+export const leave: { stay?: (() => boolean) | undefined } = {};
+
 export function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
   useEffect(() => {
-    const on = () => {
+    const on = (e: HashChangeEvent) => {
+      if (leave.stay?.()) return history.replaceState(null, '', e.oldURL);
       setRoute(parseRoute(window.location.hash));
       window.scrollTo(0, 0);
     };

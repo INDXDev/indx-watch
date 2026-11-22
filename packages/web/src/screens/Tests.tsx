@@ -59,8 +59,9 @@ export function TestFocus(props: {
   const list = session ?? (items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey]);
   const q = query(asFilter(filter));
   const rest = list.slice(list.indexOf(tcKey));
-  const own = running === 'button' && rest.length > 1 ? rest : undefined;
-  const run = running ? { session: session ?? own, close: () => setRunning(false) } : undefined;
+  // while running, ← / →, swipes and the footer step through the run's session (the URL's, else the rest of the list)
+  const sess = session ?? (running === 'button' && rest.length > 1 ? rest : undefined);
+  const run = running ? { session: sess, close: () => setRunning(false) } : undefined;
   return (
     <>
       <div className="page-head page-head-tight">
@@ -70,11 +71,11 @@ export function TestFocus(props: {
         </p>
         <ViewSwitch view="focus" list={href.tests(q)} />
       </div>
-      {session && <SessionBar session={session} at={tcKey} />}
+      {sess && <SessionBar session={sess} at={tcKey} />}
       <Focus
-        items={list}
+        items={sess ?? list}
         at={tcKey}
-        go={(k) => (session ? href.runner(k, session) : href.testCase(k, q))}
+        go={(k) => (sess ? href.runner(k, sess) : href.testCase(k, q))}
         actions={
           project.can.run !== false &&
           !running && (

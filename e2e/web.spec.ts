@@ -112,7 +112,7 @@ test('one-page test case with the manual run in place', async ({ page }) => {
       await expect(headings).toHaveText(['What this tests', 'Before you start', 'Steps (2)', 'Result']);
       await expect(page.getByRole('link', { name: /Open http:\/\/localhost:4173\/sign-in/ })).toBeVisible();
       const card = page.locator('.data-card', { hasText: 'Review photo' });
-      await expect(card).toContainText('Download this file, then attach it in this step');
+      await expect(card).toContainText('Download this file, then attach it where a step asks for it');
       await expect(card).toContainText('Step 2: Attach the file from FX-4');
       const download = card.getByRole('link', { name: /Download review-photo\.png/ });
       const res = await page.request.get(new URL((await download.getAttribute('href'))!, server.url).href);
@@ -125,9 +125,21 @@ test('one-page test case with the manual run in place', async ({ page }) => {
       await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
       expect(new URL(page.url()).hash).toBe('#/tc/TC-3');
       await expect(page.getByRole('heading', { name: 'Before you start' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: /^Test 1 of \d+/ })).toBeVisible();
     });
     await test.step('3. a fail with an unticked check asks for a note; ticking every check suggests pass', async () => {
       await page.getByRole('checkbox', { name: /The discount line shows/ }).check();
+      // → would move to the next test case of the session: it asks first, and staying keeps the work
+      let asked = '';
+      page.once('dialog', (d) => {
+        asked = d.message();
+        void d.dismiss();
+      });
+      await page.getByRole('heading', { name: 'Before you start' }).click();
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => asked).toContain('Leave this test case?');
+      expect(new URL(page.url()).hash).toBe('#/tc/TC-3');
+      await expect(page.getByRole('checkbox', { name: /The discount line shows/ })).toBeChecked();
       await page.getByRole('group', { name: 'Result of step 1' }).getByText('Fail').click();
       const next = page.getByRole('button', { name: /Next step/ });
       await expect(next).toBeDisabled();
