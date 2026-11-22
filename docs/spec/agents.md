@@ -40,6 +40,15 @@ Re-running rewrites the installed skill files that differ from the source, the `
 
 Each skill states: when to use it, the exact commands, the JSON fields to read, and the rules below. Skills set `IW_ACTOR_KIND=agent` and `IW_AGENT_MODEL=<model>` on every write command; the CLI also detects common agent environments on its own ([security.md](security.md#identity)).
 
+### Lint
+`pnpm test` lints every skill in [`skills/`](../../skills) (`packages/cli/test/skills-lint.test.ts`), including skills added later, and fails on:
+
+- **Frontmatter.** It must be a YAML mapping of the subset the skills use (plain, quoted or folded scalars, flow or indented maps of strings). `name` equals the folder name, matches `^[a-z0-9]+(-[a-z0-9]+)*$`, has at most 64 characters and does not contain `claude` or `anthropic`; `description` is 1–1,024 characters; neither contains an XML tag; `compatibility` has at most 500 characters ([platform notes](../research/platform-notes.md#agent-skills)). Only the keys of [Skills](#skills) are allowed: the portable ones plus `argument-hint` and `disable-model-invocation`. The `.agents/skills/` copies that `iw skills install` writes into a temporary folder must pass the same checks with only the portable keys.
+- **Length.** `SKILL.md` has at most 500 lines (the Agent Skills limit); about 150 is the repository's guideline, not checked.
+- **Commands.** Every `iw <command>` or `npx indx-watch <command>` in code (inline or fenced) of a skill's Markdown files names a command with a heading in [cli.md](cli.md#commands); for a command with subcommands (`iw fixture add`, `iw baseline approve`) the subcommand must match too. A line that says *planned* is skipped, so a skill can name a command before it exists ([shared conventions](#shared-conventions), rule 8).
+- **Examples.** Every key (`UC-n`, `AC-n.m`, `TC-n`, `FX-n`, `FEAT-n`, `PLAN-n`) exists in `examples/shop`, or is the next free key of its kind that a worked example creates (`TC-11`, `FX-5`, `AC-5.2`).
+- **Links.** Every relative Markdown link resolves to a file or folder inside `skills/`, since installed copies carry only the skill folders.
+
 ## MCP server
 `iw mcp` starts a stdio MCP server built with the official TypeScript SDK. Register it:
 
@@ -327,4 +336,4 @@ Conversation on `examples/shop` (sample results):
 - [x] `iw judge` on a run whose test case has an `llm` rubric sends the rubric, the steps and the last screenshot to the Messages API and appends an `llm` judgement that the decision policy uses; a refusal or an answer that fails the schema becomes `unknown` with confidence 0, and API errors are not recorded (tests against a fake API).
 - [ ] *(v0.4, T-405)* A dry run of `iw-setup`, `iw-design` and `iw-data` on a copy of `examples/shop` follows the conversations above; `iw-design` writes no file before the user accepts a proposal, and every file the skills write passes `iw check`.
 - [ ] *(v0.4, T-406)* A dry run of `iw-test`, `iw-triage` and `iw-status` on `examples/shop` follows the conversations above; a guided run of TC-6 (manual, `human` judge) records a run with the ticked checks on its step results (T-404), and both its pass and its fail are `needs_review` until a person reviews it.
-- [ ] *(v0.4, T-407)* The skill lint fails on a frontmatter key a client does not accept, on an `iw` command that is not in [cli.md](cli.md), and on an example that is not from `examples/shop`.
+- [x] *(v0.4, T-407)* The [skill lint](#lint) fails on a frontmatter key a client does not accept, on an `iw` command that is not in [cli.md](cli.md), and on an example that is not from `examples/shop` (tests with temporary skill folders); every skill in `skills/` and its installed `.agents/` copy passes it.
