@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-23
+
 ### Added
 
 - Guided runs record ticked checks: `iw record --checks <n>=1,0` (one `1` or `0` per check of step `n`) and `checks` on MCP `record_run` steps write `steps[].checks`; a list whose length differs from the step's checks is refused. MCP `status` takes `mine` like `iw status --mine`. The `iw-test`, `iw-status` and `run-tests` skills use them (T-408).
@@ -66,5 +68,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw translate` keeps every `--set`, not only the last.
 - The remaining acceptance criteria are tested (T-117, #6).
 
-[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/INDXDev/indx-watch/releases/tag/v0.1.0
