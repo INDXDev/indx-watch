@@ -25,7 +25,7 @@ Readiness is computed by one function from the definitions and the results. You 
 
 1. If `project.toml` has a `[store]`, fetch the latest results first (`iw sync --pull-only`); in `examples/shop` the store is the committed sample, so reading it is fine.
 2. The release is the one the user names, else `current_release`. Gate: `iw status --release <v> --gate --json` (exit 1 with `GATE_FAILED` is the normal "not ready" answer; `data` is still there). Add `--env` only when the user asks about one environment.
-3. By feature: `iw list features --json` (titles, `useCases`, and `owners` when the bundle has them, T-402), `iw list tcs --json` (`useCase`, `status`, `priority`, `mode`). Count only test cases that are not `draft`; drafts do not count towards readiness.
+3. By feature: `iw list features --json` (titles, `useCases`, `owners`), `iw list tcs --json` (`useCase`, `status`, `priority`, `mode`). Count only test cases that are not `draft`; drafts do not count towards readiness.
 4. Plans for the release: `iw list plans --json`, then `iw show PLAN-n --json` → `items[]` with `test_case`, `assignee`, `due`, `status`.
 
 ## 2. Answer: verdict, why, who acts
@@ -52,7 +52,7 @@ At most six lines:
 
 ## 3. "What's left for me?"
 
-The person is `git config user.email`. If `iw status --help` lists `--mine` (T-402), use `iw status --mine --json`. Otherwise take the features whose `owners` include that email and the plan items assigned to it. List only their open items (failing, untested, needs review, stale, plan items not `done`), one line each, or say "Nothing left" with what passed. A `group:` owner cannot be resolved locally: ask whether the person belongs to it. Without owners or assigned items, say so and offer the whole release.
+The person is `git config user.email`. Use `iw status --mine --json` (MCP: `status` with `mine: true`) for the features they own, and the plan items assigned to that email. List only their open items (failing, untested, needs review, stale, plan items not `done`), one line each, or say "Nothing left" with what passed. A `group:` owner cannot be resolved locally: ask whether the person belongs to it. Without owners or assigned items, say so and offer the whole release.
 
 ## 4. The report
 
