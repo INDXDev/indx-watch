@@ -12,12 +12,12 @@ import { TOOL_OUTPUTS } from '../src/tools.js';
 import { cleanEnv, iw, shop } from './helpers.js';
 
 /** A minimal JSON-RPC client over an in-memory transport (2025-era opening, served by the same factory). */
-async function connect(dir: string) {
+async function connect(dir: string, env: Record<string, string> = {}) {
   const [client, server] = InMemoryTransport.createLinkedPair();
   const waiting = new Map<number, (m: JSONRPCMessage) => void>();
   client.onmessage = (m) => waiting.get((m as { id: number }).id)?.(m);
   await client.start();
-  serveStdio(() => createMcpServer(makeCtx(cleanEnv(), dir)), { transport: server });
+  serveStdio(() => createMcpServer(makeCtx({ ...cleanEnv(), ...env }, dir)), { transport: server });
   let id = 0;
   // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC results
   const request = async (method: string, params: object): Promise<any> => {
@@ -67,6 +67,10 @@ describe('iw mcp', () => {
     const r = await call('status');
     expect(r.structuredContent).toEqual(iw(dir, ['status', '--json']).json.data);
     expect(CommandData.status.safeParse(r.structuredContent).success).toBe(true);
+    const env = { IW_ACTOR: 'alex@shop.test' };
+    const mine = await (await connect(dir, env)).call('status', { mine: true });
+    expect(mine.structuredContent).toEqual(iw(dir, ['status', '--mine', '--json'], { env }).json.data);
+    expect(mine.structuredContent.mine.features).toEqual(['FEAT-2']);
   });
 
   it('record_run as an agent with confidence 0.6 yields needs_review', async () => {
@@ -76,9 +80,10 @@ describe('iw mcp', () => {
       test_case: 'TC-9',
       verdict: 'pass',
       confidence: 0.6,
-      steps: [{ index: 1, status: 'pass' }],
+      steps: [{ index: 1, status: 'pass', checks: [true] }],
     });
     expect(r.structuredContent).toMatchObject({ verdict: 'needs_review', rule: 6 });
+    expect(r.structuredContent.run.steps).toEqual([{ index: 1, status: 'pass', checks: [true] }]);
     expect(r.structuredContent.run.actor.kind).toBe('agent');
     expect(r.structuredContent.run.judgements[0]).toMatchObject({ kind: 'llm', confidence: 0.6 });
     // no evidence and no model: the CLI's warnings come back as a second text block

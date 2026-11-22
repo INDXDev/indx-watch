@@ -53,6 +53,8 @@ Add the key to both `packages/web/src/messages/en.json` and `ja.json`.
 ## Dogfooding
 This repository manages its own QA in [`.indx-watch/`](.indx-watch). When you add a feature, add or update its use case, acceptance criteria and test cases there, and tag the automated test with `@TC-n`. CI records results with the Playwright reporter and posts a report to the job summary.
 
+The repository also uses its own agent skills: `pnpm iw skills install` at the root wrote `.claude/skills/`, `.agents/skills/`, `.mcp.json`, `.codex/config.toml` and the marked block at the end of [AGENTS.md](AGENTS.md). Edit skills only in [`skills/`](skills), then run `pnpm iw skills install` again and commit the copies; a test fails while they differ. The project MCP server runs the published package (`npx -y indx-watch mcp`), as in any other repository, so a re-run does not rewrite it. That package can be older than `.indx-watch/` here: indx-watch 0.1.0 cannot load test cases that use `purpose`, `start` or step `checks` (TC-15 to TC-18 do), and it has no MCP `status` `mine` or `record_run` `checks`. So until the next release the project MCP server does not work in this repository; use `pnpm iw …`, or add a local server that runs your working copy, e.g. `claude mcp add --scope local indx-watch-dev -- pnpm --silent iw mcp`.
+
 ## Commits and pull requests
 
 - [Conventional Commits](https://www.conventionalcommits.org/): `feat(sync): add lookback window`.

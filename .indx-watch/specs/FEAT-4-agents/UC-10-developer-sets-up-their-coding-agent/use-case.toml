@@ -1,0 +1,53 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M82AJPFTRBA6AJ5JBABVAVG7"
+key = "UC-10"
+title = "Developer sets up their coding agent with one command"
+status = "draft"
+origin = "ai"
+actor = "Developer"
+goal = "Use the INDX Watch skills and MCP server in Claude Code and Codex without manual setup."
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M82AJPFTRBA6AJ5JBABVAVG5"
+key = "AC-10.1"
+text = "\"iw skills install\" writes the skills for Claude Code and Codex, the MCP server entries and the AGENTS.md block."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:57Z
+
+[criteria.i18n.ja]
+text = "「iw skills install」は Claude Code と Codex 向けのスキル、MCP サーバーの設定、AGENTS.md のブロックを書き込む。"
+status = "machine"
+source_hash = "e066ead0b3c0"
+
+[[criteria]]
+id = "ac_01M82AJPFTRBA6AJ5JBABVAVG6"
+key = "AC-10.2"
+text = "Running it again changes nothing and keeps other MCP servers."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:57Z
+
+[criteria.i18n.ja]
+text = "もう一度実行しても何も変わらず、ほかの MCP サーバーは残る。"
+status = "machine"
+source_hash = "19f2643a2c41"
+
+[i18n.ja]
+title = "開発者が 1 つのコマンドでコーディングエージェントを設定する"
+actor = "開発者"
+goal = "手作業の設定なしに、Claude Code と Codex で INDX Watch のスキルと MCP サーバーを使う。"
+status = "machine"
+source_hash = "02abcb474c7e"
+
+[ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:57Z

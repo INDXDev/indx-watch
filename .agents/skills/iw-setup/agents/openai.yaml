@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW setup"
+  short_description: "Connects a repository to INDX Watch in one conversation, asking one question at a time with a recommended answer"
+policy:
+  allow_implicit_invocation: true

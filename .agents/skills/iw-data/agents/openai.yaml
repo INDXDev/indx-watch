@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW data"
+  short_description: "Prepares the test data INDX Watch test cases need (dataset rows, seed payloads, upload files, test accounts) as…"
+policy:
+  allow_implicit_invocation: true

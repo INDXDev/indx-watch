@@ -30,13 +30,9 @@ function statusText(s: ReturnType<typeof statusData>, release?: string, env?: st
   ].join('\n');
 }
 
-/** With --mine, the model narrowed to the features the current actor owns (docs/spec/concepts.md#feature-owners). */
-async function mineOf(ctx: Ctx, a: Args, m: core.Model) {
-  if (!a.mine) return { m };
-  const actor = (await cx.actorOf(ctx)).id;
-  const features = core.ownedFeatures(m, { id: actor, groups: [] });
-  return { m: core.ownedModel(m, features), mine: { actor, features } };
-}
+/** With --mine, the current actor (docs/spec/concepts.md#feature-owners); `group:` owners do not match locally. */
+const mineOf = async (ctx: Ctx, a: Args) =>
+  a.mine ? { id: (await cx.actorOf(ctx)).id, groups: [] } : undefined;
 const MINE = B('Only the features you own (owners in feature.toml)');
 
 export const resultCommands: Record<string, Spec> = {
@@ -53,8 +49,8 @@ export const resultCommands: Record<string, Spec> = {
       const scope = { release: cx.releaseOf(ctx, p, a), environment: str(a.env) ?? ctx.env.IW_ENV };
       const all = await cx.loadModel(p);
       const warnings = cx.checkScope(all, a, scope);
-      const { m, mine } = await mineOf(ctx, a, all);
-      const data = { ...statusData(m, scope), ...(mine && { mine }) };
+      const data = statusData(all, scope, await mineOf(ctx, a));
+      const mine = data.mine;
       const text =
         (mine ? `My features (${mine.actor}): ${mine.features.join(' ') || '(none)'}\n` : '') +
         statusText(data, scope.release, scope.environment);
@@ -131,7 +127,8 @@ export const resultCommands: Record<string, Spec> = {
       const scope = { release: cx.releaseOf(ctx, p, a), environment: ctx.env.IW_ENV };
       const f = Object.fromEntries(FILTERS.map((k) => [k, str(a[k])]));
       const limit = str(a.limit) ? Number(a.limit) : undefined;
-      const { m } = await mineOf(ctx, a, await cx.loadModel(p));
+      const [all, who] = [await cx.loadModel(p), await mineOf(ctx, a)];
+      const m = who ? core.ownedModel(all, core.ownedFeatures(all, who)) : all;
       const items = listItems(m, str(a.what) ?? '', f, scope, limit);
       const label = (x: Record<string, unknown>) => [
         x.key ?? x.id ?? x.name ?? x.version,

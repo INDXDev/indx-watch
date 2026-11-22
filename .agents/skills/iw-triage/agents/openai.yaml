@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW triage"
+  short_description: "Find out why INDX Watch test cases failed and what to do about it"
+policy:
+  allow_implicit_invocation: true

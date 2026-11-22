@@ -153,6 +153,29 @@ describe('commands: judge and record', () => {
     expect(iwJson(dir, 'show', ['show', pass.run.id]).json.data.decision.verdict).toBe('needs_review');
     const fail = iwJson(dir, 'record', [...guided, '0.5', '--verdict', 'fail'], { env }).json.data;
     expect(fail).toMatchObject({ verdict: 'needs_review', rule: 6 });
+    // ticked checks of a guided run (T-408): one 1/0 per check of the step
+    const ticks = [
+      'record',
+      'TC-9',
+      '--verdict',
+      'fail',
+      '--step',
+      '1=pass',
+      '--step',
+      '2=fail:No thumbnail',
+    ];
+    const ticked = iwJson(dir, 'record', [...ticks, '--checks', '1=1', '--checks', '2=1,0'], { env });
+    expect(ticked.json.data.run.steps).toEqual([
+      { index: 1, status: 'pass', checks: [true] },
+      { index: 2, status: 'fail', note: 'No thumbnail', checks: [true, false] },
+    ]);
+    for (const bad of [
+      ['--checks', '2=1'],
+      ['--checks', '3=1'],
+      ['--checks', '2=yes'],
+      ['--checks', '2=1,0', '--checks', '2=0,0'],
+    ])
+      expect(iwJson(dir, 'record', [...ticks, ...bad], { env }).json.error.code).toBe('USAGE');
   });
 });
 

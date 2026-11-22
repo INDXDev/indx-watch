@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW design"
+  short_description: "Designs tests worth having for a feature or use case of an INDX Watch project, explained in plain words, and writes…"
+policy:
+  allow_implicit_invocation: true

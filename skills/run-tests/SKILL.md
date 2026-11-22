@@ -45,7 +45,7 @@ A run is one execution of one test case version against one build and environmen
 
    - `--verdict`: `pass`, `fail`, `blocked` (could not execute: environment down, missing data or secret, an earlier bug) or `skipped`.
    - `--confidence`: how sure you are the verdict is right (0–1). Honest values only; below the threshold (default 0.8) the run becomes `needs_review` for a human.
-   - `--step <n>=<status>[:note]` for every step you reached; `--evidence <path>[@step]` for every screenshot or log; `--rows <key,...>` for dataset rows you used.
+   - `--step <n>=<status>[:note]` for every step you reached, and `--checks <n>=1,0` for a step with `checks` (one `1` or `0` per check, in order: which ones you saw hold); `--evidence <path>[@step]` for every screenshot or log; `--rows <key,...>` for dataset rows you used.
    - Read `data.run.id`, `data.verdict` and `data.rule`.
 5. **Sync** if `project.toml` has a `[store]`: `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M iw sync --json` → `data.pushed.records`.
 6. **Report** per test case: key, verdict, rule, run ID, evidence files. For each `fail` or `needs_review`, continue with the `triage-failure` skill; for `needs_review` ask a human to look at the run (`iw review` is theirs).

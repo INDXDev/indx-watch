@@ -95,7 +95,10 @@ function context(fs: BundleFs, bundle: Bundle, input: CreateInput) {
   const created_at = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
   const ai = input.ai && origin === 'ai' ? { ai: { ...input.ai, created_at } } : {};
   const given = (k: string) => input.fields[k] as string | undefined;
-  return { fs, bundle, input, now, origin, keys, life, ai, given, title: String(input.fields.title ?? '') };
+  const title = String(input.fields.title ?? '');
+  /** a new criterion: an AI one is a draft with its own [ai] table */
+  const criterion = { ...life, ...ai, ...(origin === 'ai' && { status: 'draft' }) };
+  return { fs, bundle, input, now, origin, keys, life, ai, criterion, given, title };
 }
 type Ctx = ReturnType<typeof context>;
 
@@ -104,8 +107,7 @@ async function createCriterion(c: Ctx): Promise<CreateResult> {
   const uc = find(c.bundle.useCases, c.input.parent);
   const key = c.given('key') ?? nextCriterionKey(uc.data.key, c.keys);
   const id = c.given('id') ?? newId('ac', +c.now);
-  const draft = c.origin === 'ai' && { status: 'draft' };
-  const ac = { id, key, ...c.input.fields, ...c.life, ...c.ai, ...draft };
+  const ac = { id, key, ...c.input.fields, ...c.criterion };
   await writeDefinition(c.fs, uc.file, 'use-case', { ...uc.data, criteria: [...uc.data.criteria, ac] });
   return { kind: 'criterion', id, key, file: uc.file };
 }
@@ -119,7 +121,7 @@ function placeUseCase(c: Ctx, base: Record<string, unknown>, key: string): strin
   const ac = (i: number) => ({ id: newId('ac', +c.now), key: `AC-${key.slice(3)}.${i + 1}` });
   const text = (x: unknown) => (typeof x === 'string' ? { text: x } : (x as object));
   const given = (base.criteria as unknown[] | undefined) ?? [];
-  base.criteria = given.map((x, i) => ({ ...ac(i), ...text(x), ...c.life }));
+  base.criteria = given.map((x, i) => ({ ...ac(i), ...text(x), ...c.criterion }));
   return dirOf(feature.file);
 }
 
