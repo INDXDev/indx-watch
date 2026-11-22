@@ -10,13 +10,18 @@ test('manual run with a screenshot', { tag: ['@TC-4'] }, async ({ page }) => {
   try {
     await test.step('1. open the manual runner for TC-8', async () => {
       await page.goto(`${server.url}#/tc/TC-8/run`);
+      await expect(page.getByRole('heading', { name: 'What this tests' })).toBeVisible();
       await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
-      await expect(page.getByRole('group', { name: 'Result of step 2' })).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Result of step 2' })).toBeHidden(); // one step at a time
     });
     await test.step('2. upload a screenshot, record steps and a fail verdict', async () => {
       await page.locator('input[type=file]').first().setInputFiles(SHOT);
       await expect(page.getByText('✓ evidence.png')).toBeVisible();
       await page.getByRole('group', { name: 'Result of step 1' }).getByText('Fail').click();
+      // its check is unticked, so the failed step asks for a note before Next
+      await expect(page.getByRole('button', { name: /Next step/ })).toBeDisabled();
+      await page.getByLabel(/Note for step 1 \(required\)/).fill('A generic error appeared.');
+      await page.getByRole('button', { name: /Next step/ }).click();
       await page.getByRole('group', { name: 'Result of step 2' }).getByText('Pass').click();
       await page.getByRole('group', { name: 'Your verdict' }).getByText('Fail').click();
       await page.getByLabel('Reason (required)').fill('The error message did not appear.');
@@ -43,8 +48,10 @@ test('manual runner in Japanese', { tag: ['@TC-5'] }, async ({ page }) => {
       const step = page.getByRole('group', { name: '手順 1 の結果' });
       await expect(step).toBeVisible();
       // the reviewed Japanese translation, with the quoted on-screen strings left in English
-      await expect(page.getByText(/カートを開き、クーポン欄に/)).toBeVisible();
-      await expect(page.getByText(/「This coupon has expired」と表示され/)).toBeVisible();
+      await expect(page.locator('.run-step').getByText(/カートを開き、クーポン欄に/)).toBeVisible();
+      await expect(
+        page.locator('.run-step').getByText(/「This coupon has expired」と表示され/),
+      ).toBeVisible();
       await page.screenshot({ path: test.info().outputPath('runner-ja.png') });
     });
     await test.step('2. finish the run with "pass"', async () => {
@@ -54,7 +61,7 @@ test('manual runner in Japanese', { tag: ['@TC-5'] }, async ({ page }) => {
           .getByRole('group', { name: group })
           .locator('label', { has: page.getByRole('radio', { name, exact: true }) })
           .click();
-      await pick('手順 1 の結果', '合格');
+      await pick('手順 1 の結果', '合格'); // the only step: the Result block opens
       await pick('あなたの判定', '合格');
       await page.getByRole('button', { name: '結果を保存' }).click();
       await expect(page).toHaveURL(/#\/runs\/run_/);

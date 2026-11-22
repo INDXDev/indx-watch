@@ -71,6 +71,16 @@ export function pick(entity: unknown, field: string, locale: Locale): Localized 
   return { text, translated: true, outdated: false, machine: tr?.status === 'machine' };
 }
 
+/** A list field (a step's `checks`) for a locale: a current translation of the same length, else the source. */
+export function pickList(entity: unknown, field: string, locale: Locale): string[] {
+  const e = (entity ?? {}) as Record<string, unknown> & { i18n?: Record<string, Record<string, unknown>> };
+  const source = Array.isArray(e[field]) ? (e[field] as string[]) : [];
+  const tr = e.i18n?.[locale];
+  const list = tr?.[field];
+  const current = tr?.status !== 'stale' && tr?.stale !== true;
+  return Array.isArray(list) && list.length === source.length && current ? (list as string[]) : source;
+}
+
 export type Segment = { kind: 'text' | 'literal' | 'placeholder'; text: string };
 /** Split text into plain text, literal on-screen strings ("…" or 「…」) and fixture placeholders ({{FX-1.code}}). */
 export function segments(text: string): Segment[] {

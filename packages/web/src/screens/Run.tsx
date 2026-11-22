@@ -6,7 +6,22 @@ import { useApp } from '../App';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, fmtBytes, Load, Mark, Meta, Section, Seg, THead, Tx, useApi, Who } from '../ui';
+import {
+  Badge,
+  Chip,
+  fmtBytes,
+  Icon,
+  Load,
+  Mark,
+  Meta,
+  Section,
+  Seg,
+  THead,
+  Tx,
+  useApi,
+  useChecks,
+  Who,
+} from '../ui';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'] as const;
 const RULES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -104,6 +119,9 @@ function Steps({ r, reload }: { r: RunDetail; reload: () => void }) {
   const base = { run: r.record.id, baselines: r.baselines ?? [], reload };
   const loose = evidence.filter((e) => (e.step ?? 0) === 0);
   const ev = (sha: string) => evidence.find((e) => e.sha256 === sha);
+  // the checks' wording comes from the current test case (it is not part of the version)
+  const tc = useApi(() => api.testCase(r.testCase.key, {}), [r.testCase.key]);
+  const texts = useChecks();
   return (
     <Section title={t('run.steps')}>
       {steps.length === 0 && <p className="muted">{t('run.noSteps')}</p>}
@@ -113,6 +131,17 @@ function Steps({ r, reload }: { r: RunDetail; reload: () => void }) {
             <span className="step-n">{s.index}</span>
             <div className="grow stack-sm">
               <Badge status={s.status} />
+              {s.checks && (
+                <ul className="checklist" aria-label={t('run.checks')}>
+                  {s.checks.map((ok, j) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: checks are positional
+                    <li key={j}>
+                      <Icon status={ok ? 'pass' : 'fail'} />{' '}
+                      {texts(tc.data?.data.steps[s.index - 1] ?? {})[j] ?? t('run.check', { n: j + 1 })}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {s.note && <p className="pre">{s.note}</p>}
               <Shots
                 items={(s.evidence ?? []).map((sha) => ev(sha) ?? { sha256: sha, name: sha.slice(0, 12) })}

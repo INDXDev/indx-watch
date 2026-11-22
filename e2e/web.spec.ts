@@ -23,9 +23,10 @@ test('step through tests and run a session', { tag: ['@TC-12'] }, async ({ page,
     });
     await test.step('2. "Save and next" opens the next test case of the session', async () => {
       await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
-      const steps = await page.getByRole('group', { name: /^Result of step \d+$/ }).count();
-      for (let i = 0; i < steps; i++) await page.keyboard.press('p'); // marks the active step as passed
-      await page.getByRole('button', { name: 'Save and next' }).click();
+      const save = page.getByRole('button', { name: 'Save and next' });
+      // P passes the open step and opens the next one, then the Result block
+      for (let i = 0; i < 10 && !(await save.isVisible()); i++) await page.keyboard.press('p');
+      await save.click();
       await expect(page).toHaveURL(new RegExp(`#/tc/${session[1]}/run\\?session=`));
       await expect(page.getByText(/Test 2 of \d/)).toBeVisible();
     });
@@ -82,8 +83,9 @@ test('declare who is testing', { tag: ['@TC-13'] }, async ({ page }) => {
     });
     await test.step('2. a manual run is recorded as the declared tester', async () => {
       await page.goto(`${server.url}#/tc/TC-9/run`);
-      await expect(page.getByRole('group', { name: 'Result of step 2' })).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
       await page.keyboard.press('p');
+      await expect(page.getByRole('group', { name: 'Result of step 2' })).toBeVisible();
       await page.keyboard.press('p');
       await page.getByRole('button', { name: 'Save result' }).click();
       await expect(page).toHaveURL(/#\/runs\/run_/);
@@ -93,6 +95,61 @@ test('declare who is testing', { tag: ['@TC-13'] }, async ({ page }) => {
       const file = readdirSync(records, { recursive: true, encoding: 'utf8' }).find((f) => f.includes(id))!;
       const run = JSON.parse(readFileSync(join(records, file), 'utf8'));
       expect(run.actor).toEqual({ kind: 'human', id: 'sam@shop.test', name: 'Sam', via: 'browser' });
+    });
+  } finally {
+    server.stop();
+  }
+});
+
+// docs/spec/web.md#test-case-page (dogfood test cases for it come with T-408)
+test('one-page test case with the manual run in place', async ({ page }) => {
+  const dir = shopCopy();
+  const server = await serve(dir);
+  try {
+    await test.step('1. TC-9 reads top to bottom; its photo card offers the download and names the upload step', async () => {
+      await page.goto(`${server.url}#/tc/TC-9`);
+      const headings = page.getByRole('heading', { level: 2 });
+      await expect(headings).toHaveText(['What this tests', 'Before you start', 'Steps (2)', 'Result']);
+      await expect(page.getByRole('link', { name: /Open http:\/\/localhost:4173\/sign-in/ })).toBeVisible();
+      const card = page.locator('.data-card', { hasText: 'Review photo' });
+      await expect(card).toContainText('Download this file, then attach it in this step');
+      await expect(card).toContainText('Step 2: Attach the file from FX-4');
+      const download = card.getByRole('link', { name: /Download review-photo\.png/ });
+      const res = await page.request.get(new URL((await download.getAttribute('href'))!, server.url).href);
+      expect(res.status()).toBe(200);
+      expect(res.headers()['content-type']).toBe('image/png');
+    });
+    await test.step('2. "Run manually" on TC-3 opens the runner without changing the URL', async () => {
+      await page.goto(`${server.url}#/tc/TC-3`);
+      await page.getByRole('button', { name: /Run manually/ }).click();
+      await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
+      expect(new URL(page.url()).hash).toBe('#/tc/TC-3');
+      await expect(page.getByRole('heading', { name: 'Before you start' })).toBeVisible();
+    });
+    await test.step('3. a fail with an unticked check asks for a note; ticking every check suggests pass', async () => {
+      await page.getByRole('checkbox', { name: /The discount line shows/ }).check();
+      await page.getByRole('group', { name: 'Result of step 1' }).getByText('Fail').click();
+      const next = page.getByRole('button', { name: /Next step/ });
+      await expect(next).toBeDisabled();
+      await page.getByLabel(/Note for step 1 \(required\)/).fill('The total stayed at 40.00.');
+      await next.click();
+      await page.getByRole('checkbox', { name: /confirmation page opens/ }).check();
+      await page.getByRole('checkbox', { name: /order number/ }).check();
+      await expect(page.getByText('Every check holds, so this step passes.')).toBeVisible();
+      await next.click();
+      await page.getByLabel('Reason (required)').fill('The discount was not applied.');
+      await page.getByRole('button', { name: /^Save/ }).click();
+      await expect(page).not.toHaveURL(/#\/tc\/TC-3$/);
+      const records = join(dir, '.indx-watch/runs/records');
+      const runs = readdirSync(records, { recursive: true, encoding: 'utf8' })
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => JSON.parse(readFileSync(join(records, f), 'utf8')))
+        .filter((r) => r.kind === 'run' && r.test_case.key === 'TC-3' && r.source === 'manual');
+      expect(runs).toHaveLength(1);
+      expect(runs[0].steps).toEqual([
+        { index: 1, status: 'fail', note: 'The total stayed at 40.00.', checks: [true, false] },
+        { index: 2, status: 'pass', checks: [true, true] },
+      ]);
     });
   } finally {
     server.stop();

@@ -7,7 +7,6 @@ import { Activity, RunFocus } from './screens/Activity';
 import { Fixtures } from './screens/Fixtures';
 import { Home } from './screens/Home';
 import { Report } from './screens/Report';
-import { Runner } from './screens/Runner';
 import { TestFocus, Tests } from './screens/Tests';
 import { Uploads } from './screens/Uploads';
 import { AccountMenu, CliPanel, IdentityDialog, ScopeMenu, THEMES, type Theme } from './shell';
@@ -202,9 +201,16 @@ function Screen({ route }: { route: Route }) {
     case 'tests':
       return <Tests filter={f} />;
     case 'testCase':
-      return <TestFocus tcKey={route.key} filter={f} />;
     case 'runner':
-      return <Runner key={route.key} tcKey={route.key} session={route.query.session?.split(',')} />;
+      return (
+        <TestFocus
+          key={`${route.name}:${route.key}`}
+          tcKey={route.key}
+          filter={f}
+          run={route.name === 'runner'}
+          session={route.query.session?.split(',')}
+        />
+      );
     case 'activity':
       return <Activity filter={f} />;
     case 'run':

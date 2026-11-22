@@ -15,12 +15,22 @@ export interface Shot {
   name: string;
   error?: string;
 }
-/** What the tester has recorded for one step. */
+/** What the tester has recorded for one step; `checks` has one tick per check of the step, in source order. */
 export interface StepState {
   status?: StepStatus | undefined;
   note: string;
   shots: Shot[];
+  checks: boolean[];
 }
+
+/** A step's result: the one chosen, else pass once every check is ticked (docs/spec/web.md#manual-run-in-place). */
+export const stepStatus = (s: StepState): StepStatus | undefined =>
+  s.status ?? (s.checks.length > 0 && s.checks.every(Boolean) ? 'pass' : undefined);
+/** A failed or blocked step with an unticked check asks for a note. Pure; tested. */
+export const asksNote = (s: StepState) =>
+  ['fail', 'blocked'].includes(stepStatus(s) ?? '') && s.checks.includes(false);
+/** The step can be left with Next: it has a result, and the note it asks for. Pure; tested. */
+export const stepDone = (s: StepState) => !!stepStatus(s) && (!asksNote(s) || s.note.trim() !== '');
 
 /** Default for the tester's verdict from the step results (they can change it). Pure; tested. */
 export function suggestVerdict(statuses: (StepStatus | undefined)[]): Verdict | undefined {
@@ -36,10 +46,11 @@ export const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 
 /** A recorded step as the API takes it; unrecorded steps are left out. */
 function stepResult(s: StepState, i: number): ManualRunInput['steps'] {
-  if (!s.status) return [];
+  const status = stepStatus(s);
+  if (!status) return [];
   const evidence = s.shots.flatMap((x) => (x.sha256 ? [x.sha256] : []));
   const extra = { ...(s.note ? { note: s.note } : {}), ...(evidence.length ? { evidence } : {}) };
-  return [{ index: i + 1, status: s.status, ...extra }];
+  return [{ index: i + 1, status, ...extra, ...(s.checks.length ? { checks: s.checks } : {}) }];
 }
 
 /** Run fields that come from the scope, the session and the tester's verdict. */

@@ -4,7 +4,7 @@ import { useApp } from '../../App';
 import { api, type TestCaseDetail } from '../../api';
 import { useI18n } from '../../i18n';
 import { href, navigate } from '../../router';
-import { placeholderValues } from '../TestCase';
+import { placeholderValues } from '../guide';
 import {
   buildRunInput,
   needsReason,
@@ -12,6 +12,7 @@ import {
   type Shot,
   type StepState,
   type StepStatus,
+  stepStatus,
   suggestVerdict,
   type Verdict,
 } from './model';
@@ -32,9 +33,17 @@ function useWindowEvent<K extends keyof WindowEventMap>(type: K, handler: (e: Wi
   }, [type]);
 }
 
-/** Per-step results, notes and screenshots, and the active step (target of keys and paste). */
+/** The first step without a result, else the step count (the Result block). Pure; tested. */
+export const firstOpen = (steps: StepState[]) => {
+  const i = steps.findIndex((s) => !stepStatus(s));
+  return i < 0 ? steps.length : i;
+};
+
+/** Per-step results, ticks, notes and screenshots, and the open step (target of keys and paste). */
 function useSteps(d: TestCaseDetail) {
-  const [steps, setSteps] = useState<StepState[]>(() => d.data.steps.map(() => ({ note: '', shots: [] })));
+  const [steps, setSteps] = useState<StepState[]>(() =>
+    d.data.steps.map((s) => ({ note: '', shots: [], checks: (s.checks ?? []).map(() => false) })),
+  );
   const [active, setActive] = useState(0);
   const patch = (i: number, p: Partial<StepState>) =>
     setSteps((all) => all.map((s, j) => (j === i ? { ...s, ...p } : s)));
@@ -54,26 +63,36 @@ function useSteps(d: TestCaseDetail) {
       );
     }
   };
-  /** Records a step result; a pass on the active step moves on to the next one. */
+  /** Records a step result; pass ticks every check and moves on to the next open step. */
   const mark = (i: number, v: StepStatus) => {
-    patch(i, { status: v });
-    if (v === 'pass' && i === active && i < steps.length - 1) setActive(i + 1);
+    const p = v === 'pass' ? { status: v, checks: steps[i]!.checks.map(() => true) } : { status: v };
+    patch(i, p);
+    if (v === 'pass') setActive(firstOpen(steps.map((s, j) => (j === i ? { ...s, ...p } : s))));
   };
+  const tick = (i: number, j: number, on: boolean) =>
+    patch(i, { checks: steps[i]!.checks.map((c, k) => (k === j ? on : c)) });
+  /** Next: the first step still without a result, or the Result block. */
+  const advance = () => setActive(firstOpen(steps));
   useWindowEvent('paste', (e) => {
     const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
     if (files.length === 0) return;
     e.preventDefault();
     addFiles(active, files);
   });
-  return { steps, patch, addFiles, active, setActive, mark };
+  return { steps, patch, addFiles, active, setActive, mark, tick, advance };
+}
+
+/** The environment of a run: the chosen one, else the project default (as the server records it). */
+export function useEnv() {
+  const { project, scope } = useApp();
+  return project.environments.find((e) => e.name === (scope.env ?? project.project.default_environment));
 }
 
 /** The manual runner's state; `session` is the queue of test cases this run belongs to. */
 export function useRun(d: TestCaseDetail, session: string[] | undefined) {
   const { locale } = useI18n();
-  const { project, scope } = useApp();
-  // a run happens in one environment: the chosen one, else the project default (as the server records it)
-  const env = project.environments.find((e) => e.name === (scope.env ?? project.project.default_environment));
+  const { scope } = useApp();
+  const env = useEnv();
   const started = useRef(nowIso());
   const stepState = useSteps(d);
   const { steps, active, mark } = stepState;
@@ -81,24 +100,23 @@ export function useRun(d: TestCaseDetail, session: string[] | undefined) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const verdict = chosen ?? suggestVerdict(steps.map((s) => s.status));
+  const verdict = chosen ?? suggestVerdict(steps.map(stepStatus));
   const at = session ? session.indexOf(d.key) : -1;
   const next = session?.[at + 1];
-  const prev = at > 0 ? session?.[at - 1] : undefined;
-  const recorded = steps.filter((s) => s.status).length;
+  const recorded = steps.filter(stepStatus).length;
   const uploading = steps.some((s) => s.shots.some((x) => !x.sha256 && !x.error));
-  const dirty = recorded > 0 || steps.some((s) => s.note || s.shots.length);
+  const dirty = recorded > 0 || steps.some((s) => s.note || s.shots.length || s.checks.includes(true));
   const canSave = !!verdict && (!needsReason(verdict) || note.trim() !== '') && !uploading && !busy;
 
   useWindowEvent('keydown', (e) => {
     if (typing(e) || e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.key.toLowerCase();
-    const to = e.key === 'ArrowRight' ? next : e.key === 'ArrowLeft' ? prev : undefined;
+    if (active >= steps.length) return;
     if (KEYS[k]) mark(active, KEYS[k]);
     else if (k === 'n') {
       e.preventDefault();
-      document.querySelectorAll<HTMLTextAreaElement>('.run-step textarea')[active]?.focus();
-    } else if (to) navigate(href.runner(to, session));
+      document.querySelector<HTMLTextAreaElement>('.run-step.active textarea')?.focus();
+    }
   });
   useWindowEvent('beforeunload', (e) => {
     if (dirty && !busy) e.preventDefault();
@@ -120,7 +138,7 @@ export function useRun(d: TestCaseDetail, session: string[] | undefined) {
   };
   const values = placeholderValues(d.fixtures);
   const form = { chosen, setChosen, note, setNote, busy, error, verdict, canSave, save };
-  return { ...stepState, ...form, env, values, at, next, recorded, uploading };
+  return { ...stepState, ...form, env, values, next, recorded, uploading };
 }
 
 /** What `useRun` returns; the runner's sections read from it. */
