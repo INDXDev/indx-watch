@@ -9,6 +9,7 @@ import {
   decide,
   type Model,
   reportData,
+  runFacts,
   type Scope,
 } from '@indx-watch/core';
 import { checkRecord, ulidTime } from '@indx-watch/store';
@@ -315,8 +316,7 @@ async function createRun(c: Context, x: Ctx) {
     ...{ evidence, judgements: [{ ...judgement, at }] },
   });
   await x.deps.writeRecord(run);
-  const decision = decide(run.judgements, t.policy, { priority: t.priority, mode: t.data.mode, reported });
-  return c.json({ run, decision }, 201);
+  return c.json({ run, decision: decide(run.judgements, t.policy, runFacts(t, reported)) }, 201);
 }
 
 async function review(c: Context, x: Ctx) {
@@ -333,8 +333,8 @@ async function review(c: Context, x: Ctx) {
   const record = B.JudgementRecord.parse({ ...env, source: 'manual', run: v.record.id, judgement });
   await x.deps.writeRecord(record);
   const t = tcOf(m, v.record.test_case.id);
-  const ctx = { priority: t.priority, mode: t.data.mode, reported: v.record.reported ?? null };
-  const decision = decide([...v.judgements, record.judgement], t.policy, ctx);
+  const facts = runFacts(t, v.record.reported ?? null);
+  const decision = decide([...v.judgements, record.judgement], t.policy, facts);
   return c.json({ judgement: record.judgement, decision }, 201);
 }
 
