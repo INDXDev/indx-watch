@@ -133,7 +133,7 @@ test('one-page test case with the manual run in place', { tag: ['@TC-15'] }, asy
       await page.goto(`${server.url}#/tc/TC-3`);
       await page.getByRole('button', { name: /Run manually/ }).click();
       await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
-      expect(new URL(page.url()).hash).toBe('#/tc/TC-3');
+      await expect(page).toHaveURL(/#\/tc\/TC-3$/);
       await expect(page.getByRole('heading', { name: 'Before you start' })).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: /^Test 1 of \d+/ })).toBeVisible();
     });
@@ -148,7 +148,7 @@ test('one-page test case with the manual run in place', { tag: ['@TC-15'] }, asy
       await page.getByRole('heading', { name: 'Before you start' }).click();
       await page.keyboard.press('ArrowRight');
       await expect.poll(() => asked).toContain('Leave this test case?');
-      expect(new URL(page.url()).hash).toBe('#/tc/TC-3');
+      await expect(page).toHaveURL(/#\/tc\/TC-3$/); // the router puts the URL back after the dialog
       await expect(page.getByRole('checkbox', { name: /The discount line shows/ })).toBeChecked();
       await page.getByRole('group', { name: 'Result of step 1' }).getByText('Fail').click();
       const next = page.getByRole('button', { name: /Next step/ });
