@@ -250,14 +250,17 @@ export type EvidenceKind = z.infer<typeof EvidenceKind>;
 export const JudgeKind = z.enum(['assert', 'visual', 'llm', 'human']);
 export type JudgeKind = z.infer<typeof JudgeKind>;
 
+const text = z.string().optional();
 export const Step = z.strictObject({
   instruction: z.string().min(1),
   expected: z.string().min(1),
+  /** yes/no observations that make up `expected` (guidance: not part of the version) */
+  checks: z.array(z.string().min(1)).optional(),
   evidence: z.array(EvidenceKind).optional(),
   i18n: z
     .partialRecord(
       Locale,
-      translation({ instruction: z.string().optional(), expected: z.string().optional() }),
+      translation({ instruction: text, expected: text, checks: z.array(z.string()).optional() }),
     )
     .optional(),
 });
@@ -267,6 +270,10 @@ export const FixtureRef = z.strictObject({
   ref: keyOf('fixture'),
   rows: z.array(z.string()).optional(),
   apply: z.enum(['before_run']).optional(),
+  /** what the tester does with the data (guidance: not part of the version) */
+  use: z.enum(['download', 'upload', 'enter', 'seeded']).optional(),
+  note: text,
+  i18n: z.partialRecord(Locale, translation({ note: text })).optional(),
 });
 export type FixtureRef = z.infer<typeof FixtureRef>;
 
@@ -285,6 +292,11 @@ export const TestCase = z.strictObject({
   covers: z.array(keyOf('criterion')).min(1),
   priority: Priority.optional(),
   mode: Mode,
+  /** guidance (not part of the version): what the feature is for and what this test proves */
+  purpose: text,
+  /** path on the environment's base_url where the tester starts */
+  start: z.string().regex(/^\//).optional(),
+  start_note: text,
   preconditions: z.string().optional(),
   fixtures: z.array(FixtureRef).optional(),
   steps: z.array(Step).min(1),
@@ -292,10 +304,7 @@ export const TestCase = z.strictObject({
   decision_policy: DecisionPolicy.optional(),
   automation: z.strictObject({ files: z.array(z.string()).optional() }).optional(),
   i18n: z
-    .partialRecord(
-      Locale,
-      translation({ title: z.string().optional(), preconditions: z.string().optional() }),
-    )
+    .partialRecord(Locale, translation({ title: text, preconditions: text, purpose: text, start_note: text }))
     .optional(),
   ...tail,
 });

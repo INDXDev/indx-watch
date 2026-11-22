@@ -7,21 +7,33 @@ status = "ready"
 tags = ["catalog"]
 covers = ["AC-1.2"]
 mode = "playwright"
+purpose = "Search helps shoppers find a product quickly. This test proves that typing part of a name leaves only the matching products."
+start = "/"
+start_note = "Open the home page with the search box."
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Type \"mug\" in the search box."
 expected = "Only \"Enamel Mug\" is listed."
+checks = ["\"Enamel Mug\" is listed.", "No other product is listed."]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "検索ボックスに「mug」と入力する。"
 expected = "「Enamel Mug」だけが表示される。"
+checks = ["「Enamel Mug」が表示される。", "ほかの商品は表示されない。"]
 status = "machine"
-source_hash = "7c56359e415c"
+source_hash = "d7427bf89802"
 
 [[judges]]
 kind = "assert"
@@ -31,5 +43,7 @@ files = ["examples/shop/tests/catalog.spec.ts"]
 
 [i18n.ja]
 title = "名前で商品を絞り込める"
+purpose = "検索を使うと、買い物客は商品をすばやく見つけられます。このテストは、名前の一部を入力すると一致する商品だけが残ることを確かめます。"
+start_note = "検索ボックスのあるトップページを開く。"
 status = "machine"
-source_hash = "4b3bfd21986d"
+source_hash = "1a04caf096fc"

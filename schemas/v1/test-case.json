@@ -69,6 +69,16 @@
         "hybrid"
       ]
     },
+    "purpose": {
+      "type": "string"
+    },
+    "start": {
+      "type": "string",
+      "pattern": "^\\/"
+    },
+    "start_note": {
+      "type": "string"
+    },
     "preconditions": {
       "type": "string"
     },
@@ -92,6 +102,52 @@
             "enum": [
               "before_run"
             ]
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "download",
+              "upload",
+              "enter",
+              "seeded"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "i18n": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ja"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "note": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "machine",
+                    "reviewed"
+                  ]
+                },
+                "source_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{12}$"
+                }
+              },
+              "required": [
+                "status",
+                "source_hash"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -113,6 +169,13 @@
           "expected": {
             "type": "string",
             "minLength": 1
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "evidence": {
             "type": "array",
@@ -144,6 +207,12 @@
                 },
                 "expected": {
                   "type": "string"
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 },
                 "status": {
                   "type": "string",
@@ -263,6 +332,12 @@
             "type": "string"
           },
           "preconditions": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "start_note": {
             "type": "string"
           },
           "status": {

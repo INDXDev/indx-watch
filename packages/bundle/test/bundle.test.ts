@@ -52,6 +52,34 @@ describe('versions', () => {
     expect(await testCaseVersion(cosmetic, ac)).toBe(v);
   });
 
+  it('ignores guidance: purpose, start, checks, fixture use and notes', async () => {
+    const v = await testCaseVersion(tc, ac);
+    const { purpose: _p, start: _s, start_note: _n, ...bare } = tc;
+    const plain = {
+      ...bare,
+      steps: tc.steps.map(({ checks: _, ...s }) => s),
+      fixtures: tc.fixtures?.map(({ use: _, note: _n, i18n: _i, ...f }) => f),
+    };
+    expect(tc.purpose && tc.steps[0]!.checks && tc.fixtures![0]!.use).toBeTruthy();
+    expect(await testCaseVersion(plain, ac)).toBe(v);
+  });
+
+  it('keeps the versions of the shop test cases (sample results stay current)', async () => {
+    const { bundle } = await loadBundle(memFs());
+    expect(Object.fromEntries(bundle!.testCases.map((t) => [t.data.key, t.version]))).toEqual({
+      'TC-1': 'tcv:4c31fb105036',
+      'TC-2': 'tcv:1fc4935a7bd8',
+      'TC-3': 'tcv:234b18516499',
+      'TC-4': 'tcv:4d8e394e3d0f',
+      'TC-5': 'tcv:b1910773f3f5',
+      'TC-6': 'tcv:c373dedbc578',
+      'TC-7': 'tcv:880407595f3c',
+      'TC-8': 'tcv:b1b0b194241f',
+      'TC-9': 'tcv:657f1b81c898',
+      'TC-10': 'tcv:762f027791d5',
+    });
+  });
+
   it('changes when a step or a covered criterion changes', async () => {
     const v = await testCaseVersion(tc, ac);
     const step = { ...tc, steps: [{ ...tc.steps[0]!, expected: 'Something else.' }, tc.steps[1]!] };

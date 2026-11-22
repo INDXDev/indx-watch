@@ -7,15 +7,32 @@ status = "ready"
 tags = ["coupon"]
 covers = ["AC-2.2"]
 mode = "playwright"
+purpose = "An expired coupon must not give a discount. This test proves that the shop refuses it and keeps the full price."
+start = "/cart"
+start_note = "Open the cart."
 preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
 
 [[fixtures]]
 ref = "FX-1"
 rows = ["OLD5"]
+use = "enter"
+note = "Type this code in the coupon field in step 1."
+
+[fixtures.i18n.ja]
+note = "ステップ 1 でこのコードをクーポン欄に入力する。"
+status = "machine"
+source_hash = "cfae022ab34a"
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
@@ -37,5 +54,7 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 [i18n.ja]
 title = "期限切れのクーポンは使えない"
 preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+purpose = "期限切れのクーポンで割引されてはいけません。このテストは、ショップがそれを断り、元の価格のままにすることを確かめます。"
+start_note = "カートを開く。"
 status = "machine"
-source_hash = "1842223e763f"
+source_hash = "48c7a794c377"

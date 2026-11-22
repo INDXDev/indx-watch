@@ -136,7 +136,9 @@ export async function scanBundleSecrets(fs: BundleFs): Promise<Problem[]> {
 
 // ---------- semantic checks ----------
 const RANK: Record<Priority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
-const literals = (s: unknown) =>
+/** A translatable value as one text (`checks` is a list). */
+const textOf = (v: unknown) => (Array.isArray(v) ? v.join('\n') : v);
+const literals = (v: unknown, s = textOf(v)) =>
   typeof s === 'string' ? [...s.matchAll(/"([^"\n]+)"|「([^」\n]+)」/g)].map((m) => m[1] ?? m[2]!) : [];
 type Life = Partial<Record<'origin' | 'status' | 'approved_by' | 'approved_version' | 'ai', unknown>>;
 type Report = (code: string, file: string, message: string, path?: string) => void;
@@ -268,6 +270,10 @@ function checkTestCase(c: Ctx, { file, data: d }: Bundle['testCases'][number]) {
     if (fx?.kind === 'seed' && fr.apply === 'before_run')
       c.ref(hooked, file, `fixtures[${i}]`, `Hook "${hook}"`);
   }
+  const guide = 'A ready manual test case needs purpose and start (or start_note) to guide the tester';
+  const manual = d.mode === 'manual' || d.mode === 'hybrid';
+  if (manual && d.status === 'ready' && (!d.purpose || !(d.start || d.start_note)))
+    c.warn('missing-guidance', file, guide, d.purpose ? 'start' : 'purpose');
   const msg = `Priority ${d.priority} is lower than ${top} of the covered use cases`;
   if (d.priority && top && RANK[d.priority] > RANK[top]) c.err('priority-too-low', file, msg, 'priority');
 }
@@ -329,6 +335,8 @@ async function checkTranslations(c: Ctx) {
   for (const x of b.testCases) {
     await i18n(x.file, x.data, TF['test-case']);
     for (const [i, s] of x.data.steps.entries()) await i18n(x.file, s, TF.step, `steps[${i}].`);
+    for (const [i, f] of (x.data.fixtures ?? []).entries())
+      await i18n(x.file, f, TF['fixture-use'], `fixtures[${i}].`);
   }
 }
 
@@ -339,8 +347,8 @@ async function checkTranslation(c: Ctx, locales: Set<string>, { file, src, field
     const warn = (code: string, msg: string) => c.warn(code, file, msg, `${at}i18n.${loc}`);
     if (!locales.has(loc)) warn('unexpected-locale', `${loc} is not a translation locale of the project`);
     if (tr.source_hash !== hash) warn('stale-translation', 'Translation is outdated: the source changed');
-    for (const f of fields.filter((f) => typeof tr[f] === 'string'))
-      for (const lit of literals(src[f]).filter((l) => !(tr[f] as string).includes(l)))
+    for (const f of fields.filter((f) => typeof textOf(tr[f]) === 'string'))
+      for (const lit of literals(src[f]).filter((l) => !(textOf(tr[f]) as string).includes(l)))
         warn('missing-literal', `Translation of ${f} lacks "${lit}"`);
   }
 }

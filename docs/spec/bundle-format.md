@@ -293,36 +293,57 @@ status = "ready"
 tags = ["coupon", "smoke"]
 covers = ["AC-2.1"]
 mode = "playwright"
+purpose = "Coupons let shoppers pay less. This test proves that a valid code lowers the cart total by its discount."
+start = "/cart"
+start_note = "Open the cart."
 preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
 
 [[fixtures]]
 ref = "FX-1"
 rows = ["SUMMER10"]
+use = "enter"
+note = "Type this code in the coupon field in step 1."
+
+[fixtures.i18n.ja]
+note = "ステップ 1 でこのコードをクーポン欄に入力する。"
+status = "machine"
+source_hash = "cfae022ab34a"
 
 [[fixtures]]
 ref = "FX-2"
 apply = "before_run"
+use = "seeded"
+note = "The shop has its three products before the run."
+
+[fixtures.i18n.ja]
+note = "実行前に、ショップに 3 つの商品が登録される。"
+status = "machine"
+source_hash = "03d717cecdc6"
 
 [[steps]]
 instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
 expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
+checks = ["The discount line shows \"-4.00\".", "The total is \"36.00\"."]
 evidence = ["screenshot"]
 
 [steps.i18n.ja]
 instruction = "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。"
 expected = "割引行に「-4.00」と表示され、合計が「36.00」になる。"
+checks = ["割引行に「-4.00」と表示される。", "合計が「36.00」になる。"]
 status = "machine"
-source_hash = "2419bce9941f"
+source_hash = "801aea0ad4be"
 
 [[steps]]
 instruction = "Press \"Place order\"."
 expected = "The confirmation page shows an order number."
+checks = ["The confirmation page opens.", "It shows an order number."]
 
 [steps.i18n.ja]
 instruction = "「Place order」を押す。"
 expected = "確認ページに注文番号が表示される。"
+checks = ["確認ページが開く。", "注文番号が表示される。"]
 status = "machine"
-source_hash = "f52f16d20298"
+source_hash = "4eb8bade5144"
 
 [[judges]]
 kind = "assert"
@@ -333,8 +354,10 @@ files = ["examples/shop/tests/coupon.spec.ts"]
 [i18n.ja]
 title = "有効なクーポンで合計が下がる"
 preconditions = "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。"
+purpose = "クーポンを使うと、買い物客は安く買えます。このテストは、有効なコードでカートの合計が割引分だけ下がることを確かめます。"
+start_note = "カートを開く。"
 status = "machine"
-source_hash = "21a0e3b40174"
+source_hash = "72d5db16627a"
 ```
 
 | Field | Required | Notes |
@@ -342,14 +365,19 @@ source_hash = "21a0e3b40174"
 | `covers` | yes | AC keys (`AC-2.1`) — resolved to AC IDs by `iw check`. |
 | `priority` | no | Defaults to the highest priority among covered use cases, and may not be lower than it. |
 | `mode` | yes | `manual`, `playwright`, `agent`, `hybrid`. |
+| `purpose` | no | Plain language for someone who has never seen the feature: what it is for and what this test proves. |
+| `start` | no | Where the tester starts: a path on the environment's `base_url`, starting with `/` (`"/cart"`). |
+| `start_note` | no | One sentence about the starting point (`"Open the cart."`), with or without `start`. |
 | `preconditions` | no | Plain language. |
-| `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds). |
-| `[[steps]]` | yes | `instruction`, `expected`, optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
+| `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds), optional `use`: what the tester does with the data — `download` (save the file to look at or keep), `upload` (save it, then attach it in a step), `enter` (type or paste the values), `seeded` (already in the app; nothing to do) — and optional `note` (one sentence, e.g. which step uses it), translated in `[fixtures.i18n.<locale>]`. |
+| `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
 | `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](integrations.md#playwright-reporter)). |
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](i18n.md#literal-strings)).
+
+**Guidance.** `purpose`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
 
 **Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](concepts.md#versions-and-staleness). It is not stored in the file.
 

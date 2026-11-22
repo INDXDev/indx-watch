@@ -31,6 +31,7 @@ export async function markStale<T extends object>(entity: T, kind: keyof typeof 
   if (e.i18n) e.i18n = Object.fromEntries(Object.entries(e.i18n as Record<string, Obj>).map(mark));
   const all = (xs: unknown, k: typeof kind) => Promise.all((xs as Obj[]).map((x) => markStale(x, k)));
   if (kind === 'test-case') e.steps = await all(e.steps, 'step');
+  if (kind === 'test-case' && e.fixtures) e.fixtures = await all(e.fixtures, 'fixture-use');
   if (kind === 'use-case') e.criteria = await all(e.criteria, 'criterion');
   return e as T;
 }

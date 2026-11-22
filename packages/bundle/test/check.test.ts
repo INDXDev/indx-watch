@@ -193,6 +193,31 @@ describe('check problems: translations and file format', () => {
     ]);
   });
 
+  it('checks and fixture notes are translations too', async () => {
+    const fs = memFs();
+    edit(fs, TC3, (t) =>
+      t
+        .replace('"合計が「36.00」になる。"]', '"合計が下がる。"]')
+        .replace('note = "Type this code in the coupon field in step 1."', 'note = "Type it."'),
+    );
+    const r = await checkBundle(fs);
+    expect(r.problems.map((p) => [p.code, p.path])).toEqual([
+      ['missing-literal', 'steps[0].i18n.ja'],
+      ['stale-translation', 'fixtures[0].i18n.ja'],
+    ]);
+  });
+
+  it('a ready manual test case without purpose or start is a missing-guidance warning', async () => {
+    const fs = memFs();
+    const tc8 = 'specs/FEAT-3-account/UC-4-customer-signs-in/TC-8-wrong-password.toml';
+    edit(fs, tc8, (t) => t.replace(/^start(_note)? = .*\n/gm, ''));
+    edit(fs, TC9, (t) => t.replace(/^purpose = .*\n/m, '')); // a draft: no warning
+    const r = await checkBundle(fs);
+    expect(r.problems.filter((p) => p.code === 'missing-guidance').map((p) => [p.file, p.path])).toEqual([
+      [tc8, 'start'],
+    ]);
+  });
+
   it('non-canonical files and templates with a schema line', async () => {
     const fs = memFs();
     fs.files.set(

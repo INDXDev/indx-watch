@@ -72,6 +72,9 @@ function owners(b: iwb.Bundle): Owner[] {
     x.data.steps.forEach((s, i) => {
       o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
     });
+    x.data.fixtures?.forEach((f, i) => {
+      o.targets.push({ ref: x.data.key, prefix: `fixtures.${i + 1}.`, source: f, kind: 'fixture-use' });
+    });
     out.push(o);
   }
   return out;
@@ -84,14 +87,22 @@ const tableOf = (t: Target, locale: string) => (t.source.i18n as Record<string, 
 async function fieldsOf(t: Target, locale: string) {
   const hash = await iwb.translationSourceHash(t.source, TF[t.kind]);
   const tr = tableOf(t, locale);
-  return TF[t.kind].flatMap((f) => {
-    const source = t.source[f];
+  const one = (path: string, source: unknown, tx: unknown) => {
     if (typeof source !== 'string' || !source) return [];
-    const text = typeof tr?.[f] === 'string' ? (tr[f] as string) : undefined;
+    const text = typeof tx === 'string' && tx ? tx : undefined;
     const state = !text ? 'missing' : tr?.source_hash !== hash ? 'stale' : (tr?.status ?? 'machine');
-    return [{ ref: t.ref, path: `${t.prefix}${f}`, source, ...(text && { text }), state }];
+    return [{ ref: t.ref, path, source, ...(text && { text }), state }];
+  };
+  return TF[t.kind].flatMap((f) => {
+    const [source, text] = [t.source[f], tr?.[f]];
+    // a list (step checks) has one path per item: steps.1.checks.1
+    if (!Array.isArray(source)) return one(`${t.prefix}${f}`, source, text);
+    return source.flatMap((s, i) => one(`${t.prefix}${f}.${i + 1}`, s, (text as unknown[] | undefined)?.[i]));
   });
 }
+
+/** `<field>` or `<list field>.<n>` of a target; null for anything else. */
+const pathOf = (rest: string) => /^([a-z_]+)(?:\.([1-9]\d*))?$/.exec(rest);
 
 /** Fields of every target of the owners, in order. */
 const fieldsOfAll = async (targets: Target[], locale: string) =>
@@ -117,23 +128,30 @@ async function givenOf(ctx: Ctx, a: Args) {
  * paths. Refuses unknown fields and a partial update of a table whose source changed.
  */
 async function translateTarget(t: Target, given: Record<string, string>, to: Into) {
-  const mine = Object.entries(given).filter(
-    ([k]) => k.startsWith(t.prefix) && !k.slice(t.prefix.length).includes('.'),
-  );
+  const at = (k: string) => (k.startsWith(t.prefix) ? pathOf(k.slice(t.prefix.length)) : null);
+  const mine = Object.entries(given).filter(([k]) => at(k));
   if (!mine.length) return [];
   const names = TF[t.kind] as readonly string[];
-  for (const [k] of mine)
-    if (!names.includes(k.slice(t.prefix.length)))
-      fail('USAGE', `${k} is not a translatable field of ${to.owner}`);
   const hash = await iwb.translationSourceHash(t.source, TF[t.kind]);
   const old = tableOf(t, to.locale) ?? {};
-  const outdated =
-    old.source_hash && old.source_hash !== hash
-      ? names.filter((f) => typeof old[f] === 'string' && !mine.some(([k]) => k === `${t.prefix}${f}`))
-      : [];
-  if (outdated.length)
-    fail('USAGE', `Also translate ${outdated.map((f) => `${t.prefix}${f}`).join(', ')}: the source changed`);
-  const fields = Object.fromEntries(mine.map(([k, v]) => [k.slice(t.prefix.length), v]));
+  const fresh = old.source_hash === hash;
+  const fields: Record<string, unknown> = {};
+  for (const [k, v] of mine) {
+    const [, f = '', n] = at(k)!;
+    const src = t.source[f];
+    if (!names.includes(f) || Array.isArray(src) !== !!n || Number(n) > (src as string[]).length)
+      fail('USAGE', `${k} is not a translatable field of ${to.owner}`);
+    const list = (fields[f] ?? (fresh && Array.isArray(old[f]) ? [...old[f]] : [])) as string[];
+    fields[f] = n ? Object.assign(list, { [Number(n) - 1]: v }) : v;
+  }
+  // a stale table is translated whole, and a list (checks) has every item
+  const outdated = names.flatMap((f) => {
+    const [src, mine] = [t.source[f], fields[f] as string[] | undefined];
+    if (Array.isArray(src) && mine)
+      return src.flatMap((_, i) => (typeof mine[i] === 'string' ? [] : [`${f}.${i + 1}`]));
+    return !fresh && old[f] !== undefined && !mine ? [f] : [];
+  });
+  if (outdated.length) fail('USAGE', `Also translate ${outdated.map((f) => `${t.prefix}${f}`).join(', ')}`);
   const i18n = {
     ...(t.source.i18n as object),
     [to.locale]: { ...old, ...fields, status: to.status, source_hash: hash },
