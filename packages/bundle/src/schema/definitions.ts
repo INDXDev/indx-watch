@@ -251,6 +251,7 @@ export const JudgeKind = z.enum(['assert', 'visual', 'llm', 'human']);
 export type JudgeKind = z.infer<typeof JudgeKind>;
 
 const text = z.string().optional();
+const onePath = z.string().regex(/^\/(?!\/)/);
 export const Step = z.strictObject({
   instruction: z.string().min(1),
   expected: z.string().min(1),
@@ -294,8 +295,8 @@ export const TestCase = z.strictObject({
   mode: Mode,
   /** guidance (not part of the version): what the feature is for and what this test proves */
   purpose: text,
-  /** path on the environment's base_url where the tester starts */
-  start: z.string().regex(/^\//).optional(),
+  /** path appended to the environment's base_url where the tester starts: `/cart`, never `//host/cart` */
+  start: onePath.optional(),
   start_note: text,
   preconditions: z.string().optional(),
   fixtures: z.array(FixtureRef).optional(),

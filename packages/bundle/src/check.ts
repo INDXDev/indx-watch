@@ -347,6 +347,10 @@ async function checkTranslation(c: Ctx, locales: Set<string>, { file, src, field
     const warn = (code: string, msg: string) => c.warn(code, file, msg, `${at}i18n.${loc}`);
     if (!locales.has(loc)) warn('unexpected-locale', `${loc} is not a translation locale of the project`);
     if (tr.source_hash !== hash) warn('stale-translation', 'Translation is outdated: the source changed');
+    for (const f of fields.filter(
+      (f) => Array.isArray(tr[f]) && (tr[f] as []).length !== (src[f] as [])?.length,
+    ))
+      warn('translation-length', `Translation of ${f} needs one item per source item, in order`);
     for (const f of fields.filter((f) => typeof textOf(tr[f]) === 'string'))
       for (const lit of literals(src[f]).filter((l) => !(textOf(tr[f]) as string).includes(l)))
         warn('missing-literal', `Translation of ${f} lacks "${lit}"`);

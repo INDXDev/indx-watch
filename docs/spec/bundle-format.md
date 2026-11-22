@@ -366,7 +366,7 @@ source_hash = "72d5db16627a"
 | `priority` | no | Defaults to the highest priority among covered use cases, and may not be lower than it. |
 | `mode` | yes | `manual`, `playwright`, `agent`, `hybrid`. |
 | `purpose` | no | Plain language for someone who has never seen the feature: what it is for and what this test proves. |
-| `start` | no | Where the tester starts: a path on the environment's `base_url`, starting with `/` (`"/cart"`). |
+| `start` | no | Where the tester starts: a path starting with a single `/` (`"/cart"`, never `"//host/cart"`), appended to the environment's `base_url` as is, so a `base_url` with its own path keeps it (`https://shop.example/app` + `/cart` → `https://shop.example/app/cart`). |
 | `start_note` | no | One sentence about the starting point (`"Open the cart."`), with or without `start`. |
 | `preconditions` | no | Plain language. |
 | `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds), optional `use`: what the tester does with the data — `download` (save the file to look at or keep), `upload` (save it, then attach it in a step), `enter` (type or paste the values), `seeded` (already in the app; nothing to do) — and optional `note` (one sentence, e.g. which step uses it), translated in `[fixtures.i18n.<locale>]`. |

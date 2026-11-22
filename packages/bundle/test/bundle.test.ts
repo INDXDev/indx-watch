@@ -64,6 +64,11 @@ describe('versions', () => {
     expect(await testCaseVersion(plain, ac)).toBe(v);
   });
 
+  it('start is a path with one leading slash, never another host', () => {
+    const ok = (start: string) => TestCase.shape.start.safeParse(start).success;
+    expect([ok('/cart'), ok('/'), ok('//evil.example/x'), ok('cart')]).toEqual([true, true, false, false]);
+  });
+
   it('keeps the versions of the shop test cases (sample results stay current)', async () => {
     const { bundle } = await loadBundle(memFs());
     expect(Object.fromEntries(bundle!.testCases.map((t) => [t.data.key, t.version]))).toEqual({

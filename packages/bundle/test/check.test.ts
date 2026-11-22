@@ -207,6 +207,16 @@ describe('check problems: translations and file format', () => {
     ]);
   });
 
+  it('a translated checks list needs one item per source check', async () => {
+    const fs = memFs();
+    edit(fs, TC3, (t) => t.replace(', "合計が「36.00」になる。"]', ']'));
+    const r = await checkBundle(fs);
+    expect(r.problems.map((p) => [p.code, p.path])).toEqual([
+      ['translation-length', 'steps[0].i18n.ja'],
+      ['missing-literal', 'steps[0].i18n.ja'],
+    ]);
+  });
+
   it('a ready manual test case without purpose or start is a missing-guidance warning', async () => {
     const fs = memFs();
     const tc8 = 'specs/FEAT-3-account/UC-4-customer-signs-in/TC-8-wrong-password.toml';

@@ -74,7 +74,7 @@
     },
     "start": {
       "type": "string",
-      "pattern": "^\\/"
+      "pattern": "^\\/(?!\\/)"
     },
     "start_note": {
       "type": "string"
