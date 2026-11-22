@@ -1,35 +1,33 @@
-/** Manual runner: step-by-step pass/fail/blocked/skip with screenshots (upload or paste), notes and the final verdict. */
+/** The manual runner, opened in place on the test case page (docs/spec/web.md#manual-run-in-place). */
 
-import { useApp } from '../App';
-import { api, type TestCaseDetail } from '../api';
-import { Load, useApi } from '../ui';
-import { Before, Finish, RunHead, SessionBar, StepCard } from './runner/sections';
+import type { TestCaseDetail } from '../api';
+import { useI18n } from '../i18n';
+import { stepStatus } from './runner/model';
+import { DoneStep, Finish, RunInfo, StepCard } from './runner/sections';
 import { useRun } from './runner/useRun';
 
-export { needsReason, suggestVerdict } from './runner/model';
-
-/** The manual runner; `session` is the queue of test cases this run belongs to (docs/spec/web.md#list-and-focus). */
-export function Runner({ tcKey, session }: { tcKey: string; session?: string[] | undefined }) {
-  const { scope } = useApp();
-  const tc = useApi(() => api.testCase(tcKey, scope), [tcKey, scope.release, scope.env]);
+/** The Steps block as a runner: recorded steps on one line each, the open step, then the Result block. */
+export function InlineRun(props: { d: TestCaseDetail; session?: string[] | undefined; close(): void }) {
+  const { d, session, close } = props;
+  const { t } = useI18n();
+  const r = useRun(d, session?.includes(d.key) ? session : undefined);
+  const steps = d.data.steps;
+  const later = steps.filter((_, i) => i > r.active && !stepStatus(r.steps[i]!)).length;
   return (
-    <Load state={tc}>{(d) => <Run d={d} session={session?.includes(tcKey) ? session : undefined} />}</Load>
-  );
-}
-
-function Run({ d, session }: { d: TestCaseDetail; session?: string[] | undefined }) {
-  const r = useRun(d, session);
-  return (
-    <>
-      {session && <SessionBar session={session} r={r} />}
-      <RunHead d={d} r={r} />
-      <Before d={d} r={r} />
+    <section className="tc-block" aria-labelledby="steps-h">
+      <h2 id="steps-h">{t('tc.steps', { count: steps.length })}</h2>
+      <RunInfo d={d} r={r} close={close} />
       <ol className="run-steps">
-        {d.data.steps.map((s, i) => (
-          <StepCard key={`${s.instruction}|${s.expected}`} s={s} i={i} r={r} />
-        ))}
+        {steps.map((s, i) =>
+          i === r.active ? (
+            <StepCard key={`${s.instruction}|${s.expected}`} s={s} i={i} r={r} />
+          ) : i < r.active || stepStatus(r.steps[i]!) ? (
+            <DoneStep key={`${s.instruction}|${s.expected}`} s={s} i={i} r={r} />
+          ) : null,
+        )}
       </ol>
-      <Finish d={d} r={r} />
-    </>
+      {later > 0 && <p className="muted small">{t('runner.later', { count: later })}</p>}
+      {r.active >= steps.length && <Finish r={r} close={close} />}
+    </section>
   );
 }

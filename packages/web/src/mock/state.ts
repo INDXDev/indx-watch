@@ -12,7 +12,8 @@ function fixtureRefs(data: TestCaseData): TestCaseDetail['fixtures'] {
     const vals = D.fixtureValues[f.ref];
     const values = f.rows ? vals?.filter((v) => f.rows?.includes(v.code ?? '')) : vals;
     const { title, kind } = fx.data;
-    return { key: fx.key, title, kind, version: fx.version, rows: f.rows, values };
+    const files = fx.files.map(({ pointer, ...file }) => file);
+    return { key: fx.key, title, kind, version: fx.version, rows: f.rows, values, files };
   });
 }
 

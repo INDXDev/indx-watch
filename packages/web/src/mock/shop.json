@@ -47,17 +47,47 @@
       "tags": ["catalog", "smoke"],
       "covers": ["AC-1.1"],
       "mode": "playwright",
+      "purpose": "The product list is how shoppers see what the shop sells. This test proves that every product shows its name and price.",
+      "start": "/",
+      "start_note": "Open the home page.",
       "fixtures": [
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Open the home page.",
           "expected": "Three products are listed, each with a name and a price, including \"Canvas Tote\" at \"40.00\".",
-          "evidence": ["screenshot"]
+          "checks": [
+            "Three products are listed.",
+            "Each product shows a name and a price.",
+            "\"Canvas Tote\" costs \"40.00\"."
+          ],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "トップページを開く。",
+              "expected": "3 つの商品がそれぞれ名前と価格つきで並び、「Canvas Tote」が「40.00」で表示される。",
+              "checks": [
+                "3 つの商品が並ぶ。",
+                "どの商品にも名前と価格がある。",
+                "「Canvas Tote」は「40.00」。"
+              ],
+              "status": "machine",
+              "source_hash": "a4c58dfffeb1"
+            }
+          }
         }
       ],
       "judges": [
@@ -67,6 +97,15 @@
       ],
       "automation": {
         "files": ["examples/shop/tests/catalog.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "商品一覧に名前と価格が表示される",
+          "purpose": "商品一覧は、ショップが何を売っているかを買い物客が知る場所です。このテストは、すべての商品に名前と価格が表示されることを確かめます。",
+          "start_note": "トップページを開く。",
+          "status": "machine",
+          "source_hash": "3c686262b394"
+        }
       }
     },
     {
@@ -77,17 +116,39 @@
       "tags": ["catalog"],
       "covers": ["AC-1.2"],
       "mode": "playwright",
+      "purpose": "Search helps shoppers find a product quickly. This test proves that typing part of a name leaves only the matching products.",
+      "start": "/",
+      "start_note": "Open the home page with the search box.",
       "fixtures": [
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Type \"mug\" in the search box.",
           "expected": "Only \"Enamel Mug\" is listed.",
-          "evidence": ["screenshot"]
+          "checks": ["\"Enamel Mug\" is listed.", "No other product is listed."],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "検索ボックスに「mug」と入力する。",
+              "expected": "「Enamel Mug」だけが表示される。",
+              "checks": ["「Enamel Mug」が表示される。", "ほかの商品は表示されない。"],
+              "status": "machine",
+              "source_hash": "d7427bf89802"
+            }
+          }
         }
       ],
       "judges": [
@@ -97,6 +158,15 @@
       ],
       "automation": {
         "files": ["examples/shop/tests/catalog.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "名前で商品を絞り込める",
+          "purpose": "検索を使うと、買い物客は商品をすばやく見つけられます。このテストは、名前の一部を入力すると一致する商品だけが残ることを確かめます。",
+          "start_note": "検索ボックスのあるトップページを開く。",
+          "status": "machine",
+          "source_hash": "1a04caf096fc"
+        }
       }
     },
     {
@@ -107,26 +177,67 @@
       "tags": ["coupon", "smoke"],
       "covers": ["AC-2.1"],
       "mode": "playwright",
+      "purpose": "Coupons let shoppers pay less. This test proves that a valid code lowers the cart total by its discount.",
+      "start": "/cart",
+      "start_note": "Open the cart.",
       "preconditions": "The cart contains one \"Canvas Tote\" (price 40.00).",
       "fixtures": [
         {
           "ref": "FX-1",
-          "rows": ["SUMMER10"]
+          "rows": ["SUMMER10"],
+          "use": "enter",
+          "note": "Type this code in the coupon field in step 1.",
+          "i18n": {
+            "ja": {
+              "note": "ステップ 1 でこのコードをクーポン欄に入力する。",
+              "status": "machine",
+              "source_hash": "cfae022ab34a"
+            }
+          }
         },
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\".",
           "expected": "The discount line shows \"-4.00\" and the total is \"36.00\".",
-          "evidence": ["screenshot"]
+          "checks": ["The discount line shows \"-4.00\".", "The total is \"36.00\"."],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。",
+              "expected": "割引行に「-4.00」と表示され、合計が「36.00」になる。",
+              "checks": ["割引行に「-4.00」と表示される。", "合計が「36.00」になる。"],
+              "status": "machine",
+              "source_hash": "801aea0ad4be"
+            }
+          }
         },
         {
           "instruction": "Press \"Place order\".",
-          "expected": "The confirmation page shows an order number."
+          "expected": "The confirmation page shows an order number.",
+          "checks": ["The confirmation page opens.", "It shows an order number."],
+          "i18n": {
+            "ja": {
+              "instruction": "「Place order」を押す。",
+              "expected": "確認ページに注文番号が表示される。",
+              "checks": ["確認ページが開く。", "注文番号が表示される。"],
+              "status": "machine",
+              "source_hash": "4eb8bade5144"
+            }
+          }
         }
       ],
       "judges": [
@@ -136,6 +247,16 @@
       ],
       "automation": {
         "files": ["examples/shop/tests/coupon.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "有効なクーポンで合計が下がる",
+          "preconditions": "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。",
+          "purpose": "クーポンを使うと、買い物客は安く買えます。このテストは、有効なコードでカートの合計が割引分だけ下がることを確かめます。",
+          "start_note": "カートを開く。",
+          "status": "machine",
+          "source_hash": "72d5db16627a"
+        }
       }
     },
     {
@@ -146,15 +267,36 @@
       "tags": ["coupon"],
       "covers": ["AC-2.2"],
       "mode": "playwright",
+      "purpose": "An expired coupon must not give a discount. This test proves that the shop refuses it and keeps the full price.",
+      "start": "/cart",
+      "start_note": "Open the cart.",
       "preconditions": "The cart contains one \"Canvas Tote\" (price 40.00).",
       "fixtures": [
         {
           "ref": "FX-1",
-          "rows": ["OLD5"]
+          "rows": ["OLD5"],
+          "use": "enter",
+          "note": "Type this code in the coupon field in step 1.",
+          "i18n": {
+            "ja": {
+              "note": "ステップ 1 でこのコードをクーポン欄に入力する。",
+              "status": "machine",
+              "source_hash": "cfae022ab34a"
+            }
+          }
         },
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
@@ -167,7 +309,7 @@
               "instruction": "カートを開き、クーポン欄に {{FX-1.code}} を入力して「Apply」を押す。",
               "expected": "「This coupon has expired」と表示され、合計は「40.00」のまま。",
               "status": "reviewed",
-              "source_hash": "000000000000"
+              "source_hash": "d560dd539b6f"
             }
           }
         }
@@ -183,8 +325,11 @@
       "i18n": {
         "ja": {
           "title": "期限切れのクーポンは使えない",
-          "status": "reviewed",
-          "source_hash": "000000000000"
+          "preconditions": "カートに「Canvas Tote」（価格 40.00）が 1 つ入っている。",
+          "purpose": "期限切れのクーポンで割引されてはいけません。このテストは、ショップがそれを断り、元の価格のままにすることを確かめます。",
+          "start_note": "カートを開く。",
+          "status": "machine",
+          "source_hash": "48c7a794c377"
         }
       }
     },
@@ -196,21 +341,59 @@
       "tags": ["smoke"],
       "covers": ["AC-3.1", "AC-3.2"],
       "mode": "playwright",
+      "purpose": "Placing an order is how a sale completes. This test proves that the shopper gets an order number and that the cart is emptied.",
+      "start": "/",
+      "start_note": "Open the home page.",
       "fixtures": [
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Add \"Enamel Mug\" to the cart, open the cart and press \"Place order\".",
           "expected": "The page shows \"Thank you for your order\" and an order number like \"SHOP-1001\".",
-          "evidence": ["screenshot"]
+          "checks": [
+            "The page shows \"Thank you for your order\".",
+            "An order number like \"SHOP-1001\" is shown."
+          ],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "「Enamel Mug」をカートに入れ、カートを開いて「Place order」を押す。",
+              "expected": "「Thank you for your order」と「SHOP-1001」のような注文番号が表示される。",
+              "checks": [
+                "「Thank you for your order」と表示される。",
+                "「SHOP-1001」のような注文番号が表示される。"
+              ],
+              "status": "machine",
+              "source_hash": "df418b5096f0"
+            }
+          }
         },
         {
           "instruction": "Open the cart again.",
-          "expected": "The cart shows \"Your cart is empty\"."
+          "expected": "The cart shows \"Your cart is empty\".",
+          "checks": ["The cart shows \"Your cart is empty\"."],
+          "i18n": {
+            "ja": {
+              "instruction": "もう一度カートを開く。",
+              "expected": "カートに「Your cart is empty」と表示される。",
+              "checks": ["カートに「Your cart is empty」と表示される。"],
+              "status": "machine",
+              "source_hash": "5528d676a4c0"
+            }
+          }
         }
       ],
       "judges": [
@@ -220,6 +403,15 @@
       ],
       "automation": {
         "files": ["examples/shop/tests/checkout.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "注文すると確認が表示され、カートが空になる",
+          "purpose": "注文することで販売が完了します。このテストは、買い物客に注文番号が示され、カートが空になることを確かめます。",
+          "start_note": "トップページを開く。",
+          "status": "machine",
+          "source_hash": "0a8ec810ebb0"
+        }
       }
     },
     {
@@ -230,24 +422,58 @@
       "tags": ["mobile", "visual"],
       "covers": ["AC-3.1"],
       "mode": "manual",
+      "purpose": "Many shoppers order from a phone. This test proves that the order confirmation is readable on a small screen.",
+      "start": "/",
+      "start_note": "Open the shop on a phone or in a 390 px wide browser window.",
       "fixtures": [
         {
           "ref": "FX-2",
-          "apply": "before_run"
+          "apply": "before_run",
+          "use": "seeded",
+          "note": "The shop has its three products before the run.",
+          "i18n": {
+            "ja": {
+              "note": "実行前に、ショップに 3 つの商品が登録される。",
+              "status": "machine",
+              "source_hash": "03d717cecdc6"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "On a phone (or a 390 px wide browser window), add any product to the cart and place the order.",
           "expected": "The confirmation page fits the screen without horizontal scrolling and the order number is fully visible.",
-          "evidence": ["screenshot"]
+          "checks": [
+            "The page fits the screen without scrolling sideways.",
+            "The whole order number is visible."
+          ],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "スマートフォン（または幅 390 px のブラウザウィンドウ）で、任意の商品をカートに入れて注文する。",
+              "expected": "確認ページが横スクロールなしで画面に収まり、注文番号がすべて見える。",
+              "checks": ["横にスクロールせずにページが画面に収まる。", "注文番号がすべて見える。"],
+              "status": "machine",
+              "source_hash": "ade35b4f1862"
+            }
+          }
         }
       ],
       "judges": [
         {
           "kind": "human"
         }
-      ]
+      ],
+      "i18n": {
+        "ja": {
+          "title": "確認ページがスマートフォンで読める",
+          "purpose": "多くの買い物客はスマートフォンから注文します。このテストは、注文の確認が小さな画面でも読めることを確かめます。",
+          "start_note": "スマートフォン、または幅 390 px のブラウザウィンドウでショップを開く。",
+          "status": "machine",
+          "source_hash": "be46f039fdc1"
+        }
+      }
     },
     {
       "id": "tc_01JF3Q8M5X2V7K9D4R6T1W0Y37",
@@ -257,16 +483,38 @@
       "tags": ["auth", "smoke"],
       "covers": ["AC-4.1"],
       "mode": "playwright",
+      "purpose": "Customers sign in to see their account and write reviews. This test proves that the right email and password sign them in.",
+      "start": "/sign-in",
+      "start_note": "Open the sign-in page.",
       "fixtures": [
         {
-          "ref": "FX-3"
+          "ref": "FX-3",
+          "use": "enter",
+          "note": "Sign in with this email and the account's password.",
+          "i18n": {
+            "ja": {
+              "note": "このメールアドレスとアカウントのパスワードでサインインする。",
+              "status": "machine",
+              "source_hash": "e20cc2d343d8"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Open \"Sign in\", enter {{FX-3.username}} and the account password, and press \"Sign in\".",
           "expected": "The header shows \"Welcome back, Casey\".",
-          "evidence": ["screenshot"]
+          "checks": ["The header shows \"Welcome back, Casey\"."],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "「Sign in」を開き、{{FX-3.username}} とアカウントのパスワードを入力して「Sign in」を押す。",
+              "expected": "ヘッダーに「Welcome back, Casey」と表示される。",
+              "checks": ["ヘッダーに「Welcome back, Casey」と表示される。"],
+              "status": "machine",
+              "source_hash": "c1b28262ba48"
+            }
+          }
         }
       ],
       "judges": [
@@ -276,6 +524,15 @@
       ],
       "automation": {
         "files": ["examples/shop/tests/sign-in.spec.ts"]
+      },
+      "i18n": {
+        "ja": {
+          "title": "正しい認証情報でサインインできる",
+          "purpose": "顧客はサインインしてアカウントを確認したりレビューを書いたりします。このテストは、正しいメールアドレスとパスワードでサインインできることを確かめます。",
+          "start_note": "サインインページを開く。",
+          "status": "machine",
+          "source_hash": "9a4b0ac1d5e2"
+        }
       }
     },
     {
@@ -286,20 +543,52 @@
       "tags": ["auth"],
       "covers": ["AC-4.2"],
       "mode": "manual",
+      "purpose": "Only the account owner may sign in. This test proves that a wrong password is refused and the customer stays signed out.",
+      "start": "/sign-in",
+      "start_note": "Open the sign-in page.",
       "fixtures": [
         {
-          "ref": "FX-3"
+          "ref": "FX-3",
+          "use": "enter",
+          "note": "Type this email with the wrong password in step 1.",
+          "i18n": {
+            "ja": {
+              "note": "ステップ 1 でこのメールアドレスと誤ったパスワードを入力する。",
+              "status": "machine",
+              "source_hash": "e3fe6dbc10ea"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Open \"Sign in\", enter {{FX-3.username}} and the password \"wrong-password\", and press \"Sign in\".",
           "expected": "The message \"Email or password is incorrect\" appears.",
-          "evidence": ["screenshot"]
+          "checks": ["The message \"Email or password is incorrect\" appears."],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "「Sign in」を開き、{{FX-3.username}} とパスワード「wrong-password」を入力して「Sign in」を押す。",
+              "expected": "「Email or password is incorrect」というメッセージが表示される。",
+              "checks": ["「Email or password is incorrect」というメッセージが表示される。"],
+              "status": "machine",
+              "source_hash": "64fcf8faf4f6"
+            }
+          }
         },
         {
           "instruction": "Reload the page.",
-          "expected": "The header still shows \"Sign in\"."
+          "expected": "The header still shows \"Sign in\".",
+          "checks": ["The header still shows \"Sign in\"."],
+          "i18n": {
+            "ja": {
+              "instruction": "ページを再読み込みする。",
+              "expected": "ヘッダーには「Sign in」が表示されたまま。",
+              "checks": ["ヘッダーには「Sign in」が表示されたまま。"],
+              "status": "machine",
+              "source_hash": "a033d251ac7d"
+            }
+          }
         }
       ],
       "judges": [
@@ -310,8 +599,10 @@
       "i18n": {
         "ja": {
           "title": "誤ったパスワードではサインインできない",
+          "purpose": "サインインできるのはアカウントの持ち主だけです。このテストは、誤ったパスワードが拒否され、サインアウトしたままになることを確かめます。",
+          "start_note": "サインインページを開く。",
           "status": "machine",
-          "source_hash": "000000000000"
+          "source_hash": "4173edc5371a"
         }
       }
     },
@@ -324,23 +615,64 @@
       "tags": ["reviews"],
       "covers": ["AC-5.1"],
       "mode": "manual",
+      "purpose": "Photos make reviews more helpful. This test proves that a photo attached to a review shows up as a thumbnail.",
+      "start": "/sign-in",
+      "start_note": "Open the sign-in page.",
       "fixtures": [
         {
-          "ref": "FX-3"
+          "ref": "FX-3",
+          "use": "enter",
+          "note": "Sign in with this account in step 1.",
+          "i18n": {
+            "ja": {
+              "note": "ステップ 1 でこのアカウントでサインインする。",
+              "status": "machine",
+              "source_hash": "5ec459764961"
+            }
+          }
         },
         {
-          "ref": "FX-4"
+          "ref": "FX-4",
+          "use": "upload",
+          "note": "Download the photo, then attach it in step 2.",
+          "i18n": {
+            "ja": {
+              "note": "写真をダウンロードし、ステップ 2 で添付する。",
+              "status": "machine",
+              "source_hash": "284e20c889b5"
+            }
+          }
         }
       ],
       "steps": [
         {
           "instruction": "Sign in with {{FX-3.username}} and open \"Canvas Tote\".",
-          "expected": "The product page shows a \"Write a review\" form."
+          "expected": "The product page shows a \"Write a review\" form.",
+          "checks": ["The \"Write a review\" form is shown."],
+          "i18n": {
+            "ja": {
+              "instruction": "{{FX-3.username}} でサインインし、「Canvas Tote」を開く。",
+              "expected": "商品ページに「Write a review」フォームが表示される。",
+              "checks": ["「Write a review」フォームが表示される。"],
+              "status": "machine",
+              "source_hash": "cf599959983d"
+            }
+          }
         },
         {
           "instruction": "Attach the file from FX-4 and press \"Post review\".",
           "expected": "The review appears with a thumbnail of the photo.",
-          "evidence": ["screenshot"]
+          "checks": ["The new review appears.", "It shows a thumbnail of the photo."],
+          "evidence": ["screenshot"],
+          "i18n": {
+            "ja": {
+              "instruction": "FX-4 のファイルを添付して「Post review」を押す。",
+              "expected": "写真のサムネイルつきでレビューが表示される。",
+              "checks": ["新しいレビューが表示される。", "写真のサムネイルがある。"],
+              "status": "machine",
+              "source_hash": "bdf800a43fda"
+            }
+          }
         }
       ],
       "judges": [
@@ -348,6 +680,15 @@
           "kind": "human"
         }
       ],
+      "i18n": {
+        "ja": {
+          "title": "アップロードしたレビュー写真がサムネイルで表示される",
+          "purpose": "写真があるとレビューがもっと役に立ちます。このテストは、レビューに添付した写真がサムネイルで表示されることを確かめます。",
+          "start_note": "サインインページを開く。",
+          "status": "machine",
+          "source_hash": "15e7b86a3c43"
+        }
+      },
       "ai": {
         "model": "claude-opus-5-5",
         "skill": "write-test-cases",

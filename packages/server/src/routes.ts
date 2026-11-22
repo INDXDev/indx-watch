@@ -152,15 +152,22 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   return { record, judgements, decision, stale, testCase, ...extra };
 }
 
-async function blob(c: Context, { deps, uploads, grant, model }: Ctx) {
+async function blob(c: Context, { deps, uploads, grant, model, read }: Ctx) {
   const sha = c.req.param('sha')!;
-  const runs = (await grant(c)).role === 'customer' && [...(await model(c)).runs.values()];
-  // a customer gets only the evidence of runs they see, or a blob uploaded here
-  if (runs && !uploads.has(sha) && !runs.some((v) => v.record.evidence.some((e) => e.sha256 === sha)))
+  const m = await model(c);
+  const runs = (await grant(c)).role === 'customer' && [...m.runs.values()];
+  // a fixture file of the bundle (in git or behind a pointer) is test data for whoever sees the fixture
+  const fx = [...m.fixtures.values()]
+    .flatMap((f) => f.dataFiles)
+    .find((x) => (x.pointer?.sha256 ?? x.sha256) === sha);
+  // a customer gets only the evidence of runs they see, test data, or a blob uploaded here
+  if (runs && !fx && !uploads.has(sha) && !runs.some((v) => v.record.evidence.some((e) => e.sha256 === sha)))
     throw notFound(`blob ${sha}`);
-  const data = /^[0-9a-f]{64}$/.test(sha) ? await deps.getBlob(sha) : fail(bad('invalid sha256'));
+  if (!/^[0-9a-f]{64}$/.test(sha)) throw bad('invalid sha256');
+  const data = fx && !fx.pointer ? await read(fx.file) : await deps.getBlob(sha);
   if (!data) throw notFound(`blob ${sha}`);
-  const { type = sniff(data), name = sha.slice(0, 12) } = uploads.get(sha) ?? {};
+  const known = fx && { type: fx.pointer?.media_type ?? V.mediaOf(fx.name) ?? sniff(data), name: fx.name };
+  const { type = sniff(data), name = sha.slice(0, 12) } = uploads.get(sha) ?? known ?? {};
   const headers = new Headers({ 'Content-Type': type, 'Content-Security-Policy': CSP_BLOB });
   if (!INLINE_MEDIA.test(type)) headers.set('Content-Disposition', `attachment; filename="${name}"`);
   return new Response(data as Uint8Array<ArrayBuffer>, { headers });
@@ -282,9 +289,11 @@ export async function evidenceOf({ deps, uploads }: Ctx, sha: string, i?: number
 /** Evidence of all steps (each blob once), after checking step indexes and statuses. */
 async function stepEvidence(x: Ctx, t: TestCase, steps: ManualRunInput['steps']) {
   const evidence: B.Evidence[] = [];
-  for (const { index: i, status, evidence: shas = [] } of steps) {
+  for (const { index: i, status, evidence: shas = [], checks } of steps) {
     if (!(Number.isInteger(i) && i >= 1 && i <= t.data.steps.length)) throw bad(`no step ${i}`);
     if (!B.StepStatus.safeParse(status).success) throw bad(`step ${i}: invalid status`);
+    if (checks && checks.length !== (t.data.steps[i - 1]!.checks?.length ?? 0))
+      throw bad(`step ${i}: checks must have one entry per check of the step`);
     for (const sha of shas.filter((s) => !evidence.some((e) => e.sha256 === s)))
       evidence.push(await evidenceOf(x, sha, i));
   }
@@ -318,7 +327,13 @@ async function createRun(c: Context, x: Ctx) {
   const started = new Date(input.started_at ?? '');
   const started_at = Number.isNaN(started.getTime()) ? undefined : iso(started);
   const locale = localeOf(input.locale);
-  const results = steps.map(({ index, status, note, evidence }) => ({ index, status, evidence, note }));
+  const results = steps.map(({ index, status, note, evidence, checks }) => ({
+    index,
+    status,
+    evidence,
+    note,
+    checks,
+  }));
   const run = B.RunRecord.parse({
     ...{ kind: 'run', id: B.newId('run'), v: 1, project: m.project.id, at, actor: who, source: 'manual' },
     ...{ test_case: { id: t.data.id, key: t.data.key, version: t.version }, fixtures, release },

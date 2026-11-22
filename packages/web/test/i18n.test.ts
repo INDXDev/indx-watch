@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pick, pickLocale, segments, t } from '../src/i18n';
+import { pick, pickList, pickLocale, segments, t } from '../src/i18n';
 import en from '../src/messages/en.json';
 import ja from '../src/messages/ja.json';
 
@@ -96,6 +96,28 @@ describe('pick()', () => {
       translated: false,
       outdated: true,
     });
+  });
+});
+
+describe('pickList()', () => {
+  // examples/shop TC-3 step 1
+  const step = {
+    checks: ['The discount line shows "-4.00".', 'The total is "36.00".'],
+    i18n: {
+      ja: { checks: ['割引行に「-4.00」と表示される。', '合計が「36.00」になる。'], status: 'machine' },
+    },
+  };
+  it('uses a current translation of the same length, else the source', () => {
+    expect(pickList(step, 'checks', 'ja')).toEqual(step.i18n.ja.checks);
+    expect(pickList(step, 'checks', 'en')).toEqual(step.checks);
+    const short = {
+      ...step,
+      i18n: { ja: { checks: ['割引行に「-4.00」と表示される。'], status: 'machine' } },
+    };
+    expect(pickList(short, 'checks', 'ja')).toEqual(step.checks);
+    const stale = { ...step, i18n: { ja: { ...step.i18n.ja, status: 'stale' } } };
+    expect(pickList(stale, 'checks', 'ja')).toEqual(step.checks);
+    expect(pickList({}, 'checks', 'ja')).toEqual([]);
   });
 });
 

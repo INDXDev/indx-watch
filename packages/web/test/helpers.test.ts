@@ -1,13 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { SpecTree } from '../src/api';
+import type { SpecTree, TestCaseDetail } from '../src/api';
 import { api, query, reportPath, safeName, setTransport } from '../src/api';
 import { pick } from '../src/i18n';
 import { href, parseRoute } from '../src/router';
+import { placeholderValues, sentences, startUrl, stepsUsing } from '../src/screens/guide';
 import { queue } from '../src/screens/Home';
 import { ciLinks } from '../src/screens/Run';
-import { needsReason, suggestVerdict } from '../src/screens/Runner';
-import { placeholderValues } from '../src/screens/TestCase';
+import {
+  asksNote,
+  buildRunInput,
+  needsReason,
+  type StepState,
+  stepDone,
+  stepStatus,
+  suggestVerdict,
+  tickCheck,
+} from '../src/screens/runner/model';
+import { firstOpen } from '../src/screens/runner/useRun';
 import { testOrder } from '../src/screens/Tests';
 import { cliCommands, startMine } from '../src/shell';
 import { avatarOf, neighbours } from '../src/ui';
@@ -230,6 +240,68 @@ describe('manual runner', () => {
       { key: 'FX-2', title: 'Catalog with three products', kind: 'seed', version: 'fxv:91be03d2a402' },
     ]);
     expect(values).toEqual({ 'FX-1.code': 'OLD5', 'FX-1.discount': '0.05' });
+  });
+});
+
+describe('test case page and in-place runner', () => {
+  const st = (p: Partial<StepState>): StepState => ({ note: '', shots: [], checks: [], ...p });
+  it('ticking every check suggests pass; a fail with an unticked check asks for a note', () => {
+    expect(stepStatus(st({ checks: [true, true] }))).toBe('pass');
+    expect(stepStatus(st({ checks: [true, false] }))).toBeUndefined();
+    expect(stepStatus(st({}))).toBeUndefined();
+    expect(stepStatus(st({ status: 'fail', checks: [true, true] }))).toBe('fail');
+    const failed = st({ status: 'fail', checks: [true, false] });
+    expect(asksNote(failed)).toBe(true);
+    expect(stepDone(failed)).toBe(false);
+    expect(stepDone({ ...failed, note: 'Total is 40.00' })).toBe(true);
+    expect(asksNote(st({ status: 'fail' }))).toBe(false);
+    expect(stepDone(st({ checks: [false] }))).toBe(false);
+  });
+  it('unticking a check after Pass drops the explicit pass', () => {
+    const passed = st({ status: 'pass', checks: [true, true] });
+    expect(tickCheck(passed, 1, false)).toEqual(st({ status: undefined, checks: [true, false] }));
+    expect(stepStatus(tickCheck(passed, 1, false))).toBeUndefined();
+    expect(tickCheck(st({ status: 'fail', checks: [true, true] }), 0, false).status).toBe('fail');
+    expect(stepStatus(tickCheck(st({ checks: [true, false] }), 1, true))).toBe('pass');
+  });
+  it('Next opens the first step without a result, then the Result block', () => {
+    expect(firstOpen([st({ status: 'pass' }), st({}), st({})])).toBe(1);
+    expect(firstOpen([st({ checks: [true] }), st({ status: 'skipped' })])).toBe(2);
+  });
+  it('records the ticked checks on each recorded step', () => {
+    const d = { key: 'TC-3', fixtures: [] } as unknown as TestCaseDetail;
+    const head = { verdict: 'fail' as const };
+    const input = buildRunInput(
+      d,
+      [st({ checks: [true, false], status: 'fail', note: 'x' }), st({ checks: [false] })],
+      head,
+      'Wrong total',
+    );
+    expect(input.steps).toEqual([{ index: 1, status: 'fail', note: 'x', checks: [true, false] }]);
+    expect(buildRunInput(d, [st({ status: 'pass' })], head, '').steps).toEqual([
+      { index: 1, status: 'pass' },
+    ]);
+  });
+  it('builds the Open link, names the steps that use a fixture and splits preconditions', () => {
+    expect(startUrl('http://localhost:4173', '/cart')).toBe('http://localhost:4173/cart');
+    expect(startUrl('https://shop.example/app/', '/cart')).toBe('https://shop.example/app/cart');
+    expect(startUrl('http://localhost:4173')).toBe('http://localhost:4173');
+    // examples/shop TC-9
+    const steps = [
+      { instruction: 'Sign in with {{FX-3.username}} and open "Canvas Tote".' },
+      { instruction: 'Attach the file from FX-4 and press "Post review".' },
+    ];
+    expect(stepsUsing(steps, 'FX-4')).toEqual([2]);
+    expect(stepsUsing(steps, 'FX-3')).toEqual([1]);
+    expect(stepsUsing([{ instruction: 'Use FX-40.' }], 'FX-4')).toEqual([]);
+    expect(sentences('The cart contains one "Canvas Tote" (price 40.00). You are signed out.')).toEqual([
+      'The cart contains one "Canvas Tote" (price 40.00).',
+      'You are signed out.',
+    ]);
+    expect(sentences('カートに商品がある。サインアウトしている。')).toEqual([
+      'カートに商品がある。',
+      'サインアウトしている。',
+    ]);
   });
 });
 

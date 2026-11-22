@@ -125,6 +125,13 @@ export async function datasetRows(fx: FixtureNode, read: ReadFile): Promise<Reco
 const MEDIA: Record<string, string> = { csv: 'text/csv', json: 'application/json', png: 'image/png' };
 export const mediaOf = (name: string) => MEDIA[name.split('.').pop()?.toLowerCase() ?? ''];
 
+/** A fixture's files with the SHA-256 and type of their content (the blob, for a pointer). */
+export const fileList = (fx: FixtureNode) =>
+  fx.dataFiles.map(({ name, sha256, size, pointer: p }) => ({
+    ...{ name, sha256: p?.sha256 ?? sha256, size: p?.size ?? size },
+    ...{ pointer: !!p, media_type: p?.media_type ?? mediaOf(name) },
+  }));
+
 export async function fixtureDetail(fx: FixtureNode, read: ReadFile): Promise<FixtureDetail> {
   const { kind, account, key } = fx.data;
   const seed = fx.dataFiles.find((x) => !x.pointer);
@@ -138,10 +145,7 @@ export async function fixtureDetail(fx: FixtureNode, read: ReadFile): Promise<Fi
         : text
           ? { text }
           : undefined;
-  const files = fx.dataFiles.map(({ name, sha256, size, pointer: p }) => ({
-    ...{ name, sha256: p?.sha256 ?? sha256, size: p?.size ?? size },
-    ...{ pointer: !!p, media_type: p?.media_type ?? mediaOf(name) },
-  }));
+  const files = fileList(fx);
   const data = await markStale(fx.data, 'fixture');
   return { key, file: fx.file, version: fx.version, data, files, preview, usedBy: fx.usedBy };
 }
@@ -159,8 +163,9 @@ export async function testCaseDetail(model: Model, key: string, scope: Scope, re
       values = rows ? all.filter((r) => rows.includes(r[col] ?? '')) : all;
     }
     const { i18n } = await markStale(fx.data, 'fixture');
+    const files = fileList(fx).map(({ pointer, ...f }) => f);
     const more = { ...(rows && { rows }), ...(values && { values }), ...(i18n && { i18n }) };
-    return { key: ref, title, kind, version: fx.version, ...more };
+    return { key: ref, title, kind, version: fx.version, ...more, ...(files.length && { files }) };
   });
   const { file, version, priority, useCase } = t;
   const runs = listRuns(model, { ...scope, tcId: t.data.id }).map((v) => runSummary(v, model));

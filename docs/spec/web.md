@@ -38,9 +38,9 @@ Problems from `iw check` appear as one quiet line under the bar ("3 problems in 
 | Route | Screen | List view | Focus view |
 |---|---|---|---|
 | `#/` | Home | — | — |
-| `#/tests` | Tests | Feature → use case → criterion → test tree with status, priority, last run and who ran it | One test case per screen: title, preconditions, steps with expected results, test data, latest result, "Run this test" |
-| `#/tc/<TC>` | Test case | — | The Focus card for that test, with ← / → over the current list |
-| `#/tc/<TC>/run` | Manual runner | — | One step per screen on phones; all steps on wide screens |
+| `#/tests` | Tests | Feature → use case → criterion → test tree with status, priority, last run and who ran it | One test case per screen: the [test case page](#test-case-page) with "Run manually" |
+| `#/tc/<TC>` | Test case | — | The [test case page](#test-case-page), with ← / → over the current list |
+| `#/tc/<TC>/run` | Manual runner | — | The same test case page with the [runner](#manual-run-in-place) already open |
 | `#/activity` | Activity | Runs, reviews and uploads, newest first, with who, verdict, test, release, environment and time | One run per screen with its steps and evidence. "Review" opens a queue of `needs_review` runs |
 | `#/runs/<run>` | Run | — | The Focus card for that run |
 | `#/fixtures` | Test data | Fixtures by kind, with the tests that use them | One fixture per screen with its values or preview |
@@ -91,19 +91,55 @@ Gate checks, counts by status and the use case table move to **Release details**
 **Focus** shows exactly one item, centered, at a readable width (at most 720 px):
 
 - **Header.** The position ("3 of 9"), the key, the status badge, and the title in large type.
-- **Body.** The content in plain language. For a test case: preconditions, numbered steps with the expected result under each, test data values, and the latest result (who, when, verdict).
+- **Body.** The content in plain language. For a test case: the [test case page](#test-case-page).
 - **Footer.** ← Previous · primary action · Next →.
 - **Moving between items.** `←` / `→` keys, horizontal swipe on touch screens (at least 60 px, mostly horizontal), or the footer buttons. Each item has its own URL, so the browser's Back button steps back through the items.
 - **Order.** The order and filters of the List view the user came from. "Open" filters (not passing) are kept, so stepping through them works like a queue.
 
-The Focus **runner** turns a series of tests into a session. After you save a result, it moves to the next open test in the same list, without returning to Home. The header shows the session's progress ("2 of 5 done"). Keyboard shortcuts while a step is focused:
+The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?session=TC-3,TC-6`). Each test case opens with its [runner open in place](#manual-run-in-place); ← / → and the footer step through the session, and after you save a result the next open test of the session opens the same way, without returning to Home. A bar above the page shows the session's progress ("Test 2 of 5"). Leaving a test case whose runner holds unsaved step results asks first. Keyboard shortcuts while the runner is open:
 
 | Key | Action |
 |---|---|
-| `P` / `F` / `B` / `S` | Mark the step pass / fail / blocked / skipped |
+| `P` / `F` / `B` / `S` | Mark the current step pass / fail / blocked / skipped (`P` also ticks its checks and moves on) |
 | `N` | Focus the step's note field |
 | `⌘V` / `Ctrl+V` | Paste a screenshot into the step |
 | `→` / `←` | Next or previous test, when no field has focus |
+
+### Test case page
+
+*(v0.4)* A test case reads from top to bottom, so that a person who has never seen the app can run it from this one page. The content comes from the test case's [guidance fields](bundle-format.md#specsfeatuctc-n-slugtoml); a test case without them shows the blocks it has.
+
+1. **Header.** Key, status, priority, mode and the title, with the Edit button (workspace mode) and the AI draft notice.
+2. **What this tests.** The `purpose`; the feature and use case the test case belongs to; and the criteria it covers, in plain words, each with its status.
+3. **Before you start.**
+   - **Open.** A link to the environment's `base_url` followed by `start` (`http://localhost:4173` + `/cart`), which opens in a new tab, with `start_note` under it. Without `start` the link is the `base_url`. The environment is the one in scope, else the project default; its guide sits under a disclosure.
+   - **Test data.** One card per fixture the test case uses: key, title, the fixture `note` (what the data is for) and what to do with it, from `use`:
+
+     | `use` | The card says | It shows |
+     |---|---|---|
+     | `download` | "Download this file" | A download button per file |
+     | `upload` | "Download this file, then attach it where a step asks for it", then "Step N: …" for every step whose instruction mentions the fixture key | A download button per file |
+     | `enter` | "Type or paste these values where a step asks for them" (with the steps that use them, as for `upload`) | The selected row's values, each ready to copy |
+     | `seeded` | "Already in the app. Nothing to do." | — |
+
+     Without `use`, the card shows the values and files the fixture has. An account fixture shows the username and says the password is in the team's secret store. Download buttons fetch the file from `GET /api/blobs/<sha256>`, which serves a fixture file whether it is stored in git or as a blob pointer.
+   - **Preconditions** as a checklist: one box per sentence or line. The ticks help the tester and are not recorded.
+4. **Steps.** Numbered, each with its instruction, its expected result and its `checks` as a list of boxes to tick ("The discount line shows "-4.00"."), in the chosen language.
+5. **Result.** The status in scope and the last run (who, verdict, when), then the Details disclosure: covered criterion keys, metadata and the run history.
+
+#### Manual run in place
+
+**Run manually**, in the Focus footer, opens the runner on the same page: the URL does not change, the blocks above stay where they are, and the Steps block turns into the runner.
+
+- **One step at a time.** The current step shows its instruction, expected result, its `checks` as checkboxes, the result buttons (Pass, Fail, Blocked, Skip), a note and screenshots (upload or paste). Recorded steps collapse to one line with their result, and a click reopens one. Later steps are not shown until you get there.
+- **Checks.** Ticking every check suggests Pass; choosing Pass (or pressing `P`) ticks every check, and unticking one afterwards drops the Pass, so the step needs a result again. A Fail or Blocked step with an unticked check asks for a note ("Which check did not hold, and what did you see?").
+- **Next** records the step and opens the next one. It stays disabled until the step has a result, and the note it asks for. After the last step the **Result** block opens with the verdict suggested from the steps, the reason (required for every verdict except pass) and **Save result** (**Save and next** in a session).
+- **What is recorded.** For each recorded step: its status, note, screenshots and which checks were ticked (`checks`, booleans in the order of the step's source `checks`, [sync.md](sync.md#run-record)).
+- **Cancel** closes the runner without saving and keeps the page.
+- **Sessions.** Pressed in the Focus view, Run manually runs the rest of that list as a session: the session bar appears, ← / →, swipes and the footer step through the session, and after saving, **Save and next** opens the next test case with its runner open. Without a next test case, saving opens the run viewer.
+- **Unsaved work.** While a step has a result, a tick, a note or a screenshot, moving to another page (keys, swipe, links, Back) asks first; closing the tab asks through the browser.
+
+`#/tc/<TC>/run` opens the same page with the runner already open, without a session unless the URL has one (`?session=`). The run viewer lists each step's checks with ✓ or ✗, worded from the current test case in the chosen language; when the step now has a different number of checks than were recorded, they read "Check 1", "Check 2", ….
 
 ### Report
 
@@ -215,4 +251,8 @@ You can upload definitions in three ways:
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
 - [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test and web unit tests; the browser e2e is T-408).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
+- [x] The test case page shows, in order, What this tests, Before you start (the Open link from `start`, test data cards, the preconditions checklist), Steps with their checks and Result; TC-9's photo card offers its download and names step 2 as the upload step (e2e).
+- [x] "Run manually" on `#/tc/TC-3` opens the runner without changing the URL; ticking every check suggests pass, and the run records the ticked checks on each step (e2e). A Fail step with an unticked check asks for a note before Next, and the run records `checks: [true, false]` (e2e).
+- [x] `#/tc/<TC>/run` opens the test case page with the runner open, and a session's "Save and next" opens the next test case with its runner open (e2e `@TC-12`).
+- [x] Translated `checks` show in the chosen language; a translation of a different length falls back to the source (web unit test).
 - [x] In workspace mode, editing a test case's title, priority and steps in the app writes a `file` record with the viewer's verified identity, and an agent's edit is saved as an AI draft; in git mode the server refuses the edit (409) (server and Worker tests; the form itself was checked by hand).

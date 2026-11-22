@@ -8,6 +8,7 @@ import { api, type SpecTree } from '../api';
 import { useI18n } from '../i18n';
 import { href, navigate } from '../router';
 import { Badge, Chip, Focus, Icon, Load, Priority, Seg, Tx, txt, useApi, ViewSwitch } from '../ui';
+import { SessionBar } from './runner/sections';
 import { TestCaseView } from './TestCase';
 
 type Filter = 'all' | 'open' | 'flaky';
@@ -37,15 +38,31 @@ export function Tests({ filter }: { filter?: string | undefined }) {
   return <Load state={specs}>{(s) => <Tree tree={s} filter={asFilter(filter)} />}</Load>;
 }
 
-/** #/tc/TC-3: the Focus card of a test case, with ← / → over the list it was opened from. */
-export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | undefined }) {
+/**
+ * #/tc/TC-3: the test case page in Focus, with ← / → over the list it was opened from. "Run manually" opens the
+ * runner in place over the rest of the list; #/tc/TC-3/run (`run`) opens it at once, and `?session=` makes Focus step
+ * through that session.
+ */
+export function TestFocus(props: {
+  tcKey: string;
+  filter?: string | undefined;
+  run?: boolean;
+  session?: string[];
+}) {
+  const { tcKey, filter, session } = props;
   const { scope, project } = useApp();
   const { t } = useI18n();
+  // the route opens the runner as is; the button runs the rest of the list as a session (Save and next)
+  const [running, setRunning] = useState<'route' | 'button' | false>(props.run ? 'route' : false);
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
   const all = specs.data ? testOrder(specs.data) : [];
-  const list = items.includes(tcKey) ? items : all.includes(tcKey) ? all : [tcKey];
+  const list = session ?? (items.includes(tcKey) ? items : all.includes(tcKey) ? all : [tcKey]);
   const q = query(asFilter(filter));
+  const rest = list.slice(list.indexOf(tcKey));
+  // while running, ← / →, swipes and the footer step through the run's session (the URL's, else the rest of the list)
+  const sess = session ?? (running === 'button' && rest.length > 1 ? rest : undefined);
+  const run = running ? { session: sess, close: () => setRunning(false) } : undefined;
   return (
     <>
       <div className="page-head page-head-tight">
@@ -55,19 +72,21 @@ export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | 
         </p>
         <ViewSwitch view="focus" list={href.tests(q)} />
       </div>
+      {sess && <SessionBar session={sess} at={tcKey} />}
       <Focus
-        items={list}
+        items={sess ?? list}
         at={tcKey}
-        go={(k) => href.testCase(k, q)}
+        go={(k) => (sess ? href.runner(k, sess) : href.testCase(k, q))}
         actions={
-          project.can.run !== false && (
-            <a className="btn btn-primary" href={href.runner(tcKey, list.slice(list.indexOf(tcKey)))}>
+          project.can.run !== false &&
+          !running && (
+            <button type="button" className="btn btn-primary" onClick={() => setRunning('button')}>
               ▶ {t('tc.runManually')}
-            </a>
+            </button>
           )
         }
       >
-        <TestCaseView tcKey={tcKey} />
+        <TestCaseView tcKey={tcKey} run={run} />
       </Focus>
     </>
   );

@@ -939,6 +939,11 @@ tr:last-child td {
   color: var(--text);
   font-weight: 700;
 }
+.more > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+}
 .verdict details summary {
   cursor: pointer;
   color: var(--accent);
@@ -1488,13 +1493,103 @@ tr:last-child td {
   font-size: var(--fs-lg);
   font-weight: 500;
 }
-.more > summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--text-muted);
+.tc-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
-.more[open] > summary {
-  margin-bottom: var(--space-3);
+.tc-block h2 {
+  font-size: var(--fs-lg);
+  margin: 0;
+}
+.tc-block .lead {
+  font-size: var(--fs-lg);
+  margin: 0;
+}
+.open-at {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.open-at .btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.data-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+.data-card {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+.data-card p {
+  margin: 0;
+}
+.data-use {
+  font-weight: 600;
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.checklist label {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  cursor: pointer;
+}
+.checklist input {
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  flex: none;
+}
+.checklist-static .box {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 3px;
+  vertical-align: -2px;
+}
+.run-info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+.done-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.run-step.done .done-line .step-n {
+  background: var(--cs);
+  color: var(--c);
+  border-color: transparent;
+}
+.more > summary + * {
+  margin-top: var(--space-3);
 }
 .session {
   display: flex;

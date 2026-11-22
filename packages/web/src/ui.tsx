@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { type MsgKey, pick, segments, useI18n } from './i18n';
+import { type MsgKey, pick, pickList, segments, useI18n } from './i18n';
 
 export * from './focus';
 export * from './people';
@@ -174,6 +174,22 @@ export function Tx({ of, field, values, mark }: TxProps) {
   );
 }
 export const txt = (of: unknown, field: string, locale: 'en' | 'ja') => pick(of, field, locale).text;
+/** The text of a content field in the chosen language, or the source while "Show original" is on. */
+export function useTxt() {
+  const { locale } = useI18n();
+  const { original } = useContext(OriginalContext);
+  return (of: unknown, field: string) => {
+    const source = (of as Record<string, unknown> | null)?.[field];
+    return original && typeof source === 'string' ? source : pick(of, field, locale).text;
+  };
+}
+/** A step's `checks` in the chosen language, or the source while "Show original" is on. */
+export function useChecks() {
+  const { locale } = useI18n();
+  const { original } = useContext(OriginalContext);
+  return (step: { checks?: string[] | undefined }) =>
+    original ? (step.checks ?? []) : pickList(step, 'checks', locale);
+}
 
 type SectionProps = { title: ReactNode; actions?: ReactNode; children: ReactNode; id?: string };
 /** A card with a heading, optional header actions and an id-linked label. */

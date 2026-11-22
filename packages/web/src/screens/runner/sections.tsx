@@ -1,25 +1,27 @@
-/** The manual runner's page sections: session bar, heading, "before you start", the step cards and finish. */
+/** The manual runner's sections: session bar, run info, the open step, recorded steps and the Result block. */
 import { useApp } from '../../App';
 import type { TestCaseDetail } from '../../api';
 import { useI18n } from '../../i18n';
 import { href } from '../../router';
-import { Chip, Icon, Section, Seg, Tx } from '../../ui';
-import { needsReason, STEP_STATUSES, type StepState } from './model';
+import { Chip, Icon, Rich, Seg, Tx, useChecks } from '../../ui';
+import { asksNote, needsReason, STEP_STATUSES, type StepState, stepDone, stepStatus } from './model';
 import type { RunState } from './useRun';
 
 /** Position in the session queue with a link that skips to the next test case. */
-export function SessionBar({ session, r }: { session: string[]; r: RunState }) {
+export function SessionBar({ session, at }: { session: string[]; at: string }) {
   const { t } = useI18n();
+  const n = session.indexOf(at);
+  const next = session[n + 1];
   return (
     <div className="session" role="status">
       <span>
-        <strong>{t('runner.session', { n: r.at + 1, total: session.length })}</strong>
+        <strong>{t('runner.session', { n: n + 1, total: session.length })}</strong>
       </span>
       <span className="session-bar" aria-hidden="true">
-        <span style={{ width: `${Math.round((r.at / session.length) * 100)}%` }} />
+        <span style={{ width: `${Math.round((n / session.length) * 100)}%` }} />
       </span>
-      {r.next && (
-        <a className="btn btn-sm btn-ghost" href={href.runner(r.next, session)}>
+      {next && (
+        <a className="btn btn-sm btn-ghost" href={href.runner(next, session)}>
           {t('runner.skip')} →
         </a>
       )}
@@ -27,95 +29,33 @@ export function SessionBar({ session, r }: { session: string[]; r: RunState }) {
   );
 }
 
-/** Title of the test case with the release, environment, reading language and version. */
-export function RunHead({ d, r }: { d: TestCaseDetail; r: RunState }) {
+/** The run's release, environment, reading language and version, with Cancel. */
+export function RunInfo({ d, r, close }: { d: TestCaseDetail; r: RunState; close(): void }) {
   const { t, locale } = useI18n();
   const { scope } = useApp();
   return (
-    <div className="page-head">
-      <div>
-        <p className="eyebrow">
-          {t('runner.eyebrow')} · <a href={href.testCase(d.key)}>{d.key}</a>
-        </p>
-        <h1>
-          <Tx of={d.data} field="title" mark />
-        </h1>
-        <p className="chips">
-          <Chip>{scope.release ?? t('scope.noRelease')}</Chip>
-          <Chip>{r.env?.title ?? t('scope.allEnvironments')}</Chip>
-          <Chip>{t('runner.readingIn', { locale: locale === 'ja' ? '日本語' : 'English' })}</Chip>
-          <code>{d.version}</code>
-        </p>
-      </div>
+    <div className="run-info">
+      <p className="chips">
+        <strong>{t('runner.eyebrow')}</strong>
+        <Chip>{scope.release ?? t('scope.noRelease')}</Chip>
+        <Chip>{r.env?.title ?? t('scope.allEnvironments')}</Chip>
+        <Chip>{t('runner.readingIn', { locale: locale === 'ja' ? '日本語' : 'English' })}</Chip>
+        <code className="small">{d.version}</code>
+      </p>
+      <button type="button" className="btn btn-sm btn-ghost" onClick={close}>
+        {t('runner.cancel')}
+      </button>
     </div>
   );
 }
 
-/** The fixtures the test case uses, with the first row's values. */
-function FixtureList({ fixtures }: { fixtures: TestCaseDetail['fixtures'] }) {
-  const { t } = useI18n();
-  return (
-    <ul className="list small">
-      {fixtures.map((fx) => (
-        <li key={fx.key}>
-          <span className="key">{fx.key}</span> <Tx of={fx} field="title" />
-          {fx.values?.[0] &&
-            Object.entries(fx.values[0]).map(([k, v]) => (
-              <span key={k}>
-                {' '}
-                {k}: <code>{v}</code>
-              </span>
-            ))}
-          {fx.kind === 'account' && <span className="muted"> · {t('runner.secretHint')}</span>}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Where to run, preconditions and fixtures. */
-export function Before({ d, r }: { d: TestCaseDetail; r: RunState }) {
-  const { t } = useI18n();
-  const { env } = r;
-  return (
-    <Section title={t('runner.before')}>
-      <div className="before">
-        {env && (
-          <div>
-            <h3>{t('runner.where')}</h3>
-            <p>
-              <a href={env.base_url} target="_blank" rel="noreferrer">
-                {env.base_url} ↗
-              </a>
-            </p>
-            {env.guide && <p className="pre">{env.guide}</p>}
-          </div>
-        )}
-        {d.data.preconditions && (
-          <div>
-            <h3>{t('tc.preconditions')}</h3>
-            <p>
-              <Tx of={d.data} field="preconditions" values={r.values} />
-            </p>
-          </div>
-        )}
-        {d.fixtures.length > 0 && (
-          <div>
-            <h3>{t('tc.fixtures')}</h3>
-            <FixtureList fixtures={d.fixtures} />
-          </div>
-        )}
-      </div>
-    </Section>
-  );
-}
-
 /** Progress, the run verdict (suggested from the steps), the reason and the save button. */
-export function Finish({ d, r }: { d: TestCaseDetail; r: RunState }) {
+export function Finish({ r, close }: { r: RunState; close(): void }) {
   const { t } = useI18n();
   const { verdict } = r;
   return (
-    <Section title={t('runner.finish')} id="finish">
+    <section className="tc-block" aria-labelledby="finish-h">
+      <h2 id="finish-h">{t('tc.resultBlock')}</h2>
       <p className="muted">{t('runner.progress', { done: r.recorded, total: r.steps.length })}</p>
       <Seg
         label={t('runner.verdict')}
@@ -145,13 +85,13 @@ export function Finish({ d, r }: { d: TestCaseDetail; r: RunState }) {
         <button type="button" className="btn btn-primary" disabled={!r.canSave} onClick={r.save}>
           {r.busy ? t('runner.saving') : r.next ? t('runner.saveNext') : t('runner.save')}
         </button>
-        <a className="btn btn-ghost" href={href.testCase(d.key)}>
+        <button type="button" className="btn btn-ghost" onClick={close}>
           {t('common.cancel')}
-        </a>
+        </button>
         {r.uploading && <span className="muted small">{t('runner.waitUploads')}</span>}
       </div>
       <p className="muted small kbd-hint">{t('runner.keys')}</p>
-    </Section>
+    </section>
   );
 }
 
@@ -196,20 +136,58 @@ function Shots({ i, st, r }: { i: number; st: StepState; r: RunState }) {
   );
 }
 
-/** A step card; clicking or focusing it makes it the active step (target of keys and paste). */
+/** The step's checks as checkboxes; ticking every one suggests pass. */
+function Checks({ s, i, r }: { s: Step; i: number; r: RunState }) {
+  const texts = useChecks()(s);
+  const ticks = r.steps[i]!.checks;
+  if (ticks.length === 0) return null;
+  return (
+    <ul className="checklist">
+      {ticks.map((on, j) => (
+        <li key={s.checks?.[j] ?? j}>
+          <label>
+            <input type="checkbox" checked={on} onChange={(e) => r.tick(i, j, e.target.checked)} />
+            <span>
+              <Rich text={texts[j] ?? ''} values={r.values} />
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A recorded step, collapsed to one line; a click reopens it. */
+export function DoneStep({ s, i, r }: { s: Step; i: number; r: RunState }) {
+  const { t } = useI18n();
+  const status = stepStatus(r.steps[i]!);
+  return (
+    <li className={`run-step done s-${status}`}>
+      <button type="button" className="done-line" onClick={() => r.setActive(i)}>
+        <span className="step-n" aria-hidden="true">
+          {status && <Icon status={status} />}
+        </span>
+        <span className="grow">
+          <span className="sr">{t('runner.step', { n: i + 1 })}: </span>
+          <Tx of={s} field="instruction" values={r.values} />
+        </span>
+        <span className="muted small">{status && t(`status.${status}`)}</span>
+      </button>
+    </li>
+  );
+}
+
+/** The open step: instruction, expected result, checks, result, note, screenshots and Next. */
 export function StepCard({ s, i, r }: { s: Step; i: number; r: RunState }) {
   const { t } = useI18n();
   const st = r.steps[i]!;
-  const problem = st.status === 'fail' || st.status === 'blocked';
+  const status = stepStatus(st);
+  const ask = asksNote(st);
+  const problem = status === 'fail' || status === 'blocked';
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: focus also sets the active step
-    <li
-      className={`card run-step${i === r.active ? ' active' : ''}${st.status ? ` done s-${st.status}` : ''}`}
-      onClick={() => r.setActive(i)}
-      onFocus={() => r.setActive(i)}
-    >
+    <li className={`card run-step active${status ? ` s-${status}` : ''}`}>
       <div className="step-n" aria-hidden="true">
-        {st.status ? <Icon status={st.status} /> : i + 1}
+        {i + 1}
       </div>
       <div className="grow stack-sm">
         <h3 className="sr">{t('runner.step', { n: i + 1 })}</h3>
@@ -219,24 +197,37 @@ export function StepCard({ s, i, r }: { s: Step; i: number; r: RunState }) {
         <p className="expected">
           <span className="label">{t('tc.expected')}</span> <Tx of={s} field="expected" values={r.values} />
         </p>
+        <Checks s={s} i={i} r={r} />
         <Seg
           label={t('runner.stepResult', { n: i + 1 })}
-          value={st.status}
+          value={status}
           options={STEP_STATUSES}
           text={(v) => t(`status.${v}`)}
           onChange={(v) => r.mark(i, v)}
           status
         />
+        {st.status === undefined && status === 'pass' && (
+          <p className="muted small">{t('runner.allChecked')}</p>
+        )}
         <label className="field">
-          <span className="sr">{t('runner.note', { n: i + 1 })}</span>
+          <span className={ask ? undefined : 'sr'}>
+            {t(ask ? 'runner.noteRequired' : 'runner.note', { n: i + 1 })}
+          </span>
           <textarea
             rows={problem ? 3 : 1}
             placeholder={t(problem ? 'runner.notePlaceholderFail' : 'runner.notePlaceholder')}
             value={st.note}
+            aria-required={ask}
             onChange={(e) => r.patch(i, { note: e.target.value })}
           />
         </label>
         <Shots i={i} st={st} r={r} />
+        <div className="actions">
+          <button type="button" className="btn btn-primary" disabled={!stepDone(st)} onClick={r.advance}>
+            {t('runner.next')} →
+          </button>
+          {!status && <span className="muted small">{t('runner.pickResult')}</span>}
+        </div>
       </div>
     </li>
   );

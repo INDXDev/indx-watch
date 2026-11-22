@@ -240,6 +240,8 @@ export interface TestCaseDetail {
     version: string;
     rows?: string[];
     values?: Record<string, string>[];
+    /** the fixture's files, downloadable from GET /api/blobs/:sha256 (v0.4) */
+    files?: { name: string; sha256: string; size: number; media_type?: string }[];
     i18n?: unknown;
   }[];
   status: TestCaseStatus;
@@ -309,7 +311,8 @@ export interface ManualRunInput {
   environment?: string;
   started_at?: string;
   locale?: Locale;
-  steps: { index: number; status: StepStatus; note?: string; evidence?: string[] }[];
+  /** `checks`: which of the step's checks were ticked, in source order (v0.4) */
+  steps: { index: number; status: StepStatus; note?: string; evidence?: string[]; checks?: boolean[] }[];
   /** the tester's verdict → a human judgement; 'blocked'/'skipped' also set run.reported */
   verdict: 'pass' | 'fail' | 'blocked' | 'skipped';
   note?: string;
