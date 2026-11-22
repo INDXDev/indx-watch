@@ -5,7 +5,7 @@
 [![CI](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/INDXDev/indx-watch/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> Status: **v0.1** — try it with `npx indx-watch` ([quickstart](#60-second-quickstart)). The file format is versioned (`schema_version = 1`); expect additive changes.
+> Status: **v0.1** — try it with `npx indx-watch` ([quickstart](#quickstart-install-once-then-ask-your-agent)). The file format is versioned (`schema_version = 1`); expect additive changes.
 
 > Live demo: <https://indx-watch-demo.i-248.workers.dev> — the web app loaded with the [`examples/shop`](examples/shop) sample, redeployed when `main` changes the app or the sample ([how it is deployed](docs/guides/self-host-cloudflare.md#demo-site-from-github-actions)). Anyone with the URL can read and write it, and visitors' runs stay until the demo is reset, so do not enter real data.
 
@@ -19,27 +19,28 @@ QA often *looks* done but is not. Test cases sit in spreadsheets and people's he
 
 Read the [vision](docs/vision.md) for the full problem statement.
 
-## 60-second quickstart
+## Quickstart: install once, then ask your agent
 
-Requires Node 22.13+.
-
-```bash
-npx indx-watch init demo && cd demo
-npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
-npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
-npx indx-watch check
-npx indx-watch record TC-1 --verdict pass --step 1=pass   # you ran the step and it passed
-npx indx-watch status
-npx indx-watch report --format html --out report.html
-```
-
-To run the test case in the browser instead of `record`, start the readiness dashboard and manual runner in a second terminal (it keeps running):
+Requires Node 22.13+ and Claude Code or Codex. In your app's repository:
 
 ```bash
-npx indx-watch serve --open   # http://127.0.0.1:4321
+npx indx-watch init
 ```
 
-After the first download (or a global install), everything works offline. Install globally (`npm i -g indx-watch`) to type `iw` instead of `npx indx-watch`. More in the [quickstart guide](docs/guides/quickstart.md); try the full sample with `npx indx-watch init demo --example`.
+This adds the `.indx-watch/` bundle, the INDX Watch skills for Claude Code (`/iw-…`) and Codex (`$iw-…`), and the `indx-watch` MCP server. Commit it, open your agent, and talk:
+
+| Job | Claude Code | Codex | You say |
+|---|---|---|---|
+| Set up | `/iw-setup` | `$iw-setup` | "Set up testing for this repo" |
+| Design tests | `/iw-design` | `$iw-design` | "What should we test in checkout?" |
+| Prepare data | `/iw-data` | `$iw-data` | "The review photo tests need data" |
+| Run tests | `/iw-test` | `$iw-test` | "Test my features", "Walk me through TC-3" |
+| Fix failures | `/iw-triage` | `$iw-triage` | "Why did TC-8 fail?" |
+| Know where you are | `/iw-status` | `$iw-status` | "Can we ship 1.2.0?" |
+
+English or Japanese (「TC-3 を一緒にやって」「リリースできる？」). The agent writes drafts and records runs; a person approves, reviews and ships. Walkthrough: [quickstart](docs/guides/quickstart.md) and [testing with Claude Code or Codex](docs/guides/testing-with-agents.md). The job skills ship in the next npm release; until then build from source ([CONTRIBUTING](CONTRIBUTING.md#development-setup)).
+
+Prefer the terminal or the browser? Every step is also an `iw` command (`npx indx-watch serve --open` for the dashboard and manual runner), see [without an agent](docs/guides/quickstart.md#without-an-agent). Try the full sample with `npx indx-watch init demo --example`.
 
 ## Features
 
@@ -49,11 +50,11 @@ After the first download (or a global install), everything works offline. Instal
 | **Fixtures as data** | Datasets, seeds, files and accounts — versioned by content hash, large files as pointers, secrets as references only ([fixtures](docs/guides/fixtures.md)) |
 | **Computed readiness** | Coverage, use case status and a configurable release gate from one pure function ([concepts](docs/spec/concepts.md)) |
 | **Every result attributable** | Who/what ran it, when, on which commit, environment, test case version and fixture versions, with evidence |
-| **Manual runner** | Step-by-step browser runner with screenshot upload, in English and Japanese |
+| **One-page test case** | What it tests, where to start, the test data and the checks on one page, with the manual run inline and screenshot upload, in English and Japanese |
 | **Playwright reporter** | Tag a test `@TC-3`; results land next to manual ones ([Playwright](docs/guides/playwright.md)) |
 | **GitHub Action** | Sync, job summary and an optional readiness gate in CI ([GitHub Actions](docs/guides/github-actions.md)) |
 | **Sync anywhere** | Folder, AWS S3, Cloudflare R2, MinIO, GCS interop — no server needed ([S3 sync](docs/guides/s3-sync.md)) |
-| **Agent-native** | `--json` everywhere, Claude Code / Codex skills, MCP server; AI drafts need human approval ([agents](docs/spec/agents.md)) |
+| **Agent-native** | Job skills for Claude Code and Codex installed by `iw init`, an MCP server and `--json` everywhere; AI drafts need human approval ([testing with agents](docs/guides/testing-with-agents.md)) |
 | **Reports for customers** | Markdown, single-file HTML or PDF, with customer redaction ([reports](docs/spec/reports.md)) |
 | **Self-host** | `iw deploy` puts the same server on Cloudflare Workers + R2 + D1 behind Access, or run it with Node/Docker |
 | **No lock-in** | Files are the truth; `iw export --full` writes a lossless archive |

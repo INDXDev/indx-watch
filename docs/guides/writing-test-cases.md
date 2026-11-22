@@ -1,6 +1,6 @@
 # Writing good test cases
 
-INDX Watch can only tell you a release is done if the definitions say clearly what "done" means. This guide shows how to write use cases, acceptance criteria and test cases that anyone — a new tester, a customer, Playwright or an agent — can execute the same way. Field-level rules live in the [bundle format](../spec/bundle-format.md); the meaning of each entity in [concepts](../spec/concepts.md). All examples are from [`examples/shop`](../../examples/shop/.indx-watch).
+INDX Watch can only tell you a release is done if the definitions say clearly what "done" means. This guide shows how to write use cases, acceptance criteria and test cases that anyone — a new tester, a customer, Playwright or an agent — can execute the same way. Field-level rules live in the [bundle format](../spec/bundle-format.md); the meaning of each entity in [concepts](../spec/concepts.md). All examples are from [`examples/shop`](../../examples/shop/.indx-watch). With Claude Code or Codex, `/iw-design` writes test cases that follow this guide and explains each one before it writes it ([testing with agents](testing-with-agents.md#design-tests-iw-design)).
 
 ## Start from the use case
 
@@ -42,14 +42,50 @@ Add a criterion with `iw new ac --uc UC-2 --text "…"`. Criteria are never dele
 [[steps]]
 instruction = "Open the cart and enter {{FX-1.code}} in the coupon field, then press \"Apply\"."
 expected = "The discount line shows \"-4.00\" and the total is \"36.00\"."
+checks = ["The discount line shows \"-4.00\".", "The total is \"36.00\"."]
 evidence = ["screenshot"]
 ```
 
 - **`instruction`** is what to do, in plain language. No CSS selectors, no code, no "verify that…".
 - **`expected`** is what must be visible afterwards. If a tester cannot decide pass or fail by looking, rewrite it.
+- **`checks`** split `expected` into yes/no observations, one per thing to look at ([guidance](#guidance-purpose-start-checks-and-test-data)).
 - **`evidence`** asks for proof at that step: `screenshot`, `video`, `trace`, `log` or `file`. Ask for a screenshot on every step that proves an AC.
 - **`preconditions`** describe the starting state once ("The cart contains one \"Canvas Tote\" (price 40.00)."), so steps do not repeat it.
 - Keep a test case short (2–6 steps) and focused on the ACs it lists in `covers`. Write another test case rather than a long one.
+
+## Guidance: purpose, start, checks and test data
+
+A person who has never seen the app should be able to run a test case from its page alone, without asking what it is for, where to begin or what to do with a file. Four optional fields give them that. They do not change the test case version, so adding them later keeps existing results current, and `iw check` warns (`missing-guidance`) when a `ready` manual or hybrid test case has no `purpose` or no start ([field rules](../spec/bundle-format.md#specsfeatuctc-n-slugtoml)).
+
+```toml
+key = "TC-3"
+title = "Valid coupon reduces the total"
+purpose = "Coupons let shoppers pay less. This test proves that a valid code lowers the cart total by its discount."
+start = "/cart"
+start_note = "Open the cart."
+preconditions = "The cart contains one \"Canvas Tote\" (price 40.00)."
+
+[[fixtures]]
+ref = "FX-1"
+rows = ["SUMMER10"]
+use = "enter"
+note = "Type this code in the coupon field in step 1."
+```
+
+| Field | Write | Shop example |
+|---|---|---|
+| `purpose` | Two sentences for a newcomer: why the feature matters, then what this test proves. No jargon, no step details. | TC-6: "Many shoppers order from a phone. This test proves that the order confirmation is readable on a small screen." |
+| `start` | The path where the tester begins, appended to the environment's `base_url`; the page shows it as an Open link. | `"/cart"` → http://localhost:4173/cart on `staging` |
+| `start_note` | One sentence about the starting point, especially when a path is not enough. | TC-6: "Open the shop on a phone or in a 390 px wide browser window." |
+| step `checks` | Yes/no observations that together make up `expected`, one per thing to look at; quote on-screen text exactly. The runner shows them as checkboxes, and an agent asks them as questions. | TC-6: "The page fits the screen without scrolling sideways.", "The whole order number is visible." |
+| fixture `use` | What the tester does with the data: `enter` (type or paste it), `download` (save the file), `upload` (save it, then attach it in a step) or `seeded` (already in the app; nothing to do). | TC-3: FX-1 `enter`, FX-2 `seeded`; TC-9: FX-3 `enter`, FX-4 `upload` |
+| fixture `note` | One sentence naming the step that uses it. | TC-9: "Download the photo, then attach it in step 2." |
+
+Translate them like the other fields (`purpose`, `start_note` in `[i18n.ja]`, `checks` in `[steps.i18n.ja]`, `note` in `[fixtures.i18n.ja]`); a translated `checks` list keeps one item per source check.
+
+The web app turns these fields into the one-page test case: *What this tests* (purpose, feature, covered criteria), *Before you start* (the Open link, a card per fixture with what to do and a download button for files, preconditions as a checklist), *Steps* with their checks, and *Result*:
+
+![TC-9 on one page: the purpose, the FX-3 account card, the FX-4 photo with its download button and note, and steps with checks](../design/screenshots/test-case-1280.png)
 
 ## Literal strings
 
@@ -69,13 +105,15 @@ Do not hard-code test data or credentials in steps. Reference a [fixture](fixtur
 - `{{FX-3.username}}` — a field of account `FX-3`; the password is never written, steps say "the account password"
 - `{{env.base_url}}` — a field of the environment the run uses
 
+Say on each fixture reference what the tester does with it (`use`, `note`; see [guidance](#guidance-purpose-start-checks-and-test-data)).
+
 ## Modes and judges
 
 | Mode         | When                                                                                                                      | Default judge    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `manual`     | A person follows the steps in the browser runner (or records with `iw record`)                                            | `human`          |
 | `playwright` | A Playwright test tagged `@TC-n` implements it; list the file in `[automation] files` ([Playwright guide](playwright.md)) | `assert`         |
-| `agent`      | An LLM browser agent follows the plain-language steps (planned for v0.2)                                                  | `assert` + `llm` |
+| `agent`      | An LLM browser agent follows the plain-language steps (`iw run`)                                                          | `assert` + `llm` |
 | `hybrid`     | An agent or script executes, a person confirms; always ends in `needs_review` until a human judges                        | any + `human`    |
 
 Write the steps of a `playwright` test case as carefully as a manual one: they are the specification the test implements, and step results map by number when the test uses `test.step('1. …')`.
@@ -94,7 +132,7 @@ Set the priority on the use case. A test case inherits the highest priority of t
 
 Every new item starts as `draft` unless a human creates it with `--ready`. Drafts can be run and planned, but they do not count towards coverage or readiness.
 
-Coding agents with the [shipped skills](../../skills/README.md) write drafts with `origin = "ai"` and an `[ai]` table naming the model — `TC-9` in the shop is one:
+Coding agents with the [shipped skills](../../skills/README.md) (`/iw-design` in Claude Code, `$iw-design` in Codex) write drafts with `origin = "ai"` and an `[ai]` table naming the model — `TC-9` in the shop is one:
 
 ```toml
 key = "TC-9"

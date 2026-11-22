@@ -36,10 +36,10 @@ jobs:
         run: scripts/check-report.sh
       - name: Worker bundle builds (wrangler deploy --dry-run)
         run: pnpm check:worker
-      - name: Pack the CLI and run the README quickstart in an empty project
+      - name: Pack the CLI and run the CLI quickstart (docs/guides/quickstart.md, "Without an agent") in an empty project
         # Install the tarball like the npm package (`npx <absolute .tgz>` tries to execute the file on npm 10/11).
         # In CI a run takes its release from the CI context, so `record` names it.
-        # The README reader is a person: TC-1 is manual (default judge `human`), so `record` runs as one via IW_ACTOR.
+        # The quickstart reader is a person: TC-1 is manual (default judge `human`), so `record` runs as one via IW_ACTOR.
         run: |
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP")
           # The build only warns when the reporter or the web build is missing, so check the tarball itself.
