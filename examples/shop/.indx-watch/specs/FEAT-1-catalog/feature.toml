@@ -4,6 +4,7 @@ id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y10"
 key = "FEAT-1"
 title = "Catalog"
 description = "Browsing and searching products."
+owners = ["group:qa@shop.test"]
 
 [i18n.ja]
 title = "カタログ"

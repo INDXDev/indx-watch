@@ -32,7 +32,7 @@ export type InPlaceRun = { session?: string[] | undefined; close(): void };
 export function TestCaseView({ tcKey, run }: { tcKey: string; run?: InPlaceRun | undefined }) {
   const { scope } = useApp();
   const tc = useApi(() => api.testCase(tcKey, scope), [tcKey, scope.release, scope.env]);
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs({ ...scope, mine: false }), [scope.release, scope.env]);
   const [editing, setEditing] = useState(false);
   const done = (saved: boolean) => [setEditing(false), saved && tc.reload()];
   return (

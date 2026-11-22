@@ -161,3 +161,22 @@ describe('commands: serve, --help and --version', () => {
     expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.0');
   });
 });
+
+describe('commands: status --mine and list --mine (docs/spec/concepts.md#feature-owners)', () => {
+  it('narrows status and lists to the features the actor owns', () => {
+    const dir = shop();
+    iwJson(dir, 'sync', ['sync']);
+    const env = { IW_ACTOR: 'alex@shop.test' }; // owns Checkout
+    const mine = iwJson(dir, 'status', ['status', '--mine'], { env }).json.data;
+    expect(mine.mine).toEqual({ actor: 'alex@shop.test', features: ['FEAT-2'] });
+    expect(mine.testCases.map((t: { key: string }) => t.key)).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    const all = iwJson(dir, 'status', ['status'], { env }).json.data;
+    expect(all.mine).toBeUndefined();
+    for (const t of mine.testCases) expect(all.testCases).toContainEqual(t);
+    const tcs = iwJson(dir, 'list', ['list', 'tcs', '--mine'], { env }).json.data.items;
+    expect(tcs.map((t: { key: string }) => t.key)).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    const none = iwJson(dir, 'status', ['status', '--mine']).json.data; // qa@shop.test owns nothing by ID
+    expect([none.mine.features, none.testCases]).toEqual([[], []]);
+    expect(iw(dir, ['status', '--mine'], { env }).stdout).toContain('My features (alex@shop.test): FEAT-2');
+  });
+});

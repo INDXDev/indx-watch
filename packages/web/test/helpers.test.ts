@@ -19,7 +19,7 @@ import {
 } from '../src/screens/runner/model';
 import { firstOpen } from '../src/screens/runner/useRun';
 import { testOrder } from '../src/screens/Tests';
-import { cliCommands } from '../src/shell';
+import { cliCommands, startMine } from '../src/shell';
 import { avatarOf, neighbours } from '../src/ui';
 import { plan } from '../src/upload';
 
@@ -333,5 +333,37 @@ describe('writes', () => {
     await api.review('run_x', { verdict: 'pass', reason: 'ok' });
     await api.uploadBlob(new Blob(['x'], { type: 'image/png' }), 'a.png');
     for (const init of sent) expect((init.headers as Record<string, string>)['X-IW-Request']).toBe('1');
+  });
+});
+
+describe('my features (docs/spec/web.md#my-features)', () => {
+  it('starts in "My features" when the viewer owns a feature and has not chosen "All features"', () => {
+    expect(startMine({ owns: ['FEAT-2'] }, null)).toBe(true);
+    expect(startMine({ owns: ['FEAT-2'] }, 'mine')).toBe(true);
+    expect(startMine({ owns: ['FEAT-2'] }, 'all')).toBe(false);
+    expect(startMine({ owns: [] }, 'mine')).toBe(false);
+    expect(startMine({}, null)).toBe(false);
+  });
+
+  it('asks status and specs with mine=1 only in "My features"; test cases never', async () => {
+    const paths: string[] = [];
+    setTransport({
+      fetch: async (path) => {
+        paths.push(path);
+        return Response.json({});
+      },
+      blobUrl: (sha) => sha,
+    });
+    const mine = { release: 'v1.2.0', mine: true };
+    await api.status(mine);
+    await api.specs(mine);
+    await api.specs({ ...mine, mine: false });
+    await api.testCase('TC-3', mine);
+    expect(paths).toEqual([
+      'api/status?release=v1.2.0&mine=1',
+      'api/specs?release=v1.2.0&mine=1',
+      'api/specs?release=v1.2.0',
+      'api/test-cases/TC-3?release=v1.2.0',
+    ]);
   });
 });

@@ -23,7 +23,7 @@ export function Activity({ filter }: { filter?: string | undefined }) {
   const { scope } = useApp();
   const deps = [scope.release, scope.env];
   const runs = useApi(() => api.runs({ release: scope.release, env: scope.env, limit: 200 }), deps);
-  const specs = useApi(() => api.specs(scope), deps);
+  const specs = useApi(() => api.specs({ ...scope, mine: false }), deps);
   const snaps = useApi(api.snapshots, []);
   const f: Filter = filter === 'review' ? 'review' : 'all';
   const [shown, setShown] = useState(50);

@@ -4,6 +4,7 @@ id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y12"
 key = "FEAT-3"
 title = "Account"
 description = "Signing in and customer content."
+owners = ["sam@shop.test"]
 
 [i18n.ja]
 title = "アカウント"

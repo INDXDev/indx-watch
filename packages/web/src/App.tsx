@@ -9,7 +9,7 @@ import { Home } from './screens/Home';
 import { Report } from './screens/Report';
 import { TestFocus, Tests } from './screens/Tests';
 import { Uploads } from './screens/Uploads';
-import { AccountMenu, CliPanel, IdentityDialog, ScopeMenu, THEMES, type Theme } from './shell';
+import { AccountMenu, CliPanel, IdentityDialog, ScopeMenu, startMine, THEMES, type Theme } from './shell';
 import { Load, OriginalContext, useApi } from './ui';
 import { DropOverlay, type Picked, Pickers, UploadDialog } from './upload';
 
@@ -90,7 +90,11 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
   const [scope, setScope] = useState<Scope>({
     release: info.project.current_release ?? info.releases[0]?.version,
     env: undefined, // all environments, like `iw status` and `iw report`
+    mine: startMine(info),
   });
+  // re-derive when the viewer's owned features change (e.g. after switching the local identity)
+  const owns = info.owns?.join(' ') ?? '';
+  useEffect(() => setScope((s) => ({ ...s, mine: startMine({ owns: owns ? [owns] : [] }) })), [owns]);
   const [theme, setTheme] = useState<Theme>(() => (readStored('indx-watch.theme') as Theme) || 'auto');
   const [who, setWho] = useState(false);
   const [uploading, setUploading] = useState<{ picked: Picked[] | null } | null>(null);

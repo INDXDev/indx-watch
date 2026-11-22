@@ -5,7 +5,7 @@ import * as core from '@indx-watch/core';
 import { listItems, showEntity, statusData } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { B, csv, fail, git, iso, P, pick, S, str } from '../util.js';
+import { type Args, B, type Ctx, csv, fail, git, iso, P, pick, S, str } from '../util.js';
 import { pngShots } from '../visual.js';
 
 import { buildOf, runCommands, VERDICT, verdictOf } from './results-run.js';
@@ -30,22 +30,34 @@ function statusText(s: ReturnType<typeof statusData>, release?: string, env?: st
   ].join('\n');
 }
 
+/** With --mine, the model narrowed to the features the current actor owns (docs/spec/concepts.md#feature-owners). */
+async function mineOf(ctx: Ctx, a: Args, m: core.Model) {
+  if (!a.mine) return { m };
+  const actor = (await cx.actorOf(ctx)).id;
+  const features = core.ownedFeatures(m, { id: actor, groups: [] });
+  return { m: core.ownedModel(m, features), mine: { actor, features } };
+}
+const MINE = B('Only the features you own (owners in feature.toml)');
+
 export const resultCommands: Record<string, Spec> = {
   status: {
     description: 'Coverage, use case status and the readiness gate for a release',
     args: {
       ...{ release: S('Default: current_release'), env: S('Default: any') },
-      ...{ gate: B('Exit 1 if the gate fails'), sync: B('Run iw sync first') },
+      ...{ gate: B('Exit 1 if the gate fails'), sync: B('Run iw sync first'), mine: MINE },
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
       const store = p.bundle.project.data.store ?? ctx.env.IW_STORE;
       if (a.sync && store) await (await import('./data.js')).dataCommands.sync!.run(ctx, { dir: a.dir });
       const scope = { release: cx.releaseOf(ctx, p, a), environment: str(a.env) ?? ctx.env.IW_ENV };
-      const m = await cx.loadModel(p);
-      const warnings = cx.checkScope(m, a, scope);
-      const data = statusData(m, scope);
-      const text = statusText(data, scope.release, scope.environment);
+      const all = await cx.loadModel(p);
+      const warnings = cx.checkScope(all, a, scope);
+      const { m, mine } = await mineOf(ctx, a, all);
+      const data = { ...statusData(m, scope), ...(mine && { mine }) };
+      const text =
+        (mine ? `My features (${mine.actor}): ${mine.features.join(' ') || '(none)'}\n` : '') +
+        statusText(data, scope.release, scope.environment);
       const failed = data.gate.checks.filter((c) => !c.passed);
       if (a.gate && !data.gate.passed) fail('GATE_FAILED', 'The readiness gate failed', failed, data, text);
       return { data, warnings, text };
@@ -112,14 +124,15 @@ export const resultCommands: Record<string, Spec> = {
     args: {
       what: P('features | ucs | tcs | fixtures | envs | releases | plans | runs'),
       status: S('Definition status, computed status or verdict'),
-      ...{ tag: S(), priority: S(), mode: S(), uc: S(), tc: S(), release: S(), limit: S() },
+      ...{ tag: S(), priority: S(), mode: S(), uc: S(), tc: S(), release: S(), limit: S(), mine: MINE },
     },
     async run(ctx, a) {
       const p = await cx.openProject(ctx, a);
       const scope = { release: cx.releaseOf(ctx, p, a), environment: ctx.env.IW_ENV };
       const f = Object.fromEntries(FILTERS.map((k) => [k, str(a[k])]));
       const limit = str(a.limit) ? Number(a.limit) : undefined;
-      const items = listItems(await cx.loadModel(p), str(a.what) ?? '', f, scope, limit);
+      const { m } = await mineOf(ctx, a, await cx.loadModel(p));
+      const items = listItems(m, str(a.what) ?? '', f, scope, limit);
       const label = (x: Record<string, unknown>) => [
         x.key ?? x.id ?? x.name ?? x.version,
         x.result ?? x.verdict ?? x.status ?? x.state,

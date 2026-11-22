@@ -227,6 +227,7 @@ id = "fea_01JF3Q8M5X2V7K9D4R6T1W0Y11"
 key = "FEAT-2"
 title = "Checkout"
 description = "Cart, coupons and placing an order."
+owners = ["alex@shop.test"]
 
 [i18n.ja]
 title = "購入手続き"
@@ -234,6 +235,8 @@ description = "カート・クーポン・注文確定。"
 status = "reviewed"
 source_hash = "21d4059be89b"
 ```
+
+- `owners` *(v0.4, optional)*: who looks after the feature's tests, each an email (or another actor ID) or `group:<name>` for everyone in an Access group, matched like a plan item's [`assignee`](#plansplan-slugtoml) (without case; a group matches its ID, name or email, and only where groups are known: the hosted app with [roles](security.md#roles)). Owners decide what "my features" means ([concepts](concepts.md#feature-owners)); they grant no permission and are not translated.
 
 ## `specs/<FEAT>/<UC>/use-case.toml`
 

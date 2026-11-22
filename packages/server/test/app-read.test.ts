@@ -60,6 +60,25 @@ describe('read routes: project and status', () => {
   });
 });
 
+describe('read routes: my features (docs/spec/web.md#my-features)', () => {
+  it('GET /api/project lists the owned features; ?mine=1 narrows specs and status to them', async () => {
+    const { app: a } = await app(); // Alex owns Checkout in examples/shop
+    expect((await get<ProjectInfo>(a, '/api/project')).owns).toEqual(['FEAT-2']);
+    const keys = (t: SpecTree) =>
+      t.features.flatMap((f) =>
+        f.useCases.flatMap((u) => u.criteria.flatMap((c) => c.testCases.map((x) => x.key))),
+      );
+    const mine = await get<SpecTree>(a, '/api/specs?mine=1');
+    expect(mine.features.map((f) => [f.key, f.owners])).toEqual([['FEAT-2', ['alex@shop.test']]]);
+    expect([...new Set(keys(mine))]).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    const status = await get<StatusResult>(a, '/api/status?mine=1');
+    expect(status.testCases.map((t) => t.key)).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    expect(keys(await get<SpecTree>(a, '/api/specs'))).toContain('TC-1');
+    const { app: other } = await app({ actor: { kind: 'human', id: 'kim@shop.test', via: 'git' } });
+    expect((await get<ProjectInfo>(other, '/api/project')).owns).toEqual([]);
+  });
+});
+
 describe('read routes: specs and test cases', () => {
   it('GET /api/specs and /api/status carry the flake rate of a flaky test case', async () => {
     const b = await shop();

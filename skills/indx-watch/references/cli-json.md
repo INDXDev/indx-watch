@@ -48,7 +48,7 @@ The contract is `packages/cli/src/json.ts` in the INDX Watch repository (`Comman
 | 5    | A visual diff over the threshold → `needs_review`                                    |
 | 6    | An `llm` judgement below `llm_pass_confidence`, or `fail`/`unknown` → `needs_review` |
 | 7    | Priority in `require_human_for`, or mode `hybrid` → `needs_review`                   |
-| 8    | Every judgement passed → `pass`                                                      |
+| 8    | Every judgement passed and every declared judge kind (default `human` for `manual`, `assert` for `playwright`) has one → `pass` |
 | 9    | No judgements → `needs_review`                                                       |
 | 10   | Anything else → `needs_review`                                                       |
 

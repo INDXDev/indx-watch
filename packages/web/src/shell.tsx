@@ -1,11 +1,16 @@
 /** Top-bar pieces: scope menu, CLI panel, account menu and the "Who's testing?" dialog (docs/spec/web.md#layout). */
 import { useState } from 'react';
 import type { ProjectInfo, Scope } from './api';
-import { LOCALES, type Locale, useI18n } from './i18n';
+import { LOCALES, type Locale, readStored, useI18n, writeStored } from './i18n';
 import type { Route } from './router';
-import { Avatar, Copy, Dialog, isVerified, Popover, personName, txt } from './ui';
+import { Avatar, Copy, Dialog, isVerified, Popover, personName, Seg, txt } from './ui';
 
 export type Theme = 'auto' | 'light' | 'dark';
+/** where the viewer's My / All features choice is kept (docs/spec/web.md#my-features) */
+const FEATURES = 'indx-watch.features';
+/** "My features" is on when the viewer owns a feature and has not chosen "All features". Tested. */
+export const startMine = (info: Pick<ProjectInfo, 'owns'>, stored = readStored(FEATURES)) =>
+  !!info.owns?.length && stored !== 'all';
 export const THEMES: Theme[] = ['auto', 'light', 'dark'];
 
 export function ScopeMenu({
@@ -23,7 +28,10 @@ export function ScopeMenu({
   const button = (
     <>
       <span className="scope-main">{scope.release ?? t('scope.noRelease')}</span>
-      <span className="scope-sub">{env ? txt(env, 'title', locale) : t('scope.allEnvironments')}</span>
+      <span className="scope-sub">
+        {env ? txt(env, 'title', locale) : t('scope.allEnvironments')}
+        {scope.mine && ` · ${t('scope.mine')}`}
+      </span>
       <span aria-hidden="true"> ▾</span>
     </>
   );
@@ -59,6 +67,18 @@ export function ScopeMenu({
               ))}
             </select>
           </label>
+          {!!info.owns?.length && (
+            <Seg
+              label={t('scope.features')}
+              value={scope.mine ? 'mine' : 'all'}
+              options={['mine', 'all'] as const}
+              text={(v) => t(v === 'mine' ? 'scope.mine' : 'scope.allFeatures')}
+              onChange={(v) => {
+                writeStored(v, FEATURES);
+                setScope({ ...scope, mine: v === 'mine' });
+              }}
+            />
+          )}
         </div>
       )}
     </Popover>

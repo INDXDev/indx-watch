@@ -34,7 +34,7 @@ export function testOrder(tree: SpecTree, filter?: string): string[] {
 
 export function Tests({ filter }: { filter?: string | undefined }) {
   const { scope } = useApp();
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   return <Load state={specs}>{(s) => <Tree tree={s} filter={asFilter(filter)} />}</Load>;
 }
 
@@ -54,9 +54,10 @@ export function TestFocus(props: {
   const { t } = useI18n();
   // the route opens the runner as is; the button runs the rest of the list as a session (Save and next)
   const [running, setRunning] = useState<'route' | 'button' | false>(props.run ? 'route' : false);
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
-  const list = session ?? (items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey]);
+  const all = specs.data ? testOrder(specs.data) : [];
+  const list = session ?? (items.includes(tcKey) ? items : all.includes(tcKey) ? all : [tcKey]);
   const q = query(asFilter(filter));
   const rest = list.slice(list.indexOf(tcKey));
   // while running, ← / →, swipes and the footer step through the run's session (the URL's, else the rest of the list)
@@ -198,6 +199,7 @@ function Quarantine({ tree, needle }: { tree: SpecTree; needle: string }) {
 }
 
 function FeatureNode({ f, filter }: { f: Feature; filter: Filter }) {
+  const { t } = useI18n();
   return (
     <details className="card tree-feature" open>
       <summary>
@@ -208,6 +210,9 @@ function FeatureNode({ f, filter }: { f: Feature; filter: Filter }) {
         <span className="muted grow">
           <Tx of={f} field="description" />
         </span>
+        {!!f.owners?.length && (
+          <span className="muted small">{t('specs.owners', { owners: f.owners.join(', ') })}</span>
+        )}
       </summary>
       {f.useCases.map((u) => (
         <UseCaseNode key={u.key} u={u} filter={filter} />

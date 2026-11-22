@@ -28,6 +28,13 @@
     "description": {
       "type": "string"
     },
+    "owners": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(ci|agent:[a-z0-9-]+|group:\\S.*|[^@\\s]+@[^@\\s]+)$"
+      }
+    },
     "i18n": {
       "type": "object",
       "propertyNames": {

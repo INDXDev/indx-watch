@@ -26,7 +26,7 @@ A run is one execution of one test case version against one build and environmen
    Release and environment default to `current_release` and `default_environment` in `project.toml`; pass `--release` / `--env` only when the user names them. Draft test cases may be run.
 2. **Prepare.** Check that the environment's `base_url` answers. For a fixture with `apply = "before_run"`, send its JSON to the environment's seed hook. For a `file` fixture stored as a pointer (`*.blob.toml`), run `iw fixture fetch FX-n --json` first. For an `account` fixture, check that the variable in its `secret_ref` (e.g. `env:SHOP_CUSTOMER_PASSWORD`) is set; never print it.
 3. **Execute by mode.**
-   - `playwright`: run the linked test by tag, anchored so `@TC-1` does not match `@TC-12`:
+   - `playwright`: run the linked test by tag, anchored so `@TC-1` does not match `@TC-10`:
 
      ```bash
      IW_ACTOR_KIND=agent IW_AGENT_MODEL=M npx playwright test --grep "@TC-3(\s|$)"
@@ -66,6 +66,6 @@ User: "Run the test cases for UC-5." (After the `write-test-cases` example, UC-5
 1. `iw list tcs --uc UC-5 --json` → TC-9 (manual, FX-3 + FX-4), TC-11 (manual, FX-3 + FX-5). `iw list envs --json` → `staging`, `base_url = "http://localhost:4173"`.
 2. Start the app if it is not running: `node examples/shop/app/server.mjs`. `iw fixture fetch FX-4 --json` (the photo is a pointer). Check that `SHOP_CUSTOMER_PASSWORD` is set.
 3. With a short Playwright script (password from `process.env.SHOP_CUSTOMER_PASSWORD`): sign in as `casey@shop.test`, open "Canvas Tote", attach the photo, press "Post review", screenshot. The review shows a thumbnail.
-4. `IW_ACTOR_KIND=agent IW_AGENT_MODEL=claude-opus-5-5 iw record TC-9 --verdict pass --confidence 0.9 --step 1=pass --step 2=pass --evidence tc9-step2.png@2 --json` → `verdict: "pass"`.
-5. Same for TC-11 with FX-5: "Photos must be PNG or JPEG" appears → `pass`; if the review had been posted instead, record `--verdict fail --step "2=fail:Review was posted; no message shown"`.
+4. `IW_ACTOR_KIND=agent IW_AGENT_MODEL=claude-opus-5-5 iw record TC-9 --verdict pass --confidence 0.9 --step 1=pass --step 2=pass --evidence tc9-step2.png@2 --json` → `verdict: "needs_review"`, `rule: 10`: TC-9 declares a `human` judge (the default for `manual`), so a person confirms the run with `iw review`.
+5. Same for TC-11 with FX-5: "Photos must be PNG or JPEG" appears → `needs_review` as well; if the review had been posted instead, record `--verdict fail --step "2=fail:Review was posted; no message shown"`.
 6. Skip `iw sync` here: the shop's store is the committed sample in `examples/shop/store`, so ask before pushing to it. Reply with both run IDs and verdicts, and remind the human that TC-9 and TC-11 count towards readiness only after `iw approve`.

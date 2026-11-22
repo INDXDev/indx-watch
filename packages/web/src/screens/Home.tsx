@@ -43,7 +43,7 @@ export function queue(
 
 export function Home() {
   const { scope } = useApp();
-  const deps = [scope.release, scope.env];
+  const deps = [scope.release, scope.env, scope.mine];
   const status = useApi(() => api.status(scope), deps);
   const specs = useApi(() => api.specs(scope), deps);
   const plans = useApi(api.plans, []);
