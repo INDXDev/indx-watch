@@ -1,0 +1,53 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M82AJNYS3XZCRASJ0NZ485DJ"
+key = "UC-9"
+title = "Tester tests the features they own"
+status = "draft"
+origin = "ai"
+actor = "Tester"
+goal = "Start from their own features without searching the whole project."
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M82AJNYS3XZCRASJ0NZ485DG"
+key = "AC-9.1"
+text = "A tester who owns features sees only those features on Home, Tests and Focus by default."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:56Z
+
+[criteria.i18n.ja]
+text = "機能を担当するテスターには、既定でホーム、テスト、フォーカスにその機能だけが表示される。"
+status = "machine"
+source_hash = "0f097150a0de"
+
+[[criteria]]
+id = "ac_01M82AJNYS3XZCRASJ0NZ485DH"
+key = "AC-9.2"
+text = "\"All features\" brings every feature back, and the browser keeps that choice."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:56Z
+
+[criteria.i18n.ja]
+text = "「All features」ですべての機能が戻り、ブラウザはその選択を保持する。"
+status = "machine"
+source_hash = "5ab1214889df"
+
+[i18n.ja]
+title = "テスターが自分の担当する機能をテストする"
+actor = "テスター"
+goal = "プロジェクト全体を探さずに、自分の機能から始める。"
+status = "machine"
+source_hash = "5f9b6118b9a0"
+
+[ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:56Z

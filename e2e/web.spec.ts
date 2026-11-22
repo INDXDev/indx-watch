@@ -101,16 +101,17 @@ test('declare who is testing', { tag: ['@TC-13'] }, async ({ page }) => {
   }
 });
 
-// docs/spec/web.md#test-case-page (dogfood test cases for it come with T-408)
-test('one-page test case with the manual run in place', async ({ page }) => {
-  const dir = shopCopy();
-  const server = await serve(dir);
+// docs/spec/web.md#test-case-page
+test('test data cards offer downloads and name the upload step', { tag: ['@TC-16'] }, async ({ page }) => {
+  const server = await serve(shopCopy());
   try {
-    await test.step('1. TC-9 reads top to bottom; its photo card offers the download and names the upload step', async () => {
+    await test.step('1. TC-9 reads top to bottom and links to its start page', async () => {
       await page.goto(`${server.url}#/tc/TC-9`);
       const headings = page.getByRole('heading', { level: 2 });
       await expect(headings).toHaveText(['What this tests', 'Before you start', 'Steps (2)', 'Result']);
       await expect(page.getByRole('link', { name: /Open http:\/\/localhost:4173\/sign-in/ })).toBeVisible();
+    });
+    await test.step('2. the photo card offers the download and names the upload step', async () => {
       const card = page.locator('.data-card', { hasText: 'Review photo' });
       await expect(card).toContainText('Download this file, then attach it where a step asks for it');
       await expect(card).toContainText('Step 2: Attach the file from FX-4');
@@ -119,7 +120,16 @@ test('one-page test case with the manual run in place', async ({ page }) => {
       expect(res.status()).toBe(200);
       expect(res.headers()['content-type']).toBe('image/png');
     });
-    await test.step('2. "Run manually" on TC-3 opens the runner without changing the URL', async () => {
+  } finally {
+    server.stop();
+  }
+});
+
+test('one-page test case with the manual run in place', { tag: ['@TC-15'] }, async ({ page }) => {
+  const dir = shopCopy();
+  const server = await serve(dir);
+  try {
+    await test.step('1. "Run manually" on TC-3 opens the runner without changing the URL', async () => {
       await page.goto(`${server.url}#/tc/TC-3`);
       await page.getByRole('button', { name: /Run manually/ }).click();
       await expect(page.getByRole('group', { name: 'Result of step 1' })).toBeVisible();
@@ -127,7 +137,7 @@ test('one-page test case with the manual run in place', async ({ page }) => {
       await expect(page.getByRole('heading', { name: 'Before you start' })).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: /^Test 1 of \d+/ })).toBeVisible();
     });
-    await test.step('3. a fail with an unticked check asks for a note; ticking every check suggests pass', async () => {
+    await test.step('2. a fail with an unticked check asks for a note; ticking every check suggests pass', async () => {
       await page.getByRole('checkbox', { name: /The discount line shows/ }).check();
       // → would move to the next test case of the session: it asks first, and staying keeps the work
       let asked = '';
@@ -149,14 +159,14 @@ test('one-page test case with the manual run in place', async ({ page }) => {
       await page.getByRole('checkbox', { name: /order number/ }).check();
       await expect(page.getByText('Every check holds, so this step passes.')).toBeVisible();
       await next.click();
+    });
+    await test.step('3. the saved run records the ticked checks on each step', async () => {
       await page.getByLabel('Reason (required)').fill('The discount was not applied.');
       await page.getByRole('button', { name: /^Save/ }).click();
       await expect(page).not.toHaveURL(/#\/tc\/TC-3$/);
-      const records = join(dir, '.indx-watch/runs/records');
-      const runs = readdirSync(records, { recursive: true, encoding: 'utf8' })
-        .filter((f) => f.endsWith('.json'))
-        .map((f) => JSON.parse(readFileSync(join(records, f), 'utf8')))
-        .filter((r) => r.kind === 'run' && r.test_case.key === 'TC-3' && r.source === 'manual');
+      const runs = records(dir).filter(
+        (r) => r.kind === 'run' && r.test_case.key === 'TC-3' && r.source === 'manual',
+      );
       expect(runs).toHaveLength(1);
       expect(runs[0].steps).toEqual([
         { index: 1, status: 'fail', note: 'The total stayed at 40.00.', checks: [true, false] },
@@ -167,3 +177,42 @@ test('one-page test case with the manual run in place', async ({ page }) => {
     server.stop();
   }
 });
+
+// docs/spec/web.md#my-features: alex@shop.test owns Checkout (FEAT-2) in examples/shop
+test('a tester sees only the features they own', { tag: ['@TC-17'] }, async ({ page }) => {
+  const server = await serve(shopCopy(), { IW_ACTOR: 'alex@shop.test', IW_ACTOR_NAME: 'Alex' });
+  const scope = page.getByRole('button', { name: 'Release and environment' });
+  const all = page.getByRole('radio', { name: 'All features' });
+  /** the test cases of the Tests tree, once each, in key order */
+  const keys = async () => {
+    const shown = await page.locator('.tc-chip .key').allTextContents();
+    return [...new Set(shown)].sort((a, b) => +a.slice(3) - +b.slice(3));
+  };
+  try {
+    await test.step('1. Tests lists only the Checkout test cases, under "My features"', async () => {
+      await page.goto(`${server.url}#/tests`);
+      await expect(scope).toContainText('My features');
+      await expect.poll(keys).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    });
+    await test.step('2. "All features" brings the rest back and survives a reload', async () => {
+      await scope.click();
+      await page.getByRole('dialog').getByText('All features').click(); // the radio itself is visually hidden
+      await expect.poll(keys).toEqual(expect.arrayContaining(['TC-1', 'TC-3', 'TC-9']));
+      await expect(scope).not.toContainText('My features');
+      await page.reload();
+      await expect.poll(async () => (await keys()).length).toBeGreaterThan(4);
+      await scope.click();
+      await expect(all).toBeChecked();
+    });
+  } finally {
+    server.stop();
+  }
+});
+
+/** Every record the server wrote into the copy's local replica. */
+function records(dir: string) {
+  const root = join(dir, '.indx-watch/runs/records');
+  return readdirSync(root, { recursive: true, encoding: 'utf8' })
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => JSON.parse(readFileSync(join(root, f), 'utf8')));
+}

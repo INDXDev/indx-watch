@@ -1,0 +1,72 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M82AH6M30CSK9TTZ5GCKNPG2"
+key = "TC-15"
+title = "One-page test case with the manual run in place"
+status = "draft"
+origin = "ai"
+covers = ["AC-3.5"]
+mode = "playwright"
+purpose = "Testers should read a test case once, top to bottom, and run it without leaving the page. This test proves that \"Run manually\" opens the runner in place and that the ticked checks reach the run record."
+start = "/#/tc/TC-3"
+start_note = "Serve a copy of examples/shop as the environment guide says, then open TC-3."
+
+[[steps]]
+instruction = "Press \"Run manually\" on TC-3"
+expected = "The runner opens at step 1 inside the page, and the address stays #/tc/TC-3."
+checks = [
+  "The address is still #/tc/TC-3.",
+  "Step 1 asks for a result.",
+  "\"Before you start\" is still on the page.",
+]
+
+[steps.i18n.ja]
+instruction = "TC-3 で「Run manually」を押す。"
+expected = "ページ内でランナーがステップ 1 から開き、アドレスは #/tc/TC-3 のまま。"
+checks = ["アドレスは #/tc/TC-3 のまま。", "ステップ 1 が結果を尋ねる。", "「Before you start」がページに残っている。"]
+status = "machine"
+source_hash = "3be48b0298e4"
+
+[[steps]]
+instruction = "Tick only the first check of step 1, mark the step Fail, then tick both checks of step 2"
+expected = "Next step waits for a note on the failed step; with both checks ticked, step 2 suggests Pass."
+checks = [
+  "Next step stays disabled until the failed step has a note.",
+  "Step 2 says every check holds, so it passes.",
+]
+
+[steps.i18n.ja]
+instruction = "ステップ 1 の最初のチェックだけを付けて Fail にし、ステップ 2 の 2 つのチェックを付ける。"
+expected = "失敗したステップにメモがあるまで次へ進めず、2 つのチェックを付けたステップ 2 は Pass を提案する。"
+checks = ["失敗したステップにメモを書くまで「Next step」は無効のまま。", "ステップ 2 は、すべてのチェックが成り立つので合格だと表示する。"]
+status = "machine"
+source_hash = "4438213f98b7"
+
+[[steps]]
+instruction = "Save the result with a reason"
+expected = "The run records step 1 as fail with checks [true, false] and step 2 as pass with checks [true, true]."
+checks = ["Step 1 has checks [true, false].", "Step 2 has checks [true, true]."]
+
+[steps.i18n.ja]
+instruction = "理由を書いて結果を保存する。"
+expected = "実行記録では、ステップ 1 が fail で checks [true, false]、ステップ 2 が pass で checks [true, true] になる。"
+checks = ["ステップ 1 の checks は [true, false]。", "ステップ 2 の checks は [true, true]。"]
+status = "machine"
+source_hash = "9a9dd73bce1b"
+
+[[judges]]
+kind = "assert"
+
+[automation]
+files = ["e2e/web.spec.ts"]
+
+[i18n.ja]
+title = "1 ページのテストケースでその場で手動実行する"
+purpose = "テスターはテストケースを上から一度読み、ページを離れずに実行できるべきです。このテストは、「Run manually」でランナーがその場で開き、チェックした項目が実行記録に届くことを確かめます。"
+start_note = "環境のガイドどおりに examples/shop のコピーを起動し、TC-3 を開く。"
+status = "machine"
+source_hash = "968c89feb8a1"
+
+[ai]
+model = "claude-opus-5-5"
+created_at = 2026-11-22T19:08:08Z
