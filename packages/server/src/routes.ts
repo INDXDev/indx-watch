@@ -8,6 +8,8 @@ import {
   computeStatus,
   decide,
   type Model,
+  ownedFeatures,
+  ownedModel,
   reportData,
   type Scope,
 } from '@indx-watch/core';
@@ -59,9 +61,12 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   /** a JSON response computed from the current model */
   const get = (path: string, view: (m: Model, c: Context) => unknown) =>
     app.get(path, async (c) => c.json(await view(await model(c), c)));
+  /** with `?mine=1`, the model narrowed to the features the request's identity owns (docs/spec/web.md#my-features) */
+  const mine = async (m: Model, c: Context) =>
+    q(c, 'mine') ? ownedModel(m, ownedFeatures(m, (await x.grant(c)).who)) : m;
   app.get('/api/project', (c) => projectInfo(c, x));
-  get('/api/status', (m, c) => computeStatus(m, scopeOf(c, m)));
-  get('/api/specs', (m, c) => V.specTree(m, scopeOf(c, m)));
+  get('/api/status', async (m, c) => computeStatus(await mine(m, c), scopeOf(c, m)));
+  get('/api/specs', async (m, c) => V.specTree(await mine(m, c), scopeOf(c, m)));
   get('/api/test-cases/:key', (m, c) =>
     V.testCaseDetail(m, tcOf(m, c.req.param('key')!).data.key, scopeOf(c, m), read),
   );
@@ -90,7 +95,11 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
 
 async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ctx) {
   // a customer's model has no environment guides or access methods (docs/spec/security.md#roles)
-  const [{ problems }, m, { role }] = [await deps.loadModel(), await model(c), await grant(c)];
+  const [{ problems }, m, { role, who: principal }] = [
+    await deps.loadModel(),
+    await model(c),
+    await grant(c),
+  ];
   const [lead, customer] = [role === 'lead', role === 'customer'];
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
@@ -108,6 +117,7 @@ async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ct
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
     ...{ identity: who, mode: deps.mode, problems: customer ? [] : problems, role },
+    owns: ownedFeatures(m, principal),
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone: customer ? null : clone },
     can: {

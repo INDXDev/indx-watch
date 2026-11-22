@@ -18,7 +18,7 @@ export function placeholderValues(fixtures: TestCaseDetail['fixtures']): Record<
 export function TestCaseView({ tcKey }: { tcKey: string }) {
   const { scope } = useApp();
   const tc = useApi(() => api.testCase(tcKey, scope), [tcKey, scope.release, scope.env]);
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs({ ...scope, mine: false }), [scope.release, scope.env]);
   const acs = (specs.data?.features ?? []).flatMap((f) => f.useCases.flatMap((u) => u.criteria));
   const criteria = new Map(acs.map((c) => [c.key, c] as const));
   const [editing, setEditing] = useState(false);
