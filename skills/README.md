@@ -61,4 +61,4 @@ codex mcp add indx-watch -- npx -y indx-watch mcp
 
 ## Editing these skills
 
-Keep each `SKILL.md` short (about 150 lines) and move long material into `references/`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop).
+Keep each `SKILL.md` short (about 150 lines) and move long material into `references/`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop). `pnpm test` checks this with the [skill lint](../docs/spec/agents.md#lint): frontmatter keys and limits, every `iw` command against the headings of cli.md (write *planned* on the line for a command that does not exist yet), every key against `examples/shop` (or the next free key a worked example creates), and relative links.

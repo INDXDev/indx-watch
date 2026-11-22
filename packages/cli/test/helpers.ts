@@ -7,6 +7,8 @@ import { expect } from 'vitest';
 import { CommandData, type CommandName, ErrorEnvelope, okEnvelope } from '../src/json.js';
 
 export const ROOT = join(import.meta.dirname, '../../..');
+/** Frontmatter keys every skill client accepts (docs/spec/agents.md#skills). */
+export const PORTABLE = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
 const BIN = join(ROOT, 'packages/cli/src/bin.ts');
 /** tsx's CLI run by this node, so a test may replace PATH entirely */
 export const TSX = [join(ROOT, 'node_modules/tsx/dist/cli.mjs'), BIN];
