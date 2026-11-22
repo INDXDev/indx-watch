@@ -1,6 +1,6 @@
 import { DECISION_POLICY_DEFAULTS, type Judgement, type Priority } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
-import { decide } from '../src/index.js';
+import { decide, runFacts, type TestCaseNode } from '../src/index.js';
 
 const P = DECISION_POLICY_DEFAULTS;
 type Ctx = {
@@ -97,6 +97,22 @@ describe('decision policy rows', () => {
     expect(rule([j('assert', 'pass')], { judges: ['assert', 'visual'] }).rule).toBe(10);
     expect(rule([j('assert', 'pass')], { judges: ['assert'] })).toMatchObject({ verdict: 'pass', rule: 8 });
     expect(rule([...agent, j('human', 'pass')], { judges: ['human'] })).toMatchObject({ rule: 1 });
+  });
+  it("runFacts: a test case without [[judges]] declares its mode's default (human, assert)", () => {
+    const tc = (mode: string, judges?: { kind: string }[]) =>
+      ({ priority: 'P1', policy: P, data: { mode, judges } }) as unknown as TestCaseNode;
+    expect(runFacts(tc('manual'), null).judges).toEqual(['human']);
+    expect(runFacts(tc('playwright'), null).judges).toEqual(['assert']);
+    expect(runFacts(tc('agent'), null).judges).toBeUndefined();
+    expect(runFacts(tc('manual', [{ kind: 'llm' }]), 'blocked')).toEqual({
+      ...{ priority: 'P1', mode: 'manual', reported: 'blocked', judges: ['llm'] },
+    });
+    // an agent's confident pass of a manual test case waits for a person
+    const agent = [j('llm', 'pass', { confidence: 1 })];
+    expect(decide(agent, P, runFacts(tc('manual'), null))).toMatchObject({
+      verdict: 'needs_review',
+      rule: 10,
+    });
   });
   it('judgement order compares instants, not strings, across precisions', () => {
     const early = j('human', 'fail', { at: '2026-11-19T04:00:00Z' });

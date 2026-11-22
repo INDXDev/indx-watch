@@ -13,10 +13,13 @@ export const byTimeThenId = (at: string | undefined, a: string, bt: string | und
 /** Judgement order: by `at`, then `id`. */
 export const byAtThenId = (a: Judgement, b: Judgement): number => byTimeThenId(a.at, a.id, b.at, b.id);
 
+/** Judge kinds of a test case without `[[judges]]` (docs/spec/bundle-format.md#test-case). */
+const DEFAULT_JUDGES: Record<string, string[]> = { manual: ['human'], playwright: ['assert'] };
+
 /** The facts `decide` needs about a run of `tc`, with its declared judge kinds (rule 8); every caller passes these. */
 export const runFacts = (tc: TestCaseNode, reported: 'blocked' | 'skipped' | null) => ({
   ...{ priority: tc.priority, mode: tc.data.mode, reported },
-  judges: tc.data.judges?.map((j) => j.kind),
+  judges: tc.data.judges?.map((j) => j.kind) ?? DEFAULT_JUDGES[tc.data.mode],
 });
 
 export function decide(
