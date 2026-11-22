@@ -200,7 +200,7 @@ dependencies:
 ### `iw-setup`
 **Purpose:** connect a repository to INDX Watch once: bundle, environments, features and their owners, the Playwright reporter and CI.
 **Triggers:** "set up testing for this repo", "connect INDX Watch", "add indx-watch to this project"; 「テスト管理をセットアップして」「このリポジトリにテストを導入して」.
-**Uses:** `iw init`, `iw new feature|env|release`, `iw check`, `iw fmt`, `iw status`; `iw skills install` with the agent files of T-401 (*planned*); `owners` on features (T-402, *planned*). References: `indx-watch`.
+**Uses:** `iw init`, `iw new feature|env|release`, `iw check`, `iw fmt`, `iw status`; `iw skills install` with the agent files of T-401 (*planned*); `owners` on features ([feature owners](concepts.md#feature-owners)). References: `indx-watch`.
 
 Conversation on a copy of `examples/shop` without `.indx-watch/` (app, `tests/` and `playwright.config.ts` only):
 
@@ -261,9 +261,9 @@ Conversation on `examples/shop`:
 ### `iw-test`
 **Purpose:** run test cases and record results with evidence: Playwright and agent test cases by themselves, manual test cases by guiding a person in the chat, check by check.
 **Triggers:** "test my features", "run the checkout tests", "walk me through TC-3", "what do I need to test?"; 「テストして」「自分の担当をテストしたい」「TC-3 を一緒にやって」.
-**Uses:** `iw status` (with `--mine`, T-402, *planned*), `iw list tcs`, `iw show`, `npx playwright test --grep "@TC-3(\s|$)"` with the reporter, `iw run` for `agent` test cases, `iw record` (or MCP `record_run`) for guided manual runs, `iw sync`; step `checks` on step results (T-403 and T-404, *planned*). References: `run-tests`.
+**Uses:** `iw status` (with `--mine`), `iw list tcs`, `iw show`, `npx playwright test --grep "@TC-3(\s|$)"` with the reporter, `iw run` for `agent` test cases, `iw record` (or MCP `record_run`) for guided manual runs, `iw sync`; step `checks` on step results (T-403 and T-404, *planned*). References: `run-tests`.
 
-**My features.** "Test my features" means the features whose `owners` include the person in `git config user.email` (T-402, *planned*). A `group:` owner matches only on the hosted app, where groups come from Cloudflare Access ([roles](security.md#roles)); locally the skill cannot resolve groups, so it says which features have only group owners and asks whether the person belongs to them. The skill says whose features it picked ("You own Checkout: TC-3–TC-6") and offers "all features". Without owners it asks which feature, recommending the one with the most open test cases.
+**My features.** "Test my features" means the features whose `owners` include the person in `git config user.email` (`iw status --mine`, `iw list tcs --mine`; [feature owners](concepts.md#feature-owners)). A `group:` owner matches only on the hosted app, where groups come from Cloudflare Access ([roles](security.md#roles)); locally the skill cannot resolve groups, so it says which features have only group owners and asks whether the person belongs to them. The skill says whose features it picked ("You own Checkout: TC-3–TC-6") and offers "all features". Without owners it asks which feature, recommending the one with the most open test cases.
 
 Conversation on `examples/shop` (alex@shop.test owns Checkout):
 
@@ -298,7 +298,7 @@ Conversation on `examples/shop` (sample results):
 ### `iw-status`
 **Purpose:** say where the release stands, by feature and owner, what is left, who must act next, and write the report.
 **Triggers:** "what's left for me?", "can we ship 1.2.0?", "status of the release", "write the release report"; 「リリースできる？」「残りは？」「自分の残タスクは？」「レポートを作って」.
-**Uses:** `iw status` (`--release`, `--gate`, `--sync`; `--mine`, T-402, *planned*), `iw list plans`, `iw show PLAN-n`, `iw report`, `iw sync`. References: `release-report`.
+**Uses:** `iw status` (`--release`, `--gate`, `--sync`, `--mine`), `iw list plans`, `iw show PLAN-n`, `iw report`, `iw sync`. References: `release-report`.
 
 Conversation on `examples/shop` (sample results):
 
