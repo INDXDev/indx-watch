@@ -24,7 +24,7 @@ You give each test case the data it needs as fixtures, and tell the tester what 
 
 ## 1. Pick the scope
 
-A test case (`TC-9`), a use case, a feature, or "all": then take the test cases that reference a missing fixture or use a placeholder with no data (`iw check --json` reports both).
+A test case (`TC-9`), a use case, a feature, or "all": then take the test cases that reference a missing fixture (`iw check --json` reports these as `unresolved-ref`) and those whose steps or preconditions use a `{{FX-n.column}}` placeholder the fixture has no data for. `iw check` does not look at placeholders, so search the test case files for `{{FX-` yourself and compare with each fixture's columns and rows.
 
 ## 2. Read (no writes)
 

@@ -44,7 +44,7 @@ Ask only what you could not find out. Recommended answers and where they come fr
 
 ## 3. Write
 
-Ask before every write outside `.indx-watch/` (the Playwright config, the workflow). Then, in this order:
+Before step 1, say in one line that `iw init` also adds the agent files (`AGENTS.md` block, `@AGENTS.md` in an existing `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`); the "yes" to set up covers them. Ask separately before changing the Playwright config, `package.json` or adding the workflow. Then, in this order:
 
 1. **Bundle.** `iw init --key SHOP --name Shop --locale en --json` (the source locale). It also installs the agent skills and MCP config; without it (bundle already there) run `iw skills install --json` when `.claude/skills/iw-setup` or `.agents/skills/iw-setup` is missing.
 2. **Replace the placeholders** `iw init` just wrote (environment `local`, release `v0.1.0`, feature FEAT-1 "General"): they are not marked as AI-written, so delete `environments/local.toml`, `releases/v0.1.0.toml` and the `specs/FEAT-1-general/` folder before creating anything. Delete only placeholders written in this conversation; nothing refers to them yet.
@@ -77,7 +77,7 @@ Stop after `iw check`. Say what the person decides and give one line for the app
 
 Also: review the diff and commit it, add any CI secrets you named, and approve the `indx-watch` MCP server the first time Claude Code or Codex asks.
 
-**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only the `iw init` placeholders of this conversation), the agent files of `iw init` / `iw skills install`, `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml`. Nothing else.
+**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only the `iw init` placeholders of this conversation), the agent files of `iw init` / `iw skills install` (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`), `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml`. Nothing else.
 
 ## Rules
 
@@ -87,6 +87,6 @@ Also: review the diff and commit it, add any CI secrets you named, and approve t
 
 ## Example (examples/shop without .indx-watch/)
 
-User: "Set up testing for this repo." → look (three lines above) → key `SHOP`? yes → English with Japanese? yes → `staging` at http://localhost:4173? yes → Catalog, Checkout, Account? yes → release `v1.2.0`, no tag found? "v1.2.0" → Checkout owner alex@shop.test? yes (and so on) → reporter? yes → workflow? "not now" → write → `iw check`: 0 errors, 5 approval warnings → stop with the approve line.
+User: "Set up testing for this repo." → look (three lines above) → key `SHOP`? yes → English with Japanese? yes → `staging` at http://localhost:4173? yes → Catalog, Checkout, Account? yes → release `v1.2.0`, no tag found? "v1.2.0" → Checkout owner alex@shop.test? yes (and so on) → reporter: skipped, `playwright.config.ts` already names `indx-watch/playwright` → workflow? "not now" → write → `iw check`: 0 errors, 5 approval warnings → stop with the approve line.
 
 Next: find what to test in Checkout? (iw-design)
