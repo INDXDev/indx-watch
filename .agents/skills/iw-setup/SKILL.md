@@ -22,7 +22,7 @@ You connect this repository to INDX Watch: the `.indx-watch/` bundle, the test e
 
 ## 1. Look first
 
-Read, without asking: `package.json` (name, test scripts, `@playwright/test`), `playwright.config.*` (`use.baseURL`, `webServer.command`, `reporter`, `testDir`), the test files (`tests/*.spec.ts`), `.github/workflows/`, git tags (`git tag --sort=-v:refname`) and who wrote which tests (`git log --format='%ae' -- <file>`, most commits wins). If `.indx-watch/` already exists, run `iw status --json` and `iw list features --json` and only fill what is missing; never run `iw init` again.
+Read, without asking: `package.json` (name, test scripts, `@playwright/test`), `playwright.config.*` (`use.baseURL`, `webServer.command`, `reporter`, `testDir`), the test files (`tests/*.spec.ts`), `.github/workflows/`, git tags (`git tag --sort=-v:refname`) and who wrote which tests (`git log --format='%ae' -- <file>`, most commits wins). If `.indx-watch/` already exists, run `iw status --json` and `iw list features --json` and only fill what is missing; never run `iw init` again. A bundle that holds only what `iw init` writes (environment `local` at http://localhost:3000, release `v0.1.0`, feature FEAT-1 "General" without use cases, no runs), e.g. because the person ran `npx indx-watch init` to install the skills, counts as new: under "3. Write", skip the **Bundle** step and remove those placeholders in the **Replace the placeholders** step.
 
 Say what you found in three lines, e.g. for `examples/shop`: "A Node shop app on http://localhost:4173 started by `node app/server.mjs`. Four Playwright test files: catalog, checkout, coupon and sign-in. No CI workflow and no release tag."
 
@@ -46,8 +46,8 @@ Ask only what you could not find out. Recommended answers and where they come fr
 Before step 1, say in one line that `iw init` also adds the agent files (`AGENTS.md` block, `@AGENTS.md` in an existing `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`); the "yes" to set up covers them. Ask separately before changing the Playwright config, `package.json` or adding the workflow. Then, in this order:
 
 1. **Bundle.** `iw init --key SHOP --name Shop --locale en --json` (the source locale). It also installs the agent skills and MCP config; without it (bundle already there) run `iw skills install --json` when `.claude/skills/iw-setup` or `.agents/skills/iw-setup` is missing.
-2. **Replace the placeholders** `iw init` just wrote (environment `local`, release `v0.1.0`, feature FEAT-1 "General"): they are not marked as AI-written, so delete `environments/local.toml`, `releases/v0.1.0.toml` and the `specs/FEAT-1-general/` folder before creating anything. Delete only placeholders written in this conversation; nothing refers to them yet.
-3. **Project settings.** No command sets them, so edit the existing lines of `.indx-watch/project.toml`: `default_environment = "staging"`, `current_release = "v1.2.0"` and `locales = ["en", "ja"]` when a second language was chosen. Change only those values; never add a gate, store or hosting setting without asking.
+2. **Replace the placeholders** `iw init` just wrote (environment `local`, release `v0.1.0`, feature FEAT-1 "General"): they are not marked as AI-written, so delete `environments/local.toml`, `releases/v0.1.0.toml` and the `specs/FEAT-1-general/` folder before creating anything. Delete only such untouched placeholders (written in this conversation, or found unchanged in step 1); nothing refers to them yet.
+3. **Project settings.** No command sets them, so edit the existing lines of `.indx-watch/project.toml`: `default_environment = "staging"`, `current_release = "v1.2.0"` and `locales = ["en", "ja"]` when a second language was chosen. When `iw init` ran before this conversation, also set `key` and `name` if the person chose others. Change only those values; never add a gate, store or hosting setting without asking.
 4. **Definitions** (each an AI draft with an `[ai]` table):
 
    ```bash
@@ -76,7 +76,7 @@ Stop after `iw check`. Say what the person decides and give one line for the app
 
 Also: review the diff and commit it, add any CI secrets you named, and approve the `indx-watch` MCP server the first time Claude Code or Codex asks.
 
-**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only the `iw init` placeholders of this conversation), the agent files of `iw init` / `iw skills install` (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`), `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml`. Nothing else.
+**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only untouched `iw init` placeholders), the agent files of `iw init` / `iw skills install` (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`), `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml`. Nothing else.
 
 ## Rules
 
