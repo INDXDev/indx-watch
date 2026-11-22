@@ -180,7 +180,7 @@ Record a run that was executed outside the browser runner — by a person in a t
 |---|---|
 | `--verdict <pass\|fail\|blocked\|skipped>` | Executor's reported result; becomes a judgement of the executor's kind (`human` for people, `llm` for agents with `--confidence`) |
 | `--step <n>=<status>[:note]` | Repeatable |
-| `--checks <n>=<1\|0>[,…]` | *(v0.4)* Repeatable: which of step `n`'s `checks` hold, one `1` or `0` per check in order (`--checks 2=1,0`); recorded as that step's `checks` ([run record](sync.md#run-record)). Needs `--step n=…`; a count that differs from the step's checks is a usage error |
+| `--checks <n>=<1\|0>[,…]` | *(v0.4)* Repeatable: which of step `n`'s `checks` hold, one `1` or `0` per check in order (`--checks 2=1,0`); recorded as that step's `checks` ([run record](sync.md#run-record)). Needs `--step n=…`; a count that differs from the step's checks, or a second `--checks` for the same step, is a usage error |
 | `--evidence <path>[@step]` | Repeatable; files are hashed into the local replica |
 | `--note <text>` | |
 | `--confidence <0-1>` | Agents only |

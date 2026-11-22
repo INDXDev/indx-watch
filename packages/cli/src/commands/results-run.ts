@@ -83,6 +83,7 @@ function stepsOf(a: Args, tc: core.TestCaseNode, evidence: Evidence) {
       .map(tick)
       .map(([, n, t]) => [+n!, t!.split(',').map((x) => x === '1')]),
   );
+  if (ticks.size < many(a.checks).length) fail('USAGE', '--checks: give each step at most once');
   const steps = parseSteps(a).map(([, n, status, note]) => {
     const [index, shas] = [+n!, evidence.filter((e) => e.step === +n!).map((e) => e.sha256)];
     return { index, status, note, evidence: shas.length ? shas : undefined, checks: ticks.get(index) };

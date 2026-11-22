@@ -173,6 +173,7 @@ describe('commands: judge and record', () => {
       ['--checks', '2=1'],
       ['--checks', '3=1'],
       ['--checks', '2=yes'],
+      ['--checks', '2=1,0', '--checks', '2=0,0'],
     ])
       expect(iwJson(dir, 'record', [...ticks, ...bad], { env }).json.error.code).toBe('USAGE');
   });
