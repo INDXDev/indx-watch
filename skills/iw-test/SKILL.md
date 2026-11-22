@@ -50,7 +50,7 @@ Without `purpose`, `start` or `checks`, derive the lines from the use case, the 
 
 Ask once per group, with a recommendation: "Run the three Playwright tests now? I suggest yes; they take about a minute and start the shop app themselves."
 
-- **`playwright`**: run each by its anchored tag (`--grep "@TC-3(\s|$)"`) with the project's reporter; it records the runs. Never record a Playwright result by hand. If the reporter is missing, say so and stop for that test.
+- **`playwright`**: run each by its anchored tag (`--grep "@TC-3(\s|$)"`) with the project's reporter; it records the runs. Never record a Playwright result by hand; the one exception is a walkthrough the person asks for (below), whose result waits for their review. If the reporter is missing, say so and stop for that test.
 - **`agent`**: `iw run TC-n --json` when a model credential and Playwright's Chromium are there; else offer the guided run below.
 - **`manual`**, or any test case the user asks to be walked through: the guided run (section 4). Ask first: "TC-6 needs you and a phone-sized window. Walk through it together now? I suggest yes, it takes about 3 minutes."
 
@@ -61,11 +61,12 @@ Report one line per test case: key, title, result (from `data.verdict` / `iw sho
 1. Give the three-line explanation, then the link to open. Check the app answers first (`base_url`); if it does not, say how to start it (for the shop: `node app/server.mjs` in `examples/shop`).
 2. One step per message: the instruction (placeholders such as `{{FX-1.code}}` filled from the fixture; never a secret value, name the `env:` variable instead), then **each check as a yes/no question**: "Does the discount line show "-4.00"?"
 3. A "no" asks for one sentence of what the person sees instead. Where the step's `evidence` asks for a screenshot, ask for one (a file path, or an image the client saved to disk). A step the person cannot do ("I have no phone") is `blocked` with their reason; stop there.
-4. Record once, after the last step (or the first `no` / blocked step, marking the rest unreached):
+4. Record once, after the last step (or the first `no` / blocked step; leave the steps after it out of the record, as they were not reached):
 
    | Outcome | `--verdict` | `--confidence` | Why |
    |---|---|---|---|
-   | every check "yes" | `pass` | `1` | The person saw it; still `needs_review` when the test case has a `human` (or any not-yet-given) judge, rule 10 |
+   | every check "yes", test case has a `human` or `assert` judge (declared, or no `[[judges]]` and mode `manual` / `playwright`) | `pass` | `1` | The person saw it; still `needs_review`, because that judge has no judgement yet (rule 10) |
+   | every check "yes", any other test case (e.g. an `agent` one such as TC-10, judge `llm`) | `pass` | `0.5` | Below `llm_pass_confidence`, so `needs_review` (rule 6); at `1` it would be a `pass` no person reviewed (rule 8) |
    | any check "no" | `fail` | `0.5` | Below `llm_fail_confidence` (0.8), so `needs_review` (rule 6), never a `fail` no person confirmed |
    | a step could not be done | `blocked` | `1` | A reported block makes the run `blocked` (rule 2) |
 
@@ -81,7 +82,7 @@ Report one line per test case: key, title, result (from `data.verdict` / `iw sho
 
 | Situation | You say |
 |---|---|
-| A guided run is recorded | The person reviews it (link + one `iw review` line). You never run `iw review`, `iw approve`, `iw waive` or `iw baseline approve`. |
+| A guided run is recorded | Its verdict must be `needs_review`; if `iw record` answers `pass` or `fail`, say so and retract your run. The person reviews it (link + one `iw review` line). You never run `iw review`, `iw approve`, `iw waive` or `iw baseline approve`. |
 | A test case is a draft | It may be run, but counts only after a person runs `iw approve TC-n`. |
 | A step needs a password or token | Name the `env:` variable; ask the person to type it themselves. Never print, store or record a secret. |
 | You recorded a run by mistake | Say so; retract only your own run: `iw retract <run id> --reason "…"`. |
