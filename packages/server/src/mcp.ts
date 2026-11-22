@@ -3,7 +3,7 @@
  * (docs/spec/agents.md#mcp-server). Writes record the request's identity with kind "agent".
  */
 import * as B from '@indx-watch/bundle';
-import { decide, type Model } from '@indx-watch/core';
+import { decide, type Model, runFacts } from '@indx-watch/core';
 import { createMcpHandler, type McpServer } from '@modelcontextprotocol/server';
 import type { Context, Hono } from 'hono';
 import type { z } from 'zod';
@@ -146,7 +146,7 @@ async function recordRun(x: Ctx, i: RunInput, agent: Agent) {
     ...{ steps, evidence, judgements: [judgement] },
   });
   await x.deps.writeRecord(run);
-  const d = decide(run.judgements, tc.policy, { priority: tc.priority, mode: tc.data.mode, reported });
+  const d = decide(run.judgements, tc.policy, runFacts(tc, reported));
   const check = { kind: 'llm', conf: i.confidence, verdict: i.verdict, evidence: evidence.length, release };
   return T.toolData({ run, verdict: d.verdict, rule: d.rule }, [...T.recordWarnings(check), ...warnings]);
 }

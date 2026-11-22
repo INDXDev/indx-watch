@@ -5,7 +5,7 @@ import type { Locale } from '@indx-watch/bundle';
 import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 
 /** decide(judgements, policy, ctx): the decision policy (docs/spec/concepts.md#decision-policy). */
-export { decide } from './decide.js';
+export { decide, runFacts } from './decide.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
 /**

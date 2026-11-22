@@ -27,7 +27,14 @@ function frontmatterKeys(text: string): string[] {
 
 describe('skills', () => {
   it('job skills (docs/spec/agents.md#job-skills-v04) follow the shared conventions a script can check', () => {
-    const jobs = { 'iw-setup': 'indx-watch', 'iw-design': 'write-test-cases', 'iw-data': 'manage-fixtures' };
+    const jobs = {
+      'iw-setup': 'indx-watch',
+      'iw-design': 'write-test-cases',
+      'iw-data': 'manage-fixtures',
+      'iw-test': 'run-tests',
+      'iw-triage': 'triage-failure',
+      'iw-status': 'release-report',
+    };
     for (const [n, ref] of Object.entries(jobs)) {
       const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
       const description = /^description: (.+)$/m.exec(text)![1]!;
@@ -36,8 +43,26 @@ describe('skills', () => {
       expect(frontmatterKeys(text), n).toContain('argument-hint');
       expect(frontmatterKeys(text), n).not.toContain('disable-model-invocation');
       expect(text, n).toContain(`(../${ref}/SKILL.md)`);
-      expect(text, n).toMatch(/^Next: .+\(iw-[a-z]+\)/m);
+      expect(text, n).toMatch(/Next: .+\(iw-[a-z]+\)/);
       expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
+    }
+  });
+
+  it('job skills (docs/spec/agents.md#job-skills-v04): short, triggered in English and Japanese, linking their v0.1 skill', () => {
+    const jobs = { 'iw-test': 'run-tests', 'iw-triage': 'triage-failure', 'iw-status': 'release-report' };
+    for (const [n, v01] of Object.entries(jobs)) {
+      const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
+      expect(frontmatterKeys(text), n).toEqual(
+        expect.arrayContaining(['argument-hint', 'license', 'metadata']),
+      );
+      const description = /^description: (.+)$/m.exec(text)![1]!;
+      expect(description.length, n).toBeLessThanOrEqual(1024);
+      expect(description, n).toContain('Use when ');
+      expect(description, n).toMatch(/「[^」]*\p{Script=Hiragana}/u);
+      expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
+      expect(text, n).toContain(`](../${v01}/SKILL.md)`);
+      for (const [, target] of text.matchAll(/\]\(\.\.\/([\w-]+)\/SKILL\.md\)/g))
+        expect(names, `${n} links ${target}`).toContain(target);
     }
   });
 

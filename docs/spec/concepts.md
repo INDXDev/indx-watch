@@ -123,7 +123,7 @@ One pure function, `decide(judgements, policy, { priority, mode, reported, judge
 | 10 | Anything else (e.g. an `assert` with verdict `unknown`, or a declared judge kind with no judgement yet) | `needs_review` |
 
 - A missing `llm` confidence counts as 0.
-- Declared judges matter: an agent's confident `llm` pass on a test case whose `judges` is `[{ kind = "human" }]` is `needs_review` (rule 10) until a person reviews it, whatever the priority. `judges` is the test case's own list; `decide` gets its kinds as `judges`.
+- Declared judges matter: an agent's confident `llm` pass on a test case whose `judges` is `[{ kind = "human" }]` is `needs_review` (rule 10) until a person reviews it, whatever the priority. `judges` is the test case's own list or, without `[[judges]]`, the default of its mode (`human` for `manual`, `assert` for `playwright`, [bundle format](bundle-format.md#specsfeatuctc-n-slugtoml)); `decide` gets these kinds as `judges` from `runFacts()`, so `iw record`, `record_run` and `iw show` give the same verdict.
 - **Judgement order**: by `at` as an instant (so `…:00Z` and `…:00.100Z` compare correctly), then `id`. `buildModel` fills a judgement's `at`/`by` from its enclosing record when absent (a run's inline judgements get `ended_at` and the run's actor).
 - A `human` judgement's verdict is one of `pass`, `fail`, `blocked`, `skipped`. A reason is required for `fail`, `blocked` and `skipped`, and for every `judgement` record (a review).
 - `decide` returns the verdict, the rule number and a reason; `iw show <run> --json` prints them.

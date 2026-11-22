@@ -93,6 +93,9 @@ describe('iw mcp', () => {
     });
     expect(m.structuredContent.run.actor.model).toBe('claude-x');
     expect(m.structuredContent.run.judgements[0].by.model).toBe('claude-x');
+    // TC-6 declares a human judge: a confident agent pass waits for a person (rule 10)
+    const guided = await call('record_run', { test_case: 'TC-6', verdict: 'pass', confidence: 1 });
+    expect(guided.structuredContent).toMatchObject({ verdict: 'needs_review', rule: 10 });
   });
 
   it('new writes AI drafts; show, list, check and errors', async () => {

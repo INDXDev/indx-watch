@@ -145,6 +145,14 @@ describe('commands: judge and record', () => {
       env: { IW_ACTOR_KIND: 'ci' },
     });
     expect(ci.json.data).toMatchObject({ verdict: 'blocked', rule: 2 });
+    // a guided manual run (docs/spec/agents.md#iw-test): TC-6 declares a human judge, so even a
+    // confident agent pass is needs_review, and the answer says so (the same verdict as iw show)
+    const guided = ['record', 'TC-6', '--step', '1=pass', '--confidence'];
+    const pass = iwJson(dir, 'record', [...guided, '1', '--verdict', 'pass'], { env }).json.data;
+    expect(pass).toMatchObject({ verdict: 'needs_review', rule: 10 });
+    expect(iwJson(dir, 'show', ['show', pass.run.id]).json.data.decision.verdict).toBe('needs_review');
+    const fail = iwJson(dir, 'record', [...guided, '0.5', '--verdict', 'fail'], { env }).json.data;
+    expect(fail).toMatchObject({ verdict: 'needs_review', rule: 6 });
   });
 });
 

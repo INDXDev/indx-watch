@@ -39,6 +39,7 @@ jobs:
       - name: Pack the CLI and run the README quickstart in an empty project
         # Install the tarball like the npm package (`npx <absolute .tgz>` tries to execute the file on npm 10/11).
         # In CI a run takes its release from the CI context, so `record` names it.
+        # The README reader is a person: TC-1 is manual (default judge `human`), so `record` runs as one via IW_ACTOR.
         run: |
           (cd packages/cli && npm pack --pack-destination "$RUNNER_TEMP")
           # The build only warns when the reporter or the web build is missing, so check the tarball itself.
@@ -55,7 +56,7 @@ jobs:
           npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
           npx indx-watch check --json
           if npx indx-watch status --gate; then echo "::error::gate passed before any run"; exit 1; fi
-          npx indx-watch record TC-1 --verdict pass --step 1=pass --release v0.1.0
+          IW_ACTOR=reader@example.test npx indx-watch record TC-1 --verdict pass --step 1=pass --release v0.1.0
           npx indx-watch status --gate
           npx indx-watch report --format html --out report.html
 

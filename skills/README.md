@@ -18,6 +18,9 @@ Job skills (v0.4) hold a whole conversation for one job: they read first, ask on
 | [`iw-setup`](iw-setup/SKILL.md)      | Connect a repository: bundle, environment, release, features and proposed owners, Playwright reporter and CI       |
 | [`iw-design`](iw-design/SKILL.md)    | Find what is worth testing in a feature from the source and tests, propose it in plain words, write accepted drafts |
 | [`iw-data`](iw-data/SKILL.md)        | Give test cases the fixtures they need, with what the tester does with each; secrets as references                |
+| [`iw-test`](iw-test/SKILL.md) | Run "my features" or named test cases; walk a person through a manual test case check by check and record the run for their review |
+| [`iw-triage`](iw-triage/SKILL.md) | Explain why a test case failed, with evidence, and propose a fix or an issue text |
+| [`iw-status`](iw-status/SKILL.md) | Say whether a release can ship, progress by feature and owner, who acts next; write the report |
 
 ## Install
 
@@ -61,4 +64,4 @@ codex mcp add indx-watch -- npx -y indx-watch mcp
 
 ## Editing these skills
 
-Keep each `SKILL.md` short (about 150 lines) and move long material into `references/`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop). `pnpm test` checks this with the [skill lint](../docs/spec/agents.md#lint): frontmatter keys and limits, every `iw` command against the headings of cli.md (write *planned* on the line for a command that does not exist yet), every key against `examples/shop` (or the next free key a worked example creates), and relative links.
+Keep each `SKILL.md` short (about 150 lines; a test holds the job skills to 150) and move long material into `references/`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop). `pnpm test` checks this with the [skill lint](../docs/spec/agents.md#lint): frontmatter keys and limits, every `iw` command against the headings of cli.md (write *planned* on the line for a command that does not exist yet), every key against `examples/shop` (or the next free key a worked example creates), and relative links.
