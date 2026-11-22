@@ -11,6 +11,14 @@ These folders are [Agent Skills](https://agentskills.io/specification): a `SKILL
 | [`triage-failure`](triage-failure/SKILL.md)     | Classify a failure (product bug, test problem, environment or data) and propose the next action |
 | [`release-report`](release-report/SKILL.md)     | Compute readiness and write a release or plan report                                            |
 
+**Job skills (v0.4).** One per job, for people who would rather talk than learn the CLI: the user says what they want in English or Japanese, the skill reads what it can, asks one question at a time with a recommended answer, runs `iw` itself and ends with one "Next" step. Each links its recipe above for the command details ([design](../docs/spec/agents.md#job-skills-v04)).
+
+| Skill | Use it to | Recipe |
+| --- | --- | --- |
+| [`iw-test`](iw-test/SKILL.md) | Run "my features" or named test cases; walk a person through a manual test case check by check and record the run for their review | `run-tests` |
+| [`iw-triage`](iw-triage/SKILL.md) | Explain why a test case failed, with evidence, and propose a fix or an issue text | `triage-failure` |
+| [`iw-status`](iw-status/SKILL.md) | Say whether a release can ship, progress by feature and owner, who acts next; write the report | `release-report` |
+
 ## Install
 
 `npx indx-watch init` installs them with a new project (skip with `--no-agents`). In a repository that already has an `.indx-watch/` folder:
@@ -53,4 +61,4 @@ codex mcp add indx-watch -- npx -y indx-watch mcp
 
 ## Editing these skills
 
-Keep each `SKILL.md` short (about 150 lines) and move long material into `references/`. Use only the frontmatter keys above, commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop).
+Keep each `SKILL.md` short (about 150 lines; a test holds the job skills to 150) and move long material into `references/`. Use only the frontmatter keys above, commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop).
