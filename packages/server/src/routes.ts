@@ -20,6 +20,7 @@ import type { Ctx } from './app.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
 import { renderReport, reportTexts } from './report.js';
+import { checksError } from './tools.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
 import { editTestCase, invite, workspaceMode } from './workspace.js';
@@ -292,8 +293,8 @@ async function stepEvidence(x: Ctx, t: TestCase, steps: ManualRunInput['steps'])
   for (const { index: i, status, evidence: shas = [], checks } of steps) {
     if (!(Number.isInteger(i) && i >= 1 && i <= t.data.steps.length)) throw bad(`no step ${i}`);
     if (!B.StepStatus.safeParse(status).success) throw bad(`step ${i}: invalid status`);
-    if (checks && checks.length !== (t.data.steps[i - 1]!.checks?.length ?? 0))
-      throw bad(`step ${i}: checks must have one entry per check of the step`);
+    const wrong = checksError(t.data.steps, { index: i, checks });
+    if (wrong) throw bad(wrong);
     for (const sha of shas.filter((s) => !evidence.some((e) => e.sha256 === s)))
       evidence.push(await evidenceOf(x, sha, i));
   }
