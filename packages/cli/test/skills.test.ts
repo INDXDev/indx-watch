@@ -26,6 +26,21 @@ function frontmatterKeys(text: string): string[] {
 }
 
 describe('skills', () => {
+  it('job skills (docs/spec/agents.md#job-skills-v04) follow the shared conventions a script can check', () => {
+    const jobs = { 'iw-setup': 'indx-watch', 'iw-design': 'write-test-cases', 'iw-data': 'manage-fixtures' };
+    for (const [n, ref] of Object.entries(jobs)) {
+      const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
+      const description = /^description: (.+)$/m.exec(text)![1]!;
+      expect(description.length, n).toBeLessThanOrEqual(1024);
+      expect(description, n).toMatch(/Use when .*「/); // triggers in English and Japanese
+      expect(frontmatterKeys(text), n).toContain('argument-hint');
+      expect(frontmatterKeys(text), n).not.toContain('disable-model-invocation');
+      expect(text, n).toContain(`(../${ref}/SKILL.md)`);
+      expect(text, n).toMatch(/^Next: .+\(iw-[a-z]+\)/m);
+      expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
+    }
+  });
+
   it('skills install copies every skill folder (with references/) to both locations', () => {
     const dir = mkdtempSync(join(tmpdir(), 'iw-skills-'));
     const r = iwJson(dir, 'skills install', ['skills', 'install']);
