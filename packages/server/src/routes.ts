@@ -63,7 +63,7 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
     app.get(path, async (c) => c.json(await view(await model(c), c)));
   /** with `?mine=1`, the model narrowed to the features the request's identity owns (docs/spec/web.md#my-features) */
   const mine = async (m: Model, c: Context) =>
-    q(c, 'mine') ? ownedModel(m, ownedFeatures(m, (await x.grant(c)).who)) : m;
+    q(c, 'mine') === '1' ? ownedModel(m, ownedFeatures(m, (await x.grant(c)).who)) : m;
   app.get('/api/project', (c) => projectInfo(c, x));
   get('/api/status', async (m, c) => computeStatus(await mine(m, c), scopeOf(c, m)));
   get('/api/specs', async (m, c) => V.specTree(await mine(m, c), scopeOf(c, m)));

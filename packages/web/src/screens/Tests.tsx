@@ -43,7 +43,8 @@ export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | 
   const { t } = useI18n();
   const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
-  const list = items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey];
+  const all = specs.data ? testOrder(specs.data) : [];
+  const list = items.includes(tcKey) ? items : all.includes(tcKey) ? all : [tcKey];
   const q = query(asFilter(filter));
   return (
     <>

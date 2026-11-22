@@ -93,6 +93,9 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
     env: undefined, // all environments, like `iw status` and `iw report`
     mine: startMine(info),
   });
+  // re-derive when the viewer's owned features change (e.g. after switching the local identity)
+  const owns = info.owns?.join(' ') ?? '';
+  useEffect(() => setScope((s) => ({ ...s, mine: startMine({ owns: owns ? [owns] : [] }) })), [owns]);
   const [theme, setTheme] = useState<Theme>(() => (readStored('indx-watch.theme') as Theme) || 'auto');
   const [who, setWho] = useState(false);
   const [uploading, setUploading] = useState<{ picked: Picked[] | null } | null>(null);
