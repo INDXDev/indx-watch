@@ -1,0 +1,5 @@
+interface:
+  display_name: "Run tests"
+  short_description: "Run INDX Watch test cases and record their results with evidence — Playwright test cases through the indx-watch…"
+policy:
+  allow_implicit_invocation: true

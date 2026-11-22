@@ -1,0 +1,5 @@
+interface:
+  display_name: "Manage fixtures"
+  short_description: "Create or update INDX Watch fixtures (test data) in .indx-watch/fixtures/ as AI drafts — datasets (CSV/JSON rows), seed…"
+policy:
+  allow_implicit_invocation: true

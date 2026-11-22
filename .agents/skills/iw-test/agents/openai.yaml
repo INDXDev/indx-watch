@@ -1,0 +1,5 @@
+interface:
+  display_name: "IW test"
+  short_description: "Run INDX Watch test cases and record the results"
+policy:
+  allow_implicit_invocation: true

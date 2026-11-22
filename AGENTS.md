@@ -33,7 +33,8 @@ packages/server      Hono app for Node and Workers; report rendering
 packages/web         Vite + React SPA (messages in src/messages/{en,ja}.json)
 packages/cli         `iw` → published as `indx-watch`; MCP server; deploy
 packages/playwright  reporter → `indx-watch/playwright`
-skills/              Agent Skills (Claude Code + Codex)
+skills/              Agent Skills (Claude Code + Codex); edit only here
+.claude/skills/, .agents/skills/  installed copies of skills/ (`pnpm iw skills install`; see CONTRIBUTING.md#dogfooding)
 schemas/             generated JSON Schemas (do not edit by hand)
 examples/shop        demo app + Playwright tests + .indx-watch bundle + sample store
 .indx-watch/         this repository's own QA (dogfooding)
@@ -71,4 +72,25 @@ pnpm verify                # what the CI check job runs, except the tarball cold
 
 ## Verify before you finish
 
-`pnpm lint && pnpm typecheck && pnpm test` must pass (`pnpm verify` runs everything). Coding agents: the CLI treats `CLAUDECODE=1` as an agent and refuses `--ready`, so run `pnpm e2e` and manual quickstarts with `env -u CLAUDECODE`. For CLI or format changes also run `pnpm iw check --dir examples/shop/.indx-watch`. For UI changes run `pnpm iw serve --dir examples/shop/.indx-watch` and look at the page.
+`pnpm lint && pnpm typecheck && pnpm test` must pass (`pnpm verify` runs everything). Coding agents: the CLI treats `CLAUDECODE=1` as an agent and refuses `--ready`, so run `pnpm e2e` and manual quickstarts with `env -u CLAUDECODE`. For CLI or format changes also run `pnpm iw check --dir examples/shop/.indx-watch`. For UI changes run `pnpm iw serve --dir examples/shop/.indx-watch` and look at the page. After changing `skills/`, run `pnpm iw skills install` and commit the installed copies.
+
+The block below is written by `iw skills install` for this repository's own QA in `.indx-watch/` (dogfooding); the rules above still apply when you change INDX Watch itself.
+
+<!-- indx-watch:start -->
+## INDX Watch
+
+This repository keeps its test cases, acceptance criteria and fixtures in `.indx-watch/` ([INDX Watch](https://github.com/INDXDev/indx-watch)). Use these skills for that work (Claude Code: `/<name>`, Codex: `$<name>`); the `indx-watch` MCP server offers the same operations. This block is written by `iw skills install`; edit outside it.
+
+- `indx-watch` (`/indx-watch` or `$indx-watch`): Use when a repository has an .indx-watch/ folder and the user asks about test coverage, release readiness, what to test, or anything involving use cases (UC-n), acceptance criteria (AC-n.m), test cases (TC-n), fixtures (FX-n) or the iw / indx-watch CLI.
+- `iw-data` (`/iw-data` or `$iw-data`): Use when a test case needs data, a file, an account or a login, or the user asks to add or check test data, such as "the coupon tests need data", "TC-9 needs a photo", "add test data", 「テストデータを用意して」「このテストに必要なデータを作って」「テスト用のアカウントを作って」.
+- `iw-design` (`/iw-design` or `$iw-design`): Use when the user asks what to test, to design or add tests, acceptance criteria or test cases for a feature, screen, use case (UC-n) or code change, such as "what should we test in checkout?", "design tests for this feature", "add test cases for UC-3", 「テスト設計して」「チェックアウトで何をテストすべき？」「UC-3 のテストケースを考えて」.
+- `iw-setup` (`/iw-setup` or `$iw-setup`): Use when the user wants to set up test management, connect or add INDX Watch or indx-watch to a project, or start tracking test cases, such as "set up testing for this repo", "connect INDX Watch", "add indx-watch to this project", 「テスト管理をセットアップして」「このリポジトリにテストを導入して」「INDX Watch をつないで」.
+- `iw-status` (`/iw-status` or `$iw-status`): Use when the user asks whether a release can ship, what is left, what is left for them, the status or progress of a release, feature or plan, or for a release report, such as "can we ship 1.2.0?", "what's left for me?", "status of the release", "write the release report", 「リリースできる？」「残りは？」「自分の残タスクは？」「進捗を教えて」「レポートを作って」.
+- `iw-test` (`/iw-test` or `$iw-test`): Use when the user asks to test, run or check features, test cases (TC-n) or "my features", or to be walked through a manual test, such as "test my features", "run the checkout tests", "walk me through TC-3", "what do I need to test?", 「テストして」「自分の担当をテストしたい」「TC-3 を一緒にやって」「チェックアウトのテストを実行して」.
+- `iw-triage` (`/iw-triage` or `$iw-triage`): Use when the user asks why a test case (TC-n) or run failed, what is broken, or to look at failing, blocked or needs-review tests, such as "why did TC-8 fail?", "what's broken?", "look at the failing tests", 「TC-8 はなぜ失敗した？」「失敗を調べて」「何が壊れている？」.
+- `manage-fixtures` (`/manage-fixtures` or `$manage-fixtures`): Use when the user asks to add or change test data, coupon codes, seed data, sample files, test accounts or logins for test cases, when a test case needs data that does not exist yet, or when a large fixture file must be stored as a pointer.
+- `release-report` (`/release-report` or `$release-report`): Use when the user asks "can we ship", "are we ready", for release status, a QA summary, a release or plan report, a sign-off document or a report for a customer.
+- `run-tests` (`/run-tests` or `$run-tests`): Use when the user asks to run, execute, verify or re-run test cases (TC-n), the tests of a use case, a plan or a release, or to record a test result.
+- `triage-failure` (`/triage-failure` or `$triage-failure`): Use when the user asks why a test case (TC-n) or run failed, what is wrong with a release, or to triage, debug or explain failing tests.
+- `write-test-cases` (`/write-test-cases` or `$write-test-cases`): Use when the user asks to add, write, generate or improve test cases or acceptance criteria for a use case (UC-n), a feature, a PRD, an issue or a code change, or asks "what should we test for this".
+<!-- indx-watch:end -->
