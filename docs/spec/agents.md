@@ -142,7 +142,7 @@ Every job skill follows these rules. T-407's lint checks the parts a script can 
    > **What it checks:** a guest gets the coupon's discount (AC-2.1).
    > **Where to start:** open http://localhost:4173 with one "Canvas Tote" (40.00) in the cart; use the coupon code SUMMER10 from FX-1.
    > **What to look for:** after "Apply", the discount line shows "-4.00" and the total "36.00"; after "Place order", an order number.
-3. **Commands only on request.** Answers talk about test cases, features and results, not commands. The skill shows the commands it ran when the user asks ("show me the commands", 「コマンドを見せて」), and when a step can only be done by a person (approving, reviewing, waiving, inviting, committing): then it gives exactly one copyable line and says why it cannot do it itself, e.g. "I can't approve my own drafts. To approve them: `iw approve AC-2.3`".
+3. **Commands only on request.** Answers talk about test cases, features and results, not commands. The skill shows the commands it ran when the user asks ("show me the commands", 「コマンドを見せて」), and when a step can only be done by a person (approving, reviewing, waiving, inviting, committing): then it gives exactly one copyable line (several commands chained with `&&` when the person must do the same thing for several items) and says why it cannot do it itself, e.g. "I can't approve my own drafts. To approve them: `iw approve AC-2.3 && iw approve TC-11`".
 4. **A "next step" line.** Every answer ends with one line that names one action the user can say yes to, in the user's language: "Next: run the two new test cases? (iw-test)" / 「次は: 新しいテストケース 2 件を実行しますか？（iw-test）」. It names the job skill that would do it.
 5. **The user's language.** The skill answers in the language the user writes in. It shows Japanese content from the `ja` translations ([i18n](i18n.md)) when they exist and keeps quoted on-screen strings literal ("Apply", "This coupon has expired") in both languages.
 6. **Agent identity and the AI rules.** Every write runs as an agent: `IW_ACTOR_KIND=agent IW_AGENT_MODEL=<model>` on CLI writes (MCP writes are agent writes already) and `--origin ai --model <model> --skill <job skill>` on `iw new`. The [rules for AI-written content](#rules-for-ai-written-content) apply unchanged: drafts only, humans approve, agents never review, waive, approve baselines or invite, and agent verdicts carry a confidence.
@@ -199,16 +199,17 @@ Conversation on a copy of `examples/shop` without `.indx-watch/` (app, `tests/` 
 1. **Look first.** The skill reads `package.json`, `playwright.config.ts` (base URL `http://localhost:4173`, web server `node app/server.mjs`), `tests/*.spec.ts` (catalog, checkout, coupon, sign-in), `.github/workflows/` (none) and `git log` for who wrote which tests. It says what it found in three lines.
 2. **Ask, one at a time:**
    - "Project key? I suggest `SHOP`, from the package name `shop`." → yes.
+   - "Languages for test cases? I suggest English as the source with Japanese translations, because your team writes in both." → yes (`locales = ["en", "ja"]`, which `iw-design` uses for the `ja` translations).
    - "Environment for testers? I suggest `staging` at http://localhost:4173, the URL Playwright uses." → yes.
    - "Features? I suggest Catalog, Checkout and Account, from your test files." → yes.
    - "Current release? I suggest `v1.2.0`; I found no tag, so please confirm." → "v1.2.0".
    - "Who owns Checkout? I suggest alex@shop.test, who wrote most of `tests/checkout.spec.ts`." (once per feature) → yes.
    - "Record Playwright results in INDX Watch? I'll add the reporter to `playwright.config.ts`." → yes.
    - "Show results on pull requests? I'll add a workflow with the INDX Watch action, comment and check on." → "not now".
-3. **Write.** `iw init --key SHOP --name Shop`, then `staging` with `iw new env`, the three features with owners and the release with `iw new` (AI drafts with an `[ai]` table), the reporter entry `['indx-watch/playwright']` in `playwright.config.ts`, and `iw check`. It shows the list of changed files, not their contents.
-4. **Stop.** The person reviews the diff and commits, approves the agent-written features, environment and release (`iw approve FEAT-2`, `iw approve staging`, `iw approve v1.2.0`; `iw check` warns until then), and approves the `indx-watch` MCP server the first time Claude Code or Codex asks. Owners are a human decision: the skill only proposes them.
+3. **Write.** `iw init --key SHOP --name Shop --locale en`. `iw init` also writes three placeholders ([cli.md](cli.md#iw-init-dir)): an environment `local` (http://localhost:3000), a release `v0.1.0` and a feature FEAT-1 "General", with `default_environment = "local"` and `current_release = "v0.1.0"` in `project.toml`. They are not marked as AI-written, so the skill does not keep or retitle them: it deletes `environments/local.toml`, `releases/v0.1.0.toml` and the FEAT-1 folder before it creates anything (nothing refers to them yet, and a new bundle has no results whose keys could be reused). Then it creates `staging` with `iw new env`, the release `v1.2.0` and the features Catalog, Checkout and Account with their owners with `iw new` (AI drafts with an `[ai]` table; the features get FEAT-1, FEAT-2 and FEAT-3, as in `examples/shop`). It sets `default_environment = "staging"`, `current_release = "v1.2.0"` and `locales = ["en", "ja"]` in `project.toml` and runs `iw fmt project.toml` so the file stays canonical. Last, it adds the reporter entry `['indx-watch/playwright']` to `playwright.config.ts` and runs `iw check`. It shows the list of changed files, not their contents.
+4. **Stop.** The person reviews the diff and commits, and approves every agent-written definition; `iw check` warns until then. The skill gives one line: `iw approve FEAT-1 && iw approve FEAT-2 && iw approve FEAT-3 && iw approve staging && iw approve v1.2.0`. The person also approves the `indx-watch` MCP server the first time Claude Code or Codex asks. Owners are a human decision: the skill only proposes them.
 
-**Writes:** `.indx-watch/` (project, environment, features, release), `playwright.config.ts`, optionally `.github/workflows/indx-watch.yml`; with T-401 the skill folders, `.mcp.json`, `.codex/config.toml` and the `AGENTS.md` block. Nothing outside those files.
+**Writes:** `.indx-watch/` (project, environment, features, release; it deletes only the placeholders `iw init` wrote in the same conversation), `playwright.config.ts`, optionally `.github/workflows/indx-watch.yml`; with T-401 the skill folders, `.mcp.json`, `.codex/config.toml` and the `AGENTS.md` block. Nothing outside those files.
 **Next step:** "Next: find what to test in Checkout? (iw-design)".
 
 ### `iw-design`
@@ -254,7 +255,7 @@ Conversation on `examples/shop`:
 **Triggers:** "test my features", "run the checkout tests", "walk me through TC-3", "what do I need to test?"; 「テストして」「自分の担当をテストしたい」「TC-3 を一緒にやって」.
 **Uses:** `iw status` (with `--mine`, T-402, *planned*), `iw list tcs`, `iw show`, `npx playwright test --grep "@TC-3(\s|$)"` with the reporter, `iw run` for `agent` test cases, `iw record` (or MCP `record_run`) for guided manual runs, `iw sync`; step `checks` on step results (T-403 and T-404, *planned*). References: `run-tests`.
 
-**My features.** "Test my features" means the features whose `owners` include the person in `git config user.email` (or their `group:`) (T-402, *planned*). The skill says whose features it picked ("You own Checkout: TC-3–TC-6") and offers "all features". Without owners it asks which feature, recommending the one with the most open test cases.
+**My features.** "Test my features" means the features whose `owners` include the person in `git config user.email` (T-402, *planned*). A `group:` owner matches only on the hosted app, where groups come from Cloudflare Access ([roles](security.md#roles)); locally the skill cannot resolve groups, so it says which features have only group owners and asks whether the person belongs to them. The skill says whose features it picked ("You own Checkout: TC-3–TC-6") and offers "all features". Without owners it asks which feature, recommending the one with the most open test cases.
 
 Conversation on `examples/shop` (alex@shop.test owns Checkout):
 
@@ -263,8 +264,8 @@ Conversation on `examples/shop` (alex@shop.test owns Checkout):
 3. Asks: "Run the three Playwright tests now? I suggest yes; they take about a minute and start the shop app themselves." → yes. It runs them, waits, and reports pass or fail per test case in one line each.
 4. Asks: "TC-6 needs you and a phone-sized window. Walk through it together now? I suggest yes, it takes about 3 minutes." → yes.
 5. **Guided manual run.** The skill gives the three-line explanation (convention 2), then one step at a time: the instruction, then each check as a yes/no question ("Do you see an order number?"). It asks for a screenshot where the step wants evidence (a file path, or an image the client saved to disk). A "no" asks for one sentence of what the person sees instead.
-6. It records the run with the person's answers as step statuses and notes, the screenshots as evidence and, with T-404, the ticked checks on the step results. The run is recorded by the agent (`actor.kind = "agent"`, the person's identity in `actor.id`), so its verdict is an `llm` judgement: a test case with a `human` judge, like TC-6, comes out `needs_review` ([decision policy](concepts.md#decision-policy)).
-7. **Stop.** The person who did the steps confirms the verdict in the run viewer (or with `iw review`); the skill gives the link. A run the skill only guided never becomes `pass` without that review.
+6. It records the run with the person's answers as step statuses and notes, the screenshots as evidence and, with T-404, the ticked checks on the step results. The run is recorded by the agent (`actor.kind = "agent"`, the person's identity in `actor.id`), so its verdict is an `llm` judgement ([decision policy](concepts.md#decision-policy)). The skill records it with confidence 1 for a pass and 0.5 for a fail: a pass of a test case with a `human` judge, like TC-6, is `needs_review` (rule 10), and a fail stays below `llm_fail_confidence` (0.8), so it is `needs_review` too (rule 6) instead of a `fail` that no person confirmed. A step the person could not do is recorded as `blocked`, which makes the run `blocked` (rule 2), as for any reported block.
+7. **Stop.** The person who did the steps confirms the verdict in the run viewer (or with `iw review`); the skill gives the link. A run the skill only guided never becomes `pass` or `fail` without that review.
 
 **Writes:** run records and evidence blobs in the local replica; `iw sync` only when a store is configured and the user agrees. No definition files.
 **Next step:** "Next: TC-4 failed: find out why? (iw-triage)" or "Next: see what's left for v1.2.0? (iw-status)".
@@ -283,7 +284,7 @@ Conversation on `examples/shop` (sample results):
 5. If the new screenshot shows no message, it proposes an issue text (title, TC-8, AC-4.2, P0, the steps, expected and actual on-screen text quoted exactly, run ID, commit, environment) and asks: "File it on GitHub? I suggest yes." It files it only on a yes.
 6. **Stop.** Waiving a failure and reviewing runs are human decisions; the skill mentions that P0 failures such as TC-8 cannot be waived.
 
-**Writes:** nothing in the bundle; a test or TC fix only after the user accepts the diff (a substantial TC change goes back to `draft`); an issue only on request.
+**Writes:** no records; a fix to a test or a test case only after the user accepts the diff (a substantial TC change goes back to `draft`); an issue only on request.
 **Next step:** "Next: re-run TC-8 after the fix? (iw-test)".
 
 ### `iw-status`
@@ -308,7 +309,7 @@ Conversation on `examples/shop` (sample results):
 
 ## Acceptance criteria
 
-- [x] `iw skills install` copies every skill to `.claude/skills/` and `.agents/skills/`; each `SKILL.md` has only portable frontmatter keys (test).
+- [x] `iw skills install` copies every skill to `.claude/skills/` and `.agents/skills/`; each `SKILL.md` has only portable frontmatter keys (test). From v0.4 this holds for the `.agents/` copies; T-401 changes the test so the `.claude/` copies of the job skills may add `argument-hint` ([frontmatter per client](#frontmatter-per-client)).
 - [x] Following the `write-test-cases` skill on `examples/shop` UC-5 produces files that pass `iw check` and are `draft` + `origin = "ai"`.
 - [x] `iw mcp` lists the tools above; calling `status` returns the same data as `iw status --json` (in-process MCP client test).
 - [x] `record_run` with an agent actor and `confidence: 0.6` yields verdict `needs_review`.
@@ -316,5 +317,5 @@ Conversation on `examples/shop` (sample results):
 - [x] `iw run TC-10` on `examples/shop` with a fake `BrowserProvider` and a fake `LlmClient` records an `agent` run with a note and a screenshot blob per step and one `llm` judgement whose verdict comes from the decision policy; low confidence is `needs_review`, a step out of actions is `blocked`, a step reported `fail` makes the run `fail` even when the judge passes it (tests). With Playwright's Chromium installed, the same command drives the real shop app through the local adapter, and `navigate` outside the base URL's origin is refused (tests, skipped without Chromium; CI's `e2e` job installs Chromium and runs them); the Browser Run adapter connects to the documented CDP endpoint with the API token (test against a fake Playwright, no network).
 - [x] `iw judge` on a run whose test case has an `llm` rubric sends the rubric, the steps and the last screenshot to the Messages API and appends an `llm` judgement that the decision policy uses; a refusal or an answer that fails the schema becomes `unknown` with confidence 0, and API errors are not recorded (tests against a fake API).
 - [ ] *(v0.4, T-405)* A dry run of `iw-setup`, `iw-design` and `iw-data` on a copy of `examples/shop` follows the conversations above; `iw-design` writes no file before the user accepts a proposal, and every file the skills write passes `iw check`.
-- [ ] *(v0.4, T-406)* A dry run of `iw-test`, `iw-triage` and `iw-status` on `examples/shop` follows the conversations above; a guided run of TC-3 records a run with the ticked checks on its step results, and a guided run of a test case with a `human` judge is `needs_review`.
+- [ ] *(v0.4, T-406)* A dry run of `iw-test`, `iw-triage` and `iw-status` on `examples/shop` follows the conversations above; a guided run of TC-6 (manual, `human` judge) records a run with the ticked checks on its step results (T-404), and both its pass and its fail are `needs_review` until a person reviews it.
 - [ ] *(v0.4, T-407)* The skill lint fails on a frontmatter key a client does not accept, on an `iw` command that is not in [cli.md](cli.md), and on an example that is not from `examples/shop`.
