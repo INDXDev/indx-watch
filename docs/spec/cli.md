@@ -57,8 +57,11 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 | `--name <name>` | directory name | Project name |
 | `--locale <en\|ja>` | `en` | Source locale |
 | `--example` | | Copy the `examples/shop` bundle instead of an empty one |
+| `--no-agents` | | Skip the agent setup below |
 
-`data`: `{ "dir": string, "files": string[] }`
+Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
+
+`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[] } }` (`agents` is the `iw skills install` data)
 
 ### `iw check`
 
@@ -392,7 +395,15 @@ Start the MCP server on stdio. See [agents.md](agents.md#mcp-server). `iw serve`
 
 ### `iw skills install`
 
-Copy the shipped agent skills into the repository: `--claude` → `.claude/skills/`, `--codex` → `.agents/skills/` (see [agents.md](agents.md#skills)). Default: both. `data`: `{ "installed": string[] }`
+Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch mcp`) and a marked block in `AGENTS.md`.
+
+| Flag | Writes |
+|---|---|
+| `--claude` | `.claude/skills/<name>/`, `.mcp.json` (`mcpServers.indx-watch`), the `@AGENTS.md` line in an existing `CLAUDE.md` that lacks it |
+| `--codex` | `.agents/skills/<name>/` with portable frontmatter and `agents/openai.yaml`, `.codex/config.toml` (`[mcp_servers.indx-watch]`) |
+| (neither) | Both of the above |
+
+Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[] }`: the skill folders, and the files created or changed by this run (empty when nothing changed).
 
 ### `iw keygen`
 

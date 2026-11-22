@@ -72,11 +72,13 @@ const Gate = z.object({
   ),
 });
 
+/** `iw skills install` and the agent setup of `iw init`: skill folders and the files this run changed. */
+const AGENT_SETUP = z.object({ installed: z.array(z.string()), files: z.array(z.string()) });
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
 /** `data` shape per command. */
 export const CommandData = {
-  init: z.object({ dir: z.string(), files: z.array(z.string()) }),
+  init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
   check: z.object({
     files: z.number(),
     errors: z.number(),
@@ -242,6 +244,6 @@ export const CommandData = {
   }),
   reindex: z.object({ records: z.number(), definitions: z.number(), ms: z.number() }),
   migrate: z.object({ from: z.number(), to: z.number(), changed: z.array(z.string()) }),
-  'skills install': z.object({ installed: z.array(z.string()) }),
+  'skills install': AGENT_SETUP,
 } as const;
 export type CommandName = keyof typeof CommandData;

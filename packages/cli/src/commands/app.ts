@@ -4,7 +4,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, readdir, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,6 +14,7 @@ import { type Model, reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
 import { startNodeServer } from '@indx-watch/server/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import { setupAgents } from '../agents.js';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { deploy } from '../deploy/index.js';
@@ -175,27 +176,19 @@ export const appCommands: Record<string, Spec> = {
   },
 
   'skills install': {
-    description: 'Copy the agent skills into .claude/skills/ and .agents/skills/',
+    description: 'Set up Claude Code and Codex: skills, the MCP server and the AGENTS.md block',
     args: {
-      claude: B('Claude Code (.claude/skills/)'),
-      codex: B('Codex and other Agent Skills clients (.agents/skills/)'),
+      claude: B('Claude Code (.claude/skills/, .mcp.json)'),
+      codex: B('Codex and other Agent Skills clients (.agents/skills/, .codex/config.toml)'),
     },
     async run(ctx, a) {
-      const src = asset('../skills', 'skills');
       const bundle = findBundleDir(ctx.cwd, { ...ctx.env, IW_DIR: str(a.dir) ?? ctx.env.IW_DIR });
       const root = git(ctx.cwd, 'rev-parse', '--show-toplevel') ?? (bundle ? resolve(bundle, '..') : ctx.cwd);
       const both = !a.claude && !a.codex;
-      const targets = [
-        a.claude || both ? '.claude/skills' : '',
-        a.codex || both ? '.agents/skills' : '',
-      ].filter(Boolean);
-      const skills = (await readdir(src, { withFileTypes: true }))
-        .filter((d) => d.isDirectory())
-        .map((d) => d.name);
-      const installed = targets.flatMap((t) => skills.map((s) => `${t}/${s}`));
-      for (const path of installed)
-        await cp(join(src, path.split('/')[2]!), join(root, path), { recursive: true });
-      return { data: { installed }, text: `Installed:\n${installed.join('\n')}` };
+      const to = { claude: !!a.claude || both, codex: !!a.codex || both };
+      const { warnings, ...data } = await setupAgents(root, asset('../skills', 'skills'), to);
+      const text = `Installed:\n${data.installed.join('\n')}\n${data.files.length} files written`;
+      return { data, warnings, text };
     },
   },
 

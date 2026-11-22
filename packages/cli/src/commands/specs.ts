@@ -9,6 +9,7 @@ import { knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import { setupAgents } from '../agents.js';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
@@ -17,6 +18,7 @@ export { knownKeys };
 /** Where `iw fixture fetch` puts a pointer blob. */
 export const cacheBlob = (p: cx.Project, sha: string) => join(p.dir, 'cache', 'blobs', sha);
 
+const both = { claude: true, codex: true };
 const parseStep = (s: string) =>
   s.includes('=>')
     ? { instruction: s.split('=>')[0]!.trim(), expected: s.slice(s.indexOf('=>') + 2).trim() }
@@ -84,13 +86,26 @@ export const specCommands: Record<string, Spec> = {
       target: P('Directory (default: current)', false),
       ...{ key: S('cx.Project key (default: from the directory name)'), name: S('cx.Project name') },
       ...{ locale: S('Source locale: en or ja'), example: B('Copy the examples/shop bundle') },
+      agents: {
+        type: 'boolean',
+        default: true,
+        description: 'Set up Claude Code and Codex (--no-agents skips)',
+      },
     },
     async run(ctx, a) {
       const target = resolve(ctx.cwd, str(a.target) ?? '.');
+      const fresh = !existsSync(target); // a new directory is its own repository root
       const dir = join(target, '.indx-watch');
       if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', `${dir} already has a project.toml`);
       const fs = nodeFs(dir);
-      if (a.example) return copyExample(fs, dir, target);
+      const withAgents = async (out: { data: object; text: string }) => {
+        if (a.agents === false) return out;
+        const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
+        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
+        const text = `${out.text}\nSet up Claude Code and Codex in ${root} (iw skills install)`;
+        return { data: { ...out.data, agents }, warnings, text };
+      };
+      if (a.example) return withAgents(await copyExample(fs, dir, target));
       // letters and digits, without leading digits, at most 10
       const guess = /^\d*(.{0,10})/.exec(
         basename(target)
@@ -123,7 +138,7 @@ export const specCommands: Record<string, Spec> = {
         files.push((await iwb.createDefinition(fs, bundle!, { kind, fields })).file);
       const bin = /(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch';
       const text = `Created ${dir} (${key}). Next: ${bin} new uc --title "…" --ac "…"`;
-      return { data: { dir, files }, text };
+      return withAgents({ data: { dir, files }, text });
     },
   },
 
