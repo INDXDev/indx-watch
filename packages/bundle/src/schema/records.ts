@@ -87,6 +87,8 @@ export const StepResult = z.strictObject({
   status: StepStatus,
   note: z.string().optional(),
   evidence: z.array(Sha256).optional(),
+  /** which of the step's `checks` the tester ticked, in source order (v0.4) */
+  checks: z.array(z.boolean()).optional(),
 });
 export type StepResult = z.infer<typeof StepResult>;
 

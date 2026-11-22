@@ -108,6 +108,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 ```
 
 - `reported`: what the executor reported for the whole run (`blocked`, `skipped`, or `null`). Only used by decision-policy rule 2.
+- `steps[].checks` *(v0.4)*: for a step whose test case step has [`checks`](bundle-format.md#specsfeatuctc-n-slugtoml), which of them the tester ticked, as booleans in the order of the source `checks` (`[true, false]`: the first held, the second did not). The manual runner writes it; other writers leave it out. It never changes the verdict.
 - The verdict is **not stored**; it is computed ([concepts](concepts.md#decision-policy)).
 
 ### Other records
