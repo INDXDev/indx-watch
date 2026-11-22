@@ -40,7 +40,7 @@ Implement `ObjectStore` from `packages/store/src/ports.ts` in `packages/store/sr
 
 ### Add or change a skill
 
-Skills live in `skills/<name>/SKILL.md` (Agent Skills format, portable frontmatter only). Test them on `examples/shop` and update the table in [agents.md](docs/spec/agents.md#skills).
+Skills live in `skills/<name>/SKILL.md` (Agent Skills format, portable frontmatter plus the Claude Code keys [agents.md](docs/spec/agents.md#skills) allows). Test them on `examples/shop`, update the table in [agents.md](docs/spec/agents.md#skills), and run `pnpm test`, which includes the [skill lint](docs/spec/agents.md#lint).
 
 ### Use sample data
 
