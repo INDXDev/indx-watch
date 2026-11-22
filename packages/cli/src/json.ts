@@ -96,6 +96,8 @@ export const CommandData = {
     useCases: z.array(z.record(z.string(), z.unknown())),
     testCases: z.array(z.record(z.string(), z.unknown())),
     counts: z.record(z.string(), z.number()),
+    /** with --mine (docs/spec/concepts.md#feature-owners) */
+    mine: z.object({ actor: z.string(), features: z.array(z.string()) }).optional(),
   }),
   /** docs/spec/concepts.md#impact-analysis */
   impact: z.object({

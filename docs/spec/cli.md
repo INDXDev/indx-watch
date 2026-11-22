@@ -134,6 +134,7 @@ Compute coverage, use case status and the readiness gate for a scope.
 | `--env <name>` | any | |
 | `--gate` | | Exit 1 if the gate fails |
 | `--sync` | | Run `iw sync` first |
+| `--mine` | | *(v0.4)* Only the features you own ([feature owners](concepts.md#feature-owners)): yours by your actor ID (`IW_ACTOR`, else `git config user.email`); `group:` owners do not match locally. `data` adds `mine` |
 
 `data`:
 
@@ -147,6 +148,8 @@ Compute coverage, use case status and the readiness gate for a scope.
   "counts": { "pass": 5, "fail": 1, "needs_review": 1, "untested": 2, "stale": 0, "waived": 0, "uncovered": 1 }
 }
 ```
+
+With `--mine`, `data` also has `"mine": { "actor": "alex@shop.test", "features": ["FEAT-2"] }` (the features you own; empty when you own none, and then the rest of `data` is empty too). `iw list features` shows every feature's `owners`, including `group:` ones.
 
 A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](concepts.md#flaky-tests)).
 
@@ -167,7 +170,7 @@ Show one entity with resolved references, current version hash and recent runs. 
 
 ### `iw list <kind>`
 
-List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`. `data`: `{ "items": object[] }`
+List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`, and *(v0.4)* `--mine` (only the features you own, their use cases and test cases, as in `iw status --mine`). `data`: `{ "items": object[] }`
 
 ### `iw record <tc-ref>`
 
