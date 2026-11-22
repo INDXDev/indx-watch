@@ -46,12 +46,12 @@ const append = (old: string, text: string) => (old ? `${old.trimEnd()}\n\n${text
 const firstSentence = (s: string) => s.split(/\.\s/)[0]!.replace(/\.$/, '');
 const whenToUse = (d: string) => /Use when[\s\S]*?\.(\s|$)/.exec(d)?.[0].trim() ?? `${firstSentence(d)}.`;
 /** Codex UI metadata (docs/research/platform-notes.md#codex); JSON strings are valid YAML scalars. */
-function openaiYaml(name: string, description: string) {
+function openaiYaml(name: string, value: (key: string) => string) {
   const words = name.split('-').map((w) => (['indx', 'iw'].includes(w) ? w.toUpperCase() : w));
   const title = words.join(' ').replace(/^./, (c) => c.toUpperCase());
-  const short = firstSentence(description);
+  const short = firstSentence(value('description'));
   const shortDescription = short.length > 120 ? `${short.slice(0, short.lastIndexOf(' ', 119))}…` : short;
-  return `interface:\n  display_name: ${JSON.stringify(title)}\n  short_description: ${JSON.stringify(shortDescription)}\npolicy:\n  allow_implicit_invocation: true\n`;
+  return `interface:\n  display_name: ${JSON.stringify(title)}\n  short_description: ${JSON.stringify(shortDescription)}\npolicy:\n  allow_implicit_invocation: ${value('disable-model-invocation') !== 'true'}\n`;
 }
 
 /** The AGENTS.md block: one line per skill with how to call it and when to use it. */
@@ -103,7 +103,7 @@ export async function setupAgents(root: string, src: string, to: { claude: boole
         await put(`${base}/${d.name}/${rel}`, codexSkill ? portable(data.toString('utf8')) : data);
       }
       if (base === '.agents/skills' && !files.some((f) => f.name === 'openai.yaml'))
-        await put(`${base}/${d.name}/agents/openai.yaml`, openaiYaml(d.name, fm.value('description')));
+        await put(`${base}/${d.name}/agents/openai.yaml`, openaiYaml(d.name, fm.value));
     }
   }
 
@@ -138,7 +138,7 @@ export async function setupAgents(root: string, src: string, to: { claude: boole
   }
 
   const agents = (await read('AGENTS.md')) ?? '';
-  const [i, j] = [agents.indexOf(START), agents.indexOf(END)];
+  const [i, j] = [agents.indexOf(START), agents.indexOf(END, agents.indexOf(START))];
   const block = agentsBlock(skills);
   await put(
     'AGENTS.md',

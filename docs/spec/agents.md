@@ -22,12 +22,12 @@ Source frontmatter uses the portable fields (`name`, `description`, `license`, `
 | Writes | For | Content |
 |---|---|---|
 | `.claude/skills/<name>/` | Claude Code (`/<name>`) | The source folder as is |
-| `.agents/skills/<name>/` | Codex (`$<name>`, `/skills`) and other Agent Skills clients | The source folder with only portable frontmatter keys, plus `agents/openai.yaml` (`interface.display_name`, `interface.short_description` from the description's first sentence, `policy.allow_implicit_invocation: true`) unless the source has one |
+| `.agents/skills/<name>/` | Codex (`$<name>`, `/skills`) and other Agent Skills clients | The source folder with only portable frontmatter keys, plus `agents/openai.yaml` (`interface.display_name`, `interface.short_description` from the description's first sentence, `policy.allow_implicit_invocation`, `false` when the source sets `disable-model-invocation: true`) unless the source has one |
 | `.mcp.json` `mcpServers.indx-watch` | Claude Code | `npx -y indx-watch mcp`; each person approves it once |
 | `.codex/config.toml` `[mcp_servers.indx-watch]` | Codex | The same server; loaded once the project is trusted. Appended when the table is absent |
 | `AGENTS.md` block between `<!-- indx-watch:start -->` and `<!-- indx-watch:end -->` | both | One line per skill: how to call it and when to use it (the `Use when …` sentence of its description). `CLAUDE.md` gets an `@AGENTS.md` line if it exists without one |
 
-Re-running replaces the installed skill folders' files, the `indx-watch` server entries and the marked block in place, and leaves other servers, settings and text alone. Commit the result so the whole team gets the same setup.
+Re-running rewrites the installed skill files that differ from the source, the `.mcp.json` entry and the marked block in place; it keeps an existing `[mcp_servers.indx-watch]` table, does not delete files the source no longer has, and leaves other servers, settings and text alone. A `.mcp.json` or `.codex/config.toml` that does not parse, or that defines `mcp_servers` as an inline table, is left unchanged with an `agent-config` warning. Commit the result so the whole team gets the same setup.
 
 | Skill | What it does | Main commands |
 |---|---|---|

@@ -1,9 +1,12 @@
 /** `iw skills install`, the agent setup of `iw init` and the frontmatter rules (docs/spec/agents.md#install). */
+
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseToml } from '@indx-watch/bundle';
 import { describe, expect, it } from 'vitest';
+import { setupAgents } from '../src/agents.js';
 import { iwJson, ROOT } from './helpers.js';
 
 const SKILLS = join(ROOT, 'skills');
@@ -109,5 +112,42 @@ describe('skills', () => {
     expect(r.warnings.map((w: { code: string }) => w.code)).toEqual(['agent-config']);
     expect(read(dir, '.mcp.json')).toBe('{ not json');
     expect(existsSync(join(dir, '.codex'))).toBe(false);
+  });
+
+  it('Claude-only keys stay in .claude/ copies, and disable-model-invocation turns off implicit use in Codex', async () => {
+    const src = mkdtempSync(join(tmpdir(), 'iw-src-'));
+    mkdirSync(join(src, 'my-job'));
+    const fm = [
+      'name: my-job',
+      'description: >-',
+      '  Does a job. Use when',
+      '  asked to.',
+      'argument-hint: "[TC-n]"',
+      'metadata:',
+      '  owner: qa',
+      '  tags:',
+      '    - a',
+      'disable-model-invocation: true',
+    ];
+    const skill = `---\n${fm.join('\n')}\n---\n\n# My job\n`;
+    writeFileSync(join(src, 'my-job/SKILL.md'), skill);
+    const dir = mkdtempSync(join(tmpdir(), 'iw-skills-'));
+    await setupAgents(dir, src, { claude: true, codex: true });
+    expect(read(dir, '.claude/skills/my-job/SKILL.md')).toBe(skill);
+    expect(read(dir, '.agents/skills/my-job/SKILL.md')).toBe(
+      `---\n${[...fm.slice(0, 4), ...fm.slice(5, 9)].join('\n')}\n---\n\n# My job\n`,
+    );
+    expect(read(dir, '.agents/skills/my-job/agents/openai.yaml')).toContain(
+      'allow_implicit_invocation: false\n',
+    );
+    expect(read(dir, 'AGENTS.md')).toContain('`/my-job` or `$my-job`): Use when asked to.');
+  });
+
+  it('init of a new directory inside a git repository sets up that directory, not the repository root', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'iw-skills-'));
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    expect(iwJson(repo, 'init', ['init', 'demo']).json.data.agents.files).toContain('AGENTS.md');
+    expect(existsSync(join(repo, 'demo/AGENTS.md'))).toBe(true);
+    expect(readdirSync(repo).sort()).toEqual(['.git', 'demo']);
   });
 });

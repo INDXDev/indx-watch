@@ -59,7 +59,7 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 | `--example` | | Copy the `examples/shop` bundle instead of an empty one |
 | `--no-agents` | | Skip the agent setup below |
 
-Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir` (or `dir` itself outside git).
+Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
 `data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[] } }` (`agents` is the `iw skills install` data)
 

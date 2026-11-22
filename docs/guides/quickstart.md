@@ -22,7 +22,7 @@ cd demo
 └── specs/FEAT-1-general/feature.toml
 ```
 
-It also sets up Claude Code and Codex in `demo/`: the INDX Watch skills in `.claude/skills/` and `.agents/skills/`, the MCP server in `.mcp.json` and `.codex/config.toml`, and a short block in `AGENTS.md` ([details](../spec/agents.md#install); skip with `--no-agents`).
+It also sets up Claude Code and Codex in `demo/` (for an existing directory inside a git repository: in the repository root): the INDX Watch skills in `.claude/skills/` and `.agents/skills/`, the MCP server in `.mcp.json` and `.codex/config.toml`, and a short block in `AGENTS.md` ([details](../spec/agents.md#install); skip with `--no-agents`).
 
 Want a full example instead? `npx indx-watch init demo --example` copies the [`examples/shop`](../../examples/shop) bundle.
 

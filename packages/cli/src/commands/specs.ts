@@ -94,12 +94,13 @@ export const specCommands: Record<string, Spec> = {
     },
     async run(ctx, a) {
       const target = resolve(ctx.cwd, str(a.target) ?? '.');
+      const fresh = !existsSync(target); // a new directory is its own repository root
       const dir = join(target, '.indx-watch');
       if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', `${dir} already has a project.toml`);
       const fs = nodeFs(dir);
       const withAgents = async (out: { data: object; text: string }) => {
         if (a.agents === false) return out;
-        const root = git(target, 'rev-parse', '--show-toplevel') ?? target;
+        const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
         const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
         const text = `${out.text}\nSet up Claude Code and Codex in ${root} (iw skills install)`;
         return { data: { ...out.data, agents }, warnings, text };
