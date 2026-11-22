@@ -14,7 +14,7 @@ export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases 
  */
 export { approvedBaseline, buildModel, buildVerifiedModel, verifyRecords } from './model.js';
 export { reportData } from './report.js';
-/** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles). */
+/** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles); ownedFeatures, ownedModel: feature owners. */
 export {
   assignedTo,
   canInvite,
@@ -22,6 +22,8 @@ export {
   EMAIL,
   inviteItems,
   isAssignee,
+  ownedFeatures,
+  ownedModel,
   type Principal,
   roleOf,
 } from './roles.js';

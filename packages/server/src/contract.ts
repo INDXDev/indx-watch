@@ -113,6 +113,8 @@ export interface ProjectInfo {
     i18n?: unknown;
   }[];
   identity: Actor;
+  /** (v0.4) keys of the features this identity owns; the web app starts in "My features" when not empty */
+  owns?: string[];
   mode: 'local' | 'hosted';
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
   /** problems from loading the bundle (shown as a banner) */
@@ -175,6 +177,8 @@ export interface SpecTree {
   features: {
     key: string;
     title: string;
+    /** (v0.4) docs/spec/concepts.md#feature-owners */
+    owners?: string[] | undefined;
     i18n?: unknown;
     useCases: {
       key: string;

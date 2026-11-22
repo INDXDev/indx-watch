@@ -188,6 +188,9 @@ export const Release = z.strictObject({
 });
 export type Release = z.infer<typeof Release>;
 
+/** A plan item assignee or a feature owner: an email, `ci`, `agent:<name>` or `group:<name>`. */
+export const Assignee = z.string().regex(/^(ci|agent:[a-z0-9-]+|group:\S.*|[^@\s]+@[^@\s]+)$/);
+
 // ---------- specs/<FEAT>/feature.toml ----------
 export const Feature = z.strictObject({
   id: idOf('fea'),
@@ -195,6 +198,8 @@ export const Feature = z.strictObject({
   title: z.string().min(1),
   ...authored,
   description: z.string().optional(),
+  /** (v0.4) emails, actor IDs or `group:<name>`: whose "my features" this is (docs/spec/concepts.md#feature-owners) */
+  owners: z.array(Assignee).optional(),
   i18n: z
     .partialRecord(Locale, translation({ title: z.string().optional(), description: z.string().optional() }))
     .optional(),
@@ -372,7 +377,6 @@ export const BlobPointer = z.strictObject({
 export type BlobPointer = z.infer<typeof BlobPointer>;
 
 // ---------- plans/<PLAN>-<slug>.toml ----------
-export const Assignee = z.string().regex(/^(ci|agent:[a-z0-9-]+|group:\S.*|[^@\s]+@[^@\s]+)$/);
 export const PlanItem = z.strictObject({
   test_case: keyOf('testCase'),
   assignee: Assignee.optional(),

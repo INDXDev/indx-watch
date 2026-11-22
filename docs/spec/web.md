@@ -26,7 +26,7 @@ The web app is how testers, leads and customers use INDX Watch without a termina
 |---|---|
 | Brand / project | Links to Home. |
 | Navigation | Home · Tests · Activity · Test data · Report. Below 720 px it becomes a bottom tab bar. |
-| Scope | One control: the release, with the environment as a second line in its menu. The default is the current release and all environments, like `iw status`. |
+| Scope | One control: the release, with the environment as a second line in its menu. The default is the current release and all environments, like `iw status`. *(v0.4)* When you own at least one feature ([My features](#my-features)), the menu also has **My features / All features**, and the control's second line says "My features" while that is on. |
 | **Upload** | Opens the upload dialog ([Upload](#upload)). Hidden when the server cannot write. |
 | **CLI** | Opens the CLI panel ([CLI panel](#cli-panel)). |
 | Avatar menu | Shows who you are and how that was verified, a "Not you?" link where allowed ([Identity](#identity)), language, theme, and the sync state. Language and theme live here, not in the bar. |
@@ -48,6 +48,10 @@ Problems from `iw check` appear as one quiet line under the bar ("3 problems in 
 | `#/report` | Report | — | — |
 
 The List / Focus switch sits at the top right of each collection screen. Each view has its own URL, so a link opens the same view: `#/tests` and `#/tc/TC-3`, `#/activity` and `#/runs/<run>`, `#/fixtures` and `#/fixtures/FX-1`. `?f=open` and `?f=flaky` (Tests) and `?f=review` (Activity) carry the filter into Focus.
+
+### My features
+
+*(v0.4, [feature owners](concepts.md#feature-owners))* `GET /api/project` returns `owns`: the keys of the features whose `owners` name the viewer (their actor ID, or `group:` of one of their Access groups when the hosted app has roles). When `owns` is not empty, the app starts in **My features**: it asks `GET /api/status` and `GET /api/specs` with `mine=1`, and the server answers from the model narrowed to those features (`ownedModel()` in core), so Home (hero, cards, queue, Release details), the Tests tree, Focus and the Focus runner's session show only the viewer's features. **All features** in the scope menu drops `mine=1`; the choice is kept per viewer in the browser (`localStorage`, `indx-watch.features`). A viewer who owns nothing sees everything and no switch; when `owns` changes (for example after the viewer changes their local identity), the app picks the default again. A test case opened in Focus outside the viewer's features gets no prev/next. The Tests tree shows each feature's owners next to its title. "My features" is a view: test case pages, runs and reports are not narrowed, and the server ignores `mine` elsewhere.
 
 ### Quarantine
 
@@ -209,5 +213,6 @@ You can upload definitions in three ways:
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
+- [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test and web unit tests; the browser e2e is T-408).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
 - [x] In workspace mode, editing a test case's title, priority and steps in the app writes a `file` record with the viewer's verified identity, and an agent's edit is saved as an AI draft; in git mode the server refuses the edit (409) (server and Worker tests; the form itself was checked by hand).

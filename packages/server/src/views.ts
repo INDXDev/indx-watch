@@ -89,9 +89,9 @@ export async function specTree(model: Model, scope: Scope): Promise<SpecTree> {
     return { key, title, priority, status: st, done, i18n, criteria: await Promise.all(acs) };
   };
   const features = model.features.map(async (f) => {
-    const { key, title, i18n } = await markStale(f.data, 'feature');
+    const { key, title, owners, i18n } = await markStale(f.data, 'feature');
     const useCases = await Promise.all(f.useCases.filter((u) => u.data.status !== 'deprecated').map(useCase));
-    return { key, title, i18n, useCases };
+    return { key, title, owners, i18n, useCases };
   });
   return { scope, features: await Promise.all(features) };
 }

@@ -3,7 +3,7 @@
  */
 import type { Actor, Environment, Judgement, PlanItem, Role, Roles } from '@indx-watch/bundle';
 import { QA_TEAM } from './report.js';
-import type { Model, RunView } from './types.js';
+import type { Model, RunView, TestCaseNode } from './types.js';
 
 /** Who a request is: its actor ID (an email, or `ci:access:<client id>`) and its Access group IDs, names and emails. */
 export interface Principal {
@@ -56,11 +56,32 @@ export function inviteItems(items: PlanItem[], email: string, keys: string[], re
   return { items: next, changed: keysOf(change), reassigned, missing };
 }
 
-/** A plan item is assigned to whoever its `assignee` names: that email, or `group:<name>` of one of their groups. */
-export function assignedTo(item: PlanItem, who: Principal): boolean {
-  const a = item.assignee?.toLowerCase() ?? '';
+/** Does an assignee or owner entry name `who`: their ID, or `group:<name>` of one of their groups (without case). */
+function named(entry: string | undefined, who: Principal): boolean {
+  const a = entry?.toLowerCase() ?? '';
   const group = a.startsWith('group:') && a.slice(6);
   return group ? who.groups.some((g) => g.toLowerCase() === group) : names(who).has(a);
+}
+/** A plan item is assigned to whoever its `assignee` names: that email, or `group:<name>` of one of their groups. */
+export const assignedTo = (item: PlanItem, who: Principal) => named(item.assignee, who);
+
+/** Keys of the features whose `owners` name `who` (docs/spec/concepts.md#feature-owners). */
+export const ownedFeatures = (m: Model, who: Principal) =>
+  m.features.filter((f) => f.data.owners?.some((o) => named(o, who))).map((f) => f.data.key);
+
+/**
+ * The model narrowed to `features`: their use cases, the test cases of those use cases or covering one of their
+ * criteria, and every record (docs/spec/concepts.md#feature-owners).
+ */
+export function ownedModel(m: Model, features: string[]): Model {
+  const kept = m.features.filter((f) => features.includes(f.data.key));
+  const ucs = new Set(kept.flatMap((f) => f.useCases.map((u) => u.data.key)));
+  const uc = (ac: string) => `UC-${ac.slice(3, ac.indexOf('.'))}`;
+  const mine = (t: TestCaseNode) => ucs.has(t.useCase) || t.data.covers.some((ac) => ucs.has(uc(ac)));
+  const useCases = new Map([...m.useCases].filter(([k]) => ucs.has(k)));
+  const testCases = new Map([...m.testCases].filter(([, t]) => mine(t)));
+  const verifiedOnly = m.verifiedOnly && ownedModel(m.verifiedOnly, features);
+  return { ...m, features: kept, useCases, testCases, verifiedOnly };
 }
 
 /** What customer reports redact (docs/spec/reports.md#sharing-with-customers), from the records a customer sees. */

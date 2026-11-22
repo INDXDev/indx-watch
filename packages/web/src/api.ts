@@ -37,7 +37,8 @@ export type {
   UploadInput,
   UploadResult,
 };
-export type Scope = { release?: string | undefined; env?: string | undefined };
+/** `mine`: only the viewer's features (docs/spec/web.md#my-features); only status and specs take it */
+export type Scope = { release?: string | undefined; env?: string | undefined; mine?: boolean };
 export type PlanItemStatus = 'todo' | 'done' | 'blocked' | 'review';
 /** GET /api/plans/:key — a plan file plus computed item status (status is optional until the contract types it). */
 export interface PlanView {
@@ -122,11 +123,12 @@ const post = <T>(path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 const scopeQ = (s: Scope) => ({ release: s.release, env: s.env });
+const mineQ = (s: Scope) => ({ ...scopeQ(s), mine: s.mine ? '1' : undefined });
 
 export const api = {
   project: () => call<ProjectInfo>('api/project'),
-  status: (s: Scope) => call<StatusResult>(`api/status${query(scopeQ(s))}`),
-  specs: (s: Scope) => call<SpecTree>(`api/specs${query(scopeQ(s))}`),
+  status: (s: Scope) => call<StatusResult>(`api/status${query(mineQ(s))}`),
+  specs: (s: Scope) => call<SpecTree>(`api/specs${query(mineQ(s))}`),
   testCase: (key: string, s: Scope) => call<TestCaseDetail>(`api/test-cases/${key}${query(scopeQ(s))}`),
   fixtures: () => call<FixtureDetail[]>('api/fixtures'),
   fixture: (key: string) => call<FixtureDetail>(`api/fixtures/${key}`),

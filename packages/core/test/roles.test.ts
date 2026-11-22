@@ -1,4 +1,5 @@
 /** Roles and customer assignment (docs/spec/security.md#roles), over examples/shop. */
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assignedTo,
@@ -9,9 +10,11 @@ import {
   EMAIL,
   inviteItems,
   isAssignee,
+  ownedFeatures,
+  ownedModel,
   roleOf,
 } from '../src/index.js';
-import { SCOPE, shop } from './fixtures.js';
+import { SCOPE, SHOP, shop, storeRecords } from './fixtures.js';
 
 const ROLES = { lead: ['QA-Leads'], tester: ['kim@shop.test'], customer: ['uat'] };
 
@@ -103,5 +106,33 @@ describe('customerModel', () => {
     }));
     expect([...customerModel({ ...model, plans }, sam).testCases.keys()].sort()).toEqual(['TC-6', 'TC-8']);
     expect(customerModel(model, { id: 'eve@other.test', groups: [] }).testCases.size).toBe(0);
+  });
+});
+
+describe('feature owners (docs/spec/concepts.md#feature-owners)', () => {
+  it('lists the features whose owners name the person or one of their groups, without case', async () => {
+    const { model } = buildModel(await shop(), []);
+    expect(ownedFeatures(model, { id: 'Alex@shop.test', groups: [] })).toEqual(['FEAT-2']);
+    expect(ownedFeatures(model, { id: 'kim@shop.test', groups: ['QA@shop.test'] })).toEqual(['FEAT-1']);
+    expect(ownedFeatures(model, { id: 'sam@shop.test', groups: ['qa@shop.test'] })).toEqual([
+      'FEAT-1',
+      'FEAT-3',
+    ]);
+    expect(ownedFeatures(model, { id: 'qa@shop.test', groups: [] })).toEqual([]); // a group owner is not an ID
+  });
+
+  it('narrows status and the gate to the owned features; the full model is unchanged', async () => {
+    const b = await shop();
+    const { model } = buildModel(b, storeRecords(join(SHOP, '../store')));
+    const m = ownedModel(model, ['FEAT-2']);
+    expect(m.features.map((f) => f.data.key)).toEqual(['FEAT-2']);
+    expect([...m.useCases.keys()]).toEqual(['UC-2', 'UC-3']);
+    const s = computeStatus(m, SCOPE);
+    expect(s.testCases.map((t) => t.key)).toEqual(['TC-3', 'TC-4', 'TC-5', 'TC-6']);
+    expect(s.useCases.map((u) => u.key)).toEqual(['UC-2', 'UC-3']);
+    const full = computeStatus(model, SCOPE);
+    for (const t of s.testCases) expect(t).toEqual(full.testCases.find((x) => x.key === t.key));
+    expect(full.testCases.length).toBeGreaterThan(4);
+    expect(ownedModel(model, []).testCases.size).toBe(0);
   });
 });

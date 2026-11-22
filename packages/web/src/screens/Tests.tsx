@@ -33,7 +33,7 @@ export function testOrder(tree: SpecTree, filter?: string): string[] {
 
 export function Tests({ filter }: { filter?: string | undefined }) {
   const { scope } = useApp();
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   return <Load state={specs}>{(s) => <Tree tree={s} filter={asFilter(filter)} />}</Load>;
 }
 
@@ -41,9 +41,10 @@ export function Tests({ filter }: { filter?: string | undefined }) {
 export function TestFocus({ tcKey, filter }: { tcKey: string; filter?: string | undefined }) {
   const { scope, project } = useApp();
   const { t } = useI18n();
-  const specs = useApi(() => api.specs(scope), [scope.release, scope.env]);
+  const specs = useApi(() => api.specs(scope), [scope.release, scope.env, scope.mine]);
   const items = specs.data ? testOrder(specs.data, filter) : [];
-  const list = items.includes(tcKey) ? items : specs.data ? testOrder(specs.data) : [tcKey];
+  const all = specs.data ? testOrder(specs.data) : [];
+  const list = items.includes(tcKey) ? items : all.includes(tcKey) ? all : [tcKey];
   const q = query(asFilter(filter));
   return (
     <>
@@ -179,6 +180,7 @@ function Quarantine({ tree, needle }: { tree: SpecTree; needle: string }) {
 }
 
 function FeatureNode({ f, filter }: { f: Feature; filter: Filter }) {
+  const { t } = useI18n();
   return (
     <details className="card tree-feature" open>
       <summary>
@@ -189,6 +191,9 @@ function FeatureNode({ f, filter }: { f: Feature; filter: Filter }) {
         <span className="muted grow">
           <Tx of={f} field="description" />
         </span>
+        {!!f.owners?.length && (
+          <span className="muted small">{t('specs.owners', { owners: f.owners.join(', ') })}</span>
+        )}
       </summary>
       {f.useCases.map((u) => (
         <UseCaseNode key={u.key} u={u} filter={filter} />
