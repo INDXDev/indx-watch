@@ -195,9 +195,9 @@ Without a store (local only), Clone shows `git clone` advice instead, because th
 - **Roles.** On a hosted app with [roles](security.md#roles), only a `lead` edits definitions (`can.edit` in `GET /api/project`); the Edit button is hidden for testers, viewers and customers, and the server refuses their `PATCH` with 403 before reading the test case, so a customer cannot reach unassigned items through it. Without roles, and on `iw serve`, everyone is `lead`.
 - On `iw serve` the file in `.indx-watch/` changes at once; the next `iw sync` publishes nothing new for it. Elsewhere the edit appears after the next sync.
 - Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy. While a test case has a conflict file, saving it is refused (409), because the edit would silently drop the other value.
-- Upload is for git mode: in workspace mode the Upload button is hidden, and the API refuses uploads (409).
+- *(v0.5)* Uploads work in workspace mode too: each changed file becomes a `file` record ([Upload](#upload)).
 
-Use cases, fixtures and plans are edited in a working copy in this version; only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](security.md#customer-uat)), which append a `file` record for the plan the same way.
+Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](security.md#customer-uat)), which append a `file` record for the plan the same way.
 
 ## Upload
 
@@ -207,21 +207,35 @@ You can upload definitions in three ways:
 - by dropping files anywhere on Home, Tests or Uploads; a full-window overlay says "Drop to upload test files"
 - with `iw push` from a terminal
 
-**What can be dropped.** A folder that contains `project.toml` replaces the whole bundle. Single `.toml`, `.csv`, `.json` and `.md` files are merged into the current bundle:
+**What can be dropped.** A folder that contains `project.toml` replaces the whole bundle. Single files of any type are merged into the current bundle:
 
 - A file whose `id` matches an existing entity replaces that entity's file.
 - A new test case goes into the folder of the use case whose criteria it covers.
 - A new use case goes into the folder of its feature.
-- Any other file is listed as "can't place: drop the whole folder instead".
+- A file that is not TOML and has the name of exactly one bundle file replaces that file.
+- *(v0.5)* Any other file that is not TOML (a PDF, an image, a spreadsheet, a CSV, …) becomes **test data**: a new draft fixture `fixtures/FX-n-<slug>/` of its own, so nobody has to write TOML. Its title is the file name without the extension; a CSV with a header, or a JSON array of objects, becomes a `dataset` whose `row_key` is the first column, anything else a `file` fixture. A file larger than `[fixtures].inline_max_bytes` becomes a [pointer](bundle-format.md#fixtures) with its blob in the store, when the project has a `[store]`; without one it stays in the folder.
+- A TOML file that fits none of these is listed as "can't place: drop the whole folder instead".
 
 **Preview first.** The dialog lists every file as added, changed or unchanged. It runs `iw check` (including the secret scan) on the result. Errors block the upload; warnings are shown. Nothing is written until you press **Upload n files**.
 
 **What an upload does.**
 
-- **Hosted:** it publishes a new bundle snapshot, as `iw push` does, attributed to you. The hosted app switches to it at once.
+- **Hosted:** it publishes a new bundle snapshot, as `iw push` does, attributed to you. The hosted app switches to it at once. In git mode the next snapshot from the repository (CI's `iw sync --snapshot`, `iw push`) replaces it, so changes made only in the app do not last; teams that edit in the app use workspace mode.
+- *(v0.5)* **Workspace mode** (hosted or local): every changed file is a `file` record, and a removed one a `deleted` version, as in [the editor](#editing-in-workspace-mode). The store is the source of truth: everyone sees the change at once, and `iw sync` writes it into every working copy ([sync.md](sync.md#workspace-mode-v02)).
 - **Local:** it writes the files into `.indx-watch/` as uploaded (and removes the files a whole-folder upload no longer has). You then review and commit them with git like any other edit.
 
 **Uploads screen.** It lists snapshots from `bundle` records: who, when, from where (a commit, or "browser upload"), file count, and the current one. Each row can be downloaded as a `.tar`.
+
+## Test data
+
+*(v0.5)* The Test data screen (`#/fixtures`) is where engineers, testers, product managers and sales keep the data and documents the tests use, without writing TOML. A lead or a tester (`can.data` in `GET /api/project`) sees these actions; everyone else sees the list and the detail only.
+
+- **Add.** "New test data" asks for a name and a kind: *File* (documents, images, PDFs to download or attach; pick at least one file), *Table* (`dataset`; the column names), *Seed data* (`seed`; starts as `{}`) or *Account* (a username and a secret reference such as `env:SHOP_PASSWORD`, never the password). "Add from files" and dropping files anywhere on the screen go through [Upload](#upload), where every new file becomes its own draft fixture. New fixtures are `status = "draft"`; a lead approves them with `iw approve` as usual.
+- **Edit.** "Edit" on a fixture opens it in place: name, notes, and by kind the table (cells, add or remove rows and columns, the row key), the seed JSON, the account's username, secret reference and public fields, and the files (add, replace by name, remove). Saving writes only what changed. A table with more than 1,000 rows is edited in a working copy. A dataset stored as JSON stays JSON, with every value a string.
+- **Delete.** "Delete" asks once in the page, then removes the fixture's folder. It is refused while a test case uses the fixture, because `iw check` would fail.
+- **Files** download from the detail (`GET /api/blobs/:sha256`).
+- **Where it goes.** The server applies the change to the current definitions, runs `iw check` (including the secret scan) and refuses errors (400) before writing anything, then writes it like an [upload](#upload): files in `.indx-watch/` on `iw serve` in git mode, a bundle snapshot on a hosted app in git mode, and `file` records in workspace mode, so that `iw sync` brings the change to every working copy. In git mode on a hosted app the screen warns that changes made there are replaced by the next publish from the repository.
+- **API.** `POST /api/fixtures`, `PATCH /api/fixtures/:key` (`FixtureInput` → `FixtureSaved`) and `DELETE /api/fixtures/:key` in [`contract.ts`](../../packages/server/src/contract.ts). Agents get 403: they write drafts with `iw new` or the `iw-data` skill.
 
 ## Clone
 
@@ -256,3 +270,7 @@ You can upload definitions in three ways:
 - [x] `#/tc/<TC>/run` opens the test case page with the runner open, and a session's "Save and next" opens the next test case with its runner open (e2e `@TC-12`).
 - [x] Translated `checks` show in the chosen language; a translation of a different length falls back to the source (web unit test).
 - [x] In workspace mode, editing a test case's title, priority and steps in the app writes a `file` record with the viewer's verified identity, and an agent's edit is saved as an AI draft; in git mode the server refuses the edit (409) (server and Worker tests; the form itself was checked by hand).
+- [x] Dropping `Sales deck.pdf` and `leads.csv` previews two new draft fixtures (`FX-5` as a `file`, `FX-6` as a `dataset` with `row_key = "email"`); a file over `inline_max_bytes` becomes a pointer and its blob is stored (server test).
+- [x] `POST /api/fixtures` creates a dataset from a table as CSV; `PATCH` changes its title, notes and rows, adds and removes a file; `DELETE` removes the folder; deleting a used fixture, an unsafe file name or a plain password as `secret_ref` is refused with nothing written; an agent gets 403 (server test). Creating, editing a table and saving on the screen was checked in a browser.
+- [x] In workspace mode on a Worker, uploading a PDF, editing the new fixture and deleting it write `file` records (the delete as `deleted` versions), and the fixture is gone from the API afterwards (Worker test).
+- [x] A tester may add and edit test data and upload files that only touch `fixtures/`; a viewer gets 403 (server tests).

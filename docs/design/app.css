@@ -1821,3 +1821,33 @@ tr:last-child td {
     display: none;
   }
 }
+
+/* Test data editor (docs/spec/web.md#test-data) */
+.btn-danger {
+  background: var(--fail);
+  border-color: var(--fail);
+  color: var(--surface);
+}
+.edit-table input {
+  width: 100%;
+  min-width: 8ch;
+  font: inherit;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.edit-table th {
+  white-space: nowrap;
+}
+.edit-table th input {
+  width: auto;
+  font-weight: 600;
+}
+.field-inline {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

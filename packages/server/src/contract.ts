@@ -37,6 +37,9 @@ export const ROUTES = {
   run: 'GET /api/runs/:id',
   editTestCase:
     'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record? }; docs/spec/web.md#editing-in-workspace-mode)',
+  createFixture: 'POST /api/fixtures (lead; FixtureInput → FixtureSaved; docs/spec/web.md#test-data)',
+  editFixture: 'PATCH /api/fixtures/:key (lead; FixtureInput → FixtureSaved)',
+  deleteFixture: 'DELETE /api/fixtures/:key (lead; git mode; → FixtureSaved)',
   invite:
     'POST /api/plans/:key/invites (lead; InviteInput → InviteResult; docs/spec/security.md#customer-uat)',
   uninvite: 'DELETE /api/plans/:key/invites/:email?items= (lead; → InviteResult)',
@@ -128,6 +131,8 @@ export interface ProjectInfo {
     approve?: boolean;
     /** (v0.2) edit test case definitions in workspace mode (PATCH /api/test-cases/:key) */
     edit?: boolean;
+    /** (v0.5) create, edit and remove test data (POST /api/fixtures, PATCH and DELETE /api/fixtures/:key) */
+    data?: boolean;
   };
   /** (v0.3) the role of this identity (docs/spec/security.md#roles); `lead` where no roles are configured */
   role?: import('@indx-watch/bundle').Role;
@@ -254,8 +259,8 @@ export interface FixtureDetail {
   version: string;
   data: Fixture;
   files: { name: string; sha256: string; size: number; pointer: boolean; media_type?: string }[];
-  /** dataset rows (first 200), or seed JSON text; account shows username + secret_ref only */
-  preview?: { rows?: Record<string, string>[]; text?: string };
+  /** dataset rows (first 1,000; `total` counts all), or seed JSON text; account shows username + secret_ref only */
+  preview?: { rows?: Record<string, string>[]; columns?: string[]; total?: number; text?: string };
   usedBy: string[];
 }
 
@@ -281,6 +286,28 @@ export interface TestCaseEdit {
   title?: string;
   priority?: string | null;
   steps?: { instruction: string; expected: string }[];
+}
+
+/**
+ * POST /api/fixtures and PATCH /api/fixtures/:key body (v0.5, docs/spec/web.md#test-data). `kind` only on create;
+ * `table` rewrites a dataset's one data file, `json` a seed's payload; `add` adds or replaces data files (base64).
+ */
+export interface FixtureInput {
+  title?: string;
+  kind?: 'dataset' | 'seed' | 'file' | 'account';
+  notes?: string | null;
+  table?: { columns: string[]; rows: string[][]; row_key?: string };
+  json?: string;
+  account?: { username: string; secret_ref: string; fields?: Record<string, string> };
+  add?: { name: string; data: string }[];
+  remove?: string[];
+}
+/** Answer of the fixture writes: the fixture and the bundle paths written and removed. */
+export interface FixtureSaved {
+  key: string;
+  file: string;
+  changed: string[];
+  removed: string[];
 }
 
 /** POST /api/plans/:key/invites body (v0.3, docs/spec/security.md#customer-uat); no `items`: every item of the plan. */

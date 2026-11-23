@@ -71,9 +71,11 @@ describe('prepareUpload', () => {
       ],
     });
     expect(result.changes.filter((c) => c.change === 'added').map((c) => c.path)).toEqual([
+      'fixtures/FX-5-notes/fixture.toml',
+      'fixtures/FX-5-notes/notes.txt',
       'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-11-coupon-code-is-case-insensitive.toml',
     ]);
-    expect(result.unplaced).toEqual([{ name: 'notes.txt', reason: 'no file with this name' }]);
+    expect(result.unplaced).toEqual([]);
     expect(result.ok).toBe(true);
     const key = ['AKIA', 'Q7RT2X4M9KD3LP8Z'].join(''); // assembled so this file holds no token-shaped literal
     const leaky = tc3().replace('preconditions = ', `notes = "deploy key ${key}"\npreconditions = `);
@@ -134,6 +136,7 @@ describe('POST /api/bundle and GET /api/snapshots', () => {
       review: true,
       approve: true,
       edit: false,
+      data: true,
     });
     f.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
     expect((await a.fetch(req('/api/bundle', { json: body }))).status).toBe(403);

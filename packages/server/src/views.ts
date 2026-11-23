@@ -108,6 +108,13 @@ export function parseCsv(text: string): Record<string, string>[] {
   return body.map((r) => Object.fromEntries(head.map((h, i) => [h.trim(), r[i] ?? ''])));
 }
 
+/** Column names of a dataset whose CSV has a header but no rows yet. */
+async function csvHeader(fx: FixtureNode, read: ReadFile) {
+  const f = fx.dataFiles.find((x) => !x.pointer && x.name.endsWith('.csv'));
+  const text = f ? new TextDecoder().decode((await read(f.file)) ?? new Uint8Array()) : '';
+  return Object.keys(parseCsv(`${text.split(/\r?\n/, 1)[0]}\nx`)[0] ?? {}).filter(Boolean);
+}
+
 /** Rows of a dataset fixture (CSV or JSON array files, in file order). */
 export async function datasetRows(fx: FixtureNode, read: ReadFile): Promise<Record<string, string>[]> {
   const out: Record<string, string>[] = [];
@@ -122,7 +129,11 @@ export async function datasetRows(fx: FixtureNode, read: ReadFile): Promise<Reco
   return out;
 }
 
-const MEDIA: Record<string, string> = { csv: 'text/csv', json: 'application/json', png: 'image/png' };
+const MEDIA: Record<string, string> = {
+  ...{ csv: 'text/csv', json: 'application/json', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' },
+  ...{ gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown' },
+  ...{ mp4: 'video/mp4', zip: 'application/zip' },
+};
 export const mediaOf = (name: string) => MEDIA[name.split('.').pop()?.toLowerCase() ?? ''];
 
 /** A fixture's files with the SHA-256 and type of their content (the blob, for a pointer). */
@@ -139,7 +150,10 @@ export async function fixtureDetail(fx: FixtureNode, read: ReadFile): Promise<Fi
   const text = bytes ? new TextDecoder().decode(bytes.slice(0, 100_000)) : '';
   const preview =
     kind === 'dataset'
-      ? { rows: (await datasetRows(fx, read)).slice(0, 200) }
+      ? await datasetRows(fx, read).then(async (r) => ({
+          ...{ rows: r.slice(0, 1000), total: r.length },
+          columns: r[0] ? Object.keys(r[0]) : await csvHeader(fx, read),
+        }))
       : account
         ? { rows: [{ username: account.username, secret_ref: account.secret_ref }] }
         : text

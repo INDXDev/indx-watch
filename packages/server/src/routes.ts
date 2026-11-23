@@ -18,6 +18,7 @@ import { checkRecord, ulidTime } from '@indx-watch/store';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
+import { changesOf, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
 import { renderReport, reportTexts } from './report.js';
 import { checksError } from './tools.js';
@@ -125,11 +126,13 @@ async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ct
     can: {
       ...{
         declare: !!deps.declaredIdentity,
-        upload: !!deps.publishBundle && lead && !workspaceMode(m),
+        upload:
+          (lead || role === 'tester') && !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle),
         share: sharer(who) && lead,
       },
       ...{ run: role !== 'viewer', review: lead || role === 'tester', approve: lead },
       edit: workspaceMode(m) && !!deps.bundleFiles && lead,
+      data: (lead || role === 'tester') && !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle),
     },
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
   };
@@ -237,6 +240,9 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/runs/:id/baselines', (c) => approveBaseline(c, x));
   app.post('/api/blobs', (c) => uploadBlob(c, x));
   app.patch('/api/test-cases/:key', (c) => editTestCase(c, x));
+  app.post('/api/fixtures', (c) => saveFixture(c, x, 'create'));
+  app.patch('/api/fixtures/:key', (c) => saveFixture(c, x, 'edit'));
+  app.delete('/api/fixtures/:key', (c) => saveFixture(c, x, 'delete'));
   app.post('/api/plans/:key/invites', (c) => invite(c, x, false));
   app.delete('/api/plans/:key/invites/:email', (c) => invite(c, x, true));
 }
@@ -250,20 +256,30 @@ export function resolveRelease(m: Model, explicit: string | undefined, build: B.
   return explicit ?? byRef?.version ?? (!ci || onMain ? m.project.current_release : undefined);
 }
 
-async function uploadBundle(c: Context, { deps: d, actor, model }: Ctx) {
+async function uploadBundle(c: Context, x: Ctx) {
+  const { deps: d, actor, model } = x;
   const input = await readJson<UploadInput>(c);
-  if (workspaceMode(await model(c).catch(() => undefined)))
-    throw new HttpError(409, 'conflict', 'workspace mode: edit definitions instead of uploading');
+  // an empty bucket has no model yet: its first upload is a whole bundle
+  const m = await model(c).catch(() => undefined);
   const who = await actor(c);
-  if (!d.publishBundle || !d.bundleFiles) throw new HttpError(403, 'forbidden', 'this server cannot write');
+  const workspace = workspaceMode(m);
+  if ((!d.publishBundle && !workspace) || !d.bundleFiles)
+    throw new HttpError(403, 'forbidden', 'this server cannot write');
   if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
-  const { next, result } = await prepareUpload(await d.bundleFiles(), input);
+  // a tester may add test data, not replace or change specs (docs/spec/security.md#roles)
+  const tester = (await x.grant(c)).role === 'tester';
+  const base = await d.bundleFiles();
+  const { next, result, blobs } = await prepareUpload(base, input);
+  const specs = result.changes.some((ch) => ch.change !== 'unchanged' && !ch.path.startsWith('fixtures/'));
+  if (tester && specs) throw new HttpError(403, 'forbidden', 'a tester uploads test data only');
   if (input.dryRun || !result.ok) return c.json(result, input.dryRun || result.ok ? 200 : 422);
-  const changed = result.changes.filter((x) => x.change === 'added' || x.change === 'changed');
-  const removed = result.changes.filter((x) => x.change === 'removed').map((x) => x.path);
+  for (const b of blobs) await d.putBlob(b, 'application/octet-stream');
+  // workspace mode: the store is the source of truth, so an upload is a set of file records
+  if (workspace) return c.json({ ...result, ...(await writeWorkspace(c, x, m!, base, next)) }, 201);
+  const { changed, removed } = changesOf(base, next);
   const message = typeof input.message === 'string' ? input.message.trim().slice(0, 500) : '';
-  const info = { actor: who, changed: changed.map((x) => x.path), removed, ...(message && { message }) };
-  const snapshot = await d.publishBundle(next, info);
+  const info = { actor: who, changed, removed, ...(message && { message }) };
+  const snapshot = await d.publishBundle!(next, info);
   return c.json({ ...result, ...(snapshot && { snapshot }) }, 201);
 }
 
