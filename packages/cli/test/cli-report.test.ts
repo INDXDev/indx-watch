@@ -158,7 +158,7 @@ describe('commands: serve, --help and --version', () => {
     expect(iw(tmpdir(), ['new', '--help']).stdout).toContain('--step');
     expect(iw(tmpdir(), ['fixture', 'add', '--help']).stdout).toContain('USAGE iw fixture add ');
     expect(iw(tmpdir(), ['deployment', 'add', '--help']).stdout).toContain('USAGE iw deployment add ');
-    expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.0');
+    expect(iw(tmpdir(), ['--version']).stdout.trim()).toBe('0.1.1');
   });
 });
 
