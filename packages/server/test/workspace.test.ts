@@ -12,7 +12,7 @@ import { definitionFiles } from '@indx-watch/sync';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fakeD1 } from '../../store/test/helpers/fakes.js';
-import type { ProjectInfo, TestCaseDetail } from '../src/index.js';
+import type { FixtureDetail, ProjectInfo, TestCaseDetail } from '../src/index.js';
 import { createWorker } from '../src/worker.js';
 import { app } from './app-helpers.js';
 import { req, SHOP, shop } from './helpers.js';
@@ -60,7 +60,7 @@ describe('workspace mode: hosted editing (Worker)', () => {
     const call = (path: string, init: RequestInit = {}) =>
       worker.fetch(new Request(`https://watch.example.com${path}`, { ...init, headers }), env as never);
     const info = (await (await call('/api/project')).json()) as ProjectInfo;
-    expect(info.can).toMatchObject({ edit: true, upload: false });
+    expect(info.can).toMatchObject({ edit: true, upload: true, data: true });
     const res = await call('/api/test-cases/TC-3', { method: 'PATCH', body: JSON.stringify(EDIT) });
     expect(res.status).toBe(201);
     const { record } = (await res.json()) as { record: FileRecord };
@@ -75,8 +75,30 @@ describe('workspace mode: hosted editing (Worker)', () => {
       body: JSON.stringify({ title: ' ' }),
     });
     expect(empty.status).toBe(400);
-    const upload = await call('/api/bundle', { method: 'POST', body: JSON.stringify({ files: [] }) });
-    expect(upload.status).toBe(409);
+    // an upload and a test data edit are file records too, so `iw sync` brings them into every working copy
+    const pdf = { name: 'Sales deck.pdf', data: Buffer.from('%PDF-1.4\n').toString('base64') };
+    const upload = await call('/api/bundle', { method: 'POST', body: JSON.stringify({ files: [pdf] }) });
+    expect(upload.status).toBe(201);
+    const fx = (await (await call('/api/fixtures/FX-5')).json()) as FixtureDetail;
+    expect(fx.data).toMatchObject({ title: 'Sales deck', kind: 'file', status: 'draft' });
+    const edit = { title: 'Sales deck (Q4)', notes: 'Shown in the demo' };
+    expect((await call('/api/fixtures/FX-5', { method: 'PATCH', body: JSON.stringify(edit) })).status).toBe(
+      200,
+    );
+    const del = await call('/api/fixtures/FX-5', { method: 'DELETE', headers: { 'X-IW-Request': '1' } });
+    expect(del.status).toBe(200);
+    const logs = await Promise.all((await store.listLog({})).keys.map((key) => store.readLog(key)));
+    const all = logs.flatMap((l) => l.records as unknown as FileRecord[]);
+    const deck = all.filter((r) => r.path?.startsWith('fixtures/FX-5-sales-deck/'));
+    const versions = deck.map((r) => `${r.path.split('/').pop()}${r.deleted ? ' deleted' : ''}`).sort();
+    expect(versions).toEqual([
+      'Sales deck.pdf',
+      'Sales deck.pdf deleted',
+      'fixture.toml',
+      'fixture.toml',
+      'fixture.toml deleted',
+    ]);
+    expect((await call('/api/fixtures/FX-5')).status).toBe(404);
   });
 });
 

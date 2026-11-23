@@ -5,6 +5,8 @@
 import type {
   BlobResult,
   FixtureDetail,
+  FixtureInput,
+  FixtureSaved,
   ManualRunInput,
   ManualRunResult,
   ProjectInfo,
@@ -25,6 +27,8 @@ import type {
 export type {
   BlobResult,
   FixtureDetail,
+  FixtureInput,
+  FixtureSaved,
   ProjectInfo,
   RunDetail,
   RunSummary,
@@ -122,6 +126,12 @@ const post = <T>(path: string, body: unknown) =>
     headers: { 'Content-Type': 'application/json', ...WRITE },
     body: JSON.stringify(body),
   });
+const send = <T>(method: string, path: string, body?: unknown) =>
+  call<T>(path, {
+    method,
+    headers: { ...(body !== undefined && { 'Content-Type': 'application/json' }), ...WRITE },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
 const scopeQ = (s: Scope) => ({ release: s.release, env: s.env });
 const mineQ = (s: Scope) => ({ ...scopeQ(s), mine: s.mine ? '1' : undefined });
 
@@ -144,6 +154,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...WRITE },
       body: JSON.stringify(input),
     }),
+  createFixture: (input: FixtureInput) => post<FixtureSaved>('api/fixtures', input),
+  editFixture: (key: string, input: FixtureInput) =>
+    send<FixtureSaved>('PATCH', `api/fixtures/${key}`, input),
+  deleteFixture: (key: string) => send<FixtureSaved>('DELETE', `api/fixtures/${key}`),
   review: (id: string, input: ReviewInput) => post<unknown>(`api/runs/${id}/judgements`, input),
   approveBaseline: (id: string, sha256: string) => post<unknown>(`api/runs/${id}/baselines`, { sha256 }),
   uploadBlob: (file: Blob, name: string) =>

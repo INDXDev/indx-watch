@@ -261,6 +261,7 @@ function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: 
     bundleFiles: () => definitionFiles(fs),
     records: () => l.records(),
     writeFile: (path, data) => fs.write(path, data).then(() => void models.invalidate()),
+    removeFile: (path) => fs.remove(path).then(() => void models.invalidate()),
     // local uploads are file edits: review and commit them with git (docs/spec/web.md#upload)
     async publishBundle(files, { changed, removed }) {
       for (const path of changed) await fs.write(path, files.get(path)!);

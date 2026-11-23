@@ -43,6 +43,8 @@ export interface ServerDeps extends AppDeps {
   records?(): Promise<B.AnyRecord[]>;
   /** write a definition file into the working tree after a workspace edit (Node) */
   writeFile?(path: string, data: Uint8Array): Promise<void>;
+  /** remove a definition file from the working tree after a workspace delete (Node) */
+  removeFile?(path: string): Promise<void>;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
@@ -88,6 +90,8 @@ const PERMITS: [RegExp, B.Role[]][] = [
   [/^(GET|HEAD) /, ['tester', 'viewer', 'customer']],
   [/^POST \/api\/(runs|blobs)$/, ['tester', 'customer']],
   [/^(POST \/api\/runs\/[^/]+\/judgements|PUT \/api\/store\/.*)$/, ['tester']],
+  // test data is shared work: testers add and edit it too (docs/spec/security.md#roles)
+  [/^(POST \/api\/(fixtures|bundle)|(PATCH|DELETE) \/api\/fixtures\/[^/]+)$/, ['tester']],
 ];
 /** May this role make this request. Pure; tested. */
 export const permits = (role: B.Role | undefined, method: string, path: string) =>

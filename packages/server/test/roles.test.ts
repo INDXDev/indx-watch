@@ -74,7 +74,9 @@ const keys = (text: string) => [...new Set(text.match(/\bTC-\d+\b/g))].sort();
 describe('permits', () => {
   it('lead may do anything; others only what their role allows', () => {
     expect(permits('lead', 'POST', '/api/bundle')).toBe(true);
-    expect(permits('tester', 'POST', '/api/bundle')).toBe(false);
+    expect(permits('tester', 'POST', '/api/bundle')).toBe(true); // test data only, checked by the route
+    expect(permits('tester', 'PATCH', '/api/fixtures/FX-1')).toBe(true);
+    expect(permits('viewer', 'POST', '/api/fixtures')).toBe(false);
     expect(permits('tester', 'POST', '/api/runs/run_1/baselines')).toBe(false);
     expect(permits('tester', 'PUT', '/api/store/objects/v1/log/x.json')).toBe(true);
     expect(permits('viewer', 'GET', '/api/store/list')).toBe(true);
@@ -139,8 +141,9 @@ describe('roles on the hosted app', () => {
       blob: 403,
       storeList: 403,
     });
-    // the bundle upload is refused for the lead only because this server cannot write; for others by role
-    expect(await (await h.sendJson('tester', '/api/bundle', { files: [] })).text()).toContain('tester');
+    // the bundle upload is refused for the lead and the tester because this server cannot write; for others by role
+    expect(await (await h.sendJson('tester', '/api/bundle', { files: [] })).text()).toContain('cannot write');
+    expect(await (await h.sendJson('viewer', '/api/bundle', { files: [] })).text()).toContain('viewer');
     const tc1 = await h.runId('TC-1');
     const approve = (user: string) => h.sendJson(user, `/api/runs/${tc1}/baselines`, { sha256: SHOT_SHA });
     expect((await approve('tester')).status).toBe(403);

@@ -44,7 +44,7 @@ export function plan(paths: string[]): { replace: boolean; root: string } {
     : { replace: true, root: root.slice(0, -'project.toml'.length) };
 }
 
-const base64 = async (f: File) => {
+export const base64 = async (f: File) => {
   const bytes = new Uint8Array(await f.arrayBuffer());
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -123,13 +123,7 @@ export function Pickers({ onFiles }: { onFiles(p: Picked[]): void }) {
         {t('upload.pickFolder')}
       </label>
       <label className="btn">
-        <input
-          type="file"
-          className="sr"
-          multiple
-          accept=".toml,.csv,.json,.md"
-          onChange={(e) => onFiles(fromInput(e.target.files))}
-        />
+        <input type="file" className="sr" multiple onChange={(e) => onFiles(fromInput(e.target.files))} />
         {t('upload.pickFiles')}
       </label>
     </div>
@@ -179,7 +173,7 @@ function useUpload(picked: Picked[] | null, onDone: () => void) {
   return { input, preview, done, message, setMessage, busy, error, upload, changed };
 }
 type Upload = ReturnType<typeof useUpload>;
-type Shared = { hosted: boolean; onClose(): void };
+type Shared = { hosted: boolean; workspace?: boolean | undefined; onClose(): void };
 
 type DialogProps = Shared & {
   open: boolean;
@@ -189,13 +183,13 @@ type DialogProps = Shared & {
 };
 
 /** Pick, preview and upload definition files. */
-export function UploadDialog({ open, picked, hosted, onClose, onDone, onFiles }: DialogProps) {
+export function UploadDialog({ open, picked, hosted, workspace, onClose, onDone, onFiles }: DialogProps) {
   const { t } = useI18n();
   const u = useUpload(picked, onDone);
   return (
     <Dialog open={open} title={t('upload.title')} onClose={onClose} wide>
       {u.done ? (
-        <UploadDone count={u.changed.length} hosted={hosted} onClose={onClose} />
+        <UploadDone count={u.changed.length} hosted={hosted} workspace={workspace} onClose={onClose} />
       ) : !picked?.length ? (
         <div className="stack-sm">
           <div className="dropzone">
@@ -215,19 +209,20 @@ export function UploadDialog({ open, picked, hosted, onClose, onDone, onFiles }:
               {t('common.error', { message: u.error })}
             </div>
           )}
-          {u.preview && <UploadPreview u={u} hosted={hosted} onClose={onClose} />}
+          {u.preview && <UploadPreview u={u} hosted={hosted} workspace={workspace} onClose={onClose} />}
         </div>
       )}
     </Dialog>
   );
 }
 
-function UploadDone({ count, hosted, onClose }: Shared & { count: number }) {
+function UploadDone({ count, hosted, workspace, onClose }: Shared & { count: number }) {
   const { t } = useI18n();
   return (
     <div className="stack-sm">
       <div className="callout s-pass" role="status">
-        <Icon status="pass" /> {t(hosted ? 'upload.doneHosted' : 'upload.doneLocal', { count })}
+        <Icon status="pass" />{' '}
+        {t(workspace ? 'upload.doneWorkspace' : hosted ? 'upload.doneHosted' : 'upload.doneLocal', { count })}
       </div>
       <div className="actions">
         <a className="btn btn-primary" href={href.uploads()} onClick={onClose}>
@@ -242,7 +237,7 @@ function UploadDone({ count, hosted, onClose }: Shared & { count: number }) {
 }
 
 /** The dry-run result: what changes, what the check found, and the upload button. */
-function UploadPreview({ u, hosted, onClose }: Shared & { u: Upload }) {
+function UploadPreview({ u, hosted, workspace, onClose }: Shared & { u: Upload }) {
   const { t } = useI18n();
   const { changed, busy } = u;
   const preview = u.preview!;
@@ -277,13 +272,15 @@ function UploadPreview({ u, hosted, onClose }: Shared & { u: Upload }) {
         {changed.length === 0 && <li className="muted">{t('upload.nothing')}</li>}
       </ul>
       <CheckResult problems={preview.problems} />
-      {hosted && (
+      {hosted && !workspace && (
         <label className="field">
           <span>{t('upload.message')}</span>
           <input value={u.message} onChange={(e) => u.setMessage(e.target.value)} maxLength={500} />
         </label>
       )}
-      <p className="muted small">{t(hosted ? 'upload.explainHosted' : 'upload.explainLocal')}</p>
+      <p className="muted small">
+        {t(workspace ? 'upload.explainWorkspace' : hosted ? 'upload.explainHosted' : 'upload.explainLocal')}
+      </p>
       <div className="actions">
         <button type="button" className="btn btn-primary" disabled={!preview.ok || busy} onClick={u.upload}>
           {busy ? t('upload.uploading') : t('upload.go', { count: changed.length })}

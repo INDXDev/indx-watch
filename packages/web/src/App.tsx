@@ -124,7 +124,7 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
     () => ({ project: info, scope, setScope, upload, reload }),
     [info, scope, upload, reload],
   );
-  const dropHere = info.can.upload && ['home', 'tests', 'uploads'].includes(route.name);
+  const dropHere = info.can.upload && ['home', 'tests', 'uploads', 'fixtures'].includes(route.name);
   return (
     <AppContext.Provider value={ctx}>
       <button type="button" className="skip" onClick={() => document.getElementById('main')?.focus()}>
@@ -187,6 +187,7 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
         open={!!uploading}
         picked={uploading?.picked ?? null}
         hosted={info.mode === 'hosted'}
+        workspace={info.can.edit}
         onClose={() => setUploading(null)}
         onDone={reload}
         onFiles={onFiles}

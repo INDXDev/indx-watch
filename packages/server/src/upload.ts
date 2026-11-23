@@ -3,6 +3,7 @@
  * check the result and report every change. Pure apart from the BundleFs it builds in memory.
  */
 import { type BundleFs, checkBundle, type Problem, parseToml, slugify } from '@indx-watch/bundle';
+import { fixtureForFile } from './fixtures.js';
 
 /** BundleFs over a map of paths (a bundle snapshot unpacked in memory, or an upload being checked). */
 export function memoryBundleFs(files: Map<string, Uint8Array>): BundleFs {
@@ -69,6 +70,7 @@ const dirOf = (p: string) => p.split('/').slice(0, -1).join('/');
 const same = (a: Uint8Array | undefined, b: Uint8Array) =>
   !!a && a.byteLength === b.byteLength && a.every((x, i) => x === b[i]);
 
+const NEW_FILE = 'no file with this name';
 const CANNOT_PLACE = 'cannot place this file: drop the whole .indx-watch folder instead';
 
 /**
@@ -87,7 +89,7 @@ function place(base: Map<string, Uint8Array>, f: UploadFile, data: Uint8Array): 
 function placeByName(base: Map<string, Uint8Array>, name: string): string | { reason: string } {
   const hits = [...base.keys()].filter((p) => p.split('/').pop() === name);
   if (hits.length === 1) return hits[0]!;
-  return { reason: hits.length ? 'ambiguous name' : 'no file with this name' };
+  return { reason: hits.length ? 'ambiguous name' : NEW_FILE };
 }
 
 /** The TOML file of `base` with the same non-empty `id`. */
@@ -126,6 +128,7 @@ export async function prepareUpload(base: Map<string, Uint8Array>, input: Upload
   const files = Array.isArray(input.files) ? input.files.slice(0, MAX_UPLOAD_FILES) : [];
   const next = new Map(input.replace ? [] : base);
   const unplaced: UploadResult['unplaced'] = [];
+  const blobs: Uint8Array[] = [];
   for (const f of files) {
     const data = decode(String(f.data ?? ''));
     const given = String(f.name ?? '');
@@ -134,6 +137,9 @@ export async function prepareUpload(base: Map<string, Uint8Array>, input: Upload
     const replaced = f.path && safePath(f.path) ? f.path : { reason: 'unsafe path' };
     const at = input.replace ? replaced : place(base, { ...f, name }, data);
     if (typeof at === 'string') next.set(at, data);
+    // any other new file is test data: it gets a draft fixture of its own (docs/spec/web.md#upload)
+    else if (!input.replace && at.reason === NEW_FILE && safePath(name))
+      await fixtureForFile(next, name, data, blobs);
     else unplaced.push({ name, ...at });
   }
   const changes = diff(base, next);
@@ -141,5 +147,5 @@ export async function prepareUpload(base: Map<string, Uint8Array>, input: Upload
   if (input.replace && !next.has('project.toml'))
     problems.unshift({ severity: 'error', code: 'no-project', message: 'The folder has no project.toml' });
   const ok = changes.some((c) => c.change !== 'unchanged') && !problems.some((p) => p.severity === 'error');
-  return { next, result: { ok, changes, unplaced, problems } satisfies UploadResult };
+  return { next, blobs, result: { ok, changes, unplaced, problems } satisfies UploadResult };
 }
