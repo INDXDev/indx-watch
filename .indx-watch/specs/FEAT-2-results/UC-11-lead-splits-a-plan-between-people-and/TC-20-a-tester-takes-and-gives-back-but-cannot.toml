@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874HAYPE0C2NP4GTQ0G8QC0"
+key = "TC-20"
+title = "A tester takes and gives back but cannot assign others"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.3"]
+priority = "P1"
+mode = "manual"
+
+[[steps]]
+instruction = "Open Release details on Home as a tester of the hosted app"
+expected = "Take is offered on unassigned items and Give back on your own; there are no checkboxes and no Split button."
+
+[steps.i18n.ja]
+instruction = "ホスト版アプリでテスターとして、ホームのリリースの詳細を開く。"
+expected = "未割り当ての項目に「Take」、自分の項目に「Give back」が表示され、チェックボックスも「Split…」ボタンもない。"
+status = "machine"
+source_hash = "2d6bf6d74fba"
+
+[[steps]]
+instruction = "Press Take on an unassigned item, then Give back on it"
+expected = "The item shows your name after Take and a dash after Give back."
+
+[steps.i18n.ja]
+instruction = "未割り当ての項目で「Take」を押し、続けて同じ項目で「Give back」を押す。"
+expected = "Take の後は項目に自分の名前が表示され、Give back の後は「—」になる。"
+status = "machine"
+source_hash = "34cd4bb91f01"
+
+[i18n.ja]
+title = "テスターは担当の取得と返却だけができ、他の人には割り当てられない"
+status = "machine"
+source_hash = "90c96218067d"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:33Z
