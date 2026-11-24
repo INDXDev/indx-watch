@@ -4,7 +4,8 @@ import { useApp } from '../App';
 import type { PlanView, SpecTree, StatusResult } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, Chip, Icon, Priority, Section, THead, Tx, txt } from '../ui';
+import { Badge, Icon, Priority, Section, THead, Tx, txt } from '../ui';
+import { PlanPanel } from './Assign';
 import { allTestCases } from './Tests';
 
 const COUNT_KEYS = [
@@ -18,10 +19,15 @@ const COUNT_KEYS = [
   'uncovered',
 ] as const;
 
-type Props = { status: StatusResult; specs?: SpecTree | undefined; plans: PlanView[] };
+type Props = {
+  status: StatusResult;
+  specs?: SpecTree | undefined;
+  plans: PlanView[];
+  reload?: (() => void) | undefined;
+};
 
 /** Gate checks, counts and coverage, the P0/P1 (or all) use cases and the plan of the release in scope. */
-export function ReleaseDetails({ status, specs, plans }: Props) {
+export function ReleaseDetails({ status, specs, plans, reload }: Props) {
   const { locale } = useI18n();
   const { scope } = useApp();
   const tcs = specs ? allTestCases(specs) : [];
@@ -35,7 +41,7 @@ export function ReleaseDetails({ status, specs, plans }: Props) {
         <CountsPanel status={status} />
       </div>
       <UseCasesPanel status={status} specs={specs} />
-      {plan && <PlanPanel plan={plan} titles={titles} drafts={drafts} />}
+      {plan && <PlanPanel plan={plan} titles={titles} drafts={drafts} reload={reload} />}
     </>
   );
 }
@@ -177,50 +183,5 @@ function UseCaseRow({ u, node }: { u: StatusResult['useCases'][number]; node: un
       </td>
       <td className="hide-sm">{u.done ? <span className="ok">✓ {t('common.yes')}</span> : t('common.no')}</td>
     </tr>
-  );
-}
-
-function PlanPanel(props: { plan: PlanView; titles: Map<string, string>; drafts: Set<string> }) {
-  const { plan, titles, drafts } = props;
-  const { t, day, locale } = useI18n();
-  const { project } = useApp();
-  const me = project.identity.id;
-  return (
-    <Section
-      title={
-        <>
-          <span className="key">{plan.key}</span> {txt(plan, 'title', locale)}
-        </>
-      }
-      id="plan"
-      actions={plan.due && <span className="muted">{t('plan.due', { date: day(plan.due) })}</span>}
-    >
-      <div className="table-wrap">
-        <table>
-          <THead cols={['common.testCase', 'plan.assignee', ['plan.due.col', 'hide-sm'], 'common.status']} />
-          <tbody>
-            {(plan.items ?? []).map((it) => (
-              <tr
-                key={`${it.test_case}@${it.environment ?? ''}`}
-                className={it.assignee === me ? 'row-mine' : ''}
-              >
-                <td>
-                  <a className="key" href={href.testCase(it.test_case)}>
-                    {it.test_case}
-                  </a>{' '}
-                  {titles.get(it.test_case)}{' '}
-                  {drafts.has(it.test_case) && <Chip tone="warn">{t('tc.draft')}</Chip>}
-                </td>
-                <td>
-                  {it.assignee ?? '—'} {it.assignee === me && <Chip tone="accent">{t('plan.you')}</Chip>}
-                </td>
-                <td className="hide-sm">{day(it.due ?? plan.due)}</td>
-                <td>{it.status ? <Badge status={it.status} /> : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Section>
   );
 }

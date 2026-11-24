@@ -4,5 +4,5 @@ import { CommandData as D } from './json.js';
 
 export const TOOL_OUTPUTS: ToolOutputs = {
   ...{ status: D.status, list: D.list, show: D.show, check: D.check, new: D.new },
-  ...{ record_run: D.record, sync: D.sync },
+  ...{ record_run: D.record, sync: D.sync, assign: D.assign },
 };

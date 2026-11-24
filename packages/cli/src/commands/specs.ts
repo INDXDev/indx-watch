@@ -1,11 +1,11 @@
-/** Commands that write definitions: init, check, fmt, new, approve, invite, migrate, reindex. */
+/** Commands that write definitions: init, check, fmt, new, approve, invite, assign, migrate, reindex. */
 import { existsSync } from 'node:fs';
 import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { canInvite, EMAIL, inviteItems, isAssignee } from '@indx-watch/core';
-import { knownKeys, NEW_KINDS } from '@indx-watch/server';
+import { assignPlan, knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
@@ -350,6 +350,46 @@ export const specCommands: Record<string, Spec> = {
       const moved = reassigned.length ? `; reassigned ${reassigned.join(', ')}` : '';
       const text = `${verb} ${plan.data.key} (${items.join(', ') || 'no item changed'}${moved}); Access policy: ${access}`;
       return { data, warnings, text };
+    },
+  },
+
+  assign: {
+    description:
+      'Split a plan between people, ci and agents, or give items to one (docs/spec/cli.md#iw-assign)',
+    args: {
+      plan: S('PLAN-n', true),
+      ...{
+        split: S('who:weight,… (alex@shop.test:2,sam@shop.test:1,agent:claude:1)'),
+        to: S('One assignee'),
+      },
+      ...{ items: S('TC-n,… (with --to)'), 'only-unassigned': B('Keep assigned items') },
+      'dry-run': B('Print the proposal; write nothing'),
+    },
+    async run(ctx, a) {
+      const [split, to] = [str(a.split), str(a.to)];
+      if (!split === !to) fail('USAGE', 'Pass --split <who:weight,…>, or --to <who> with --items <TC-n,…>');
+      if (to && !csv(a.items).length) fail('USAGE', '--to needs --items <TC-n,…>');
+      const dry = !!a['dry-run'];
+      if (!dry) await cx.humanOnly(ctx, 'assign plan items (use --dry-run to propose)');
+      const p = await cx.openProject(ctx, a);
+      const model = await cx.loadModel(p);
+      const r = assignPlan(model, {
+        plan: str(a.plan)!,
+        split,
+        to,
+        items: csv(a.items),
+        onlyUnassigned: !!a['only-unassigned'],
+      });
+      const plan = p.bundle.plans.find((x) => x.data.key === r.data.plan)!;
+      if (!dry && r.data.assignments.length)
+        await iwb.writeDefinition(p.fs, plan.file, 'plan', { ...plan.data, items: r.items });
+      const data = { ...r.data, dry_run: dry, file: plan.file };
+      const lines = r.data.assignments.map((c) => `${c.test_case}  ${c.from ?? '-'} -> ${c.assignee}`);
+      const total = Object.entries(r.data.load)
+        .map(([w, n]) => `${w}: ${n}`)
+        .join(', ');
+      const head = `${dry ? 'Proposed for' : 'Assigned in'} ${data.plan} (${lines.length} changed; ${total || 'nobody'}; ${data.unassigned} unassigned)`;
+      return { data, text: [head, ...lines].join('\n') };
     },
   },
 

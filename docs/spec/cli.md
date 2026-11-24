@@ -154,6 +154,20 @@ Approve a draft use case, test case or fixture (or a draft acceptance criterion)
 
 `data`: `{ "email": string, "plan": string, "file": string, "items": string[], "reassigned": string[], "revoked": boolean, "access": "added" | "removed" | "kept" | "manual" }` (`items`: the items whose assignee changed, the plan file is not written when there are none; `reassigned`: those taken from another assignee; `kept`: a revoke left the policy entry because other items are still assigned). The Access policy call runs even when no item changed, so running the command again repairs the policy.
 
+### `iw assign`
+
+*(v0.5)* Assign the items of a plan to people, `ci` or agents ([assignment](./concepts.md#assignment-and-automation-mix)). The plan file is written through `formatToml()`; a run that changes nothing writes nothing. Writing needs a person: with `--dry-run` anyone (agents included) gets the proposal, without it an agent gets exit 2 (`CLAUDECODE=1` counts as an agent).
+
+| Flag | |
+|---|---|
+| `--plan <PLAN-n>` | Required. The plan |
+| `--split <who:weight,…>` | Split by weight, for example `alex@shop.test:2,sam@shop.test:1,agent:claude:1`. A whole number weight follows the last colon (default 1); every entry must be an email, `ci`, `agent:<name>` or `group:<name>`. Owners keep their own features first and high priorities are spread ([rules](./concepts.md#assignment-and-automation-mix)) |
+| `--only-unassigned` | With `--split`: leave items that already have an assignee alone (they still count toward that assignee's share) |
+| `--to <who> --items <TC-n,…>` | Give those items to one assignee, reassigning them if needed |
+| `--dry-run` | Print the proposal; write nothing |
+
+Pass `--split` or `--to` with `--items`, not both. `data`: `{ "plan": string, "file": string, "dry_run": boolean, "assignments": [ { "test_case": string, "environment"?: string, "assignee": string, "from"?: string } ], "load": { "<assignee>": number }, "unassigned": number }`. `assignments` lists the items whose assignee changes (`from`: the previous assignee); `load` is the number of items each assignee holds after the change; `unassigned` the items still without one. The MCP tool `assign` returns the same data and is always a dry run.
+
 ### `iw status`
 
 Compute coverage, use case status and the readiness gate for a scope.
@@ -180,6 +194,8 @@ Compute coverage, use case status and the readiness gate for a scope.
 ```
 
 With `--mine`, `data` also has `"mine": { "actor": "alex@shop.test", "features": ["FEAT-2"] }` (the features you own; empty when you own none, and then the rest of `data` is empty too). `iw list features` shows every feature's `owners`, including `group:` ones.
+
+`data.automation` *(v0.5)* is the [automation mix](./concepts.md#assignment-and-automation-mix) of the plans of the release in scope: `{ "people": 3, "ci": 4, "agents": 1, "total": 8 }`; it is absent when no plan has items.
 
 A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](./concepts.md#flaky-tests)).
 
@@ -593,3 +609,4 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
 - [ ] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.
+- [x] *(v0.5, T-515, T-516)* `iw assign --plan PLAN-1 --split alex@shop.test:2,sam@shop.test:1,agent:claude:1` on a copy of the shop assigns 3, 2 and 2 items deterministically (alex first his own features), `--dry-run` writes nothing and works for agents, writing as an agent exits 2, and `iw status --json` has `automation` (`packages/cli/test/cli-assign.test.ts`, `packages/core/test/assign.test.ts`).

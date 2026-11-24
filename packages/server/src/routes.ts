@@ -26,7 +26,7 @@ import { accessOf } from './secrets.js';
 import { checksError } from './tools.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
-import { editTestCase, invite, workspaceMode } from './workspace.js';
+import { assign, editTestCase, invite, workspaceMode } from './workspace.js';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
 /** A test case by key or ID, else 404. */
@@ -106,6 +106,7 @@ function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role)
     ...{ declare: !!deps.declaredIdentity, upload: writer && files, share: sharer(who) && lead },
     ...{ run: role !== 'viewer', review: writer, approve: lead },
     edit: workspaceMode(m) && !!deps.bundleFiles && lead,
+    assign: workspaceMode(m) && !!deps.bundleFiles && writer,
     data: writer && files,
     secrets: !!deps.secretsKey,
   };
@@ -223,6 +224,7 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/fixtures', (c) => saveFixture(c, x, 'create'));
   app.patch('/api/fixtures/:key', (c) => saveFixture(c, x, 'edit'));
   app.delete('/api/fixtures/:key', (c) => saveFixture(c, x, 'delete'));
+  app.post('/api/plans/:key/assign', (c) => assign(c, x));
   app.post('/api/plans/:key/invites', (c) => invite(c, x, false));
   app.delete('/api/plans/:key/invites/:email', (c) => invite(c, x, true));
 }

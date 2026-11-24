@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Assignee board on the plan screen (T-514): one row per assignee with a status bar, Unassigned only, bulk Assign / Unassign, Take and Give back, and a Split dialog with preview; writes in workspace mode (lead assigns anyone, tester takes or gives back their own).
+- `iw assign --plan PLAN-n --split who:weight,… [--only-unassigned] [--dry-run]` and `--to <who> --items TC-n,…` (T-515): a deterministic weighted split that gives feature owners their own features first and spreads high priorities; also `POST /api/plans/:key/assign` and the read-only MCP tool `assign`; agents may only use `--dry-run`.
+- Automation mix (T-516): how many plan items are run by people, CI and agents, on the plan screen, as `data.automation` in `iw status --json` (additive) and as a Run by line in reports.
 - Customize without code (T-507): optional `.indx-watch/ui/` (`messages.<locale>.json` text overrides, `theme.toml` allowlisted tokens) and `[report]` title, logo and footer in `project.toml`; `iw check` rejects unknown keys, changed placeholders, markup and unsafe values, and warns about low contrast.
 - `iw patch create | apply | check [--to <version>]` (T-508): keep your own changes as patches against upstream at `v<pinned>`; changes to verdict, gate, status, signing, identity and the secret scan are refused; `iw deploy` deploys the patched build. `patches/` is not loaded, scanned, snapshotted or uploaded.
 - Patched servers say so (T-509): `/healthz`, `/api/project` (`server.patches`), MCP `serverInfo`, report footers, a note in the app and an additive `client` field on records they write.

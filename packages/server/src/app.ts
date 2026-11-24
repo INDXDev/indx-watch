@@ -106,6 +106,8 @@ const PERMITS: [RegExp, B.Role[]][] = [
   [/^(GET|HEAD) /, ['tester', 'viewer', 'customer']],
   [/^POST \/api\/(runs|blobs)$/, ['tester', 'customer']],
   [/^(POST \/api\/runs\/[^/]+\/judgements|PUT \/api\/store\/.*)$/, ['tester']],
+  // testers take unassigned plan items and give back their own; the route checks that (docs/spec/security.md#roles)
+  [/^POST \/api\/plans\/[^/]+\/assign$/, ['tester']],
   // test data is shared work: testers add and edit it too (docs/spec/security.md#roles)
   [/^(POST \/api\/(fixtures|bundle)|(PATCH|DELETE) \/api\/fixtures\/[^/]+)$/, ['tester']],
   // secrets: what each may see is decided per secret by its sharing (docs/spec/security.md#secrets)

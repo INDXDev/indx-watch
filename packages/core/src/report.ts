@@ -7,6 +7,7 @@ import {
   type Priority,
   Priority as PrioritySchema,
 } from '@indx-watch/bundle';
+import { automationMix } from './assign.js';
 import { byTimeThenId } from './decide.js';
 import type { ReportData } from './index.js';
 import { byKey, PRIORITY_RANK } from './model.js';
@@ -123,6 +124,15 @@ function runs(model: Model, scope: Scope, listed: Set<string>, { customer, who }
     }));
 }
 
+/** Who runs the items of the plan, or of the release's plans: `{ automation }` when there are items. */
+function automation(model: Model, scope: Scope, planKey: string | undefined) {
+  const plans = model.plans.filter((p) =>
+    planKey ? p.key === planKey : !scope.release || p.release === scope.release,
+  );
+  const mix = automationMix(model, plans);
+  return mix.total > 0 ? { automation: mix } : {};
+}
+
 /** Everything a report shows for a scope; `opts.now` is rendered to whole seconds (UTC). */
 export function reportData(model: Model, scope: Scope, opts: ReportOptions): ReportData {
   const customer = opts.audience === 'customer';
@@ -149,6 +159,7 @@ export function reportData(model: Model, scope: Scope, opts: ReportOptions): Rep
     gateThresholds: { ...gateOf(model) },
     countsByPriority: countsByPriority(model, status),
     planItems: planItems(model, opts.plan, customer),
+    ...automation(model, scope, opts.plan),
     status,
     failures: failures(model, status, customer),
     waivers: waivers(model, scope.release, status, who),

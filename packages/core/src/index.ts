@@ -4,6 +4,19 @@
 import type { Locale } from '@indx-watch/bundle';
 import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 
+/** splitAssignments, assignItems, assigneeBoard, automationMix: who has which plan item (docs/spec/concepts.md#assignment-and-automation-mix). */
+export {
+  type Assigned,
+  type AssigneeBoard,
+  type AutomationMix,
+  assigneeBoard,
+  assignItems,
+  automationMix,
+  type Change,
+  parseSplit,
+  splitAssignments,
+  type Weight,
+} from './assign.js';
 /** decide(judgements, policy, ctx): the decision policy (docs/spec/concepts.md#decision-policy). */
 export { decide, runFacts } from './decide.js';
 /** bundleDiff(base, head): added, changed and removed use cases, criteria and test cases (docs/spec/concepts.md#bundle-diff). */
@@ -94,6 +107,8 @@ export interface ReportData {
   policy: Required<import('@indx-watch/bundle').DecisionPolicy>;
   gateThresholds: Record<string, number | boolean>;
   countsByPriority: Record<import('@indx-watch/bundle').Priority, Record<string, number>>;
+  /** (v0.5) who runs the plan items: people, CI, agents (docs/spec/concepts.md#assignment-and-automation-mix) */
+  automation?: import('./assign.js').AutomationMix;
   planItems?: {
     testCase: string;
     assignee?: string | undefined;

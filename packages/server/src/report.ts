@@ -229,7 +229,10 @@ function summary({ data, s, t, T, h2, icon }: Ctx): Block[] {
   const rows = prio.map(([p, c]) => [p, ...COLS.map((k) => `${c[k] ?? 0}`), ac(c)]);
   const byPriority = { head: T(`priority ${COLS.join(' ')} acCoverage`), num: [1, 2, 3, 4, 5, 6, 7], rows };
   const coverage: Inline = [`${t('coverage')}: `, { k: 'bold', v: cov }];
-  return [h2('summary'), { counts }, { p: coverage }, byPriority];
+  const a = data.automation;
+  const mix =
+    a && `${t('runBy')}: ${(['people', 'ci', 'agents'] as const).map((k) => `${t(k)} ${a[k]}`).join(' · ')}`;
+  return [h2('summary'), { counts }, { p: coverage }, ...(mix ? [{ p: mix }] : []), byPriority];
 }
 
 /** 4. Use cases with their criteria and the latest status of each test case, or plan items grouped by assignee */

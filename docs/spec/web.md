@@ -80,6 +80,12 @@ Home is calm. It has four blocks, in this order:
 
 Gate checks, counts by status and the use case table move to **Release details**, a disclosure at the bottom of Home. Their content does not change ([concepts](./concepts.md#readiness-gate)).
 
+**Assignee board** *(v0.5, [assignment](./concepts.md#assignment-and-automation-mix))*. The plan in Release details opens with a board: one row per assignee with their item count, a progress bar split by status (done, review, blocked, to do; each segment has a text count, so colour is never the only signal) and, last, the unassigned items. Below it a line shows the **automation mix**: how many items people, CI and agents run (`3 people · 4 CI · 1 agent`). The item table has a checkbox per row and an **Unassigned only** filter. What a person can do depends on their [role](./security.md#roles) (without roles, and on `iw serve`, everyone is a lead):
+- A **lead** selects rows and chooses **Assign selected** with a person (the plan's assignees, a typed email, `ci` or `agent:<name>`) or **Unassign**, or opens **Split…**: weights per assignee, an "Only unassigned" box and a preview of the proposed changes (`dry_run`), then **Apply**.
+- A **tester** sees **Take** on an unassigned row and **Give back** on a row assigned to them; nothing else.
+- Viewers and customers see the board and no buttons. In git mode (definitions come from git) the board is read-only and says to run `iw assign`; writes need workspace mode, like [edits](#editing-in-workspace-mode).
+- Saving calls `POST /api/plans/:key/assign` ([contract](#editing-in-workspace-mode)): the same write path as customer invites, a `file` record of the plan (workspace mode) or the plan file on `iw serve`, always through `formatToml()`. Agents get 403.
+
 **Drafts.** A draft test case ([states](./concepts.md#test-case-use-case-fixture)) carries a **Draft** chip wherever it is listed: Home's queue, the Tests tree and Flaky list, the plan in Release details, a customer's Home and the test case page. A criterion whose only test cases are drafts reads **No approved test** (the `uncovered` status).
 
 **Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases (as `iw init` leaves it) shows, on Home under the verdict and on Tests, **No test cases yet** with the two ways to start: ask your coding agent ("Set up testing for this repo", or `/iw-setup` in Claude Code and `$iw-setup` in Codex), or run `npx indx-watch new uc …` and `new tc …` from the terminal, each ready to copy, and a link to the [quickstart](../guides/quickstart.md). Home then has no progress bar, Start testing or Share report.
@@ -229,7 +235,7 @@ Without a store (local only), Clone shows `git clone` advice instead, because th
 - Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy. While a test case has a conflict file, saving it is refused (409), because the edit would silently drop the other value.
 - *(v0.5)* Uploads work in workspace mode too: each changed file becomes a `file` record ([Upload](#upload)).
 
-Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](./security.md#customer-uat)), which append a `file` record for the plan the same way.
+Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through the [assignee board](#home) (`POST /api/plans/:key/assign`) and customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](./security.md#customer-uat)), which append a `file` record for the plan the same way.
 
 ## Upload
 
@@ -330,3 +336,4 @@ You can upload definitions in three ways:
 - [x] `POST /api/fixtures` creates a dataset from a table as CSV; `PATCH` changes its title, notes and rows, adds and removes a file; `DELETE` removes the folder; deleting a used fixture, an unsafe file name or a plain password as `secret_ref` is refused with nothing written; an agent gets 403 (server test). Creating, editing a table and saving on the screen was checked in a browser.
 - [x] In workspace mode on a Worker, uploading a PDF, editing the new fixture and deleting it write `file` records (the delete as `deleted` versions), and the fixture is gone from the API afterwards (Worker test).
 - [x] A tester may add and edit test data and upload files that only touch `fixtures/`; a viewer gets 403 (server tests).
+- [x] *(v0.5, T-514)* The plan in Release details shows one row per assignee with item count and a status bar (with text), the unassigned items and the automation mix; in workspace mode a lead selects rows, assigns, unassigns or splits with a preview, "Unassigned only" filters, and a tester takes or gives back (e2e `@TC-32`; role rules in `packages/server/test/assign.test.ts`).

@@ -65,6 +65,7 @@ describe('iw mcp server', () => {
       'record_run',
       'report',
       'sync',
+      'assign',
     ]);
     const by = Object.fromEntries(
       tools.map((t: { name: string; annotations: object }) => [t.name, t.annotations]),
@@ -90,6 +91,17 @@ describe('iw mcp read tools', () => {
     const mine = await (await connect(dir, env)).call('status', { mine: true });
     expect(mine.structuredContent).toEqual(iw(dir, ['status', '--mine', '--json'], { env }).json.data);
     expect(mine.structuredContent.mine.features).toEqual(['FEAT-2']);
+  });
+
+  it('assign proposes a split like iw assign --dry-run and never writes', async () => {
+    const dir = shop();
+    const { call } = await connect(dir);
+    const split = 'alex@shop.test:2,sam@shop.test:1,agent:claude:1';
+    const r = await call('assign', { plan: 'PLAN-1', split });
+    const cli = iw(dir, ['assign', '--plan', 'PLAN-1', '--split', split, '--dry-run', '--json']).json.data;
+    expect(r.structuredContent).toEqual(cli);
+    expect(r.structuredContent.dry_run).toBe(true);
+    expect((await call('assign', { plan: 'PLAN-1', split: 'nobody' })).isError).toBe(true);
   });
 
   it('report json returns report data', async () => {
@@ -199,7 +211,7 @@ describe('/mcp on iw serve', () => {
     try {
       const { request } = await connect(dir);
       const { tools } = await post(server.url, 'tools/list');
-      expect(tools.map((t: { name: string }) => t.name)).toHaveLength(8);
+      expect(tools.map((t: { name: string }) => t.name)).toHaveLength(9);
       expect(tools).toEqual((await request('tools/list', {})).tools); // names, schemas and annotations
       const call = (name: string, args: object) => post(server.url, 'tools/call', { name, arguments: args });
       const show = await call('show', { ref: 'TC-9' });
