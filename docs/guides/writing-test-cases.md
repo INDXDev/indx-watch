@@ -85,7 +85,7 @@ Translate them like the other fields (`purpose`, `start_note` in `[i18n.ja]`, `c
 
 The web app turns these fields into the one-page test case: *What this tests* (purpose, feature, covered criteria), *Before you start* (the Open link, a card per fixture with what to do and a download button for files, preconditions as a checklist), *Steps* with their checks, and *Result*:
 
-![TC-9 on one page: the purpose, the FX-3 account card, the FX-4 photo with its download button and note, and steps with checks](../design/screenshots/test-case-1280.png)
+![TC-9 on one page: the purpose, the FX-3 account card, the FX-4 photo with its download button and note, and steps with checks](../images/test-case.png)
 
 ## Literal strings
 

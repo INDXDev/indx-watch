@@ -94,11 +94,11 @@ In Japanese the same run reads from the translation: 「横にスクロールせ
 
 The web app shows the same test case on one page, so you can also run it there: what it tests, where to start, the test data with what to do with each item (here, TC-9 with the account to sign in with and the photo to download and upload in step 2), the steps with their checks, and the result.
 
-![TC-9 on one page: What this tests, Before you start with the FX-3 account card and the FX-4 photo download, Steps with checks, Result and Run manually](../design/screenshots/test-case-1280.png)
+![TC-9 on one page: What this tests, Before you start with the FX-3 account card and the FX-4 photo download, Steps with checks, Result and Run manually](../images/test-case.png)
 
-On a phone the page keeps the same order. The top of TC-6 at 390 px wide:
+On a phone the page keeps the same order. TC-6 at 390 px wide:
 
-![TC-6 at 390 px wide: What this tests, the covered criterion and Before you start with the Open link](../design/screenshots/test-case-390.png)
+![TC-6 at 390 px wide: What this tests, the covered criterion, Before you start with the Open link, the step with its checks and the result](../images/test-case-mobile.png)
 
 ## Fix failures: `iw-triage`
 

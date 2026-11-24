@@ -50,6 +50,10 @@ Skills live in `skills/<name>/SKILL.md` (Agent Skills format, portable frontmatt
 
 Add the key to both `packages/web/src/messages/en.json` and `ja.json`.
 
+### Regenerate screenshots
+
+The screenshots in [`docs/images/`](docs/images) are generated, not taken by hand. After a UI change run `pnpm build`, then `pnpm screenshots` (or `pnpm screenshots home test-case` for some of them), look at the changed images and commit them. [`scripts/screenshots.ts`](scripts/screenshots.ts) serves a temporary copy of `examples/shop` with its sample results as `alex@shop.test`, with a fixed clock, viewport, language and theme, and drives Playwright's Chromium (`PW_CHROMIUM_PATH` picks another binary, as for `pnpm e2e`). Add a new screenshot to the `shots` list there. Images under `docs/design/screenshots/` belong to the design mockups.
+
 ## Dogfooding
 This repository manages its own QA in [`.indx-watch/`](.indx-watch). When you add a feature, add or update its use case, acceptance criteria and test cases there, and tag the automated test with `@TC-n`. CI records results with the Playwright reporter and posts a report to the job summary.
 

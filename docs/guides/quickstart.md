@@ -74,7 +74,7 @@ Then it goes one step at a time, asks each check as a yes/no question ("Is the t
 
 In the web app the same test case is one page: what it tests, where to start with an Open link, the test data with what to do with each item, then the steps with their checks. "Run manually" turns the steps into the runner in place.
 
-![TC-3 with the manual run open: Before you start with the coupon code, and step 1 with both checks ticked](../design/screenshots/test-case-run-1280.png)
+![TC-3 with the manual run open: Before you start with the coupon code, and step 1 with both checks ticked](../images/manual-run.png)
 
 ## 7. Know where you are: `/iw-status`
 
