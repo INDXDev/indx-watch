@@ -2,6 +2,7 @@
 import { type FormEvent, useState } from 'react';
 import { api, type TestCaseDetail } from '../../api';
 import { useI18n } from '../../i18n';
+import { isBdd } from './bdd';
 
 type StepDraft = { instruction: string; expected: string; k: number };
 let nextStep = 0;
@@ -48,7 +49,7 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
           ))}
         </select>
       </label>
-      <StepsField steps={steps} setSteps={setSteps} />
+      <StepsField steps={steps} setSteps={setSteps} bdd={isBdd(d)} />
       {error && <p className="callout s-fail">{error}</p>}
       <p className="chips">
         <button type="submit" className="btn btn-primary" disabled={busy}>
@@ -63,18 +64,24 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
 }
 
 /** Each step's instruction and expected result, with remove (but not the last one) and add. */
-function StepsField({ steps, setSteps }: { steps: StepDraft[]; setSteps(s: StepDraft[]): void }) {
+function StepsField(p: { steps: StepDraft[]; setSteps(s: StepDraft[]): void; bdd: boolean }) {
+  const { steps, setSteps, bdd } = p;
   const { t } = useI18n();
   const set = (k: number, field: 'instruction' | 'expected', v: string) =>
     setSteps(steps.map((s) => (s.k === k ? { ...s, [field]: v } : s)));
+  const label = {
+    instruction: bdd ? 'bdd.when' : 'tc.instruction',
+    expected: bdd ? 'bdd.then' : 'tc.expected',
+  } as const;
   return (
     <>
+      {bdd && <p className="muted small">{t('bdd.editHint')}</p>}
       <ol className="steps">
         {steps.map((s) => (
           <li key={s.k} className="step stack-sm">
             {(['instruction', 'expected'] as const).map((f) => (
               <label key={f} className="field">
-                <span>{t(f === 'expected' ? 'tc.expected' : 'tc.instruction')}</span>
+                <span>{t(label[f])}</span>
                 <textarea value={s[f]} required onChange={(e) => set(s.k, f, e.target.value)} />
               </label>
             ))}

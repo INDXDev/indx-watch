@@ -323,6 +323,14 @@ describe('write', () => {
       fields: { title: 'From template', steps },
       ready: true,
     });
+    // the built-in bdd template, since templates/ has no test-case.bdd.toml
+    const bdd = await create(fs, {
+      kind: 'test-case',
+      parent: 'UC-6',
+      template: 'bdd',
+      fields: { title: 'BDD' },
+    });
+    expect(parseToml(fs.text(bdd.file)!)).toMatchObject({ style: 'bdd', preconditions: expect.any(String) });
     // an AI use case's criteria are drafts with their own [ai] table, like `iw new ac`
     const fields = { title: 'Customer changes the email', criteria: ['A confirmation is sent'] };
     const aiUc = await create(fs, { kind: 'use-case', fields, ...ai });

@@ -78,7 +78,7 @@ One question per accepted proposal: "Manual or Playwright? I suggest Playwright:
    EOF
    ```
 
-   `start` is a path on the environment's `base_url`; `checks` are yes/no observations, one per thing to look at; `automation.files` are paths from the repository root; fixture `use` is `download`, `upload`, `enter` or `seeded`, with a `note` saying what the tester does with it.
+   `start` is a path on the environment's `base_url`; `checks` are yes/no observations, one per thing to look at; `automation.files` are paths from the repository root; fixture `use` is `download`, `upload`, `enter` or `seeded`, with a `note` saying what the tester does with it. When the user prefers Given / When / Then, add `"style": "bdd"` (or use `--template bdd`): `preconditions` become the Given lines, each step's `instruction` a When and its `expected` a Then (like TC-4).
 3. For `playwright`: add the test to the matching spec, tagged with the new key (`{ tag: ['@TC-11'] }`), reusing the spec's helpers. Do not change other tests.
 4. Translations, when `project.locales` has a second language: `iw translate TC-11 --locale ja --from -` with `{ "title": …, "purpose": …, "start_note": …, "preconditions": …, "steps.1.instruction": …, "steps.1.expected": …, "steps.1.checks.1": …, "fixtures.1.note": … }`, and `iw translate UC-2 --locale ja --set criteria.AC-2.3.text="…"`. Quoted strings stay literal.
 5. `iw fmt --json`, then `iw check --json`; fix every error in `data.problems[]` and check again.

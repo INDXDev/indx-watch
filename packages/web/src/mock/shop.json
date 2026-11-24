@@ -267,6 +267,7 @@
       "tags": ["coupon"],
       "covers": ["AC-2.2"],
       "mode": "playwright",
+      "style": "bdd",
       "purpose": "An expired coupon must not give a discount. This test proves that the shop refuses it and keeps the full price.",
       "start": "/cart",
       "start_note": "Open the cart.",

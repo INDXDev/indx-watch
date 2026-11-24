@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- BDD style for test cases: `style = "bdd"` reads the preconditions and steps as a Given / When / Then scenario, `iw new tc --template bdd` is built in, and the test case page, the manual runner and the editor show the labels and a "How to run this scenario" guide in English and Japanese (前提 / もし / ならば / かつ). examples/shop's TC-4 uses it.
+
 ### Changed
 
 - Landing page (`site/`) rebuilt after proven developer-tool pages: a role switch (developer, tester or QA, product manager) that changes the hero, the demo and the For teams tabs (`?for=`), a four-chapter product demo drawn as HTML from the web app's own screens and strings, then features, roles, strengths (GitHub, agents, test data, sync, self-hosting) and getting started, in English and Japanese. Design rules and references: [site/DESIGN.md](site/DESIGN.md).
