@@ -34,43 +34,28 @@ function frontmatterKeys(text: string): string[] {
 }
 
 describe('skills', () => {
-  it('job skills (docs/spec/agents.md#job-skills-v04) follow the shared conventions a script can check', () => {
+  it('job skills (docs/spec/agents.md#job-skills) follow the shared conventions a script can check', () => {
     const jobs = {
-      'iw-setup': 'indx-watch',
+      'iw-setup': 'wiring',
       'iw-design': 'write-test-cases',
       'iw-data': 'manage-fixtures',
       'iw-test': 'run-tests',
       'iw-triage': 'triage-failure',
       'iw-status': 'release-report',
     };
+    expect([...names].sort()).toEqual(['indx-watch', ...Object.keys(jobs)].sort());
     for (const [n, ref] of Object.entries(jobs)) {
       const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
       const description = /^description: (.+)$/m.exec(text)![1]!;
       expect(description.length, n).toBeLessThanOrEqual(1024);
-      expect(description, n).toMatch(/Use when .*「/); // triggers in English and Japanese
-      expect(frontmatterKeys(text), n).toContain('argument-hint');
-      expect(frontmatterKeys(text), n).not.toContain('disable-model-invocation');
-      expect(text, n).toContain(`(../${ref}/SKILL.md)`);
-      expect(text, n).toMatch(/Next: .+\(iw-[a-z]+\)/);
-      expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
-    }
-  });
-
-  it('job skills (docs/spec/agents.md#job-skills-v04): short, triggered in English and Japanese, linking their v0.1 skill', () => {
-    const jobs = { 'iw-test': 'run-tests', 'iw-triage': 'triage-failure', 'iw-status': 'release-report' };
-    for (const [n, v01] of Object.entries(jobs)) {
-      const text = readFileSync(join(SKILLS, n, 'SKILL.md'), 'utf8');
+      expect(description, n).toMatch(/Use when .*「[^」]*\p{Script=Hiragana}/u); // triggers in English and Japanese
       expect(frontmatterKeys(text), n).toEqual(
         expect.arrayContaining(['argument-hint', 'license', 'metadata']),
       );
-      const description = /^description: (.+)$/m.exec(text)![1]!;
-      expect(description.length, n).toBeLessThanOrEqual(1024);
-      expect(description, n).toContain('Use when ');
-      expect(description, n).toMatch(/「[^」]*\p{Script=Hiragana}/u);
+      expect(frontmatterKeys(text), n).not.toContain('disable-model-invocation');
+      expect(text, n).toContain(`](references/${ref}.md)`);
+      expect(text, n).toMatch(/Next: .+\(iw-[a-z]+\)/);
       expect(text.split('\n').length, n).toBeLessThanOrEqual(150);
-      expect(text, n).toContain(`](../${v01}/SKILL.md)`);
-      for (const [, target] of text.matchAll(/\]\(\.\.\/([\w-]+)\/SKILL\.md\)/g))
-        expect(names, `${n} links ${target}`).toContain(target);
     }
   });
 
@@ -130,10 +115,36 @@ describe('skills', () => {
     // idempotent: nothing changes; a changed skill file and block are rewritten in place, text around stays
     expect(iwJson(dir, 'skills install', ['skills', 'install']).json.data.files).toEqual([]);
     writeFileSync(join(dir, 'AGENTS.md'), `${agents.replace('## INDX Watch', 'stale')}\nMore rules.\n`);
-    writeFileSync(join(dir, '.claude/skills/run-tests/SKILL.md'), 'old');
+    writeFileSync(join(dir, '.claude/skills/iw-test/SKILL.md'), 'old');
     const again = iwJson(dir, 'skills install', ['skills', 'install']).json.data;
-    expect(again.files).toEqual(['.claude/skills/run-tests/SKILL.md', 'AGENTS.md']);
+    expect(again.files).toEqual(['.claude/skills/iw-test/SKILL.md', 'AGENTS.md']);
     expect(read(dir, 'AGENTS.md')).toBe(`${agents}\nMore rules.\n`);
+  });
+
+  it('an upgrade removes the retired recipe skills INDX Watch wrote, and only those', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iw-skills-'));
+    const recipe = (name: string, home = 'https://github.com/INDXDev/indx-watch') =>
+      `---\nname: ${name}\ndescription: Old. Use when old.\nmetadata: { version: "0.1.0", homepage: "${home}" }\n---\n\n# Old\n`;
+    const put = (path: string, text: string) => {
+      mkdirSync(join(dir, path, '..'), { recursive: true });
+      writeFileSync(join(dir, path), text);
+    };
+    put('.claude/skills/run-tests/SKILL.md', recipe('run-tests'));
+    put('.agents/skills/run-tests/SKILL.md', recipe('run-tests'));
+    put('.agents/skills/run-tests/agents/openai.yaml', 'interface: {}\n');
+    put('.claude/skills/triage-failure/SKILL.md', recipe('triage-failure'));
+    put('.claude/skills/triage-failure/notes.md', 'mine\n'); // a file the user added: kept, with a warning
+    put('.claude/skills/release-report/SKILL.md', recipe('release-report', 'https://example.test')); // the user's own
+    const r = await setupAgents(dir, SKILLS, { claude: true, codex: false });
+    expect(r.removed).toEqual(['.claude/skills/run-tests']);
+    expect(r.warnings.map((w) => w.message)).toEqual([
+      '.claude/skills/triage-failure was left unchanged: INDX Watch no longer ships it; move out notes.md',
+    ]);
+    expect(existsSync(join(dir, '.agents/skills/run-tests/agents/openai.yaml'))).toBe(true); // --claude only
+    expect(existsSync(join(dir, '.claude/skills/release-report/SKILL.md'))).toBe(true);
+    const both = await setupAgents(dir, SKILLS, { claude: true, codex: true });
+    expect(both.removed).toEqual(['.agents/skills/run-tests']);
+    expect(existsSync(join(dir, '.agents/skills/run-tests'))).toBe(false);
   });
 
   it('init --no-agents writes no agent files; an unreadable .mcp.json is left alone with a warning', () => {

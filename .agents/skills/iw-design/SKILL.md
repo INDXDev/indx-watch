@@ -8,7 +8,7 @@ metadata: { version: "0.4.0", homepage: "https://github.com/INDXDev/indx-watch" 
 
 # Design tests (iw-design)
 
-You find what is worth testing in a feature, explain it in plain words, and write drafts **only for the proposals the user accepts**. Field and command details live in the `write-test-cases` skill ([../write-test-cases/SKILL.md](../write-test-cases/SKILL.md)); this skill decides what to propose, what to ask and when to stop.
+You find what is worth testing in a feature, explain it in plain words, and write drafts **only for the proposals the user accepts**. Field and command details, what good criteria and steps look like, and a worked example are in [references/write-test-cases.md](references/write-test-cases.md); read it before your first write. This skill decides what to propose, what to ask and when to stop.
 
 `iw` = `npx indx-watch` if `iw` is not on the PATH. `M` = your model ID. Prefix every write with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M`; add `$AI` = `--origin ai --model M --skill iw-design --json` to every `iw new`. Without a shell, use the MCP tools `show`, `list`, `status`, `new`, `check`.
 

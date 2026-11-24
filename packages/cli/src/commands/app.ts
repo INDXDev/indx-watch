@@ -194,7 +194,8 @@ export const appCommands: Record<string, Spec> = {
       const both = !a.claude && !a.codex;
       const to = { claude: !!a.claude || both, codex: !!a.codex || both };
       const { warnings, ...data } = await setupAgents(root, asset('../skills', 'skills'), to);
-      const text = `Installed:\n${data.installed.join('\n')}\n${data.files.length} files written`;
+      const gone = data.removed.length ? `\nRemoved (no longer shipped):\n${data.removed.join('\n')}` : '';
+      const text = `Installed:\n${data.installed.join('\n')}${gone}\n${data.files.length} files written`;
       return { data, warnings, text };
     },
   },

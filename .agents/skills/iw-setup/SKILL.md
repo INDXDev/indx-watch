@@ -66,7 +66,7 @@ Report the list of changed files, not their contents.
 
 ## Owners
 
-Feature `owners` (people by email, or `group:` names) arrive with INDX Watch v0.4 (T-402). Propose an owner per feature either way. If `iw new feature --from -` with `{ "owners": ["alex@shop.test"] }` is accepted, write them; if it answers that `owners` is an unknown key, create the feature without it and list the proposed owners in your reply. Owners are a human decision: you only propose them.
+Feature `owners` are people by email or `group:` names; "my features" in `iw-test` and `iw-status` follow them. Propose one owner per feature and, once accepted, write it with the feature: `iw new feature --title Checkout $AI --from -` with `{ "owners": ["alex@shop.test"] }`. Owners are a human decision: you only propose them.
 
 ## 4. Stop for a person
 

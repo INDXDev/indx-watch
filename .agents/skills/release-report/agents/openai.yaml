@@ -1,5 +1,0 @@
-interface:
-  display_name: "Release report"
-  short_description: "Compute whether an INDX Watch release is ready to ship and write its report — readiness gate, coverage, use case…"
-policy:
-  allow_implicit_invocation: true
