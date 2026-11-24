@@ -151,6 +151,16 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 - **Sessions.** Pressed in the Focus view, Run manually runs the rest of that list as a session: the session bar appears, ← / →, swipes and the footer step through the session, and after saving, **Save and next** opens the next test case with its runner open. Without a next test case, saving opens the run viewer.
 - **Unsaved work.** While a step has a result, a tick, a note or a screenshot, moving to another page (keys, swipe, links, Back) asks first; closing the tab asks through the browser.
 
+#### BDD style
+
+*(v0.4)* A test case with [`style = "bdd"`](./bundle-format.md#specsfeatuctc-n-slugtoml) reads as a scenario, in the chosen language (English Given / When / Then / And, Japanese 前提 / もし / ならば / かつ):
+
+- The header has a **Scenario (BDD)** chip.
+- **Before you start** opens with **How to run this scenario**, a disclosure that is open on every visit: start from the Given state and tick each line once it is true, and if you cannot get there the result is Blocked, not Fail; do exactly the When action and nothing else; compare what you see with the Then sentence and tick each And line that holds, with quoted text as written; everything matches is Pass, anything different is Fail with what you saw and a screenshot.
+- The preconditions checklist is headed **Given: the starting state**; its first line has a **Given** label and the next ones **And**.
+- The Steps block is headed **Scenario (n)**. Each step's instruction has a **When** label, its expected result **Then** instead of **Expected**, and each check **And**. The runner shows the same labels; what it records does not change.
+- In workspace mode the editor labels the step fields **When** and **Then** and says how to write them.
+
 `#/tc/<TC>/run` opens the same page with the runner already open, without a session unless the URL has one (`?session=`). The run viewer lists each step's checks with ✓ or ✗, worded from the current test case in the chosen language; when the step now has a different number of checks than were recorded, they read "Check 1", "Check 2", ….
 
 ### Report
@@ -297,6 +307,7 @@ You can upload definitions in three ways:
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
+- [x] TC-4 in examples/shop (`style = "bdd"`) shows the Scenario (BDD) chip, the How to run this scenario guide and Given / When / Then labels, and 前提 / もし / ならば after switching to Japanese; TC-3 (no `style`) shows Preconditions, Steps and Expected (checked by hand with Playwright screenshots against `iw serve`).
 - [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test, web unit tests and e2e `@TC-17`).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
 - [x] The test case page shows, in order, What this tests, Before you start (the Open link from `start`, test data cards, the preconditions checklist), Steps with their checks and Result; TC-9's photo card offers its download and names step 2 as the upload step (e2e `@TC-16`).

@@ -855,6 +855,21 @@ tr:last-child td {
   color: var(--text);
   border-left: 4px solid var(--c);
 }
+
+/* BDD style (docs/spec/web.md#bdd-style) */
+.label.gwt {
+  color: var(--accent);
+}
+.bdd-guide > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.bdd-guide ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
 .before {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

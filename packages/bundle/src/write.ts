@@ -71,6 +71,12 @@ const DEFAULTS: Partial<Record<NewKind, object>> = {
   environment: { base_url: 'http://localhost:3000' },
   release: { state: 'planning' },
 };
+/** Built-in templates, used when templates/ has none of that name (docs/spec/bundle-format.md#templates). */
+const BUILTIN: Partial<Record<NewKind, Record<string, object>>> = {
+  'test-case': {
+    bdd: { style: 'bdd', preconditions: 'Describe the state the app is in before the scenario starts.' },
+  },
+};
 const dirOf = (file: string) => file.slice(0, file.lastIndexOf('/'));
 const fail = (code: string, message: string): never => {
   throw new BundleError(code, message);
@@ -158,9 +164,11 @@ export async function createDefinition(
 
 /** Defaults, the template, the given fields, then provenance; use cases, test cases and fixtures get a status. */
 function baseFields({ input, life, ai, bundle }: Ctx, kind: keyof typeof KINDS): Record<string, unknown> {
-  const tpl = bundle.templates.find((t) => t.name === input.template && t.kind === kind);
-  if (input.template && !tpl) fail('NOT_FOUND', `Template ${kind}.${input.template} not found`);
-  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl?.data, ...input.fields, ...life, ...ai };
+  const tpl = bundle.templates.find((t) => t.name === input.template && t.kind === kind) ?? {
+    data: input.template ? BUILTIN[kind]?.[input.template] : undefined,
+  };
+  if (input.template && !tpl.data) fail('NOT_FOUND', `Template ${kind}.${input.template} not found`);
+  const base: Record<string, unknown> = { ...DEFAULTS[kind], ...tpl.data, ...input.fields, ...life, ...ai };
   if (['use-case', 'test-case', 'fixture'].includes(kind)) base.status = input.ready ? 'ready' : 'draft';
   return base;
 }

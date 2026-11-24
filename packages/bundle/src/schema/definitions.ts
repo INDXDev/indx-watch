@@ -299,6 +299,8 @@ export const TestCase = z.strictObject({
   covers: z.array(keyOf('criterion')).min(1),
   priority: Priority.optional(),
   mode: Mode,
+  /** (v0.4) guidance (not part of the version): `bdd` shows preconditions and steps as Given / When / Then */
+  style: z.enum(['steps', 'bdd']).optional(),
   /** guidance (not part of the version): what the feature is for and what this test proves */
   purpose: text,
   /** path appended to the environment's base_url where the tester starts: `/cart`, never `//host/cart` */

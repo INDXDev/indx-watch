@@ -26,6 +26,7 @@ import {
 import { placeholderValues, sentences, startUrl, stepsUsing } from './guide';
 import { InlineRun } from './Runner';
 import { useEnv } from './runner/useRun';
+import { BddGuide, isBdd, Kw } from './testcase/bdd';
 import { EditForm } from './testcase/EditForm';
 
 /** The runner opened in place: the session it belongs to, and how to close it. */
@@ -128,9 +129,11 @@ function BeforeYouStart({ d }: { d: TestCaseDetail }) {
   const tc = d.data;
   const values = placeholderValues(d.fixtures);
   const pre = useTxt()(tc, 'preconditions');
+  const bdd = isBdd(d);
   return (
     <section className="tc-block before-card" aria-labelledby="before-h">
       <h2 id="before-h">{t('runner.before')}</h2>
+      {bdd && <BddGuide />}
       {(env || tc.start_note) && (
         <div className="open-at">
           {env && (
@@ -160,13 +163,14 @@ function BeforeYouStart({ d }: { d: TestCaseDetail }) {
       )}
       {pre && (
         <div>
-          <h3>{t('tc.preconditions')}</h3>
+          <h3>{t(bdd ? 'bdd.givenHeading' : 'tc.preconditions')}</h3>
           <ul className="checklist">
-            {sentences(pre).map((x) => (
+            {sentences(pre).map((x, i) => (
               <li key={x}>
                 <label>
                   <input type="checkbox" />
                   <span>
+                    <Kw on={bdd} k={i ? 'and' : 'given'} />
                     <Rich text={x} values={values} />
                   </span>
                 </label>
@@ -241,9 +245,10 @@ function Steps({ d }: { d: TestCaseDetail }) {
   const { t } = useI18n();
   const checks = useChecks();
   const values = placeholderValues(d.fixtures);
+  const bdd = isBdd(d);
   return (
     <section className="tc-block" aria-labelledby="steps-h">
-      <h2 id="steps-h">{t('tc.steps', { count: d.data.steps.length })}</h2>
+      <h2 id="steps-h">{t(bdd ? 'bdd.scenario' : 'tc.steps', { count: d.data.steps.length })}</h2>
       <ol className="steps steps-lg">
         {d.data.steps.map((s, i) => (
           <li key={`${s.instruction}|${s.expected}`} className="step">
@@ -252,17 +257,19 @@ function Steps({ d }: { d: TestCaseDetail }) {
             </span>
             <div className="grow stack-sm">
               <p className="instruction">
+                <Kw on={bdd} k="when" />
                 <Tx of={s} field="instruction" values={values} />
               </p>
               <p className="expected">
-                <span className="label">{t('tc.expected')}</span>{' '}
+                <span className={bdd ? 'label gwt' : 'label'}>{t(bdd ? 'bdd.then' : 'tc.expected')}</span>{' '}
                 <Tx of={s} field="expected" values={values} />
               </p>
               {s.checks && (
                 <ul className="checklist checklist-static">
                   {checks(s).map((x) => (
                     <li key={x}>
-                      <span className="box" aria-hidden="true" /> <Rich text={x} values={values} />
+                      <span className="box" aria-hidden="true" /> <Kw on={bdd} k="and" />
+                      <Rich text={x} values={values} />
                     </li>
                   ))}
                 </ul>
@@ -310,6 +317,7 @@ function DetailHead({ d }: { d: TestCaseDetail }) {
         <Badge status={d.status.status} />
         <Priority p={d.priority} />
         <Chip>{d.data.mode}</Chip>
+        {isBdd(d) && <Chip>{t('bdd.chip')}</Chip>}
         {d.data.status === 'draft' && <Chip tone="warn">{t('tc.draft')}</Chip>}
       </p>
       <h1>

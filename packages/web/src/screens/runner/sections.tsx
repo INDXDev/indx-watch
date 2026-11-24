@@ -4,6 +4,7 @@ import type { TestCaseDetail } from '../../api';
 import { useI18n } from '../../i18n';
 import { href } from '../../router';
 import { Chip, Icon, Rich, Seg, Tx, useChecks } from '../../ui';
+import { Kw } from '../testcase/bdd';
 import { asksNote, needsReason, STEP_STATUSES, type StepState, stepDone, stepStatus } from './model';
 import type { RunState } from './useRun';
 
@@ -137,7 +138,7 @@ function Shots({ i, st, r }: { i: number; st: StepState; r: RunState }) {
 }
 
 /** The step's checks as checkboxes; ticking every one suggests pass. */
-function Checks({ s, i, r }: { s: Step; i: number; r: RunState }) {
+function Checks({ s, i, r, bdd }: { s: Step; i: number; r: RunState; bdd: boolean }) {
   const texts = useChecks()(s);
   const ticks = r.steps[i]!.checks;
   if (ticks.length === 0) return null;
@@ -148,6 +149,7 @@ function Checks({ s, i, r }: { s: Step; i: number; r: RunState }) {
           <label>
             <input type="checkbox" checked={on} onChange={(e) => r.tick(i, j, e.target.checked)} />
             <span>
+              <Kw on={bdd} k="and" />
               <Rich text={texts[j] ?? ''} values={r.values} />
             </span>
           </label>
@@ -178,7 +180,7 @@ export function DoneStep({ s, i, r }: { s: Step; i: number; r: RunState }) {
 }
 
 /** The open step: instruction, expected result, checks, result, note, screenshots and Next. */
-export function StepCard({ s, i, r }: { s: Step; i: number; r: RunState }) {
+export function StepCard({ s, i, r, bdd }: { s: Step; i: number; r: RunState; bdd: boolean }) {
   const { t } = useI18n();
   const st = r.steps[i]!;
   const status = stepStatus(st);
@@ -192,12 +194,14 @@ export function StepCard({ s, i, r }: { s: Step; i: number; r: RunState }) {
       <div className="grow stack-sm">
         <h3 className="sr">{t('runner.step', { n: i + 1 })}</h3>
         <p className="instruction">
+          <Kw on={bdd} k="when" />
           <Tx of={s} field="instruction" values={r.values} />
         </p>
         <p className="expected">
-          <span className="label">{t('tc.expected')}</span> <Tx of={s} field="expected" values={r.values} />
+          <span className={bdd ? 'label gwt' : 'label'}>{t(bdd ? 'bdd.then' : 'tc.expected')}</span>{' '}
+          <Tx of={s} field="expected" values={r.values} />
         </p>
-        <Checks s={s} i={i} r={r} />
+        <Checks s={s} i={i} r={r} bdd={bdd} />
         <Seg
           label={t('runner.stepResult', { n: i + 1 })}
           value={status}

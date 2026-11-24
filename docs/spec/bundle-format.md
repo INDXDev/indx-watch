@@ -373,6 +373,7 @@ source_hash = "72d5db16627a"
 | `covers` | yes | AC keys (`AC-2.1`) — resolved to AC IDs by `iw check`. |
 | `priority` | no | Defaults to the highest priority among covered use cases, and may not be lower than it. |
 | `mode` | yes | `manual`, `playwright`, `agent`, `hybrid`. |
+| `style` | no | *(v0.4)* How the test case reads: `steps` (default) or `bdd`, a Given / When / Then scenario. With `bdd`, each sentence of `preconditions` is a **Given** (the next ones **And**), each step's `instruction` is a **When**, its `expected` a **Then** and each of its `checks` an **And**. Only the labels change: the fields, the run records and the version are the same as for `steps` ([web](./web.md#bdd-style)). |
 | `purpose` | no | Plain language for someone who has never seen the feature: what it is for and what this test proves. |
 | `start` | no | Where the tester starts: a path starting with a single `/` (`"/cart"`, never `"//host/cart"`), appended to the environment's `base_url` as is, so a `base_url` with its own path keeps it (`https://shop.example/app` + `/cart` → `https://shop.example/app/cart`). |
 | `start_note` | no | One sentence about the starting point (`"Open the cart."`), with or without `start`. |
@@ -385,7 +386,7 @@ source_hash = "72d5db16627a"
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](./i18n.md#literal-strings)).
 
-**Guidance.** `purpose`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
+**Guidance.** `purpose`, `style`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
 
 **Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](./concepts.md#versions-and-staleness). It is not stored in the file.
 
@@ -516,6 +517,8 @@ source_hash = "862ca86fb166"
 ## Templates
 
 `templates/<kind>.<name>.toml` holds a **partial** file of kind `test-case`, `use-case` or `fixture`, without `id`, `key` and without a `#:schema` line (editors would flag the missing required fields). It is formatted in the field order of its kind. `iw new tc --template web` merges it under the generated fields. Templates are validated as partials.
+
+*(v0.4)* One template is built in: `iw new tc --template bdd` creates a test case with `style = "bdd"` and a placeholder Given in `preconditions` (examples/shop's TC-4 is written this way). A file `templates/test-case.bdd.toml` replaces it.
 
 ## `.gitignore`
 

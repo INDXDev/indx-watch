@@ -503,5 +503,19 @@
   "access.why.lead": "lead",
   "access.why.team": "shared with the team",
   "access.why.shared": "shared with them",
-  "access.ifMember": "unless a member of {groups}"
+  "access.ifMember": "unless a member of {groups}",
+  "bdd.chip": "Scenario (BDD)",
+  "bdd.given": "Given",
+  "bdd.when": "When",
+  "bdd.then": "Then",
+  "bdd.and": "And",
+  "bdd.givenHeading": "Given: the starting state",
+  "bdd.scenario": "Scenario ({count})",
+  "bdd.guideTitle": "How to run this scenario",
+  "bdd.guideIntro": "This test case is written as a scenario. Start from a known state, do one thing, then check what happens.",
+  "bdd.guide.given": "Before you start, get the app into this state. Tick each line once it is true. If you cannot get there, the result is Blocked, not Fail.",
+  "bdd.guide.when": "Do exactly this action, and nothing else.",
+  "bdd.guide.then": "Compare what you see with this sentence. Tick each And line that holds. Text in quotes must appear exactly as written.",
+  "bdd.guideVerdict": "Everything matches: Pass. Anything is different: Fail, and write down what you saw, with a screenshot.",
+  "bdd.editHint": "Scenario style: the preconditions are the Given lines. Write each step as When (what the tester does) and Then (what they should see)."
 }

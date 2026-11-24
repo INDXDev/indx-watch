@@ -69,6 +69,13 @@
         "hybrid"
       ]
     },
+    "style": {
+      "type": "string",
+      "enum": [
+        "steps",
+        "bdd"
+      ]
+    },
     "purpose": {
       "type": "string"
     },
