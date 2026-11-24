@@ -194,6 +194,33 @@ In the workflow that deploys to an environment, record which commit is live ther
 
 This runs `indx-watch deployment add --env staging` for the current commit.
 
+## Slack notifications
+
+*(v0.5)* A scheduled workflow can tell a channel what changed ([notifications](../spec/integrations.md#notifications)). Put the Slack webhook URL in a repository secret and name it in `project.toml` as `[notify] slack_webhook = "env:SLACK_WEBHOOK_URL"`. `iw notify` remembers what it already told in a small state file, so keep that file between runs with `actions/cache`:
+
+```yaml
+name: INDX Watch notify
+on:
+  schedule: [{ cron: '*/30 * * * *' }]
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v4
+        with:
+          path: .indx-watch/cache/notify-state.json
+          key: iw-notify-${{ github.run_id }}
+          restore-keys: iw-notify-
+      - run: npx indx-watch sync --pull-only && npx indx-watch notify
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.IW_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.IW_S3_SECRET }}
+```
+
+The first run saves a baseline and sends nothing. Without the cache, use `iw notify --since 30m` with the same interval as the schedule instead.
+
 ## Versions
 
 `INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.2`), or pin the action to an exact release tag.

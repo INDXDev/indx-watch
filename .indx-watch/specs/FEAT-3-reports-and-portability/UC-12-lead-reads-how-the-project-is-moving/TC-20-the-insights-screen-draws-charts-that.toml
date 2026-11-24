@@ -1,0 +1,49 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874DB3043ZQ08YHZTSJCJ5H"
+key = "TC-20"
+title = "The Insights screen draws charts that come with their numbers"
+status = "draft"
+origin = "ai"
+covers = ["AC-12.1", "AC-12.2"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "Run pnpm iw serve --dir examples/shop/.indx-watch and open #/insights"
+expected = "Five cards show: pass rate and coverage, progress by assignee, by feature, median manual run time and flaky test cases"
+
+[steps.i18n.ja]
+instruction = "pnpm iw serve --dir examples/shop/.indx-watch を実行し、#/insights を開く"
+expected = "5 枚のカードが表示される：合格率とカバレッジ、担当ごと、機能ごとの進み具合、手動テストの所要時間の中央値、不安定なテストケース"
+status = "machine"
+source_hash = "dccebfc3bd48"
+
+[[steps]]
+instruction = "Open Show the numbers under a chart"
+expected = "A table lists the same numbers"
+
+[steps.i18n.ja]
+instruction = "グラフの下の「数値を表示」を開く"
+expected = "同じ数値が表で一覧できる"
+status = "machine"
+source_hash = "b747d4da8d57"
+
+[[steps]]
+instruction = "Switch to Japanese, then to dark mode, then narrow the window to 390 px"
+expected = "Every label is translated, the colours stay readable and nothing scrolls sideways"
+
+[steps.i18n.ja]
+instruction = "日本語、ダークモードに切り替え、ウィンドウ幅を 390 px にする"
+expected = "すべてのラベルが翻訳され、色は読みやすいままで、横スクロールが出ない"
+status = "machine"
+source_hash = "8c25abf6bb2c"
+
+[i18n.ja]
+title = "インサイト画面のグラフは数値とセットで表示される"
+status = "machine"
+source_hash = "34f36bbc5840"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:22Z

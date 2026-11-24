@@ -1,0 +1,49 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874DAKFWGDEZP6X6XW6QG0J"
+key = "TC-19"
+title = "iw notify reports changes once and starts with a baseline"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1", "AC-11.2", "AC-11.3"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "In a copy of the shop bundle add [notify] slack_webhook = \"env:SLACK_WEBHOOK_URL\" to project.toml and run iw notify --dry-run"
+expected = "It says this is the first run and lists no messages"
+
+[steps.i18n.ja]
+instruction = "ショップのバンドルのコピーで project.toml に [notify] slack_webhook = \"env:SLACK_WEBHOOK_URL\" を追加し、iw notify --dry-run を実行する"
+expected = "初回であることが表示され、メッセージは 1 件もない"
+status = "machine"
+source_hash = "f5e0adf92306"
+
+[[steps]]
+instruction = "Run iw record TC-3 --verdict fail --note x, then iw notify --dry-run --since 5m"
+expected = "One message says TC-3 failed, in the project language, with a link when app_url is set"
+
+[steps.i18n.ja]
+instruction = "iw record TC-3 --verdict fail --note x を実行し、続けて iw notify --dry-run --since 5m を実行する"
+expected = "TC-3 の失敗を知らせるメッセージが 1 件、プロジェクトの言語で表示され、app_url があればリンクも付く"
+status = "machine"
+source_hash = "e0d9a2625ba9"
+
+[[steps]]
+instruction = "Run iw notify with SLACK_WEBHOOK_URL unset"
+expected = "It fails with exit 3 and names the variable, never a URL"
+
+[steps.i18n.ja]
+instruction = "SLACK_WEBHOOK_URL を設定せずに iw notify を実行する"
+expected = "終了コード 3 で失敗し、変数名は示すが URL は表示しない"
+status = "machine"
+source_hash = "fd0bdb93c640"
+
+[i18n.ja]
+title = "iw notify は変更を一度だけ知らせ、最初は基準を保存する"
+status = "machine"
+source_hash = "a9bc7c034f21"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:21Z

@@ -1,0 +1,53 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874D3QTF15P17C1RFECE82C"
+key = "UC-12"
+title = "Lead reads how the project is moving"
+status = "draft"
+origin = "ai"
+actor = "Lead"
+goal = "See pass rate and coverage by release, progress by person and feature, and manual run time"
+priority = "P2"
+
+[[criteria]]
+id = "ac_01M874D3QTF15P17C1RFECE82A"
+key = "AC-12.1"
+text = "The Insights screen shows each chart with its numbers as a table"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
+
+[criteria.i18n.ja]
+text = "インサイト画面は各グラフを数値の表と一緒に表示する"
+status = "machine"
+source_hash = "e7ac80d4aa1c"
+
+[[criteria]]
+id = "ac_01M874D3QTF15P17C1RFECE82B"
+key = "AC-12.2"
+text = "iw insights --json has the same numbers as the screen"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
+
+[criteria.i18n.ja]
+text = "iw insights --json は画面と同じ数値を返す"
+status = "machine"
+source_hash = "3c45b5ad2935"
+
+[i18n.ja]
+title = "リードがプロジェクトの動きを読む"
+actor = "リード"
+goal = "リリースごとの合格率とカバレッジ、人と機能ごとの進み具合、手動テストの所要時間を見る"
+status = "machine"
+source_hash = "43f8cf2aa665"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
