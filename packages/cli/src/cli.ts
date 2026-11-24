@@ -155,11 +155,15 @@ async function printHelp(root: CommandDef, words: string[]) {
   process.stdout.write(`${color ? usage : stripVTControlCharacters(usage)}\n`);
 }
 
+/** Whether `t` is a global option that takes the next word as its value (`--dir x`, not `--dir=x`). */
+const valueOfGlobal = (t = '') => /^--?[^=]+$/.test(t) && GLOBAL[t.replace(/^--?/, '')]?.type === 'string';
+
 /** Run `iw` with argv; sets process.exitCode. */
 export async function main(commands: Record<string, Spec>, argv: string[], version: string): Promise<void> {
   const { root, groups } = commandTree(commands, version);
   if (argv[0] === '--version' || argv[0] === '-v') return void console.log(version);
-  const words = argv.filter((t) => !t.startsWith('-'));
+  // words name the command; the value of a global option before it (`--dir x`) is not one
+  const words = argv.filter((t, i) => !t.startsWith('-') && !valueOfGlobal(argv[i - 1]));
   if (!words.length || argv.includes('--help') || argv.includes('-h')) return printHelp(root, words);
   const name = groups[words[0]!] ? words.slice(0, 2).join(' ') : words[0]!;
   await runCommand(root, { rawArgs: argv }).catch((e) => emit(name, argv.includes('--json'), toError(e)));

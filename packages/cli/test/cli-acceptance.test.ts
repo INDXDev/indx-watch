@@ -107,6 +107,9 @@ describe('acceptance criteria (docs/spec/cli.md): exit codes, sync and records',
     const dir = shop();
     expect(iw(dir, ['check']).code).toBe(0);
     expect(iwJson(dir, 'check', ['check', '--bogus']).code).toBe(2);
+    // a global option's value before the command is not the command's name
+    const unknown = iw(dir, ['--dir', '.indx-watch', 'bogus', '--json']);
+    expect([unknown.code, unknown.json.command]).toEqual([2, 'bogus']);
     expect(iwJson(tmpdir(), 'check', ['check']).json.error.code).toBe('NO_BUNDLE');
     expect(iw(tmpdir(), ['check']).code).toBe(3);
     const s3 = iwJson(dir, 'sync', ['sync', '--store', 'https://127.0.0.1:9/']);
