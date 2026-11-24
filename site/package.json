@@ -1,0 +1,30 @@
+{
+  "name": "indx-watch-site",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "images": "node scripts/copy-images.mjs",
+    "predev": "node scripts/copy-images.mjs",
+    "dev": "next dev",
+    "prebuild": "node scripts/copy-images.mjs",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "preview": "pnpm dlx serve@14.2.5 out",
+    "deploy": "pnpm dlx wrangler@4.167.0 deploy"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}

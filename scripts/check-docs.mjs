@@ -14,6 +14,7 @@ const SKIP = new Set([
   'test-results',
   'playwright-report',
   '.wrangler',
+  '.next',
 ]);
 /** Files whose links are placeholders by design. */
 const IGNORE = new Set(['docs/adr/0000-template.md']);
