@@ -78,6 +78,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -583,6 +599,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -813,6 +845,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -965,6 +1013,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -1110,6 +1174,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -1253,6 +1333,22 @@
             "ci",
             "import"
           ]
+        },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
         },
         "sig": {
           "type": "object",
@@ -1400,6 +1496,22 @@
             "import"
           ]
         },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
+        },
         "sig": {
           "type": "object",
           "properties": {
@@ -1521,6 +1633,22 @@
             "ci",
             "import"
           ]
+        },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
         },
         "sig": {
           "type": "object",
@@ -1668,6 +1796,22 @@
             "ci",
             "import"
           ]
+        },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
         },
         "sig": {
           "type": "object",
@@ -1828,6 +1972,22 @@
             "ci",
             "import"
           ]
+        },
+        "client": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "patches"
+          ],
+          "additionalProperties": false
         },
         "sig": {
           "type": "object",

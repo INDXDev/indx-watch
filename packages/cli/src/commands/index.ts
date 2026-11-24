@@ -1,6 +1,7 @@
 /** Every `iw` command by name ('deployment add' = a subcommand). */
 import type { Spec } from '../cli.js';
 import { mcpCommand } from '../mcp.js';
+import { patchCommands } from '../patch.js';
 import { appCommands } from './app.js';
 import { dataCommands } from './data.js';
 import { resultCommands } from './results.js';
@@ -14,6 +15,7 @@ export const COMMANDS: Record<string, Spec> = {
   ...dataCommands,
   ...shareCommands,
   ...appCommands,
+  ...patchCommands,
   ...upkeepCommands,
   mcp: mcpCommand,
 };

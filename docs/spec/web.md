@@ -291,10 +291,12 @@ You can upload definitions in three ways:
 - **UI strings** come from `messages/{en,ja}.json` ([i18n](./i18n.md#ui-locales)). Counted nouns use ICU plurals (`{count, plural, one {# file} other {# files}}`), picked with the locale's plural rules.
 - **Content** (titles, steps, criteria, fixture names, environment guides, release and plan titles) is resolved with `localize()` everywhere it is shown, including list rows, Home and the CLI panel's titles. Raw `title` fields are never rendered directly.
 - When an item's title uses a `machine` translation, a "Machine translation" switch sits next to the title (once per item, not on every field). Pressing it shows the original text of every content field on the page until it is pressed again. A stale translation shows the source text with a "Translation outdated" badge.
+- *(v0.5)* A project may override UI texts per locale, set a few theme tokens and brand reports with the optional `ui/` folder ([Customizing](./bundle-format.md#customizing-v05)); `GET /api/project` carries them as `ui = { messages, css }` and the app applies them before it renders, so the built-in texts and colors are the fallback. A patched server shows a quiet note with its build id ([patched servers](./security.md#patched-servers)).
 - The language the tester read is recorded on runs (`locale`) and on reviews (`judgement.locale`).
 
 ## Acceptance criteria
 
+- [ ] With `ui/messages.en.json` overriding one key and `ui/theme.toml` setting `accent`, the app shows the new text and color on `iw serve` (server and web tests); a project without `ui/` looks as before; on a patched server the note shows the build id (web and server tests).
 - [x] Home shows the verdict hero, four summary cards, your queue and recent activity. The gate checks are inside Release details (e2e `@TC-12`).
 - [x] With examples/shop, Home says "7 of 8 tests pass · 2 drafts not counted until approved", TC-9 and TC-10 carry a Draft chip in the queue and the Tests tree, and AC-5.1 reads "No approved test"; a project fresh from `iw init` shows "No test cases yet" with `/iw-setup` on Home and Tests (e2e `@TC-12`).
 - [x] The bar's language switch turns the app Japanese and back, and the choice survives a reload (e2e `@TC-12`).

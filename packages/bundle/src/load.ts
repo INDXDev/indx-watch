@@ -9,6 +9,7 @@ import type { BlobPointer, Feature, FileType, Fixture } from './schema/definitio
 import { FILE_TYPES, type Project, type TestCase, type UseCase } from './schema/definitions.js';
 import { parseToml } from './toml.js';
 import type { Bundle, BundleFs, Loaded, LoadedTemplate, Problem } from './types.js';
+import { loadUi } from './ui.js';
 import { fixtureVersion, testCaseVersion } from './versions.js';
 import { dotted, schemaAt, shapeOf } from './zwalk.js';
 
@@ -45,6 +46,7 @@ const RULES: [RegExp, FileType | 'template' | null][] = [
   [/^specs\/[^/]+\/[^/]+\/TC-[^/]*\.toml$/, 'test-case'],
   [/^fixtures\/[^/]+\/fixture\.toml$/, 'fixture'],
   [/^templates\/(test-case|use-case|fixture)\.[a-z0-9][a-z0-9-]*\.toml$/, 'template'],
+  [/^ui\/(messages\.[^/]+\.json|theme\.toml|[^/]+\.(png|jpe?g|webp|svg))$/, null],
   [/(^|\/)README\.md$|^\.gitignore$/, null],
 ];
 /** A conflict file left by a workspace-mode merge (docs/spec/sync.md#workspace-mode-v02). */
@@ -55,12 +57,13 @@ const dec = new TextDecoder();
 const TEXT = /\.(csv|tsv|json|ndjson|txt|md|toml|ya?ml|xml|html?|sql)$/i;
 const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/'));
 
-/** Every file under dir (cache/ and runs/ at the root are skipped). */
+/** Every file under dir (cache/, runs/ and patches/ at the root are skipped). */
 export async function walk(fs: BundleFs, dir: string): Promise<string[]> {
   const out: string[] = [];
   for (const e of await fs.list(dir)) {
     const p = dir ? `${dir}/${e.name}` : e.name;
-    if (e.dir && !(dir === '' && (e.name === 'cache' || e.name === 'runs'))) out.push(...(await walk(fs, p)));
+    if (e.dir && !(dir === '' && (e.name === 'cache' || e.name === 'runs' || e.name === 'patches')))
+      out.push(...(await walk(fs, p)));
     else if (!e.dir) out.push(p);
   }
   return out;
@@ -217,6 +220,10 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
   const { useCases, testCases } = await specs(of);
   const invalidFiles = [...new Set(l.problems.filter((p) => p.severity === 'error').map((p) => p.file!))];
   const bundle = { project, useCases, testCases, fixtures, templates, unknownFiles, invalidFiles } as Bundle;
+  // customizing never fails the gate: its problems are reported after invalidFiles is known
+  const { ui, problems: uiProblems } = await loadUi(fs, l.paths, project.data.report?.logo);
+  l.problems.push(...uiProblems);
+  if (ui) bundle.ui = ui;
   for (const k of ['environment', 'release', 'feature', 'plan'])
     (bundle as never as Record<string, unknown>)[`${k}s`] = of(k as FileType);
   return { bundle, problems: l.problems, files: l.files };

@@ -9,6 +9,7 @@ import { knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import enMessages from '../../../web/src/messages/en.json' with { type: 'json' };
 import { setupAgents } from '../agents.js';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
@@ -197,6 +198,7 @@ export const specCommands: Record<string, Spec> = {
       const sub = relative(p.root, p.dir) || '.';
       const deps: iwb.CheckDeps = {
         fix: !!a.fix,
+        uiMessages: enMessages,
         knownKeys: knownKeys(await p.replica.records()),
         hasBlob: async (sha) => (await p.replica.hasBlob(sha)) || existsSync(cacheBlob(p, sha)),
         onDefaultBranch: async (id) => !!git(p.root, 'grep', '-l', '-F', id, branch, '--', sub),

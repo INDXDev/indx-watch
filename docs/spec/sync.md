@@ -81,6 +81,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `project` | project machine ID |
 | `at` | creation time (RFC 3339) |
 | `actor`, `source` | [security.md](./security.md#identity) |
+| `client` | optional, *v0.5*: `{ "version", "patches" }` of a [patched server](./security.md#patched-servers) that wrote the record; absent from records of unpatched builds |
 | `sig` | optional, *v0.2*: the writer's signature ([signed records](#signed-records)) |
 
 **Canonical record JSON.** Writers validate a record with its strict schema and store `JSON.stringify` of the parsed result (keys in schema order, defaults materialized, no whitespace). Those exact bytes go into the replica, log objects and archives. Readers accept unknown extra fields (from newer tools) and keep the bytes they received; two records with the same ID are compared by these bytes.

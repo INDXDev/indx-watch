@@ -10,6 +10,7 @@ import { HostingConfig, SigningKey } from '@indx-watch/bundle';
 import { parse } from 'smol-toml';
 import type { z } from 'zod';
 import type { CommandData } from '../json.js';
+import { patchedDist } from '../patch.js';
 import { type DeployPlan, planDeploy, renderConfig, resourceNames } from './plan.js';
 import {
   DeployError,
@@ -90,7 +91,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
   }
   const outDir = join(opts.dir, 'cache', 'deploy');
   const configPath = join(outDir, 'wrangler.jsonc');
-  const dist = opts.distDir ?? defaultDistDir();
+  const dist = opts.distDir ?? (await patchedDist(opts.dir)) ?? defaultDistDir();
   const worker = join(dist, 'worker.js');
   const assets = join(dist, 'web');
   const planOpts = {

@@ -89,6 +89,8 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 
 A TOML syntax error (`invalid-toml`) names the line and column and quotes the line (`… at line 37, column 3: [[[`). The text output ends with one summary line (`30 files, 1 error, 0 warnings`); when the check fails, that line is the error message on stderr and is not repeated on stdout.
 
+*(v0.5)* `ui/` and `[report]` are checked as described in [Customizing](./bundle-format.md#customizing-v05) (`invalid-ui`, `unknown-ui-key`, `ui-placeholder`, `ui-markup`, `invalid-logo`, `low-contrast`).
+
 Reference checks: see [concepts invariants](./concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](./sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](./sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
 `data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "changed": string[], "renumbered": { "from": string, "to": string, "id": string }[] }`
@@ -406,6 +408,22 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
 
+*(v0.5)* With `.indx-watch/patches/patches.toml`, `iw deploy` deploys the patched build from `cache/patched/dist` instead of the package's own `dist/`, and stops with `INVALID_CONFIG` when it was not built from the current patch files (run `iw patch apply`). The Worker then reports its [patched build](./security.md#patched-servers).
+
+### `iw patch`
+
+*(v0.5)* Keep your own changes to INDX Watch as patches against the upstream source, so you can still update ([customizing](../guides/customize.md#level-3-patches), [fork guide](../guides/fork.md)). Needs `git` and `pnpm` on the PATH (`EXTERNAL_TOOL` names which). `patches/patches.toml` records `base = "x.y.z"`, the upstream version (git tag `v<x.y.z>` of `source`, default `INDXDev/indx-watch`) the patches were made against, which is `[tool] indx_watch`.
+
+| Command | |
+|---|---|
+| `iw patch create <name>` | Prepare the upstream source at `v<base>` in `cache/upstream/` (once), then turn the edits made there (`git diff`) into `patches/NNNN-<name>.patch`. First call: prepares the folder and prints where to edit. |
+| `iw patch apply` | Apply every patch in order to a clean copy (`git apply --3way`), install and build it, and write the result to `cache/patched/dist/` with the patch-set hash (`patched.json`). `--dry-run` only applies, without building. |
+| `iw patch check [--to <version>]` | Dry-run the patches against `v<version>` (default: `base`). Exit 1 (`CONFLICT`) and the conflicting files when one does not apply; a refused file exits 2 (`INVALID_INPUT`). `iw update` runs this first. |
+
+A patch that touches a refused file is rejected by `create`, `apply` and `check`, listing the files: the verdict, gate and status rules (`packages/core/src/decide.ts`, `status.ts`, `roles.ts`), signing and identity (`packages/bundle/src/sign.ts`, `seal.ts`; `packages/server/src/oidc.ts`, `store-routes.ts`; `packages/store/src/node/identity.ts`, `packages/store/src/workers/index.ts`, `packages/store/src/adapters/github-oidc.ts`) and the secret scan (`packages/bundle/src/check.ts`). There is no override: a patched build's verdicts, gate, signatures and secret checks must stay those of upstream, or its results would not be comparable.
+
+`data`: `{ "action": "create" \| "apply" \| "check", "base": string, "to": string | null, "patches": { "file": string, "files": string[], "refused": string[], "applies": boolean | null }[], "conflicts": string[], "patch_hash": string | null, "dist": string | null }`
+
 ### `iw reindex`
 
 Drop and rebuild the local index from the bundle and the local replica. The index is a `node:sqlite` database at `cache/index.sqlite` (same schema as the D1 index; safe to delete). The file records a schema version (`PRAGMA user_version`); a file written with another schema is emptied when opened and rebuilt in the current one. `iw serve` reads its records from this index and keeps it current ([`iw serve`](#iw-serve)). `data`: `{ "records": number, "definitions": number, "ms": number }`
@@ -519,6 +537,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 
 ## Acceptance criteria
 
+- [x] `iw patch create` prepares the upstream source at `v<base>`, turns the edits into `patches/NNNN-<name>.patch` and `patches.toml`, and refuses a file of the refused list; `check --to` exits 1 naming the conflicting files and 2 for an unknown version; `apply` builds `cache/patched/dist` with the patch-set hash and `iw deploy` stops while it is stale; a missing git or pnpm exits 4 naming it (tests with a local git repository and a fake pnpm).
 - [x] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.

@@ -16,6 +16,7 @@ import {
 } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
+import { patchesOf } from './build.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
@@ -94,8 +95,10 @@ function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role)
 
 /** The running version; for a lead also the pinned one and whether the server is older (no outbound call). */
 function serverInfo(version: string, role: B.Role | undefined, pinned: string | undefined) {
-  if (role !== 'lead' || !pinned) return { version };
-  return { version, pinned, ...(isOlderVersion(version, pinned) && { outdated: true as const }) };
+  const patches = patchesOf();
+  const base = { version, ...(patches && { patches }) };
+  if (role !== 'lead' || !pinned) return base;
+  return { ...base, pinned, ...(isOlderVersion(version, pinned) && { outdated: true as const }) };
 }
 
 async function projectInfo(c: Context, x: Ctx) {
@@ -131,6 +134,7 @@ async function projectInfo(c: Context, x: Ctx) {
     ...(deps.readOnly && { readOnly: true }),
     server: serverInfo(x.version, role, m.project.tool?.indx_watch),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
+    ...(m.ui && { ui: { messages: m.ui.messages, css: B.themeCss(m.ui.theme) } }),
   };
   return c.json(info);
 }
