@@ -6,7 +6,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Assignee board on the plan screen (T-514): one row per assignee with a status bar, Unassigned only, bulk Assign / Unassign, Take and Give back, and a Split dialog with preview; writes in workspace mode (lead assigns anyone, tester takes or gives back their own).
+- `iw assign --plan PLAN-n --split who:weight,… [--only-unassigned] [--dry-run]` and `--to <who> --items TC-n,…` (T-515): a deterministic weighted split that gives feature owners their own features first and spreads high priorities; also `POST /api/plans/:key/assign` and the read-only MCP tool `assign`; agents may only use `--dry-run`.
+- Automation mix (T-516): how many plan items are run by people, CI and agents, on the plan screen, as `data.automation` in `iw status --json` (additive) and as a Run by line in reports.
+- Customize without code (T-507): optional `.indx-watch/ui/` (`messages.<locale>.json` text overrides, `theme.toml` allowlisted tokens) and `[report]` title, logo and footer in `project.toml`; `iw check` rejects unknown keys, changed placeholders, markup and unsafe values, and warns about low contrast.
+- `iw patch create | apply | check [--to <version>]` (T-508): keep your own changes as patches against upstream at `v<pinned>`; changes to verdict, gate, status, signing, identity and the secret scan are refused; `iw deploy` deploys the patched build. `patches/` is not loaded, scanned, snapshotted or uploaded.
+- Patched servers say so (T-509): `/healthz`, `/api/project` (`server.patches`), MCP `serverInfo`, report footers, a note in the app and an additive `client` field on records they write.
+- Guides: Customize INDX Watch safely and Keep a fork up to date; `[tool] source = "github:<owner>/<repo>"` names a fork (T-510; `iw patch` uses it, `iw doctor` and `iw update` do not follow it yet).
+- Staying current with upstream: `iw doctor [--online]` reports every pinned part of a project (`[tool]`, the CLI, `package.json`, `.mcp.json`, skill copies, workflows, the hosted app) as `ok`, `outdated`, `unpinned` or `locally-edited` and changes nothing (T-503).
+- `iw update [--to] [--dry-run] [--deploy] [--workflow]` moves the package entry, skill copies, `.mcp.json`, workflow versions and `#:schema` URLs to one version, prints the install command and checks the bundle; `--workflow` writes a weekly workflow that opens an update pull request (T-504, T-505).
+- `project.toml` accepts `[tool] indx_watch = "x.y.z"`; `iw init` writes it, the GitHub Action runs that version when its `version` input is empty, and `iw deploy` pins `IW_VERSION` on the Worker; `.mcp.json` is written as `npx -y indx-watch@<version> mcp` and an unpinned entry is migrated (T-501, T-502).
+- `GET /healthz` answers `{ ok, version }` and `GET /api/project` has `server: { version, pinned?, outdated? }`; the web app tells leads when it runs an older version than the project pins, in English and Japanese (T-501, T-506).
+- `ReleaseSource` adapters for the npm registry and GitHub releases, a fake, and `releases.json` generated from this changelog and shipped in the package (T-503).
 - BDD style for test cases: `style = "bdd"` reads the preconditions and steps as a Given / When / Then scenario, `iw new tc --template bdd` is built in, and the test case page, the manual runner and the editor show the labels and a "How to run this scenario" guide in English and Japanese (前提 / もし / ならば / かつ). examples/shop's TC-4 uses it.
+- `iw issue <run | TC-n | AC-n.m | UC-n> [--open] [--link <url>]` and an Open as GitHub issue link on the run viewer and the test case page (T-518): a prefilled, length-capped, secret-scanned new-issue URL that a person submits; INDX Watch never writes to GitHub.
+- `iw import github-issue <number | URL> [--from <file.json>] [--feature F]` (T-519): one GitHub issue becomes one draft use case with its task list as draft criteria and the issue URL in `links`; a re-import changes nothing. An `IssueSource` GitHub REST adapter (token optional) and a fake.
+- GitHub issue forms `indx-watch-test-request.yml` and `indx-watch-test-failure.yml` (T-517, `githubTemplates()`), offered by `/iw-setup`.
+- Optional `links` on test cases (http(s) only) and `[github] repo` in `project.toml`; test cases and the run viewer show Related issue #42 (T-520). The `iw-triage` skill uses `iw issue`, and `iw-design` reads GitHub issues.
+- `iw init --github` (T-512): writes `.github/workflows/indx-watch.yml` (check, Playwright with the reporter, PR comment and check run) and `indx-watch-deploy.yml` (`iw deploy` on merge) and the issue forms, only when missing, and prints the repository secret names; works in an existing project too; `--json` adds `github`.
+- `iw diff --base <ref>` and `bundleDiff()` (T-513): the use cases, criteria and test cases added, changed and removed since a commit; the GitHub Action's PR comment and check run start with "Test cases changed in this PR".
+- Guide "Self-host on Cloudflare from GitHub" and a self-hosting section on the landing page, in English and Japanese (T-511).
 
 ### Changed
 
