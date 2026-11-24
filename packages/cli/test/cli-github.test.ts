@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { iw, iwJson, shop } from './helpers.js';
 
-const FLOWS = ['.github/workflows/indx-watch.yml', '.github/workflows/indx-watch-deploy.yml'];
+const WORKFLOWS = ['.github/workflows/indx-watch.yml', '.github/workflows/indx-watch-deploy.yml'];
+const FORMS = [
+  '.github/ISSUE_TEMPLATE/indx-watch-test-request.yml',
+  '.github/ISSUE_TEMPLATE/indx-watch-test-failure.yml',
+];
+const FLOWS = [...WORKFLOWS, ...FORMS];
 
 describe('iw init --github', () => {
   it('on a new project writes the workflows and names the secrets; a second run changes nothing', () => {
@@ -17,16 +22,16 @@ describe('iw init --github', () => {
     expect(r.json.data.github.secrets).toEqual(['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']);
     expect(r.stdout).not.toContain('ghp_');
     for (const f of FLOWS) expect(existsSync(join(empty, f))).toBe(true);
-    const deploy = readFileSync(join(empty, FLOWS[1]!), 'utf8');
+    const deploy = readFileSync(join(empty, WORKFLOWS[1]!), 'utf8');
     expect(deploy).toContain('run: npx --yes indx-watch deploy');
     expect(deploy).toContain('${{ secrets.CLOUDFLARE_API_TOKEN }}');
-    expect(readFileSync(join(empty, FLOWS[0]!), 'utf8')).toContain('uses: INDXDev/indx-watch@v0');
+    expect(readFileSync(join(empty, WORKFLOWS[0]!), 'utf8')).toContain('uses: INDXDev/indx-watch@v0');
     // idempotent: an existing project only gets what is missing, and edits are kept
-    writeFileSync(join(empty, FLOWS[0]!), '# mine\n');
+    writeFileSync(join(empty, WORKFLOWS[0]!), '# mine\n');
     const again = iwJson(dir, 'init', ['init', 'app', '--github', '--no-agents']);
     expect(again.code, again.stderr).toBe(0);
     expect(again.json.data.github).toMatchObject({ written: [], skipped: FLOWS, secrets: [] });
-    expect(readFileSync(join(empty, FLOWS[0]!), 'utf8')).toBe('# mine\n');
+    expect(readFileSync(join(empty, WORKFLOWS[0]!), 'utf8')).toBe('# mine\n');
     // without --github an existing project is still a conflict
     expect(iwJson(dir, 'init', ['init', 'app']).json.error.code).toBe('CONFLICT');
   });
