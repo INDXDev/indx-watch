@@ -139,6 +139,8 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 4. **Steps.** Numbered, each with its instruction, its expected result and its `checks` as a list of boxes to tick ("The discount line shows "-4.00"."), in the chosen language.
 5. **Result.** The status in scope and the last run (who, verdict, when), then the Details disclosure: covered criterion keys, metadata and the run history.
 
+*(v0.5)* **Shared steps.** A step that comes from a [shared step](./bundle-format.md#shared-steps) is shown like any other, in the chosen language (its translation is the shared step's), with a small **from SS-1** chip after the instruction. The runner, the run viewer and reports number it by its place in the test case. In workspace mode the editor shows a note instead of the step fields for a test case that uses shared steps (title and priority can still be saved, and the server refuses a `steps` edit with 400); edit the shared step file in a working copy.
+
 #### Manual run in place
 
 **Run manually**, in the Focus footer, opens the runner on the same page: the URL does not change, the blocks above stay where they are, and the Steps block turns into the runner.
@@ -319,3 +321,4 @@ You can upload definitions in three ways:
 - [x] `POST /api/fixtures` creates a dataset from a table as CSV; `PATCH` changes its title, notes and rows, adds and removes a file; `DELETE` removes the folder; deleting a used fixture, an unsafe file name or a plain password as `secret_ref` is refused with nothing written; an agent gets 403 (server test). Creating, editing a table and saving on the screen was checked in a browser.
 - [x] In workspace mode on a Worker, uploading a PDF, editing the new fixture and deleting it write `file` records (the delete as `deleted` versions), and the fixture is gone from the API afterwards (Worker test).
 - [x] A tester may add and edit test data and upload files that only touch `fixtures/`; a viewer gets 403 (server tests).
+- [x] TC-8 in examples/shop shows its second step with a "from SS-1" chip ("SS-1 から" in Japanese), and `PATCH /api/test-cases/TC-8` with `steps` is refused in workspace mode (server test).

@@ -25,6 +25,8 @@ The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/in
 │           ├── use-case.toml         # use case + acceptance criteria
 │           ├── TC-3-valid-coupon.toml
 │           └── TC-4-expired-coupon.toml
+├── steps/
+│   └── SS-1-reload-signed-out.toml   # (v0.5) shared steps that test cases `use`
 ├── fixtures/
 │   ├── FX-1-coupons/
 │   │   ├── fixture.toml
@@ -379,7 +381,7 @@ source_hash = "72d5db16627a"
 | `start_note` | no | One sentence about the starting point (`"Open the cart."`), with or without `start`. |
 | `preconditions` | no | Plain language. |
 | `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds), optional `use`: what the tester does with the data — `download` (save the file to look at or keep), `upload` (save it, then attach it in a step), `enter` (type or paste the values), `seeded` (already in the app; nothing to do) — and optional `note` (one sentence, e.g. which step uses it), translated in `[fixtures.i18n.<locale>]`. |
-| `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
+| `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. *(v0.5)* A step may be `use = "SS-1"` alone: the steps of that [shared step](#shared-steps) take its place. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](./concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
 | `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](./concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](./integrations.md#playwright-reporter)). |
@@ -389,6 +391,58 @@ source_hash = "72d5db16627a"
 **Guidance.** `purpose`, `style`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
 
 **Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](./concepts.md#versions-and-staleness). It is not stored in the file.
+
+## Shared steps
+
+*(v0.5)* `steps/SS-<n>-<slug>.toml` holds steps that several test cases use. The file is at the top of the bundle, not inside a feature, because any test case may use it ([ADR 0015](../adr/0015-shared-steps-folder.md)).
+
+```toml
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/shared-step.json
+
+id = "ss_01JF3Q8M5X2V7K9D4R6T1W0Y71"
+key = "SS-1"
+title = "Reload and stay signed out"
+
+[[steps]]
+instruction = "Reload the page."
+expected = "The header still shows \"Sign in\"."
+checks = ["The header still shows \"Sign in\"."]
+
+[steps.i18n.ja]
+instruction = "ページを再読み込みする。"
+expected = "ヘッダーには「Sign in」が表示されたまま。"
+checks = ["ヘッダーには「Sign in」が表示されたまま。"]
+status = "machine"
+source_hash = "a033d251ac7d"
+
+[i18n.ja]
+title = "再読み込みしてもサインアウトのまま"
+status = "machine"
+source_hash = "ecbdf6f2d0b5"
+```
+
+A test case uses it with a step that holds only `use`; examples/shop's TC-8 ends with
+
+```toml
+[[steps]]
+use = "SS-1"
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `id`, `key` | yes | `ss_<ULID>` and `SS-<n>`, assigned by `iw new ss`. The file name starts with the key. |
+| `title` | yes | What the steps do, in a few words ("Sign in", "Reload and stay signed out"). Not part of any version. |
+| `origin`, `approved_by` | no | As for a feature: an AI-written shared step carries `origin = "ai"` and an `[ai]` table, and `iw check` warns until a person runs `iw approve SS-n`. There is no `status`. |
+| `[[steps]]` | yes | The same step as in a test case (`instruction`, `expected`, `checks`, `evidence`, `[steps.i18n.<locale>]`), or `use = "SS-<n>"` for another shared step. |
+| `[i18n.<locale>]` | no | Translation of `title` ([i18n.md](./i18n.md#content-translations)). |
+
+**Rules.**
+
+- **`use` stands alone.** A step is either `use = "SS-n"` or has `instruction` and `expected`; mixing them is `invalid-value`. In a test case the step is replaced, in place, by every step of the shared step; the steps after it are numbered after them. Steps of a shared step are numbered by their place in the test case, not in the shared step.
+- **Expanded when the bundle is loaded.** Everything that reads a loaded bundle (the model, `iw show`, the runner, the reporter, the web app, MCP) sees the expanded steps, each marked `from = "SS-n"` in memory. The marker is never written: `iw approve`, `iw translate` and the web app write `use = "SS-n"` back.
+- **Part of the version.** The test case [version](./concepts.md#versions-and-staleness) hashes the expanded steps, so editing a shared step's `instruction`, `expected` or `evidence` makes results of every test case that uses it stale. `title`, `checks` and translations are not. A test case that uses no shared step keeps its version, and replacing steps by an identical shared step keeps it too.
+- **`iw check`** reports `unresolved-ref` for a `use` that names no shared step and `shared-step-cycle` when shared steps use each other in a loop, each on the test case and on the shared step file. Translations of a shared step's steps are checked in its own file; a test case never repeats them.
+- **Layout.** Only files named `SS-*.toml` directly in `steps/` are shared steps; anything else there is an `unknown-file` warning. A duplicate `SS` key is an error that `iw check --fix` does not renumber (a `use` could not tell which one it meant); rename one by hand and fix the `use` lines.
 
 ## Fixtures
 

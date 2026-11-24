@@ -18,3 +18,4 @@ One decision per file, [MADR](https://adr.github.io/madr/)-style. Copy [0000-tem
 | [0012](./0012-license-and-dco.md) | Apache-2.0 and the DCO |
 | [0013](./0013-decision-policy.md) | One pure function turns judgements into a verdict |
 | [0014](./0014-docs-site.md) | The docs are also published with Mintlify, from the same Markdown files |
+| [0015](./0015-shared-steps-folder.md) | Shared steps live in their own top-level folder, `steps/` |
