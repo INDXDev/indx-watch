@@ -2,31 +2,43 @@ name: Release
 
 # Publishes the `indx-watch` npm package when a maintainer pushes a version tag (v0.1.0, …).
 # Nothing runs on ordinary pushes. Requires the repository secret NPM_TOKEN; uses npm provenance.
+# Three jobs, so install and verify never run with a write token: `build` (read-only) checks and packs the
+# tarball, `publish` (id-token: write) only publishes that tarball, `github-release` (contents: write) attaches it
+# to the GitHub release and moves the floating major tag (v0 for 0.x) that `uses: INDXDev/indx-watch@v0` follows.
+# Run by hand (Actions → Release): a dry run (the default) only builds and packs; with dry-run off it must be run
+# on a version tag, and then publishes like a tag push (to retry a failed release).
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       dry-run:
-        description: Build and pack only (no publish)
+        description: Build and pack only (no publish); without it, run on a version tag
         type: boolean
         default: true
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: A release needs a version tag
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry-run && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "::error::Publishing runs only on a version tag: choose the tag in 'Use workflow from', or keep dry-run"
+          exit 1
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
       - name: Check the tag matches the package version
@@ -38,19 +50,60 @@ jobs:
         with:
           name: indx-watch-package
           path: ${{ runner.temp }}/pkg/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || !inputs.dry-run)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: indx-watch-package
+          path: ${{ runner.temp }}/pkg
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
       - name: Publish to npm
-        if: startsWith(github.ref, 'refs/tags/') || inputs.dry-run == false
-        run: cd packages/cli && npm publish --provenance --access public
+        run: npm publish "$RUNNER_TEMP"/pkg/*.tgz --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the release, its asset and the floating major tag
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: indx-watch-package
+          path: ${{ runner.temp }}/pkg
       - name: GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         # The release may already exist when the tag was created from GitHub's release page: attach the tarball then.
         run: |
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/pkg/*.tgz --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/pkg/*.tgz --generate-notes
+            gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/pkg/*.tgz --generate-notes --verify-tag
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Move the floating major tag
+        # v0.3.1 → v0, v1.2.0 → v1; pre-releases (v1.0.0-rc.1) leave it where it is. The commit comes from the
+        # API, which peels an annotated tag to its commit.
+        run: |
+          case "$GITHUB_REF_NAME" in *-*) echo "pre-release: v-major tag unchanged"; exit 0 ;; esac
+          major="${GITHUB_REF_NAME%%.*}"
+          sha=$(gh api "repos/$GH_REPO/commits/$GITHUB_REF_NAME" --jq .sha)
+          if gh api "repos/$GH_REPO/git/ref/tags/$major" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$major" -f sha="$sha" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$major" -f sha="$sha" > /dev/null
+          fi
+          echo "$major → $sha ($GITHUB_REF_NAME)" >> "$GITHUB_STEP_SUMMARY"
