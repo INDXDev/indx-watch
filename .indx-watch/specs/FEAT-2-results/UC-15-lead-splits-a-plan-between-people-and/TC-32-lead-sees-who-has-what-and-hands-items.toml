@@ -1,0 +1,66 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874HA8Z7XCE3DRTKE31VYRH"
+key = "TC-32"
+title = "Lead sees who has what and hands items out"
+status = "draft"
+origin = "ai"
+covers = ["AC-15.1", "AC-15.2", "AC-15.4"]
+priority = "P1"
+mode = "playwright"
+start = "/"
+start_note = "Serve a copy of examples/shop with [store] mode = \"workspace\" as alex@shop.test (IW_ACTOR=alex@shop.test), then open Home and Release details."
+
+[[steps]]
+instruction = "Open Release details on Home as a lead of a workspace-mode project"
+expected = "The plan lists one row per assignee with its item count and a progress bar, the line Run by shows people, CI and agents, and no item is unassigned."
+
+[steps.i18n.ja]
+instruction = "ワークスペースモードのプロジェクトのリードとして、ホームのリリースの詳細を開く。"
+expected = "計画に担当ごとの行（項目数と進捗バー）が並び、「Run by」の行に人・CI・エージェントが表示され、未割り当ての項目はない。"
+status = "machine"
+source_hash = "6542dabdbafc"
+
+[[steps]]
+instruction = "Select TC-8 and TC-9, type kim@shop.test and press Assign"
+expected = "Kim appears on the board with 2 items and both rows name kim@shop.test."
+
+[steps.i18n.ja]
+instruction = "TC-8 と TC-9 を選び、kim@shop.test と入力して「Assign」を押す。"
+expected = "Kim が 2 件でボードに現れ、2 つの行とも kim@shop.test になる。"
+status = "machine"
+source_hash = "69e1deb40339"
+
+[[steps]]
+instruction = "Press Give back on TC-6, tick Unassigned only, then press Take"
+expected = "Only TC-6 is listed while the filter is on, and after Take it is assigned to you."
+
+[steps.i18n.ja]
+instruction = "TC-6 の「Give back」を押し、「Unassigned only」にチェックして、「Take」を押す。"
+expected = "絞り込み中は TC-6 だけが表示され、Take の後は自分の担当になる。"
+status = "machine"
+source_hash = "0b4bd67475b0"
+
+[[steps]]
+instruction = "Open Split, enter alex@shop.test:2,sam@shop.test:1,agent:claude:1, press Preview, then Apply split"
+expected = "The preview lists the items that change, and after Apply the board shows 3, 2 and 2 items."
+
+[steps.i18n.ja]
+instruction = "「Split…」を開き、alex@shop.test:2,sam@shop.test:1,agent:claude:1 と入力して「Preview」、続けて「Apply split」を押す。"
+expected = "プレビューに変更される項目が並び、適用後のボードは 3 件、2 件、2 件になる。"
+status = "machine"
+source_hash = "55755bd0a4ad"
+
+[automation]
+files = ["e2e/assign.spec.ts"]
+
+[i18n.ja]
+title = "リードが担当の状況を見て項目を割り当てる"
+start_note = "[store] mode = \"workspace\" にした examples/shop のコピーを alex@shop.test（IW_ACTOR=alex@shop.test）として起動し、ホームのリリースの詳細を開く。"
+status = "machine"
+source_hash = "5a10eb280bc8"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:32Z

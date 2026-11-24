@@ -12,6 +12,7 @@ export const ID_PREFIXES = {
   useCase: 'uc',
   criterion: 'ac',
   testCase: 'tc',
+  sharedStep: 'ss',
   fixture: 'fx',
   plan: 'pln',
   run: 'run',
@@ -32,6 +33,7 @@ export const KEY_PATTERNS = {
   useCase: /^UC-[1-9][0-9]*$/,
   criterion: /^AC-[1-9][0-9]*\.[1-9][0-9]*$/,
   testCase: /^TC-[1-9][0-9]*$/,
+  sharedStep: /^SS-[1-9][0-9]*$/,
   fixture: /^FX-[1-9][0-9]*$/,
   plan: /^PLAN-[1-9][0-9]*$/,
 } as const;

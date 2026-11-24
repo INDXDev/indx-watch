@@ -5,6 +5,8 @@
 import { TRANSLATABLE_FIELDS, translationSourceHash } from '@indx-watch/bundle';
 import type { RunView, Scope } from '@indx-watch/core';
 import {
+  assigneeBoard,
+  automationMix,
   computeStatus,
   type FixtureNode,
   type Model,
@@ -210,6 +212,8 @@ export function planViews(model: Model): Promise<PlanView[]> {
         ...{ test_case: it.test_case, assignee: it.assignee, environment: it.environment ?? environment },
         ...{ due: it.due ?? due, status: planItemStatus(model, key, i) },
       })),
+      board: assigneeBoard(model, key),
+      mix: automationMix(model, [{ items }]),
     };
   };
   return Promise.all(model.plans.map(view));

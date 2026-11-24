@@ -529,6 +529,23 @@ export const en: Content = {
       },
     ],
   },
+  selfHost: {
+    kicker: 'Self-hosting',
+    title: 'Your tests in git. Your app on your Cloudflare.',
+    lead: 'One command writes the GitHub workflows. From then on a **pull request is checked and commented on**, and a merge **updates the app that runs on your own Cloudflare account**, free tier first.',
+    steps: [
+      { title: 'Branch', body: 'Change a test case or the app.' },
+      { title: 'Pull request', body: 'Reviewed like code.' },
+      { title: 'Action', body: '`iw check` and Playwright run.' },
+      { title: 'PR comment', body: 'The gate, and the test cases this PR changes.' },
+      { title: 'Merge', body: 'Into `main`.' },
+      { title: 'Deploy', body: '`iw deploy` to Workers, R2 and D1.' },
+      { title: 'Team tests', body: 'In the web app, behind Cloudflare Access.' },
+    ],
+    note: 'No INDX Watch cloud. Everything above is a command you can run on your laptop.',
+    code: 'npx indx-watch init --github',
+    guide: { label: 'Self-host on Cloudflare from GitHub', href: DOCS.selfHostGithub },
+  },
   openSource: {
     kicker: 'Open source',
     title: 'Open source. Self-hosted. Yours.',

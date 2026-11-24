@@ -92,6 +92,12 @@ The web app turns these fields into the one-page test case: *What this tests* (p
 
 ![TC-9 on one page: the purpose, the FX-3 account card, the FX-4 photo with its download button and note, and steps with checks](../images/test-case.png)
 
+## Reuse steps
+
+*(v0.5)* When several test cases start with the same steps ("sign in", "place the order"), write them once as a [shared step](../spec/bundle-format.md#shared-steps): `iw new ss --title "Sign in" --step "Open \"Sign in\" … => The form opens"`. In a test case, a step that holds only `use = "SS-1"` stands for all the steps of that shared step; the app shows them in place with a "from SS-1" chip. examples/shop's TC-8 does this.
+
+Editing a shared step changes the version of every test case that uses it, so their earlier results become stale and are run again; that is the point, but reword with care. Keep a shared step to what really is the same in every test case. If one test case needs a different expected result, write that step out in the test case.
+
 ## Literal strings
 
 Text in double quotes — `"Apply"`, `"This coupon has expired"` — is the **exact on-screen text** of the app. Copy it from the app or its code, keep capitalization and punctuation, and never paraphrase it. Translations keep literals untouched, and `iw check` warns when a translation drops one ([i18n](../spec/i18n.md#literal-strings)). This is what lets a Japanese-speaking tester read `TC-4` in Japanese and still look for 「This coupon has expired」:

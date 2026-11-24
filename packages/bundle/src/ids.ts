@@ -13,11 +13,12 @@ export function newUlid(now?: number): string {
   return ulid(now);
 }
 
-export type KeyKind = 'feature' | 'useCase' | 'testCase' | 'fixture' | 'plan';
+export type KeyKind = 'feature' | 'useCase' | 'testCase' | 'sharedStep' | 'fixture' | 'plan';
 const KEY_PREFIX: Record<KeyKind, string> = {
   feature: 'FEAT',
   useCase: 'UC',
   testCase: 'TC',
+  sharedStep: 'SS',
   fixture: 'FX',
   plan: 'PLAN',
 };
@@ -52,7 +53,7 @@ export type ParsedRef =
 export function parseRef(ref: string): ParsedRef | null {
   const id = /^([a-z]{2,3})_([0-9A-HJKMNP-TV-Z]{26})$/.exec(ref);
   if (id) return { type: 'id', id: ref, prefix: id[1]! };
-  const m = /^(?:([A-Z][A-Z0-9]{1,9}):)?((?:FEAT|UC|TC|FX|PLAN)-\d+|AC-\d+\.\d+)$/.exec(ref);
+  const m = /^(?:([A-Z][A-Z0-9]{1,9}):)?((?:FEAT|UC|TC|SS|FX|PLAN)-\d+|AC-\d+\.\d+)$/.exec(ref);
   if (m) return { type: 'key', key: m[2]!, ...(m[1] ? { project: m[1] } : {}) };
   return null;
 }

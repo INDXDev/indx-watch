@@ -65,6 +65,9 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 | `--locale <en\|ja>` | `en` | Source locale |
 | `--example` | | Copy the `examples/shop` bundle instead of an empty one |
 | `--no-agents` | | Skip the agent setup below |
+| `--github` | | *(v0.5)* Also write the GitHub files below. Works in an existing project too: only the GitHub files are written, and `init` then exits 0 instead of 1 |
+
+*(v0.5)* `iw init` pins the project to the running version: `project.toml` gets `[tool] indx_watch = "<version>"` ([staying current](#iw-doctor)), and the agent setup writes `.mcp.json` as `npx -y indx-watch@<version> mcp`.
 
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
@@ -74,11 +77,21 @@ The text output ends with next steps that run as printed: with agents, open Clau
 
 When `dir` already has `.indx-watch/project.toml`, `init` changes nothing and exits 1 (`CONFLICT`) with "Already set up. To refresh the agent files: npx indx-watch skills install".
 
-`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] } }` (`agents` is the `iw skills install` data)
+**`--github`** *(v0.5)* writes, relative to the git root (or `dir`), only the files that are missing and never overwrites one:
+
+| File | What it does |
+|---|---|
+| `.github/workflows/indx-watch.yml` | On pull requests and pushes to `main`: `iw check`, Playwright with the reporter (skipped without a `playwright.config.*`), then the [Action](./integrations.md#github-action) with `comment` and `check` (including [the test cases the PR changes](./integrations.md#github-action)); the release is read from `project.toml` |
+| `.github/workflows/indx-watch-deploy.yml` | On pushes to `main` that touch `.indx-watch/`, `package.json` or the lockfile, and by hand: `iw deploy` when `project.toml` has `[hosting]`, else a notice |
+| `.github/ISSUE_TEMPLATE/indx-watch-*.yml` | The issue forms of GitHub Issues (written by `githubTemplates()`; none until that workstream lands) |
+
+The text output lists the files written and kept and names the repository secrets the deploy workflow reads (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`), never a value. Run it again to see `skipped` and no `secrets`.
+
+`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] }, "github"?: { "root": string, "written": string[], "skipped": string[], "secrets": string[] } }` (`agents` is the `iw skills install` data; `github` only with `--github`, paths relative to `root`)
 
 ### `iw check`
 
-Validate the whole bundle: schemas, canonical formatting, references (`covers`, fixture refs, plan items), duplicate keys and IDs, AI approval rule, secret scan, unknown files.
+Validate the whole bundle: schemas, canonical formatting, references (`covers`, fixture refs, plan items, *(v0.5)* shared steps: an unknown `use` is `unresolved-ref`, a loop `shared-step-cycle`), duplicate keys and IDs, AI approval rule, secret scan, unknown files.
 
 | Flag | |
 |---|---|
@@ -86,6 +99,8 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--strict` | Treat warnings as errors |
 
 A TOML syntax error (`invalid-toml`) names the line and column and quotes the line (`… at line 37, column 3: [[[`). The text output ends with one summary line (`30 files, 1 error, 0 warnings`); when the check fails, that line is the error message on stderr and is not repeated on stdout.
+
+*(v0.5)* `ui/` and `[report]` are checked as described in [Customizing](./bundle-format.md#customizing-v05) (`invalid-ui`, `unknown-ui-key`, `ui-placeholder`, `ui-markup`, `invalid-logo`, `low-contrast`).
 
 Reference checks: see [concepts invariants](./concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](./sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](./sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
@@ -99,7 +114,7 @@ Rewrite files in canonical form. Equivalent to the formatting part of `check --f
 
 When the actor is an agent, every kind is created with `origin = "ai"` and an `[ai]` table, and `uc`, `ac`, `tc` and `fixture` as drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). An `origin = "ai"` item never starts approved: `approved_by` from `--from` is dropped (only `iw approve` writes it). A new use case defaults to priority `P1`.
 
-Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `fixture`, `env`, `release`, `plan`.
+Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `ss` (*(v0.5)* a [shared step](./bundle-format.md#shared-steps) in `steps/`, key `SS-n`, with `--title` and `--step`; without a step one placeholder step is written), `fixture`, `env`, `release`, `plan`.
 
 | Flag | Applies to | |
 |---|---|---|
@@ -107,7 +122,7 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 | `--feature <FEAT>` | `uc` | Parent feature (default: the only feature, or `FEAT-1`) |
 | `--actor <text>`, `--goal <text>` | `uc` | Default: "User" and the title |
 | `--ac <text>` | `uc` | Repeatable; at least one acceptance criterion is required |
-| `--step "<instruction> => <expected>"` | `tc` | Repeatable; without it (and without `--template`/`--from`) one placeholder step is written and the file stays `draft` |
+| `--step "<instruction> => <expected>"` | `tc`, `ss` | Repeatable; without it (and without `--template`/`--from`) one placeholder step is written and the file stays `draft` |
 | `--uc <UC>` | `ac`, `tc` | Parent use case (`ac` appends a criterion) |
 | `--text <text>` | `ac` | Criterion text |
 | `--covers <AC,...>` | `tc` | Default: all ACs of `--uc` |
@@ -139,6 +154,20 @@ Approve a draft use case, test case or fixture (or a draft acceptance criterion)
 
 `data`: `{ "email": string, "plan": string, "file": string, "items": string[], "reassigned": string[], "revoked": boolean, "access": "added" | "removed" | "kept" | "manual" }` (`items`: the items whose assignee changed, the plan file is not written when there are none; `reassigned`: those taken from another assignee; `kept`: a revoke left the policy entry because other items are still assigned). The Access policy call runs even when no item changed, so running the command again repairs the policy.
 
+### `iw assign`
+
+*(v0.5)* Assign the items of a plan to people, `ci` or agents ([assignment](./concepts.md#assignment-and-automation-mix)). The plan file is written through `formatToml()`; a run that changes nothing writes nothing. Writing needs a person: with `--dry-run` anyone (agents included) gets the proposal, without it an agent gets exit 2 (`CLAUDECODE=1` counts as an agent).
+
+| Flag | |
+|---|---|
+| `--plan <PLAN-n>` | Required. The plan |
+| `--split <who:weight,…>` | Split by weight, for example `alex@shop.test:2,sam@shop.test:1,agent:claude:1`. A whole number weight follows the last colon (default 1); every entry must be an email, `ci`, `agent:<name>` or `group:<name>`. Owners keep their own features first and high priorities are spread ([rules](./concepts.md#assignment-and-automation-mix)) |
+| `--only-unassigned` | With `--split`: leave items that already have an assignee alone (they still count toward that assignee's share) |
+| `--to <who> --items <TC-n,…>` | Give those items to one assignee, reassigning them if needed |
+| `--dry-run` | Print the proposal; write nothing |
+
+Pass `--split` or `--to` with `--items`, not both. `data`: `{ "plan": string, "file": string, "dry_run": boolean, "assignments": [ { "test_case": string, "environment"?: string, "assignee": string, "from"?: string } ], "load": { "<assignee>": number }, "unassigned": number }`. `assignments` lists the items whose assignee changes (`from`: the previous assignee); `load` is the number of items each assignee holds after the change; `unassigned` the items still without one. The MCP tool `assign` returns the same data and is always a dry run.
+
 ### `iw status`
 
 Compute coverage, use case status and the readiness gate for a scope.
@@ -166,6 +195,8 @@ Compute coverage, use case status and the readiness gate for a scope.
 
 With `--mine`, `data` also has `"mine": { "actor": "alex@shop.test", "features": ["FEAT-2"] }` (the features you own; empty when you own none, and then the rest of `data` is empty too). `iw list features` shows every feature's `owners`, including `group:` ones.
 
+`data.automation` *(v0.5)* is the [automation mix](./concepts.md#assignment-and-automation-mix) of the plans of the release in scope: `{ "people": 3, "ci": 4, "agents": 1, "total": 8 }`; it is absent when no plan has items.
+
 A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](./concepts.md#flaky-tests)).
 
 When the scope has no `ready` acceptance criterion (a new bundle, or only drafts), the text output says "Coverage: no ready acceptance criteria yet" instead of a 0/0 ratio; `data.coverage` is unchanged. While a definition file does not load, the gate's first check is a failing `valid_definitions` and the file is a warning ([load problems](#conventions)).
@@ -180,6 +211,12 @@ Suggest the test cases a change touches, from the changed files and each test ca
 | `--base <ref>` | Use `git diff --name-only <ref>...HEAD` (the changes since the branch left `<ref>`), e.g. `--base origin/main` |
 
 `data`: `{ "base": string | null, "changed": string[], "testCases": { "key", "id", "title", "status", "priority", "reasons": { "kind": "automation" \| "definition" \| "fixture", "file": string, "pattern"?: string }[] }[] }`
+
+### `iw diff`
+
+*(v0.5)* List the use cases, criteria and test cases added, changed or removed since a commit, from the [bundle diff](./concepts.md#bundle-diff) of the bundle at `--base` and the bundle in the working tree. `--base <ref>` is required (exit 2); a ref that is not a commit is `EXTERNAL_TOOL` (exit 4). When `HEAD` has a merge base with `<ref>`, that is the commit compared (what a pull request changed); else `<ref>` itself, as in a shallow clone. A base commit without a bundle makes everything added. The human output is the Markdown section "Test cases changed in this PR" with at most 20 lines (the rest is "…and n more"), which the [GitHub Action](./integrations.md#github-action) puts in its PR comment.
+
+`data`: `{ "base": string, "added": Entry[], "changed": Entry[], "removed": Entry[] }` with `Entry = { "kind": "uc" | "ac" | "tc", "key": string, "title": string, "what"?: ("title" | "steps" | "criteria" | "data" | "details")[] }` (`what` only in `changed`).
 
 ### `iw show <ref>`
 
@@ -206,6 +243,17 @@ Record a run that was executed outside the browser runner — by a person in a t
 | `--from <run.json\|->` | Full run input as JSON (see [sync.md](./sync.md#run-record)) |
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
+
+### `iw issue <ref>`
+
+*(v0.5)* Build the prefilled GitHub new-issue URL of a failure ([GitHub issues](./integrations.md#github-issues)). `<ref>` is a run ID, `TC-n`, `AC-n.m` or `UC-n`; a test case uses its latest run (the text comes from the run's failing steps, note and judgements), a criterion or use case gives its text and the test cases that cover it. The repository is `[github] repo` or the `origin` remote; without one the command exits 3 (`INVALID_CONFIG`) and says to add `[github] repo = "owner/name"`. Nothing is sent to GitHub: the URL is printed, and a person opens it and submits. Fields shortened or left out (length, secrets) are listed as warnings.
+
+| Flag | |
+|---|---|
+| `--open` | Open the page in the browser. People only: an agent gets exit 2 |
+| `--link <url>` | Store an http(s) issue URL in `links` of the test case (a run uses its test case; an AC or UC the use case), once, through the normal definition write; `iw sync` publishes it in workspace mode. Without a repository this alone works and prints no URL |
+
+`data`: `{ "ref": string, "run": string | null, "repo": string | null, "url": string | null, "title"?: string, "keys"?: string[], "trimmed"?: string[], "secrets"?: string[], "link": { "file": string, "key": string, "links": string[], "added": boolean } | null }`. `run` is the run the text comes from; `trimmed` and `secrets` name the fields that were shortened or left out.
 
 ### `iw run <tc-ref>`
 
@@ -320,7 +368,7 @@ Read and write content translations ([i18n](./i18n.md#content-translations)) wit
 | `iw translate TC-3 --locale ja --set title="有効なクーポンで合計が下がる" --set steps.1.expected="…"` | Write those fields into `[i18n.ja]` (or into `[steps.i18n.ja]` / `[criteria.i18n.ja]`) and stamp the current `source_hash` |
 | `iw translate --missing --locale ja` | List the entities whose translation for `ja` is missing or stale (all kinds) |
 
-Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`, `start_note`, `guide`, `steps.<n>.instruction`, `steps.<n>.expected`, `steps.<n>.checks.<m>` (one per check), `fixtures.<n>.note` (all 1-based), `criteria.<AC-key>.text`. A write of `checks` must leave every check of the step translated. Only a field with source text can be translated (a path to an absent field is a usage error), and a write drops translations of fields the source no longer has. With `--from <file.json|->`, it reads `{ "<path>": "<text>" }` instead of `--set`. New translations are written with `status = "machine"`; `--reviewed` writes `status = "reviewed"`, and agents may not pass it, because a person reviews. A write refreshes `source_hash` for the whole table, so the fields not passed must already be current. Otherwise it fails and lists them. `iw check` warns when a translation drops a literal from the source, or when a translated `checks` does not have one item per source check.
+Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`, `start_note`, `guide`, `steps.<n>.instruction`, `steps.<n>.expected`, `steps.<n>.checks.<m>` (one per check), `fixtures.<n>.note` (all 1-based), `criteria.<AC-key>.text`. *(v0.5)* `iw translate SS-n` works on a shared step (`title`, `steps.<n>.…`); a test case that uses one lists and writes only its own steps (the steps from the shared step keep their numbers but are translated in its file). A write of `checks` must leave every check of the step translated. Only a field with source text can be translated (a path to an absent field is a usage error), and a write drops translations of fields the source no longer has. With `--from <file.json|->`, it reads `{ "<path>": "<text>" }` instead of `--set`. New translations are written with `status = "machine"`; `--reviewed` writes `status = "reviewed"`, and agents may not pass it, because a person reviews. A write refreshes `source_hash` for the whole table, so the fields not passed must already be current. Otherwise it fails and lists them. `iw check` warns when a translation drops a literal from the source, or when a translated `checks` does not have one item per source check.
 
 `data` (list): `{ "ref": string | null, "locale": string, "fields": { "ref": string, "path": string, "source": string, "text"?: string, "state": "missing" | "machine" | "reviewed" | "stale" }[] }`. `data` (write): `{ "ref", "locale", "file", "status", "written": string[] }`.
 
@@ -424,6 +472,55 @@ Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planne
 
 `data`: `{ "plan": string, "uc": string, "created": { "kind", "id", "key", "file" }[] }`
 
+### `iw import testrail <cases.csv>`
+
+*(v0.5)* Turn a TestRail case export (CSV) into drafts: one use case per section, one acceptance criterion and one test case per case. Nothing counts until a person runs `iw approve` ([states](./concepts.md#test-case-use-case-fixture)): every item is `origin = "import"` and `status = "draft"` (criteria too). The columns are read by their header, case-insensitively ([export format](../research/platform-notes.md#testrail-and-testomatio-exports)); other columns are ignored.
+
+| TestRail column | INDX Watch |
+|---|---|
+| `Section Hierarchy` (else `Section`) | one use case per distinct value, titled by its last part (`Checkout > Payment` → "Payment"); no section → "Imported from TestRail". It goes under `--feature` (default: the only feature, else `FEAT-1`), as with `iw new uc`. `notes` names the source |
+| `Priority` | the use case gets the highest of its cases (`Critical` P0, `High` P1, `Medium` P2, `Low` P3; none → P1). A test case may not be lower than its use case, so test cases carry no priority of their own |
+| `Title` | the criterion text and the test case `title`; the criterion is the one the test case `covers` |
+| `Preconditions` | `preconditions` |
+| `Steps (Step)` / `Steps (Separated)` / `Steps` and `Steps (Expected Result)` / `Expected Result` | one step per row. A case row with a title starts a case; the rows under it with an empty title add steps (separated steps). With a single `Steps` and `Expected Result` cell the case has one step |
+| `ID` (`C123`) | `x.import = { source = "testrail", id = "C123" }` on the test case. Without an `ID` column the id is the section path and title |
+
+The test cases are `mode = "manual"`. A step without an expected result gets "Describe the expected result." and a `import-no-expected` warning; a case with no steps is skipped with `import-no-steps`. A file with no importable case is `INVALID_INPUT` (exit 2), as is a file without a `Title` column. **Importing again changes nothing**: a case whose `x.import` id is already in the bundle is skipped and counted in `skipped`. Keys are the next free ones, as with `iw new`. When the actor is an agent the items are written as AI drafts (`origin = "ai"`, `--model` or `IW_AGENT_MODEL` required) instead, because agents never write `origin = "import"`.
+
+| Flag | |
+|---|---|
+| `--feature <FEAT>` | Parent feature of the new use cases |
+| `--model <id>`, `--skill <name>` | Agents only: the AI marker (`skill` default `import-testrail`) |
+
+`--dry-run`, `--merge` and `--uc` apply to other imports (exit 2). `data`: `{ "source": "testrail", "files": string[], "created": { "kind", "id", "key", "file" }[], "skipped": number }`.
+
+### `iw import testomatio <dir|file.md>`
+
+*(v0.5)* Turn testomat.io [classical Markdown](../research/platform-notes.md#testrail-and-testomatio-exports) (the files its export and `check-tests` write, `*.md` in a folder, or one file) into the same drafts as `iw import testrail`: one use case per suite, one criterion and one test case per test.
+
+| testomat.io | INDX Watch |
+|---|---|
+| `<!-- suite … -->` and the `# Title` after it | a use case (a leading `# Title` with no block is a suite too) |
+| `<!-- test … -->` and the `# Title` (or `##`) after it | a criterion and a test case with that title; the text under the heading is ignored |
+| `## Steps` list: a top-level item, with `*Expected*: …` lines under it | one step each; several `Expected` lines are joined, one per line |
+| `priority:` (`critical` P0, `high` and `important` P1, `normal` P2, `low` P3) | the use case's priority, as for TestRail |
+| `tags:` | `tags` of the test case (lower case, other characters become `-`) |
+| `id: @T…` | `x.import = { source = "testomatio", id = "@T…" }`, so a second import skips it |
+| `<!-- example -->` tables | ignored |
+
+`import-no-expected`, `import-no-steps`, repeat imports, agents and flags work as for `iw import testrail`; `files` lists the Markdown files read. `data`: `{ "source": "testomatio", "files": string[], "created": …, "skipped": number }`.
+### `iw import github-issue <number | URL>`
+
+*(v0.5)* Import one GitHub issue as one **draft** use case ([GitHub issues](./integrations.md#github-issues)): `origin = "import"` (an agent writes `origin = "ai"` with `--model`), the issue title as `title`, `links = [<issue URL>]`, and one draft criterion per task-list item (`- [ ] …`, ticked or not). A rendered [test request form](./integrations.md#issue-forms) also sets `actor`, `goal` and `priority`; otherwise the actor is `User`, the goal the title and the priority the label `P0`–`P3` or `P2`. A number needs the repository (`[github] repo` or the `origin` remote). The issue is read through the `IssueSource` port: the REST adapter (`GITHUB_TOKEN` when set; none for public repositories), or `--from`. An issue with no task list is `INVALID_INPUT` (exit 2) and points to `/iw-design`. The same issue again changes nothing: `created` is `null` and `existing` names the use case.
+
+| Flag | |
+|---|---|
+| `--from <file.json\|->` | The output of `gh issue view <n> --json title,body,labels,url` instead of the API |
+| `--feature <FEAT>` | Feature (key or title) of the new use case; default: the feature a label names, else the only feature, else exit 2 |
+| `--model`, `--skill` | For an agent's draft (`--skill` defaults to `iw-design`) |
+
+`data`: `{ "issue": string, "created": { "kind", "id", "key", "file" } | null, "existing": string | null, "criteria": number }`
+
 ### `iw deploy`
 
 Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), using `wrangler`. Idempotent: lists existing resources before creating any. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md).
@@ -434,7 +531,25 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 | `--name <worker>` | Overrides `[hosting].name` |
 | `--public` | Allow deploying without Cloudflare Access: a read-only demo, *(v0.5)* anonymous visitors can only read ([public deploys](./security.md#public-deploys)) |
 
+*(v0.5)* The Worker is deployed with the version of the CLI that runs `iw deploy` as the variable `IW_VERSION`, so `GET /healthz` answers `{ "ok": true, "version": "0.1.3" }` and `GET /api/project` has `server.version`. `iw doctor --online` reads it back; the web app tells leads when the project pins a newer version than the app runs ([version notice](./web.md#version-notice)).
+
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
+
+*(v0.5)* With `.indx-watch/patches/patches.toml`, `iw deploy` deploys the patched build from `cache/patched/dist` instead of the package's own `dist/`, and stops with `INVALID_CONFIG` when it was not built from the current patch files (run `iw patch apply`). The Worker then reports its [patched build](./security.md#patched-servers).
+
+### `iw patch`
+
+*(v0.5)* Keep your own changes to INDX Watch as patches against the upstream source, so you can still update ([customizing](../guides/customize.md#level-3-patches), [fork guide](../guides/fork.md)). Needs `git` and `pnpm` on the PATH (`EXTERNAL_TOOL` names which). `patches/patches.toml` records `base = "x.y.z"`, the upstream version (git tag `v<x.y.z>` of `source`, default `INDXDev/indx-watch`) the patches were made against, which is `[tool] indx_watch`.
+
+| Command | |
+|---|---|
+| `iw patch create <name>` | Prepare the upstream source at `v<base>` in `cache/upstream/` (once), then turn the edits made there (`git diff`) into `patches/NNNN-<name>.patch`. First call: prepares the folder and prints where to edit. |
+| `iw patch apply` | Apply every patch in order to a clean copy (`git apply --3way`), install and build it, and write the result to `cache/patched/dist/` with the patch-set hash (`patched.json`). `--dry-run` only applies, without building. |
+| `iw patch check [--to <version>]` | Dry-run the patches against `v<version>` (default: `base`). Exit 1 (`CONFLICT`) and the conflicting files when one does not apply; a refused file exits 2 (`INVALID_INPUT`). `iw update` runs this first. |
+
+A patch that touches a refused file is rejected by `create`, `apply` and `check`, listing the files: the verdict, gate and status rules (`packages/core/src/decide.ts`, `status.ts`, `roles.ts`), signing and identity (`packages/bundle/src/sign.ts`, `seal.ts`; `packages/server/src/oidc.ts`, `store-routes.ts`; `packages/store/src/node/identity.ts`, `packages/store/src/workers/index.ts`, `packages/store/src/adapters/github-oidc.ts`) and the secret scan (`packages/bundle/src/check.ts`). There is no override: a patched build's verdicts, gate, signatures and secret checks must stay those of upstream, or its results would not be comparable.
+
+`data`: `{ "action": "create" \| "apply" \| "check", "base": string, "to": string | null, "patches": { "file": string, "files": string[], "refused": string[], "applies": boolean | null }[], "conflicts": string[], "patch_hash": string | null, "dist": string | null }`
 
 ### `iw reindex`
 
@@ -450,15 +565,60 @@ Start the MCP server on stdio. See [agents.md](./agents.md#mcp-server). `iw serv
 
 ### `iw skills install`
 
-Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](./agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch mcp`) and a marked block in `AGENTS.md`.
+Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](./agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch@<version> mcp`; *(v0.5)* `<version>` is `[tool] indx_watch`, else the running version, and an unpinned `.mcp.json` entry is migrated to it) and a marked block in `AGENTS.md`.
 
 | Flag | Writes |
 |---|---|
 | `--claude` | `.claude/skills/<name>/`, `.mcp.json` (`mcpServers.indx-watch`), the `@AGENTS.md` line in an existing `CLAUDE.md` that lacks it |
+| `--force` | Overwrite locally edited skill copies too |
 | `--codex` | `.agents/skills/<name>/` with portable frontmatter and `agents/openai.yaml`, `.codex/config.toml` (`[mcp_servers.indx-watch]`) |
 | (neither) | Both of the above |
 
-Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](./agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[], "removed": string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed) and the retired skill folders it removed.
+Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](./agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. *(v0.5)* Each skills folder gets a manifest `.indx-watch.json` (`{ "version", "files": { "<name>/<path>": "<sha256>" } }`) that records the package version and what was written; a skill folder with a file changed since then is *locally edited*: it is skipped with an `agent-config` warning (`--force` overwrites it). `data`: `{ "installed": string[], "files": string[], "removed": string[], "skipped"?: string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed), the retired skill folders it removed and *(v0.5)* the locally edited folders it left alone.
+
+### `iw doctor`
+
+*(v0.5)* Is everything that pins INDX Watch on the same version? A read-only report that changes nothing and, by default, makes no network call. It compares each pinned part with the **target**: `[tool] indx_watch` when the project has one, else the running version.
+
+| Flag | |
+|---|---|
+| `--online` | Also ask for the newest published version (`ReleaseSource`: the npm registry) and read `/healthz` of the hosted app when `[store].url` is an `https://` URL. A failed request is a note, never an error |
+
+Parts and states (`ok`, `outdated`, `unpinned`, `locally-edited`):
+
+| Part | What is read | State |
+|---|---|---|
+| `tool` | `[tool] indx_watch` in `project.toml` | `unpinned` without it; with `--online`, `outdated` when a newer version exists |
+| `cli` | the running CLI | `outdated` when older than the pin |
+| `package` | the `indx-watch` entry of `package.json` (`dependencies`, `devDependencies`) | `outdated` when older than the target; absent entries are not listed |
+| `mcp` | `.mcp.json` `mcpServers.indx-watch` | `unpinned` for `npx -y indx-watch mcp`, `outdated` when the pinned version is older than the target |
+| `skills` | `.claude/skills/` and `.agents/skills/` | `locally-edited` when a file differs from its manifest hash; `outdated` when the manifest version is older; `unpinned` without a manifest (installed before v0.5) |
+| `workflow` | `version:` inputs of `INDXDev/indx-watch` steps and `indx-watch@x.y.z` in `.github/workflows/*.yml` | `outdated` when older; a workflow that names none follows `[tool]` (the action reads it) and is `unpinned` only without `[tool]` |
+| `worker` | `GET /healthz` of the hosted app (`--online` only) | `outdated` when older than the target |
+
+`data`: `{ "version": string, "pinned": string | null, "latest": string | null, "ok": boolean, "parts": { "part": string, "target": string, "version": string | null, "state": "ok" | "outdated" | "unpinned" | "locally-edited", "note"?: string }[], "releases": { "version": string, "breaking": boolean, "migrate": boolean }[] }`. `ok` is true when every part is `ok`; `releases` lists the releases after the target that the package knows (`releases.json`, generated from `CHANGELOG.md` at build time; `breaking` and `migrate` mark the ones to read first). The exit code is 0 either way; read `ok`. The next step for anything but `ok` is [`iw update`](#iw-update).
+
+### `iw update`
+
+*(v0.5)* Bring every pinned part to one version, in this order. Each step is idempotent: a second run changes nothing.
+
+| Flag | |
+|---|---|
+| `--to <version>` | Target (default: the running version, so `npx indx-watch@latest update` updates to the newest; `latest` asks `ReleaseSource`). A version other than the running one skips step 3, because the skills ship inside the package that runs |
+| `--dry-run` | Print every change, write nothing |
+| `--deploy` | Run [`iw deploy`](#iw-deploy) at the end (with `--dry-run`: its dry run) |
+| `--workflow` | Only write `.github/workflows/indx-watch-update.yml` ([weekly update pull request](../guides/github-actions.md#keep-indx-watch-up-to-date)) when it is missing, and nothing else |
+
+1. `[tool] indx_watch` in `project.toml` (added when missing).
+2. `package.json`: the `indx-watch` entry keeps its `^` or `~` and gets the target; then the install command of the detected package manager is printed (`data.install`). `iw update` never runs it.
+3. `iw skills install`: skill copies, `.mcp.json` pin and the `AGENTS.md` block; locally edited skill copies are skipped with a warning.
+4. `version:` inputs and `indx-watch@x.y.z` of workflows.
+5. `#:schema` URLs of the bundle move to the tag `v<target>`.
+6. `iw migrate`, only when a release after the old pin has `migrate` in `releases.json` or the bundle's `schema_version` is behind.
+7. `iw check`: errors make the command exit 1 (`CHECK_FAILED`) after the files are written.
+8. With `--deploy`, `iw deploy`.
+
+Before step 1 the patches of the project must still apply: `iw patch check --to <target>` *(T-508, when present)*; any failing patch refuses the update (exit 1, nothing written). `data`: `{ "from": string | null, "to": string, "dryRun": boolean, "steps": { "step": "tool" | "package" | "skills" | "workflow" | "schema" | "migrate" | "check" | "deploy", "changed": string[], "note"?: string }[], "install": string | null, "notes": string }`; `notes` is the changelog excerpt of the releases between the old pin and the target (also used as the pull request text).
 
 ### `iw keygen`
 
@@ -492,6 +652,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_COMMIT` | writes | Build commit when git is unavailable |
 | `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
+| `IW_RELEASES` | doctor, update | *(v0.5)* Path of a `releases.json` replacing the one shipped in the package (tests) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 | `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](./security.md#signed-records)) |
 | `IW_SECRETS_KEY` | serve | *(v0.5)* Secret from `iw keygen --secrets`: seal and open `iw:` secrets ([security](./security.md#secrets)) |
@@ -503,6 +664,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 
 ## Acceptance criteria
 
+- [x] `iw patch create` prepares the upstream source at `v<base>`, turns the edits into `patches/NNNN-<name>.patch` and `patches.toml`, and refuses a file of the refused list; `check --to` exits 1 naming the conflicting files and 2 for an unknown version; `apply` builds `cache/patched/dist` with the patch-set hash and `iw deploy` stops while it is stale; a missing git or pnpm exits 4 naming it (tests with a local git repository and a fake pnpm).
 - [x] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
@@ -511,6 +673,14 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [x] `iw baseline approve <run>` with `IW_ACTOR_KIND=agent` exits 2; by a human it writes a `baseline` record, and `iw judge <run> --visual` then appends `visual` judgements (`pass` for the same image, `diff` with `diff_ratio` for a changed one).
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
+- [x] *(v0.5)* `iw doctor --json` on a temp copy of the shop reports `unpinned` for the project, an unpinned `.mcp.json` and skill copies without a manifest, and `ok` for each after `iw update`; a skill file edited by hand is `locally-edited`; it makes no network call without `--online` (tests).
+- [x] *(v0.5)* `iw update --to <v>` writes `[tool]`, the `package.json` entry, `.mcp.json`, workflow versions and `#:schema` tags, prints the install command, and a second run changes nothing; `--dry-run` writes nothing; a locally edited skill copy is skipped with a warning; `iw update --workflow` writes a workflow that parses and refuses to overwrite one (tests).
 - [x] No command prompts when stdin is not a TTY.
 - [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.
+- [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
+- [ ] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.
+- [x] `iw import testrail` on a small export with separated steps creates a draft use case per section and a draft criterion and test case per case, `iw check` reports 0 errors, and a second import creates nothing and reports `skipped` (CLI test).
+- [x] `iw import testomatio` on a folder of classical Markdown creates the same drafts from suites and tests, joins several `Expected` lines and warns about a step without one (CLI test).
+- [x] `iw new ss --title "Sign in" --step "Open Sign in => The form opens"` creates `steps/SS-n-sign-in.toml`; a test case step `use = "SS-n"` is expanded by `iw show`, an unknown or looping one fails `iw check`, and editing the shared step changes the version of every test case that uses it (bundle tests).
+- [x] *(v0.5, T-515, T-516)* `iw assign --plan PLAN-1 --split alex@shop.test:2,sam@shop.test:1,agent:claude:1` on a copy of the shop assigns 3, 2 and 2 items deterministically (alex first his own features), `--dry-run` writes nothing and works for agents, writing as an agent exits 2, and `iw status --json` has `automation` (`packages/cli/test/cli-assign.test.ts`, `packages/core/test/assign.test.ts`).

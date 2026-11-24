@@ -25,10 +25,18 @@ export function parseToml(text: string): Record<string, unknown> {
   return normalize(parse(lf, { unsafeKeyBehaviour: 'throw' })) as Record<string, unknown>;
 }
 
-/** Canonical text for a file of the given type, including the '#:schema' header line and blank line. */
-export function formatToml(type: FileType, data: Record<string, unknown>): string {
-  return `#:schema ${schemaUrl(type)}\n\n${formatBody(FILE_TYPES[type], data, true)}`;
+/**
+ * Canonical text for a file of the given type, including the '#:schema' header line and blank line. `ref` is the git
+ * ref of the schema URL: 'main', or a version tag such as 'v0.1.3' (see schemaRefOf).
+ */
+export function formatToml(type: FileType, data: Record<string, unknown>, ref = 'main'): string {
+  return `#:schema ${schemaUrl(type, ref)}\n\n${formatBody(FILE_TYPES[type], data, true)}`;
 }
+
+const SCHEMA_LINE =
+  /^#:schema https:\/\/raw\.githubusercontent\.com\/INDXDev\/indx-watch\/(main|v\d+\.\d+\.\d+)\/schemas\/v1\//;
+/** The git ref (`main` or `v<version>`) of a file's '#:schema' line; undefined when it has none of ours. */
+export const schemaRefOf = (text: string | undefined) => SCHEMA_LINE.exec(text ?? '')?.[1];
 
 /** Canonical body without the '#:schema' line (templates, hashes). */
 export function formatTomlBody(type: FileType, data: Record<string, unknown>): string {
@@ -41,8 +49,8 @@ export function canonicalBody(data: Record<string, unknown>): string {
 }
 
 /** URL of the JSON Schema for a file type. */
-export function schemaUrl(type: FileType): string {
-  return `${SCHEMA_BASE_URL}/${type}.json`;
+export function schemaUrl(type: FileType, ref = 'main'): string {
+  return `${SCHEMA_BASE_URL.replace('/main/', `/${ref}/`)}/${type}.json`;
 }
 
 // ---------- serializer ----------

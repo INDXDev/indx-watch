@@ -19,6 +19,8 @@ export interface Out {
 export interface Ctx {
   cwd: string;
   env: Env;
+  /** reads GitHub issues for `iw import github-issue` (tests pass a fake; default: the REST adapter) */
+  issues?: import('@indx-watch/store').IssueSource;
   /** structured input from the MCP server instead of --from */
   input?: Record<string, unknown>;
   /** warnings found on the way (definition files that do not load), added to every command's output */

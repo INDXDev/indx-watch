@@ -5,6 +5,7 @@ import { canonicalText, fix } from './check-fix.js';
 import { loadDetailed, walk } from './load.js';
 import { type Priority, SecretRef } from './schema/common.js';
 import type { Bundle, BundleFs, Problem } from './types.js';
+import { logoProblem, uiKeyProblems } from './ui.js';
 import { TRANSLATABLE_FIELDS as TF, translationSourceHash, useCaseVersion } from './versions.js';
 
 export interface CheckOptions {
@@ -25,6 +26,8 @@ export interface CheckDeps extends CheckOptions {
   repo?: { read(path: string): Promise<string | null>; write(path: string, text: string): Promise<void> };
   /** whether a blob is available (local replica or cache/blobs/); a missing pointer blob is a warning */
   hasBlob?: (sha256: string) => Promise<boolean>;
+  /** the English UI texts by key (packages/web/src/messages/en.json): without them `ui/messages.*.json` keys are not checked */
+  uiMessages?: Record<string, string>;
 }
 
 export interface CheckResult {
@@ -47,6 +50,17 @@ export async function checkBundle(fs: BundleFs, opts?: CheckOptions): Promise<Ch
   }
   const problems = [...loaded.problems];
   if (loaded.bundle) problems.push(...(await semanticChecks(loaded.bundle, deps)));
+  if (loaded.bundle && deps.uiMessages) problems.push(...uiKeyProblems(loaded.bundle.ui, deps.uiMessages));
+  const logo = loaded.bundle?.project.data.report?.logo;
+  const bad = logo && (await logoProblem(fs, logo));
+  if (bad)
+    problems.push({
+      severity: 'error',
+      code: 'invalid-logo',
+      file: 'project.toml',
+      path: 'report.logo',
+      message: `[report] logo ${bad}`,
+    });
   problems.push(...(await scanBundleSecrets(fs)));
   for (const f of loaded.files) {
     const canonical = canonicalText(f);
@@ -180,6 +194,7 @@ function checkNames({ b, err, warn }: Ctx) {
     ...b.features.map((x) => ['feature', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.useCases.map((x) => ['use case', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.testCases.map((x) => ['test case', x.data.id, x.data.key, x.file, last(x.file)] as const),
+    ...b.sharedSteps.map((x) => ['shared step', x.data.id, x.data.key, x.file, last(x.file)] as const),
     ...b.fixtures.map((x) => ['fixture', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.plans.map((x) => ['plan', x.data.id, x.data.key, x.file, last(x.file)] as const),
     ...b.useCases.flatMap((x) => x.data.criteria.map((c) => ['criterion', c.id, c.key, x.file, ''] as const)),
@@ -284,7 +299,8 @@ async function checkAi(c: Ctx) {
   for (const t of c.b.testCases) await aiReady(c, t.data, t.file, async () => t.version);
   for (const f of c.b.fixtures) await aiReady(c, f.data, f.file, async () => f.version);
   for (const u of c.b.useCases) await aiReady(c, u.data, u.file, () => useCaseVersion(u.data));
-  for (const x of [...c.b.features, ...c.b.environments, ...c.b.releases, ...c.b.plans]) aiReviewed(c, x);
+  const reviewed = [...c.b.features, ...c.b.environments, ...c.b.releases, ...c.b.plans, ...c.b.sharedSteps];
+  for (const x of reviewed) aiReviewed(c, x);
   for (const u of c.b.useCases) aiCriteria(c, u);
 }
 
@@ -335,9 +351,14 @@ async function checkTranslations(c: Ctx) {
   }
   for (const x of b.testCases) {
     await i18n(x.file, x.data, TF['test-case']);
-    for (const [i, s] of x.data.steps.entries()) await i18n(x.file, s, TF.step, `steps[${i}].`);
+    // steps from a shared step are checked in its own file
+    for (const [i, s] of x.data.steps.entries()) if (!s.from) await i18n(x.file, s, TF.step, `steps[${i}].`);
     for (const [i, f] of (x.data.fixtures ?? []).entries())
       await i18n(x.file, f, TF['fixture-use'], `fixtures[${i}].`);
+  }
+  for (const x of b.sharedSteps) {
+    await i18n(x.file, x.data, TF['shared-step']);
+    for (const [i, s] of x.data.steps.entries()) if (!s.use) await i18n(x.file, s, TF.step, `steps[${i}].`);
   }
 }
 

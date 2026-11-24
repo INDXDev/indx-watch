@@ -37,6 +37,8 @@ export const ROUTES = {
   plan: 'GET /api/plans/:key',
   runs: 'GET /api/runs?tc=&release=&env=&limit=',
   run: 'GET /api/runs/:id',
+  issue:
+    'GET /api/issue?ref= (a run ID, TC-n, AC-n.m or UC-n → IssueResult: the prefilled GitHub issue; docs/spec/integrations.md#github-issues)',
   editTestCase:
     'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record? }; docs/spec/web.md#editing-in-workspace-mode)',
   createFixture: 'POST /api/fixtures (lead; FixtureInput → FixtureSaved; docs/spec/web.md#test-data)',
@@ -44,6 +46,8 @@ export const ROUTES = {
   deleteFixture: 'DELETE /api/fixtures/:key (lead; git mode; → FixtureSaved)',
   invite:
     'POST /api/plans/:key/invites (lead; InviteInput → InviteResult; docs/spec/security.md#customer-uat)',
+  assign:
+    'POST /api/plans/:key/assign (lead; tester: take, give back; AssignInput → AssignResult; docs/spec/security.md#customer-uat)',
   uninvite: 'DELETE /api/plans/:key/invites/:email?items= (lead; → InviteResult)',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
@@ -92,6 +96,9 @@ export interface PlanView {
     due?: string;
     status: 'todo' | 'done' | 'blocked' | 'review';
   }[];
+  /** (v0.5) items per assignee by status, and who runs the items (docs/spec/concepts.md#assignment-and-automation-mix) */
+  board?: import('@indx-watch/core').AssigneeBoard;
+  mix?: import('@indx-watch/core').AutomationMix;
 }
 
 export interface ReviewResult {
@@ -127,6 +134,8 @@ export interface ProjectInfo {
   /** (v0.4) keys of the features this identity owns; the web app starts in "My features" when not empty */
   owns?: string[];
   mode: 'local' | 'hosted';
+  /** (v0.5) where "Open as GitHub issue" goes: `[github] repo`, else the git remote; absent: the button is hidden */
+  github?: { repo: string };
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
   /** problems from loading the bundle (shown as a banner) */
   problems: { severity: string; message: string; file?: string }[];
@@ -139,6 +148,8 @@ export interface ProjectInfo {
     approve?: boolean;
     /** (v0.2) edit test case definitions in workspace mode (PATCH /api/test-cases/:key) */
     edit?: boolean;
+    /** (v0.5) assign plan items: a lead any, a tester take and give back (POST /api/plans/:key/assign) */
+    assign?: boolean;
     /** (v0.5) create, edit and remove test data (POST /api/fixtures, PATCH and DELETE /api/fixtures/:key) */
     data?: boolean;
     /** (v0.5) the server holds IW_SECRETS_KEY, so `iw:` secrets can be read (and, with `data`, written) */
@@ -150,8 +161,12 @@ export interface ProjectInfo {
   role?: import('@indx-watch/bundle').Role;
   /** (v0.5) a public deploy: anonymous viewers only, every write refused (docs/spec/security.md#public-deploys) */
   readOnly?: true;
+  /** (v0.5) the running version, `patches` (8 hex digits of the patch-set hash, docs/spec/security.md#patched-servers) only on a patched build; leads also get the project's `[tool]` pin and whether this server is older (docs/spec/web.md#version-notice) */
+  server: { version: string; pinned?: string; outdated?: true; patches?: string };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+  /** (v0.5) `ui/` of the bundle: message overrides per locale and the theme as CSS (docs/spec/bundle-format.md#customizing-v05) */
+  ui?: { messages: Partial<Record<'en' | 'ja', Record<string, string>>>; css?: string };
 }
 
 /** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */
@@ -352,7 +367,7 @@ export interface RunDetail {
   judgements: Judgement[];
   decision: Decision;
   stale: boolean;
-  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
+  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown; links?: string[] };
   /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: string[];
   /** sha256 of this run's screenshots that are the current approved baseline of their name (v0.2) */
@@ -369,6 +384,8 @@ export interface TestCaseEdit {
   title?: string;
   priority?: string | null;
   steps?: { instruction: string; expected: string }[];
+  /** (v0.5) issue URLs of this test case; `null` removes them */
+  links?: string[] | null;
 }
 
 /**
@@ -414,6 +431,28 @@ export interface InviteResult {
   reassigned: string[];
   revoked: boolean;
   access: 'added' | 'removed' | 'kept' | 'manual';
+}
+
+/**
+ * POST /api/plans/:key/assign body (v0.5, docs/spec/security.md#customer-uat): `items` to `to` (null: take the assignee
+ * off), or a `split` ("who:weight,…"); `dry_run` answers with the proposal and writes nothing.
+ */
+export interface AssignInput {
+  to?: string | null;
+  items?: string[];
+  split?: string;
+  only_unassigned?: boolean;
+  dry_run?: boolean;
+}
+/** Answer of the assign route: the items whose assignee changed (`assignee` is empty when taken off) and the saved plan version. */
+export interface AssignResult {
+  plan: string;
+  dry_run: boolean;
+  assignments: import('@indx-watch/core').Change[];
+  load: Record<string, number>;
+  unassigned: number;
+  file?: string;
+  record?: FileRecord;
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */

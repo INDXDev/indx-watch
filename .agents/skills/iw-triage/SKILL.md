@@ -51,7 +51,7 @@ Ask about one action, with your recommendation:
 
 | Class | Proposal |
 |---|---|
-| Product bug | An issue text: title; keys (`UC-n`, `AC-n.m`, `TC-n`) and priority; steps from the test case; expected vs actual with on-screen text quoted exactly; run ID, commit, environment; evidence file names. "File it on GitHub? I suggest yes." File it (`gh issue create`) **only on a yes**. |
+| Product bug | The issue, built by INDX Watch: `iw issue <run-id> --json` returns a prefilled GitHub new-issue `url` (title, keys and priority, steps, expected, actual, run, commit, environment; secrets left out, length capped) and lists what it shortened. Do not write the issue text yourself. If you can add on-screen text quoted exactly or evidence file names, say them in the chat. "Open it on GitHub? I suggest yes." Give the `url` to the person (`iw issue <run-id> --open`, people only: an agent cannot open it); they read and submit it themselves, then `iw issue <TC-n> --link <issue URL>` stores the link. Never `gh issue create`, comment or close. Without `[github] repo` the command says how to set it. |
 | Test problem | A concrete diff to the test code or the test case file. Apply it only after the user accepts it; a test case change beyond wording goes back to `status = "draft"` (see [write-test-cases.md](../iw-design/references/write-test-cases.md)). Then offer a re-run (`iw-test`). |
 | Environment or data | What to fix (start the app, set variable `SHOP_SEED_TOKEN`, re-seed `FX-2`), then offer a re-run (`iw-test`). |
 | Not clear yet | The re-run that would decide it, usually a guided run with a screenshot of the failing step: hand over to `iw-test`. |
@@ -72,5 +72,5 @@ User: "Why did TC-8 fail?" (A copy of the shop with the sample results pulled.)
 2. The run: manual, by sam@shop.test on `staging`, decided by Sam's own judgement (rule 1); step 1 `fail` with the note "The message did not appear; the page reloaded silently."; no screenshot although step 1 asks for one. `app/server.mjs` answers a wrong password with `Email or password is incorrect`. No earlier run to compare with.
 3. Answer: "Not clear yet (confidence 0.5). The server sends the right message, so either the page does not show it or something else happened; without the screenshot I can't tell which."
 4. "Re-run TC-8 with a screenshot of step 1? I suggest yes: it decides between a page bug and a one-off." → yes → `iw-test` guides the run.
-5. If the new screenshot shows no message: the issue text "Wrong password: "Email or password is incorrect" is not shown (AC-4.2, TC-8, P0)" with the steps, the run ID, commit and environment; "File it on GitHub? I suggest yes." Only on a yes.
+5. If the new screenshot shows no message: `iw issue <new run id> --json` gives the prefilled issue (title "TC-8: …", keys AC-4.2, TC-8, P0, steps, run ID, commit, environment); "Open it on GitHub? I suggest yes." The person submits it, then `iw issue TC-8 --link <issue URL>`.
 6. "TC-8 is P0, so it can't be waived; the release waits for a fix and a passing run." Next: "re-run TC-8 after the fix? (iw-test)".

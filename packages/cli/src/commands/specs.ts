@@ -1,18 +1,21 @@
-/** Commands that write definitions: init, check, fmt, new, approve, invite, migrate, reindex. */
+/** Commands that write definitions: init, check, fmt, new, approve, invite, assign, migrate, reindex. */
 import { existsSync } from 'node:fs';
 import { cp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { canInvite, EMAIL, inviteItems, isAssignee } from '@indx-watch/core';
-import { knownKeys, NEW_KINDS } from '@indx-watch/server';
+import { assignPlan, knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import enMessages from '../../../web/src/messages/en.json' with { type: 'json' };
 import { setupAgents } from '../agents.js';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
+import { initGithub } from '../github.js';
 import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
+import { VERSION } from '../version.js';
 
 export { knownKeys };
 /** Where `iw fixture fetch` puts a pointer blob. */
@@ -119,26 +122,41 @@ export const specCommands: Record<string, Spec> = {
         default: true,
         description: 'Set up Claude Code and Codex (--no-agents skips)',
       },
+      github: B('Write the GitHub workflows and issue templates (only what is missing)'),
     },
     async run(ctx, a) {
       const target = resolve(ctx.cwd, str(a.target) ?? '.');
       const fresh = !existsSync(target); // a new directory is its own repository root
       const [dir, bin] = [join(target, '.indx-watch'), binOf()];
       const again = `Already set up (${dir}). To refresh the agent files: ${bin} skills install`;
-      if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', again);
+      const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
+      // the files of --github, written last; an existing project only gets these
+      const github = (out: { data: object; text: string }) => {
+        if (!a.github) return out;
+        const g = initGithub(root);
+        const list = (what: string, l: string[]) => (l.length ? `\n${what}: ${l.join(' ')}` : '');
+        const secrets = g.secrets.length ? `\nAdd these repository secrets: ${g.secrets.join(' ')}` : '';
+        const text = `${out.text}${list('Wrote', g.written)}${list('Kept', g.skipped)}${secrets}`;
+        return { ...out, data: { ...out.data, github: g }, text };
+      };
+      if (existsSync(join(dir, 'project.toml')))
+        return a.github
+          ? github({ data: { dir, files: [] }, text: `Already set up (${dir})` })
+          : fail('CONFLICT', again);
       const fs = nodeFs(dir);
       // agent-first next steps, runnable as printed
       const serve = `${bin} serve${str(a.target) ? ` --dir ${join(str(a.target)!, '.indx-watch')}` : ''} --open`;
       const withAgents = async (out: { data: object; text: string }) => {
-        if (a.agents === false) return { ...out, text: `${out.text}\nThen: ${serve}` };
-        const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
-        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
+        if (a.agents === false) return github({ ...out, text: `${out.text}\nThen: ${serve}` });
+        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both, {
+          version: VERSION,
+        });
         const say = a.example
           ? '"Can we ship?" (/iw-status, $iw-status)'
           : '"Set up testing for this repo" (/iw-setup, $iw-setup)';
         const next = `Next: open Claude Code or Codex in ${root} and say ${say}, or run \`${serve}\``;
         const text = `${out.text}\nSet up Claude Code and Codex in ${root} (${bin} skills install)\n${next}`;
-        return { data: { ...out.data, agents }, warnings, text };
+        return { ...github({ data: { ...out.data, agents }, text }), warnings };
       };
       if (a.example) return withAgents(await copyExample(ctx, fs, dir, target));
       // letters and digits, without leading digits, at most 10
@@ -160,7 +178,13 @@ export const specCommands: Record<string, Spec> = {
       const defaults = { default_environment: 'local', current_release: 'v0.1.0' };
       await fs.write(
         'project.toml',
-        iwb.formatToml('project', { ...project, source_locale: locale, locales: [locale], ...defaults }),
+        iwb.formatToml('project', {
+          ...project,
+          source_locale: locale,
+          locales: [locale],
+          ...defaults,
+          tool: { indx_watch: VERSION },
+        }),
       );
       await fs.write('.gitignore', 'cache/\nruns/\n');
       const { bundle } = await iwb.loadBundle(fs);
@@ -188,6 +212,7 @@ export const specCommands: Record<string, Spec> = {
       const sub = relative(p.root, p.dir) || '.';
       const deps: iwb.CheckDeps = {
         fix: !!a.fix,
+        uiMessages: enMessages,
         knownKeys: knownKeys(await p.replica.records()),
         hasBlob: async (sha) => (await p.replica.hasBlob(sha)) || existsSync(cacheBlob(p, sha)),
         onDefaultBranch: async (id) => !!git(p.root, 'grep', '-l', '-F', id, branch, '--', sub),
@@ -236,14 +261,14 @@ export const specCommands: Record<string, Spec> = {
   },
 
   new: {
-    description: 'Create a definition: feature, uc, ac, tc, fixture, env, release, plan',
+    description: 'Create a definition: feature, uc, ac, tc, ss, fixture, env, release, plan',
     repeat: ['ac', 'step'],
     args: {
-      entity: P('feature | uc | ac | tc | fixture | env | release | plan'),
+      entity: P('feature | uc | ac | tc | ss | fixture | env | release | plan'),
       title: S('Title (required)'),
       ...{ feature: S('Parent feature of a uc'), actor: S('Use case actor'), goal: S('Use case goal') },
       ac: S('Acceptance criterion of a new uc (repeatable)'),
-      step: S('"<instruction> => <expected>" (repeatable)'),
+      step: S('"<instruction> => <expected>" (repeatable; a tc or ss)'),
       ...{ uc: S('Parent use case of an ac or tc'), text: S('Criterion text') },
       covers: S('AC keys, comma-separated (default: all ACs of --uc)'),
       ...{ mode: S('manual | playwright | agent | hybrid'), priority: S('P0-P3') },
@@ -325,6 +350,46 @@ export const specCommands: Record<string, Spec> = {
       const moved = reassigned.length ? `; reassigned ${reassigned.join(', ')}` : '';
       const text = `${verb} ${plan.data.key} (${items.join(', ') || 'no item changed'}${moved}); Access policy: ${access}`;
       return { data, warnings, text };
+    },
+  },
+
+  assign: {
+    description:
+      'Split a plan between people, ci and agents, or give items to one (docs/spec/cli.md#iw-assign)',
+    args: {
+      plan: S('PLAN-n', true),
+      ...{
+        split: S('who:weight,… (alex@shop.test:2,sam@shop.test:1,agent:claude:1)'),
+        to: S('One assignee'),
+      },
+      ...{ items: S('TC-n,… (with --to)'), 'only-unassigned': B('Keep assigned items') },
+      'dry-run': B('Print the proposal; write nothing'),
+    },
+    async run(ctx, a) {
+      const [split, to] = [str(a.split), str(a.to)];
+      if (!split === !to) fail('USAGE', 'Pass --split <who:weight,…>, or --to <who> with --items <TC-n,…>');
+      if (to && !csv(a.items).length) fail('USAGE', '--to needs --items <TC-n,…>');
+      const dry = !!a['dry-run'];
+      if (!dry) await cx.humanOnly(ctx, 'assign plan items (use --dry-run to propose)');
+      const p = await cx.openProject(ctx, a);
+      const model = await cx.loadModel(p);
+      const r = assignPlan(model, {
+        plan: str(a.plan)!,
+        split,
+        to,
+        items: csv(a.items),
+        onlyUnassigned: !!a['only-unassigned'],
+      });
+      const plan = p.bundle.plans.find((x) => x.data.key === r.data.plan)!;
+      if (!dry && r.data.assignments.length)
+        await iwb.writeDefinition(p.fs, plan.file, 'plan', { ...plan.data, items: r.items });
+      const data = { ...r.data, dry_run: dry, file: plan.file };
+      const lines = r.data.assignments.map((c) => `${c.test_case}  ${c.from ?? '-'} -> ${c.assignee}`);
+      const total = Object.entries(r.data.load)
+        .map(([w, n]) => `${w}: ${n}`)
+        .join(', ');
+      const head = `${dry ? 'Proposed for' : 'Assigned in'} ${data.plan} (${lines.length} changed; ${total || 'nobody'}; ${data.unassigned} unassigned)`;
+      return { data, text: [head, ...lines].join('\n') };
     },
   },
 

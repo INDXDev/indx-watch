@@ -136,6 +136,7 @@ describe('POST /api/bundle and GET /api/snapshots', () => {
       review: true,
       approve: true,
       edit: false,
+      assign: false,
       data: true,
       secrets: false,
     });

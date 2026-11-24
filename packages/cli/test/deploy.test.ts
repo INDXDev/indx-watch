@@ -231,6 +231,21 @@ describe('deploy wrangler config', () => {
     expect(JSON.parse(readConfig(dir).vars.OIDC_REPOSITORIES)).toEqual(['INDXDev/shop']);
   });
 
+  it('pins the deploying version as the Worker var IW_VERSION, and only when given', async () => {
+    const { dir, dist } = setup();
+    await dryRun(dir, dist, fakeExec({}).exec);
+    expect(readConfig(dir).vars.IW_VERSION).toBeUndefined();
+    await deploy({
+      dir,
+      dryRun: true,
+      distDir: dist,
+      exec: fakeExec({}).exec,
+      log: () => {},
+      version: '0.1.3',
+    });
+    expect(readConfig(dir).vars.IW_VERSION).toBe('0.1.3');
+  });
+
   it('pins [hosting.roles] as the Worker var ROLES', async () => {
     const { dir, dist } = setup(); // examples/shop lists roles
     await dryRun(dir, dist, fakeExec({}).exec);

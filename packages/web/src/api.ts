@@ -5,11 +5,14 @@
 import type {
   Access,
   AccessOverview,
+  AssignInput,
+  AssignResult,
   BlobResult,
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
   Insights,
+  IssueResult,
   ManualRunInput,
   ManualRunResult,
   ProjectInfo,
@@ -19,6 +22,7 @@ import type {
   SecretInput,
   SecretList,
   SecretView,
+  PlanView as ServerPlan,
   ShareCreated,
   ShareLink,
   SnapshotSummary,
@@ -33,11 +37,13 @@ import type {
 export type {
   Access,
   AccessOverview,
+  AssignResult,
   BlobResult,
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
   Insights,
+  IssueResult,
   ProjectInfo,
   RunDetail,
   RunSummary,
@@ -71,6 +77,9 @@ export interface PlanView {
     due?: string;
     status?: PlanItemStatus;
   }[];
+  /** items per assignee, and who runs them (docs/spec/concepts.md#assignment-and-automation-mix) */
+  board?: ServerPlan['board'];
+  mix?: ServerPlan['mix'];
 }
 export type ReportQuery = Scope & {
   plan?: string | undefined;
@@ -157,10 +166,12 @@ export const api = {
   fixture: (key: string) => call<FixtureDetail>(`api/fixtures/${key}`),
   plans: () => call<PlanView[]>('api/plans'),
   plan: (key: string) => call<PlanView>(`api/plans/${key}`),
+  assign: (key: string, input: AssignInput) => post<AssignResult>(`api/plans/${key}/assign`, input),
   runs: (p: Scope & { tc?: string; limit?: number }) =>
     call<RunSummary[]>(`api/runs${query({ ...scopeQ(p), tc: p.tc, limit: p.limit })}`),
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),
   createRun: (input: ManualRunInput) => post<ManualRunResult>('api/runs', input),
+  issue: (ref: string) => call<IssueResult>(`api/issue${query({ ref })}`),
   editTestCase: (key: string, input: TestCaseEdit) =>
     call<unknown>(`api/test-cases/${key}`, {
       method: 'PATCH',

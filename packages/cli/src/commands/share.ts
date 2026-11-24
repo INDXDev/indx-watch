@@ -13,8 +13,8 @@ import * as cx from '../context.js';
 import { type Args, B, type Ctx, fail, many, P, S, str } from '../util.js';
 import { logWarnings, openStore, snapshotOf } from './data.js';
 
-/** relative, no `..` or hidden segments, outside cache/ and runs/ */
-const SAFE_PATH = /^(?!(?:cache|runs)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
+/** relative, no `..` or hidden segments, outside cache/, runs/ and patches/ */
+const SAFE_PATH = /^(?!(?:cache|runs|patches)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
 const order = (r: iwb.BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 
 /** Every bundle record in a store, newest first. */
@@ -67,10 +67,18 @@ function owners(b: iwb.Bundle): Owner[] {
       o.targets.push({ ref: x.data.key, prefix: `criteria.${c.key}.`, source: c, kind: 'criterion' });
     out.push(o);
   }
+  for (const x of b.sharedSteps) {
+    const o = one(x.data.key, x, 'shared-step');
+    x.data.steps.forEach((s, i) => {
+      if (!s.use) o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
+    });
+    out.push(o);
+  }
   for (const x of b.testCases) {
     const o = one(x.data.key, x, 'test-case');
     x.data.steps.forEach((s, i) => {
-      o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
+      // steps of a shared step are translated in its own file
+      if (!s.from) o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
     });
     x.data.fixtures?.forEach((f, i) => {
       o.targets.push({ ref: x.data.key, prefix: `fixtures.${i + 1}.`, source: f, kind: 'fixture-use' });

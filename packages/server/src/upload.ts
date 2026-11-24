@@ -50,11 +50,11 @@ export interface UploadResult {
 
 export const MAX_UPLOAD_FILES = 2000;
 const SAFE = /^(?!\.)[^\\:*?"<>|]+$/;
-/** A relative path inside the bundle that is not hidden, not cache/ or runs/ and has no `..`. Pure; tested. */
+/** A relative path inside the bundle that is not hidden, not cache/, runs/ or patches/ and has no `..`. Pure; tested. */
 export function safePath(path: string): boolean {
   const parts = path.split('/');
   if (parts.some((p) => !p || p === '..' || !SAFE.test(p))) return false;
-  return parts[0] !== 'cache' && parts[0] !== 'runs';
+  return !['cache', 'runs', 'patches'].includes(parts[0]!);
 }
 
 const decode = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));

@@ -25,6 +25,8 @@ The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/in
 │           ├── use-case.toml         # use case + acceptance criteria
 │           ├── TC-3-valid-coupon.toml
 │           └── TC-4-expired-coupon.toml
+├── steps/
+│   └── SS-1-reload-signed-out.toml   # (v0.5) shared steps that test cases `use`
 ├── fixtures/
 │   ├── FX-1-coupons/
 │   │   ├── fixture.toml
@@ -36,6 +38,13 @@ The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/in
 │   └── PLAN-1-v1-2-0-regression.toml
 ├── templates/
 │   └── test-case.web.toml            # partial files used by `iw new --template`
+├── ui/                               # (v0.5) optional: UI texts, theme and report logo, no code
+│   ├── messages.ja.json
+│   ├── theme.toml
+│   └── logo.png
+├── patches/                          # (v0.5) optional: `iw patch` files, not part of snapshots
+│   ├── patches.toml
+│   └── 0001-shorter-nav.patch
 ├── .gitignore                        # written by `iw init`: ignores cache/ and runs/
 ├── cache/                            # ignored: index.sqlite, sync state, fetched blobs
 └── runs/                             # ignored by default: local replica of the result store
@@ -46,6 +55,7 @@ Rules:
 - **Identity is the `id` inside a file**, not its path. Directory and file names are `{KEY}-{slug}`; the slug is cosmetic: `iw new` writes it from the title, and `iw check --fix` only rewrites the key part of a name (a title change keeps the slug). Moving or renaming a file never changes identity.
 - A use case directory must be inside a feature directory; test case files must be inside a use case directory. A test case may still cover ACs of other use cases.
 - Files and directories not described here produce a warning from `iw check` and are ignored, except `README.md` files, which are allowed anywhere. The secret scan still covers every file in the folder, because snapshots and exports pack them.
+- `ui/` and `patches/` *(v0.5)* are described in [Customizing](#customizing-v05). `patches/` is never loaded, scanned, snapshotted or uploaded.
 - Symbolic links are ignored: tools do not list them and refuse to read or write a path whose real location is outside the folder.
 - The folder is `.indx-watch/` at the repository root by default. Commands find it by walking up from the current directory; `--dir` or `IW_DIR` override this.
 
@@ -60,7 +70,7 @@ key = "TC-3"
 
 | Rule | Detail |
 |---|---|
-| Schema line | Line 1 is `#:schema <url>` for that file type, line 2 is blank. Tombi and Taplo use it for completion and validation. See [platform notes](../research/platform-notes.md#toml-and-editor-tooling). |
+| Schema line | Line 1 is `#:schema <url>` for that file type, line 2 is blank. Tombi and Taplo use it for completion and validation. *(v0.5)* The URL names a git ref: `main`, or a version tag such as `v0.1.3` (`iw update` moves every file to the tag of the pinned version, so the schema matches the CLI). Each file keeps its own ref, `iw fmt` and `iw check` accept either, and a new file takes the ref of `project.toml`. See [platform notes](../research/platform-notes.md#toml-and-editor-tooling). |
 | Encoding | UTF-8, LF line endings, exactly one trailing newline, no trailing whitespace, no tabs. Readers treat CRLF as LF (a Windows checkout with `core.autocrlf` gives the same values and versions); `iw fmt` writes LF. In multi-line strings, spaces at the end of a line are written as `\u0020`. |
 | Key order | The order in which fields are listed in this spec (= the Zod schema), except that every value written as a table or array of tables comes after all plain values, as TOML requires. A table that contains only sub-tables gets no header of its own (`[hooks.seed]`, not `[hooks]` + `[hooks.seed]`). Unknown keys are errors, except inside an `[x]` table, which is free-form and sorted alphabetically. |
 | Optional fields | Omitted when empty (empty string, empty array, empty table). Booleans are written as given, `false` included. |
@@ -161,6 +171,9 @@ definition = "A code that reduces the order total."
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default: definitions sync through git) or `workspace` (*v0.2*: definitions also sync through the store, [workspace mode](./sync.md#workspace-mode-v02)). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](./sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](./security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](./security.md#roles)). |
 | `[notify]` | no | *(v0.5)* Read by `iw notify` ([notifications](./integrations.md#notifications)). `slack_webhook`: a [secret reference](./security.md#secrets) to the Slack incoming-webhook URL (`env:SLACK_WEBHOOK_URL`); `locale`: language of the messages (default `source_locale`); `app_url`: the hosted app's `https://` address, so messages link to it. The webhook URL itself never goes in a file. |
+| `[github]` | no | *(v0.5)* `repo = "owner/name"`: where [Open as GitHub issue](./integrations.md#github-issues) and `iw issue` open new issues. Without it the CLI and `iw serve` use the `origin` remote; a Worker needs it. |
+| `[tool]` | no | *(v0.5)* `indx_watch = "0.1.3"`: the one INDX Watch version this project pins (an exact `x.y.z`). `iw init` writes it; `iw update` changes it; `iw doctor` compares every other pinned part with it: the `.mcp.json` entry, installed skill copies, workflow inputs, the Worker. The GitHub Action runs this version when its `version` input is empty. Without `[tool]` a project behaves as before and `iw doctor` reports it as `unpinned` ([staying current](./cli.md#iw-doctor)). *(v0.5)* `source = "github:<owner>/<repo>"`: a fork whose releases `iw doctor` and `iw update` follow instead of the npm package ([fork guide](../guides/fork.md)). |
+| `[report]` | no | *(v0.5)* `title`, `logo`, `footer` of reports ([Customizing](#customizing-v05)). |
 | `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](./security.md#signed-records). |
 
 ## `environments/<name>.toml`
@@ -380,9 +393,10 @@ source_hash = "72d5db16627a"
 | `start_note` | no | One sentence about the starting point (`"Open the cart."`), with or without `start`. |
 | `preconditions` | no | Plain language. |
 | `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds), optional `use`: what the tester does with the data — `download` (save the file to look at or keep), `upload` (save it, then attach it in a step), `enter` (type or paste the values), `seeded` (already in the app; nothing to do) — and optional `note` (one sentence, e.g. which step uses it), translated in `[fixtures.i18n.<locale>]`. |
-| `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
+| `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. *(v0.5)* A step may be `use = "SS-1"` alone: the steps of that [shared step](#shared-steps) take its place. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](./concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
+| `links` | no | *(v0.5)* Issue URLs about this test case (`https://github.com/owner/name/issues/42`; http(s) only), written by `iw issue --link` and the app. Not part of the version. The web app shows them as Related issue #42. |
 | `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](./concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](./integrations.md#playwright-reporter)). |
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](./i18n.md#literal-strings)).
@@ -390,6 +404,58 @@ source_hash = "72d5db16627a"
 **Guidance.** `purpose`, `style`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
 
 **Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](./concepts.md#versions-and-staleness). It is not stored in the file.
+
+## Shared steps
+
+*(v0.5)* `steps/SS-<n>-<slug>.toml` holds steps that several test cases use. The file is at the top of the bundle, not inside a feature, because any test case may use it ([ADR 0015](../adr/0015-shared-steps-folder.md)).
+
+```toml
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/shared-step.json
+
+id = "ss_01JF3Q8M5X2V7K9D4R6T1W0Y71"
+key = "SS-1"
+title = "Reload and stay signed out"
+
+[[steps]]
+instruction = "Reload the page."
+expected = "The header still shows \"Sign in\"."
+checks = ["The header still shows \"Sign in\"."]
+
+[steps.i18n.ja]
+instruction = "ページを再読み込みする。"
+expected = "ヘッダーには「Sign in」が表示されたまま。"
+checks = ["ヘッダーには「Sign in」が表示されたまま。"]
+status = "machine"
+source_hash = "a033d251ac7d"
+
+[i18n.ja]
+title = "再読み込みしてもサインアウトのまま"
+status = "machine"
+source_hash = "ecbdf6f2d0b5"
+```
+
+A test case uses it with a step that holds only `use`; examples/shop's TC-8 ends with
+
+```toml
+[[steps]]
+use = "SS-1"
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `id`, `key` | yes | `ss_<ULID>` and `SS-<n>`, assigned by `iw new ss`. The file name starts with the key. |
+| `title` | yes | What the steps do, in a few words ("Sign in", "Reload and stay signed out"). Not part of any version. |
+| `origin`, `approved_by` | no | As for a feature: an AI-written shared step carries `origin = "ai"` and an `[ai]` table, and `iw check` warns until a person runs `iw approve SS-n`. There is no `status`. |
+| `[[steps]]` | yes | The same step as in a test case (`instruction`, `expected`, `checks`, `evidence`, `[steps.i18n.<locale>]`), or `use = "SS-<n>"` for another shared step. |
+| `[i18n.<locale>]` | no | Translation of `title` ([i18n.md](./i18n.md#content-translations)). |
+
+**Rules.**
+
+- **`use` stands alone.** A step is either `use = "SS-n"` or has `instruction` and `expected`; mixing them is `invalid-value`. In a test case the step is replaced, in place, by every step of the shared step; the steps after it are numbered after them. Steps of a shared step are numbered by their place in the test case, not in the shared step.
+- **Expanded when the bundle is loaded.** Everything that reads a loaded bundle (the model, `iw show`, the runner, the reporter, the web app, MCP) sees the expanded steps, each marked `from = "SS-n"` in memory. The marker is never written: `iw approve`, `iw translate` and the web app write `use = "SS-n"` back.
+- **Part of the version.** The test case [version](./concepts.md#versions-and-staleness) hashes the expanded steps, so editing a shared step's `instruction`, `expected` or `evidence` makes results of every test case that uses it stale. `title`, `checks` and translations are not. A test case that uses no shared step keeps its version, and replacing steps by an identical shared step keeps it too.
+- **`iw check`** reports `unresolved-ref` for a `use` that names no shared step and `shared-step-cycle` when shared steps use each other in a loop, each on the test case and on the shared step file. Translations of a shared step's steps are checked in its own file; a test case never repeats them.
+- **Layout.** Only files named `SS-*.toml` directly in `steps/` are shared steps; anything else there is an `unknown-file` warning. A duplicate `SS` key is an error that `iw check --fix` does not renumber (a `use` could not tell which one it meant); rename one by hand and fix the `use` lines.
 
 ## Fixtures
 
@@ -521,6 +587,44 @@ source_hash = "862ca86fb166"
 
 *(v0.4)* One template is built in: `iw new tc --template bdd` creates a test case with `style = "bdd"` and a placeholder Given in `preconditions` (examples/shop's TC-4 is written this way). A file `templates/test-case.bdd.toml` replaces it.
 
+## Customizing *(v0.5)*
+
+Three extension points need no code and no fork. All are optional, plain data, served to the web app through `GET /api/project` and so work the same on `iw serve` and on the Worker. There are no server-side code plugins; bigger changes are [patches](../guides/customize.md#level-3-patches).
+
+**`ui/messages.<locale>.json`** (`en` or `ja`) overrides UI texts: one flat object of existing message keys (those of `packages/web/src/messages/en.json`) to plain text. Keep every `{placeholder}` of the original text and write no markup. Missing keys keep the built-in text.
+
+```json
+{ "nav.tests": "Checks", "home.title": "Where we stand" }
+```
+
+**`ui/theme.toml`** sets a few design tokens from `packages/web/src/tokens.css`. `[light]` and `[dark]` may set the colors `accent`, `accent-hover`, `accent-text`, `accent-soft`, `focus`, `bg`, `surface`, `surface-2`, `border`, `border-strong`, `text` and `text-muted` (hex, `rgb()` or `hsl()`); `[common]` may set `font-sans`, `font-mono` (font names), and `radius-sm`, `radius`, `radius-lg` (`px` or `rem`). Status colors are not themable: a status always keeps its meaning. `iw check` warns when a text color on `bg` or `surface`, or `accent-text` on `accent`, is below a 4.5:1 contrast.
+
+```toml
+[light]
+accent = "#0b6b50"
+accent-text = "#ffffff"
+
+[dark]
+accent = "#6fd3b0"
+accent-text = "#06231a"
+
+[common]
+radius = "4px"
+```
+
+**`[report]`** in `project.toml` brands [reports](./reports.md): `title` replaces the project name in the heading, `footer` replaces the generated-by line (a patched server still appends its [build](./security.md#patched-servers)), `logo` is a file in `ui/` (`.png`, `.jpg`, `.webp` or `.svg`, up to 200 KB) embedded at the top of HTML reports.
+
+```toml
+[report]
+title = "Shop QA"
+footer = "Shop QA team · qa@shop.test"
+logo = "ui/logo.png"
+```
+
+`iw check` rejects an unknown message key, a changed placeholder, markup (`<tag`), an unknown theme table or token, a value that is not a plain color, size or font list, an unknown `ui/` locale, and a `logo` that is missing, too big or outside `ui/`. A bundle with a problem here still loads; the invalid part is left out.
+
+**`patches/`** holds `patches.toml` (`base = "x.y.z"`, the upstream version the patches apply to) and the `*.patch` files made by [`iw patch`](./cli.md#iw-patch). It is local to the repository: not loaded, not secret-scanned, not in snapshots or exports.
+
 ## `.gitignore`
 
 `iw init` writes:
@@ -543,6 +647,7 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 
 - [x] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
 - [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
+- [ ] `iw check` accepts `ui/messages.<locale>.json`, `ui/theme.toml`, `[report]` and `patches/` as documented, and reports an unknown message key, a changed placeholder, markup, an unknown token or an unsafe value, and a bad `logo` as errors (bundle and CLI tests); `patches/` is not loaded, scanned or snapshotted.
 - [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
 - [x] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.

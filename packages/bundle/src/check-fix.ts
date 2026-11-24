@@ -6,7 +6,7 @@ import type { CheckDeps, CheckResult } from './check.js';
 import { type KeyKind, nextCriterionKey, nextKey } from './ids.js';
 import { type SeenFile, walk } from './load.js';
 import type { FileType } from './schema/definitions.js';
-import { formatToml, formatTomlBody } from './toml.js';
+import { formatToml, formatTomlBody, schemaRefOf } from './toml.js';
 import type { Bundle, BundleFs } from './types.js';
 import { slugify } from './write.js';
 
@@ -27,7 +27,7 @@ const renumber = (x: Fix, m: Moved) => x.seen.add(m.to) && x.res.renumbered.push
 /** Canonical text of a valid TOML file (with `data` in place of its contents), or null when it has none. */
 export function canonicalText(f: SeenFile, data = f.raw): string | null {
   if (!f.valid || !data || f.type === 'data') return null;
-  if (f.type !== 'template') return formatToml(f.type, data);
+  if (f.type !== 'template') return formatToml(f.type, data, schemaRefOf(f.text));
   return formatTomlBody(f.path.split('/').pop()!.split('.')[0] as FileType, data);
 }
 
@@ -35,11 +35,13 @@ export function canonicalText(f: SeenFile, data = f.raw): string | null {
 export async function fix(input: FixInput) {
   const { b, deps } = input;
   const groups: Group[] = [['feature', b.features]];
-  groups.push(['useCase', b.useCases], ['testCase', b.testCases], ['fixture', b.fixtures], ['plan', b.plans]);
+  groups.push(['useCase', b.useCases], ['testCase', b.testCases], ['sharedStep', b.sharedSteps]);
+  groups.push(['fixture', b.fixtures], ['plan', b.plans]);
   const seen = new Set([...(deps.knownKeys ?? []), ...groups.flatMap(([, xs]) => xs.map((x) => x.data.key))]);
   for (const c of b.useCases.flatMap((u) => u.data.criteria)) seen.add(c.key);
   const x: Fix = { ...input, seen, data: new Map() };
-  for (const [kind, items] of groups)
+  // a shared step is not renumbered: the `use` that names it would not know which one it meant
+  for (const [kind, items] of groups.filter(([k]) => k !== 'sharedStep'))
     for (const key of new Set(items.map((it) => it.data.key))) {
       const dups = items.filter((it) => it.data.key === key);
       const keep = await keeper(dups, (it) => it.data.id, deps);
@@ -144,7 +146,7 @@ function renames(x: Fix, groups: Group[]): Map<string, string> {
 
 /** An item's file (test cases, plans) or directory not starting with its (new) key: key + kept slug, or title slug. */
 function renameToKey(x: Fix, kind: KeyKind, it: Item, renamed: Map<string, string>) {
-  const path = kind === 'testCase' || kind === 'plan' ? it.file : dirOf(it.file);
+  const path = ['testCase', 'plan', 'sharedStep'].includes(kind) ? it.file : dirOf(it.file);
   const key = (x.data.get(it.file)?.key as string | undefined) ?? it.data.key;
   const [last, ext] = [path.split('/').at(-1)!, path.endsWith('.toml') ? '.toml' : ''];
   if (last.startsWith(`${key}-`)) return;

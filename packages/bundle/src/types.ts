@@ -10,9 +10,11 @@ import type {
   Plan,
   Project,
   Release,
+  SharedStep,
   TestCase,
   UseCase,
 } from './schema/definitions.js';
+import type { Ui } from './ui.js';
 
 /** File access relative to the bundle root ('.indx-watch/'). Paths use '/'. */
 export interface BundleFs {
@@ -81,9 +83,13 @@ export interface Bundle {
   features: Loaded<Feature>[];
   useCases: LoadedUseCase[];
   testCases: LoadedTestCase[];
+  /** (v0.5) shared steps; test cases hold their steps expanded */
+  sharedSteps: Loaded<SharedStep>[];
   fixtures: LoadedFixture[];
   plans: Loaded<Plan>[];
   templates: LoadedTemplate[];
+  /** (v0.5) the valid parts of `ui/`: message overrides and theme */
+  ui?: Ui;
   /** files present but not part of the format (warnings) */
   unknownFiles: string[];
   /** files with a load error (left out of the bundle, or loaded with an error); the gate fails while any */

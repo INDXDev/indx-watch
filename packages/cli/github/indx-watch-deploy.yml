@@ -1,0 +1,36 @@
+# Written by `iw init --github` (docs/guides/self-host-cloudflare-from-github.md). Needs the repository secrets
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. Edit freely; `iw init --github` never overwrites it.
+name: indx-watch-deploy
+
+on:
+  push:
+    branches: [main]
+    paths: [".indx-watch/**", "package.json", "package-lock.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indx-watch-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Is the project hosted?
+        id: hosted
+        run: |
+          if grep -qs '^\[hosting\]' .indx-watch/project.toml; then echo "hosted=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::No [hosting] in .indx-watch/project.toml, nothing to deploy"; fi
+      - name: Deploy to Cloudflare
+        if: ${{ steps.hosted.outputs.hosted == 'true' }}
+        run: npx --yes indx-watch deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

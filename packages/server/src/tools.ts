@@ -7,6 +7,7 @@ import * as core from '@indx-watch/core';
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import PKG from '../package.json' with { type: 'json' };
+import { buildVersion } from './build.js';
 
 const READ = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -25,7 +26,7 @@ export const TOOL_INPUTS = {
   show: z.object({ ref: z.string() }),
   check: z.object({}),
   new: z.object({
-    kind: z.enum(['feature', 'uc', 'ac', 'tc', 'fixture', 'env', 'release', 'plan']),
+    kind: z.enum(['feature', 'uc', 'ac', 'tc', 'ss', 'fixture', 'env', 'release', 'plan']),
     fields: z
       .record(z.string(), z.unknown())
       .describe('Fields as in the TOML file: title, steps, covers, text …'),
@@ -50,11 +51,19 @@ export const TOOL_INPUTS = {
   }),
   report: z.object({ release: opt, format: z.enum(['md', 'json']).default('md') }),
   sync: z.object({}),
+  assign: z.object({
+    plan: z.string().describe('PLAN-n'),
+    split: z
+      .string()
+      .describe('Who:weight pairs, for example "alex@shop.test:2,sam@shop.test:1,agent:claude:1"'),
+    only_unassigned: z.boolean().optional(),
+  }),
 };
 export type ToolName = keyof typeof TOOL_INPUTS;
 /** `iw new` and `new` kinds → definition kinds */
 export const NEW_KINDS: Record<string, B.NewKind> = {
   ...{ feature: 'feature', uc: 'use-case', ac: 'criterion', tc: 'test-case', fixture: 'fixture' },
+  ss: 'shared-step',
   ...{ env: 'environment', release: 'release', plan: 'plan' },
 };
 const ABOUT: Record<ToolName, [string, object]> = {
@@ -66,6 +75,10 @@ const ABOUT: Record<ToolName, [string, object]> = {
   record_run: ['Record a run you executed: verdict, confidence (0-1), steps, evidence files', WRITE],
   report: ['Release report: Markdown text (md) or the report data (json)', READ],
   sync: ['Push and pull records and blobs with the store in project.toml', NETWORK],
+  assign: [
+    'Propose how to split a plan between people, ci and agents; never writes (= iw assign --dry-run)',
+    READ,
+  ],
 };
 /** Output schemas per tool (report has none): CommandData of packages/cli/src/json.ts, their home, passed in by the CLI. */
 export type ToolOutputs = Record<Exclude<ToolName, 'report'>, z.ZodType>;
@@ -90,7 +103,7 @@ export const toolError = (code: string, message: string, details?: unknown[]): T
 
 /** An MCP server with the tools; there is no approve/review/waive tool. */
 export function createToolServer(outputs: ToolOutputs, tools: (s: McpServer) => ToolHandlers): McpServer {
-  const server = new McpServer({ name: 'indx-watch', version: PKG.version });
+  const server = new McpServer({ name: 'indx-watch', version: buildVersion(PKG.version) });
   const h = tools(server);
   for (const [name, inputSchema] of Object.entries(TOOL_INPUTS) as [ToolName, z.ZodType][]) {
     const [description, annotations] = ABOUT[name];
@@ -185,11 +198,42 @@ const runsOf = (m: core.Model, tcs: string[], limit = 10) =>
 /** `iw status` data; with `who`, of the features they own, listed in `mine` (docs/spec/concepts.md#feature-owners). */
 export function statusData(m: core.Model, scope: core.Scope, who?: core.Principal) {
   const features = who ? core.ownedFeatures(m, who) : [];
+  const plans = m.plans.filter((p) => !scope.release || p.release === scope.release);
+  const mix = core.automationMix(m, plans);
   return {
     ...core.computeStatus(who ? core.ownedModel(m, features) : m, scope),
+    ...(mix.total > 0 && { automation: mix }),
     scope: { release: scope.release ?? null, environment: scope.environment ?? null },
     ...(who && { mine: { actor: who.id, features } }),
   };
+}
+
+/** What `iw assign`, `POST /api/plans/:key/assign` and the MCP tool `assign` propose; `items` are the plan's items to write. */
+export function assignPlan(
+  m: core.Model,
+  a: {
+    plan: string;
+    split?: string | undefined;
+    to?: string | null | undefined;
+    items?: string[];
+    onlyUnassigned?: boolean;
+  },
+) {
+  const plan = m.plans.find((p) => p.key.toUpperCase() === a.plan.toUpperCase());
+  if (!plan) return fail('NOT_FOUND', `${a.plan} is not a plan`);
+  try {
+    const named =
+      a.split === undefined ? core.assignItems(m, plan.key, a.to ?? null, a.items ?? []) : undefined;
+    if (named?.missing.length) fail('NOT_FOUND', `Not in ${plan.key}: ${named.missing.join(', ')}`);
+    const split = () =>
+      core.splitAssignments(m, plan.key, core.parseSplit(a.split!), { onlyUnassigned: !!a.onlyUnassigned });
+    const r = named ?? split();
+    const { changes: assignments, load, unassigned } = r;
+    return { items: r.items, data: { plan: plan.key, dry_run: false, assignments, load, unassigned } };
+  } catch (e) {
+    if (e instanceof B.BundleError) throw e;
+    return fail('INVALID_INPUT', (e as Error).message);
+  }
 }
 
 /** `iw show` data (without --versions). */

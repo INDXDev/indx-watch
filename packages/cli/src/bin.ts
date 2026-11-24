@@ -2,8 +2,6 @@
 /** `iw` / `indx-watch` entry point. */
 import { main } from './cli.js';
 import { COMMANDS } from './commands/index.js';
+import { VERSION } from './version.js';
 
-declare const __IW_VERSION__: string | undefined;
-const version = typeof __IW_VERSION__ === 'string' ? __IW_VERSION__ : '0.1.2';
-
-void main(COMMANDS, process.argv.slice(2), version);
+void main(COMMANDS, process.argv.slice(2), VERSION);

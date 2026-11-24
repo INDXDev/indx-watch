@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { pick, pickList, pickLocale, segments, t } from '../src/i18n';
+import { applyMessages, pick, pickList, pickLocale, segments, t } from '../src/i18n';
 import en from '../src/messages/en.json';
 import ja from '../src/messages/ja.json';
+
+describe('project message overrides (ui/messages.<locale>.json)', () => {
+  it('lay over the built-in texts per locale and come off again', () => {
+    applyMessages({ ja: { 'nav.skip': '本文へ' } });
+    expect(t('ja', 'nav.skip')).toBe('本文へ');
+    expect(t('en', 'nav.skip')).toBe(en['nav.skip']);
+    applyMessages(undefined);
+    expect(t('ja', 'nav.skip')).toBe(ja['nav.skip']);
+  });
+});
 
 describe('messages', () => {
   it('en.json and ja.json have identical keys', () => {

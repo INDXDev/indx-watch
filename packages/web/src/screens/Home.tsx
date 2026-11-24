@@ -50,7 +50,15 @@ export function Home() {
   const runs = useApi(() => api.runs({ release: scope.release, env: scope.env, limit: 6 }), deps);
   return (
     <Load state={status}>
-      {(s) => <Ready status={s} specs={specs.data} plans={plans.data ?? []} runs={runs.data ?? []} />}
+      {(s) => (
+        <Ready
+          status={s}
+          specs={specs.data}
+          plans={plans.data ?? []}
+          runs={runs.data ?? []}
+          reload={plans.reload}
+        />
+      )}
     </Load>
   );
 }
@@ -77,9 +85,15 @@ function useHome(status: StatusResult, specs: SpecTree | undefined, plans: PlanV
 }
 type HomeData = ReturnType<typeof useHome>;
 
-type Props = { status: StatusResult; specs?: SpecTree | undefined; plans: PlanView[]; runs: RunSummary[] };
+type Props = {
+  status: StatusResult;
+  specs?: SpecTree | undefined;
+  plans: PlanView[];
+  runs: RunSummary[];
+  reload?: () => void;
+};
 
-function Ready({ status, specs, plans, runs }: Props) {
+function Ready({ status, specs, plans, runs, reload }: Props) {
   const { t } = useI18n();
   const d = useHome(status, specs, plans);
   if (useApp().project.role === 'customer')
@@ -112,7 +126,7 @@ function Ready({ status, specs, plans, runs }: Props) {
           <span>{t('home.details')}</span>
           <span className="muted small">{t('home.detailsHint')}</span>
         </summary>
-        <ReleaseDetails status={status} specs={specs} plans={plans} />
+        <ReleaseDetails status={status} specs={specs} plans={plans} reload={reload} />
       </details>
     </div>
   );
