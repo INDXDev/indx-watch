@@ -97,6 +97,15 @@ function siteProblem(file, target, dest) {
   if (!file.endsWith('README.md') && offSite) return 'not on the docs site: use the GitHub URL';
 }
 
+/** `s` with its % escapes decoded, or undefined when one is malformed. */
+function decoded(s) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return undefined;
+  }
+}
+
 /** What is wrong with the link `target` in `file`, or undefined when it resolves (or is external). */
 function problemOf(file, target) {
   // Links to this repository on GitHub (used where a page is also published outside the
@@ -104,7 +113,8 @@ function problemOf(file, target) {
   const gh = target.match(GITHUB);
   if (!gh && (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//'))) return undefined;
   const [pathPart, hash] = (gh ? gh[2] : target).split('#');
-  const path = decodeURIComponent(pathPart);
+  const path = decoded(pathPart);
+  if (path === undefined || (hash && decoded(hash) === undefined)) return 'malformed link (bad % escape)';
   const dest = gh ? resolve(root, path) : path ? resolve(dirname(file), path) : file;
   const site = gh || !SITE.test(relative(root, file)) ? undefined : siteProblem(file, target, dest);
   return site ?? destProblem(dest, gh, hash);
@@ -115,7 +125,7 @@ function destProblem(dest, gh, hash) {
   if (!existsSync(dest)) return 'missing file';
   if (gh && (gh[1] === 'tree') !== statSync(dest).isDirectory())
     return `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path`;
-  if (hash && dest.endsWith('.md') && statSync(dest).isFile() && !anchors(dest).has(decodeURIComponent(hash)))
+  if (hash && dest.endsWith('.md') && statSync(dest).isFile() && !anchors(dest).has(decoded(hash)))
     return 'missing anchor';
 }
 
