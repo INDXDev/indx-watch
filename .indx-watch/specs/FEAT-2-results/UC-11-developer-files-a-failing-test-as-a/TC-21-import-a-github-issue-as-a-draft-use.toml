@@ -1,0 +1,38 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874B6SH54VS8KE2BG4PHZJ2"
+key = "TC-21"
+title = "Import a GitHub issue as a draft use case"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.3"]
+mode = "manual"
+
+[[steps]]
+instruction = "Run iw import github-issue 42 --from issue.json --feature FEAT-2"
+expected = "One draft use case with a draft criterion per task-list item and the issue URL in links"
+
+[steps.i18n.ja]
+instruction = "iw import github-issue 42 --from issue.json --feature FEAT-2 を実行する"
+expected = "タスクリストの項目ごとにドラフトの受け入れ基準を持ち、links に Issue の URL がある、ドラフトのユースケースが 1 件できる"
+status = "machine"
+source_hash = "e251cc0ce06f"
+
+[[steps]]
+instruction = "Run the same command again"
+expected = "Nothing is created and the existing use case is named"
+
+[steps.i18n.ja]
+instruction = "同じコマンドをもう一度実行する"
+expected = "何も作られず、既にあるユースケースが示される"
+status = "machine"
+source_hash = "2c78a574b6d2"
+
+[i18n.ja]
+title = "GitHub の Issue をドラフトのユースケースとして取り込む"
+status = "machine"
+source_hash = "ba4898f68211"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:12Z

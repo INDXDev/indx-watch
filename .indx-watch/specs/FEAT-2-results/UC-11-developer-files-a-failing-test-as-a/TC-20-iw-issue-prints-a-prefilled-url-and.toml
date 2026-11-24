@@ -1,0 +1,38 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874B69J0TWNSEJP7VK6NP64"
+key = "TC-20"
+title = "iw issue prints a prefilled URL and links the issue"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1", "AC-11.2"]
+mode = "manual"
+
+[[steps]]
+instruction = "Run iw issue TC-3 in a project with [github] repo"
+expected = "A new-issue URL for the failure form is printed with the test case keys and the steps"
+
+[steps.i18n.ja]
+instruction = "[github] repo があるプロジェクトで iw issue TC-3 を実行する"
+expected = "テストケースのキーと手順が入った、失敗用フォームの新規 Issue URL が出力される"
+status = "machine"
+source_hash = "d9625d159b34"
+
+[[steps]]
+instruction = "Run iw issue TC-3 --link <issue URL>"
+expected = "The URL is stored once in the test case links and iw check passes"
+
+[steps.i18n.ja]
+instruction = "iw issue TC-3 --link <Issue の URL> を実行する"
+expected = "URL がテストケースの links に一度だけ保存され、iw check が通る"
+status = "machine"
+source_hash = "e50a604847e8"
+
+[i18n.ja]
+title = "iw issue が入力済みの URL を出力し、Issue を紐づける"
+status = "machine"
+source_hash = "20a92119399e"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:11Z

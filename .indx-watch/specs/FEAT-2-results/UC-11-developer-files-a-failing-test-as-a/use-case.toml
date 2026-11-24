@@ -1,0 +1,69 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874AZ8BCRPGCPVRPHRV1SN0"
+key = "UC-11"
+title = "Developer files a failing test as a GitHub issue"
+status = "draft"
+origin = "ai"
+actor = "developer"
+goal = "Turn a failed test into a GitHub issue and bring an issue back as a use case"
+priority = "P2"
+
+[[criteria]]
+id = "ac_01M874AZ8BCRPGCPVRPHRV1SMX"
+key = "AC-11.1"
+text = "A failed run opens as a prefilled GitHub issue without secrets"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:04Z
+
+[criteria.i18n.ja]
+text = "失敗した実行を、秘密情報を含まない入力済みの GitHub Issue として開ける"
+status = "machine"
+source_hash = "6fd5c1821220"
+
+[[criteria]]
+id = "ac_01M874AZ8BCRPGCPVRPHRV1SMY"
+key = "AC-11.2"
+text = "The issue is linked back to the test case"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:04Z
+
+[criteria.i18n.ja]
+text = "Issue がテストケースに紐づく"
+status = "machine"
+source_hash = "771f66981cfb"
+
+[[criteria]]
+id = "ac_01M874AZ8BCRPGCPVRPHRV1SMZ"
+key = "AC-11.3"
+text = "A GitHub issue becomes a draft use case with its task list as criteria"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:04Z
+
+[criteria.i18n.ja]
+text = "GitHub の Issue が、タスクリストを受け入れ基準とするドラフトのユースケースになる"
+status = "machine"
+source_hash = "af3cf3b0f745"
+
+[i18n.ja]
+title = "開発者が失敗したテストを GitHub の Issue として起票する"
+actor = "開発者"
+goal = "失敗したテストを GitHub の Issue にし、Issue をユースケースとして取り込む"
+status = "machine"
+source_hash = "ff8036263ba8"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:04Z
