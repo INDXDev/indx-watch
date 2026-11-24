@@ -721,6 +721,121 @@ tr:last-child td {
   background: var(--accent);
 }
 
+/* ---------- insights (docs/spec/web.md#insights) ---------- */
+.ins-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--space-4);
+}
+.ins-svg {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+}
+.ins-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.ins-axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+.ins-line polyline {
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.ins-line text {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ins-pass {
+  color: var(--pass);
+}
+.ins-coverage {
+  color: var(--accent);
+}
+.ins-line polyline {
+  stroke: currentcolor;
+}
+.ins-line circle,
+.ins-line text {
+  fill: currentcolor;
+}
+.ins-coverage polyline {
+  stroke-dasharray: 6 4;
+}
+.ins-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+.ins-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.ins-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.ins-bars li {
+  display: grid;
+  grid-template-columns: minmax(80px, 30%) 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+}
+.ins-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ins-bar {
+  display: flex;
+  min-width: 2px;
+  height: 14px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.ins-n {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ins-done {
+  background: var(--pass);
+}
+.ins-review {
+  background: var(--accent);
+}
+.ins-blocked {
+  background: var(--fail);
+}
+.ins-todo {
+  background: var(--surface-2);
+}
+.ins-big {
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  margin: 0;
+}
+.ins-numbers {
+  margin-top: var(--space-3);
+  font-size: var(--fs-sm);
+}
+.ins-numbers summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
 /* ---------- spec tree ---------- */
 .tree-feature {
   padding: 0;

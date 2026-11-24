@@ -54,6 +54,7 @@ describe('parseRoute()', () => {
     expect(parseRoute('#/activity')).toEqual({ name: 'activity', query: q });
     expect(parseRoute('#/uploads')).toEqual({ name: 'uploads', query: q });
     expect(parseRoute('#/report')).toEqual({ name: 'report', query: q });
+    expect(parseRoute('#/insights')).toEqual({ name: 'insights', query: q });
   });
   it('reports unknown paths', () => {
     expect(parseRoute('#/tc/UC-2')).toEqual({ name: 'notFound', path: '/tc/UC-2', query: {} });

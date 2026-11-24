@@ -6,6 +6,7 @@ import { href, type Route, useRoute } from './router';
 import { Activity, RunFocus } from './screens/Activity';
 import { Fixtures } from './screens/Fixtures';
 import { Home } from './screens/Home';
+import { Insights } from './screens/Insights';
 import { Report } from './screens/Report';
 import { AccessOverview, Secrets } from './screens/Secrets';
 import { TestFocus, Tests } from './screens/Tests';
@@ -164,12 +165,14 @@ function TopBar({ route, onIdentity }: { route: Route; onIdentity(): void }) {
   const { t } = useI18n();
   const { project: info, scope, setScope, upload } = useApp();
   const [theme, nextTheme] = useTheme();
-  const nav: [string, string, Route['name'][]][] = [
+  type NavItem = [string, string, Route['name'][]];
+  const nav: NavItem[] = [
     [href.home(), t('nav.home'), ['home']],
     [href.tests(), t('nav.tests'), ['tests', 'testCase', 'runner']],
     [href.activity(), t('nav.activity'), ['activity', 'run', 'uploads']],
     [href.fixtures(), t('nav.fixtures'), ['fixtures', 'secrets', 'access']],
     [href.report(), t('nav.report'), ['report']],
+    ...(info.role === 'customer' ? [] : [[href.insights(), t('nav.insights'), ['insights']] as NavItem]),
   ];
   return (
     <header className="topbar">
@@ -271,6 +274,8 @@ function Screen({ route }: { route: Route }) {
       return <Uploads />;
     case 'report':
       return <Report />;
+    case 'insights':
+      return <Insights />;
     default:
       return (
         <div className="empty">
