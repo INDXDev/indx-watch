@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { type HttpBindings, serve } from '@hono/node-server';
 import { type AnyRecord, BundleError, loadBundle, recordSigner } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
-import { buildVerifiedModel, type Model } from '@indx-watch/core';
+import { buildVerifiedModel, type Model, repoOfRemote } from '@indx-watch/core';
 import { createResultStore, type IdentityProvider, type ResultStore, StoreError } from '@indx-watch/store';
 import * as SN from '@indx-watch/store/node';
 import { definitionFiles, type SyncResult, watch as syncWatch } from '@indx-watch/sync';
@@ -240,6 +240,9 @@ function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: 
   const webRoot = opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   return {
     mode: 'local',
+    githubRepo: repoOfRemote(
+      spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: dir, encoding: 'utf8' }).stdout,
+    ),
     toolOutputs: opts.toolOutputs,
     loadModel: models.loadModel,
     writeRecord: (record) =>

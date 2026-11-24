@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useApp } from '../App';
 import { api, type RunDetail } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
+import { IssueBar } from '../issue';
 import { href } from '../router';
 import {
   Badge,
@@ -64,6 +65,7 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
       </div>
 
       <Verdict r={r} />
+      <IssueBar ref_={rec.id} tcKey={r.testCase.key} links={r.testCase.links} reload={reload} />
       {r.stale && (
         <div className="callout s-stale">
           {t('run.stale', { version: rec.test_case.version, current: r.testCase.currentVersion })}{' '}

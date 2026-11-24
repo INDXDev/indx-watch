@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - `GET /healthz` answers `{ ok, version }` and `GET /api/project` has `server: { version, pinned?, outdated? }`; the web app tells leads when it runs an older version than the project pins, in English and Japanese (T-501, T-506).
 - `ReleaseSource` adapters for the npm registry and GitHub releases, a fake, and `releases.json` generated from this changelog and shipped in the package (T-503).
 - BDD style for test cases: `style = "bdd"` reads the preconditions and steps as a Given / When / Then scenario, `iw new tc --template bdd` is built in, and the test case page, the manual runner and the editor show the labels and a "How to run this scenario" guide in English and Japanese (前提 / もし / ならば / かつ). examples/shop's TC-4 uses it.
+- `iw issue <run | TC-n | AC-n.m | UC-n> [--open] [--link <url>]` and an Open as GitHub issue link on the run viewer and the test case page (T-518): a prefilled, length-capped, secret-scanned new-issue URL that a person submits; INDX Watch never writes to GitHub.
+- `iw import github-issue <number | URL> [--from <file.json>] [--feature F]` (T-519): one GitHub issue becomes one draft use case with its task list as draft criteria and the issue URL in `links`; a re-import changes nothing. An `IssueSource` GitHub REST adapter (token optional) and a fake.
+- GitHub issue forms `indx-watch-test-request.yml` and `indx-watch-test-failure.yml` (T-517, `githubTemplates()`), offered by `/iw-setup`.
+- Optional `links` on test cases (http(s) only) and `[github] repo` in `project.toml`; test cases and the run viewer show Related issue #42 (T-520). The `iw-triage` skill uses `iw issue`, and `iw-design` reads GitHub issues.
 
 ### Changed
 

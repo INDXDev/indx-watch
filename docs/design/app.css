@@ -1540,6 +1540,22 @@ tr:last-child td {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+.issue-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+.issue-paste {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 480px;
+}
+.issue-paste label {
+  display: grid;
+  gap: var(--space-1);
+}
 .data-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

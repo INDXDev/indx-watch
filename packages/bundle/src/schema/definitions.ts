@@ -121,6 +121,8 @@ export const HostingConfig = z.strictObject({
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
+/** (v0.5) The repository issues are opened in (docs/spec/bundle-format.md#projecttoml). */
+export const GithubConfig = z.strictObject({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/) });
 /** `[tool]` (v0.5): the INDX Watch version the project pins (docs/spec/bundle-format.md#projecttoml) and the fork whose releases to follow */
 export const Tool = z.strictObject({
   indx_watch: z
@@ -158,6 +160,7 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  github: GithubConfig.optional(),
   /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
   signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
@@ -335,6 +338,8 @@ export const TestCase = z.strictObject({
   judges: z.array(JudgeConfig).optional(),
   decision_policy: DecisionPolicy.optional(),
   automation: z.strictObject({ files: z.array(z.string()).optional() }).optional(),
+  /** (v0.5) issues about this test case, e.g. `https://github.com/owner/name/issues/42` (not part of the version) */
+  links: z.array(z.string().regex(/^https?:\/\/[^\s]+$/i)).optional(),
   i18n: z
     .partialRecord(Locale, translation({ title: text, preconditions: text, purpose: text, start_note: text }))
     .optional(),

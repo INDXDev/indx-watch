@@ -299,10 +299,10 @@ Conversation on `examples/shop` (sample results):
 2. The skill reads the latest run of TC-8 ("Wrong password is rejected", P0): a manual run by sam@shop.test on `staging`, step 1 failed with the note "The message did not appear; the page reloaded silently.", no screenshot although the step asks for one. `app/server.mjs` answers a wrong password with `Email or password is incorrect`.
 3. It answers in plain words with a class and a confidence: "Not clear yet (confidence 0.5). The server sends the right message, so either the page does not show it or something else happened; without the screenshot I can't tell which."
 4. Asks: "Re-run TC-8 with a screenshot of step 1? I suggest yes: it decides between a page bug and a one-off." → yes → hands over to `iw-test` for a guided run.
-5. If the new screenshot shows no message, it proposes an issue text (title, TC-8, AC-4.2, P0, the steps, expected and actual on-screen text quoted exactly, run ID, commit, environment) and asks: "File it on GitHub? I suggest yes." It files it only on a yes.
+5. If the new screenshot shows no message, it runs `iw issue <run>` for the prefilled GitHub issue (title, TC-8, AC-4.2, P0, the steps, expected and actual, run ID, commit, environment; [GitHub issues](./integrations.md#github-issues)) and asks: "Open it on GitHub? I suggest yes." A person opens and submits it; the skill never creates, comments on or closes an issue.
 6. **Stop.** Waiving a failure and reviewing runs are human decisions; the skill mentions that P0 failures such as TC-8 cannot be waived.
 
-**Writes:** no records; a fix to a test or a test case only after the user accepts the diff (a substantial TC change goes back to `draft`); an issue only on request.
+**Writes:** no records; a fix to a test or a test case only after the user accepts the diff (a substantial TC change goes back to `draft`); no GitHub issue (a person submits the prefilled one).
 **Next step:** "Next: re-run TC-8 after the fix? (iw-test)".
 
 ### `iw-status`

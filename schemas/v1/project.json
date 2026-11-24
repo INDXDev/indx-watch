@@ -251,6 +251,19 @@
       ],
       "additionalProperties": false
     },
+    "github": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "pattern": "^[\\w.-]+\\/[\\w.-]+$"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "additionalProperties": false
+    },
     "signing_keys": {
       "type": "array",
       "items": {

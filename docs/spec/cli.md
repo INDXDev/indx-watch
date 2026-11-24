@@ -211,6 +211,17 @@ Record a run that was executed outside the browser runner — by a person in a t
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
 
+### `iw issue <ref>`
+
+*(v0.5)* Build the prefilled GitHub new-issue URL of a failure ([GitHub issues](./integrations.md#github-issues)). `<ref>` is a run ID, `TC-n`, `AC-n.m` or `UC-n`; a test case uses its latest run (the text comes from the run's failing steps, note and judgements), a criterion or use case gives its text and the test cases that cover it. The repository is `[github] repo` or the `origin` remote; without one the command exits 3 (`INVALID_CONFIG`) and says to add `[github] repo = "owner/name"`. Nothing is sent to GitHub: the URL is printed, and a person opens it and submits. Fields shortened or left out (length, secrets) are listed as warnings.
+
+| Flag | |
+|---|---|
+| `--open` | Open the page in the browser. People only: an agent gets exit 2 |
+| `--link <url>` | Store an http(s) issue URL in `links` of the test case (a run uses its test case; an AC or UC the use case), once, through the normal definition write; `iw sync` publishes it in workspace mode. Without a repository this alone works and prints no URL |
+
+`data`: `{ "ref": string, "run": string | null, "repo": string | null, "url": string | null, "title"?: string, "keys"?: string[], "trimmed"?: string[], "secrets"?: string[], "link": { "file": string, "key": string, "links": string[], "added": boolean } | null }`. `run` is the run the text comes from; `trimmed` and `secrets` name the fields that were shortened or left out.
+
 ### `iw run <tc-ref>`
 
 Execute an `agent` or `hybrid` test case in a browser: Claude follows its steps through a `BrowserProvider` and the run is recorded with `source = "agent"`, a note and a screenshot per step, and one `llm` judgement ([agent execution mode](./agents.md#agent-execution-mode-v02)). Other modes fail with `USAGE` before a browser opens. Available to agents.
@@ -393,6 +404,18 @@ Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planne
 | `--mode <mode>` | Default `manual` |
 
 `data`: `{ "plan": string, "uc": string, "created": { "kind", "id", "key", "file" }[] }`
+
+### `iw import github-issue <number | URL>`
+
+*(v0.5)* Import one GitHub issue as one **draft** use case ([GitHub issues](./integrations.md#github-issues)): `origin = "import"` (an agent writes `origin = "ai"` with `--model`), the issue title as `title`, `links = [<issue URL>]`, and one draft criterion per task-list item (`- [ ] …`, ticked or not). A rendered [test request form](./integrations.md#issue-forms) also sets `actor`, `goal` and `priority`; otherwise the actor is `User`, the goal the title and the priority the label `P0`–`P3` or `P2`. A number needs the repository (`[github] repo` or the `origin` remote). The issue is read through the `IssueSource` port: the REST adapter (`GITHUB_TOKEN` when set; none for public repositories), or `--from`. An issue with no task list is `INVALID_INPUT` (exit 2) and points to `/iw-design`. The same issue again changes nothing: `created` is `null` and `existing` names the use case.
+
+| Flag | |
+|---|---|
+| `--from <file.json\|->` | The output of `gh issue view <n> --json title,body,labels,url` instead of the API |
+| `--feature <FEAT>` | Feature (key or title) of the new use case; default: the feature a label names, else the only feature, else exit 2 |
+| `--model`, `--skill` | For an agent's draft (`--skill` defaults to `iw-design`) |
+
+`data`: `{ "issue": string, "created": { "kind", "id", "key", "file" } | null, "existing": string | null, "criteria": number }`
 
 ### `iw deploy`
 
