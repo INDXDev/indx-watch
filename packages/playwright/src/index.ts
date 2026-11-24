@@ -198,6 +198,14 @@ export default class IndxWatchReporter implements Reporter {
       ? '(dry run, nothing written)'
       : `to ${relative(process.cwd(), join(this.dir, 'runs')) || '.'}`;
     log(`${records.length} run(s) ${where}${lines.length ? `: ${lines.join(', ')}` : ''}`);
+    // why a run is not a pass or fail: decide()'s reason, and the usual cause for a manual test case
+    for (const r of records as RunRecord[]) {
+      const d = verdicts.get(r.id)?.decision;
+      const mode = model.testCases.get(r.test_case.key)?.data.mode;
+      const fix =
+        mode === 'manual' ? `; ${r.test_case.key} has mode = "manual" (set mode = "playwright")` : '';
+      if (d?.verdict === 'needs_review') warn(`${r.test_case.key} needs_review: ${d.reason}${fix}`);
+    }
     if (this.unlinked.size)
       warn(`${this.unlinked.size} unlinked test(s):\n  ${[...this.unlinked].join('\n  ')}`);
     if (this.unknown.size) warn(`unknown test case keys:\n  ${[...this.unknown].join('\n  ')}`);

@@ -204,6 +204,14 @@ describe('mapping a passing run of examples/shop', () => {
 });
 
 describe('mapping outcomes', () => {
+  it('says why a run of a manual test case needs review, with the reason from decide()', async () => {
+    const { records } = await report([single('@TC-8')]);
+    expect(await verdicts(records)).toEqual(['needs_review']);
+    expect(warnings()).toContain(
+      'TC-8 needs_review: No human judgement yet; TC-8 has mode = "manual" (set mode = "playwright")',
+    );
+  });
+
   it('maps a failed step and a failure in any test of the test case to fail', async () => {
     const { records } = await report([
       { title: 'a', tags: ['@TC-5'], results: [{ status: 'passed', steps: [step('1. Add')] as never }] },
