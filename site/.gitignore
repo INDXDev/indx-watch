@@ -6,3 +6,5 @@ next-env.d.ts
 .wrangler/
 # copied from ../docs/images by scripts/copy-images.mjs before dev and build
 public/images/
+# screenshots of other sites saved by `pnpm references` (site/DESIGN.md#references); never commit them
+references/

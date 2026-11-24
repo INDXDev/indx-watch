@@ -13,20 +13,26 @@ pnpm dev          # http://localhost:3000 and http://localhost:3000/ja/
 pnpm typecheck
 ```
 
+Before changing how the page looks, read [DESIGN.md](DESIGN.md): the pages it copies, the section order, tokens, primitives and the rules for the demo.
+
 | Path | What |
 |---|---|
+| `DESIGN.md` | Design rules and the reference pages each section follows. `pnpm references` saves fresh screenshots of them to `references/` (gitignored). |
 | `content/en.ts`, `content/ja.ts` | All words on the page, one object per language (`content/types.ts`). Write Japanese as Japanese, not as a translation. |
-| `content/code.ts` | Excerpts from [`examples/shop`](../examples/shop); keep them in step with the files they quote. |
-| `components/landing.tsx` | The page, shared by both languages. |
+| `content/code.ts` | Excerpts from [`examples/shop`](../examples/shop) and the demo's terminal output; keep them in step with the files and tools they quote. |
+| `components/landing.tsx`, `components/landing/` | The page, shared by both languages: one component per section. |
+| `components/demo/` | The product demo: four chapters drawn as HTML on a scaled 1200 × 720 canvas ([DESIGN.md](DESIGN.md#the-demo)). |
+| `components/role.tsx` | The reader's role (developer, tester, product manager), kept in `?for=` and followed by the hero, demo and For teams tabs. |
+| `components/ui.tsx` | Primitives: section header, text link, logo, icons. |
 | `app/(en)/`, `app/(ja)/ja/` | One root layout per language, so each page has the right `<html lang>`. |
-| `app/globals.css` | The only stylesheet; colors follow [`docs/design/tokens.css`](../docs/design/tokens.css). |
+| `app/globals.css`, `app/demo.css` | The stylesheets: tokens, primitives and sections; and the demo, which uses the web app's tokens from [`docs/design/tokens.css`](../docs/design/tokens.css). |
 | `lib/site.ts` | Every outside URL, including the live demo (`DEMO_URL`) and the site's own URL. |
 | `scripts/copy-images.mjs` | Runs before `dev` and `build`: copies `../docs/images/*.png` into `public/images/` (gitignored). |
 | `scripts/og.html` | Source of `public/og.png`, the Open Graph image. |
 
 ### Screenshots
 
-The page shows the product screenshots from [`docs/images/`](../docs) (`home.png`, `test-case.png`, `manual-run.png`, `test-data.png`, `readiness.png`, `spec-tree.png`, `test-case-mobile.png`, `home-ja-dark.png`). The site never keeps its own copy: `pnpm dev` and `pnpm build` copy them into `public/images/` first. A name that is not in `docs/images/` yet falls back to the older picture in `docs/design/screenshots/`, and a name with neither is left out of the page. Run `pnpm images` to see what was used.
+The For teams section shows product screenshots from [`docs/images/`](../docs) (`manual-run.png`, `readiness.png`). The site never keeps its own copy: `pnpm dev` and `pnpm build` copy them into `public/images/` first. A name that is not in `docs/images/` yet falls back to the older picture in `docs/design/screenshots/`, and a name with neither is left out of the page. Run `pnpm images` to see what was used.
 
 ## Build
 

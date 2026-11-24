@@ -14,9 +14,11 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "preview": "pnpm dlx serve@14.2.5 out",
-    "deploy": "pnpm dlx wrangler@4.167.0 deploy"
+    "deploy": "pnpm dlx wrangler@4.167.0 deploy",
+    "references": "node scripts/references.mjs"
   },
   "dependencies": {
+    "geist": "1.9.2",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1"

@@ -70,3 +70,45 @@ export const STATUS_JSON = `{
     "useCases": [ { "key": "UC-4", "priority": "P0", "status": "fail", "done": false } ]
   }
 }`;
+
+/** The draft the agent writes in the demo's first chapter (a new test case for the shop's coupon flow). */
+export const TC11_PATH = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-11-unknown-coupon.toml';
+
+export const TOML_TC11 = `id = "tc_01JG7K2P9W4N6R8T0V3X5Z7B9D"
+key = "TC-11"
+title = "Unknown coupon is refused"
+status = "draft"
+origin = "ai"
+covers = ["AC-2.3"]
+mode = "playwright"
+purpose = "Shoppers mistype codes. This test proves that a code that does not exist is refused and the total does not change."
+start = "/cart"
+
+[[steps]]
+instruction = "Enter \\"NOPE42\\" in the coupon field and press \\"Apply\\"."
+expected = "\\"This coupon is not valid\\" appears and the total stays \\"40.00\\"."
+checks = ["\\"This coupon is not valid\\" appears.", "The total is \\"40.00\\"."]
+evidence = ["screenshot"]
+
+[automation]
+files = ["examples/shop/tests/coupon.spec.ts"]`;
+
+/** The CI log of the demo's second chapter: Playwright's list reporter, then the indx-watch reporter. */
+export const CI_LOG = [
+  '$ npx playwright test',
+  'Running 7 tests using 4 workers',
+  '  ✓  1 [chromium] › catalog.spec.ts:6:5 › product list shows names and prices @TC-1 (812ms)',
+  '  ✓  2 [chromium] › catalog.spec.ts:17:5 › search filters products by name @TC-2 (744ms)',
+  '  ✓  3 [chromium] › coupon.spec.ts:19:5 › valid coupon reduces the total @TC-3 (1.1s)',
+  '  ✓  4 [chromium] › coupon.spec.ts:34:5 › expired coupon is rejected @TC-4 (958ms)',
+  '  ✓  5 [chromium] › coupon.spec.ts:46:5 › unknown coupon is refused @TC-11 (902ms)',
+  '  ✓  6 [chromium] › checkout.spec.ts:6:5 › placing an order shows a confirmation… @TC-5 (1.4s)',
+  '  ✓  7 [chromium] › sign-in.spec.ts:6:5 › sign in with valid credentials @TC-7 (688ms)',
+  '  7 passed (6.2s)',
+  '[indx-watch] 7 run(s) to .indx-watch/runs: TC-1 pass, TC-2 pass, TC-3 pass, TC-4 pass, TC-11 pass, TC-5 pass, TC-7 pass',
+  '[indx-watch] pushed 7 record(s), 7 blob(s) to s3://shop-watch as github:alex',
+  '$ npx indx-watch status --release v1.2.0',
+  'Release v1.2.0 · environment any · gate FAILED',
+  '  ok   p0_coverage: 7/7 (expected ≥ 1.00)',
+  '  FAIL p0_all_pass: 6/7 (expected 7/7)',
+];
