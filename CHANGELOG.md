@@ -8,8 +8,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - `pnpm screenshots` regenerates the docs screenshots in `docs/images/` from the web app with `examples/shop` and its sample results; the guides use them instead of hand-made images.
 
+- Test data in the web app for the whole team: any dropped file (PDF, image, CSV, …) becomes a draft fixture without writing TOML, and the Test data screen creates, edits (table rows, seed JSON, account, files) and deletes fixtures. Writes go through the upload path in git mode and as `file` records in workspace mode (uploads included), so edits on the hosted app reach every working copy with `iw sync`; testers may edit test data (T-410).
 - Sharing test data and secrets like a shared drive: fixtures and secrets are shared with the whole team or only with listed emails and `group:` names (`shared_with`; leads always have access). The Test data screen gains a Share dialog, "Who has access" per item, a Secrets tab and, for leads, an Access tab that shows everything one email can open and why. On the hosted app with roles, people see only the data shared with them (T-411).
 - Secrets kept by INDX Watch: `iw:<name>` references to a login ID and a value sealed with AES-256-GCM under the server's `IW_SECRETS_KEY` (`iw keygen --secrets`), stored as `secret` records; the value is shown only to people it is shared with, next to an account's login ID on the Test data screen and the test case page, and every view is recorded (T-411).
+
+### Release audit
+
+<!-- Filled in by the release audit. -->
+
+- Docs: a restructured README (who it's for, screenshots, quickstart, key terms, status and versioning); new guides [From zero to "can we ship?"](docs/guides/journey.md) (the whole path by role) and [Using the web app](docs/guides/web-app.md); the docs are also published as a Mintlify site from the same Markdown files ([ADR 0014](docs/adr/0014-docs-site.md)), and `pnpm check:docs` also checks links to this repository on GitHub and the docs-site link rules.
+- …
 
 ## [0.1.1] - 2026-11-23
 
@@ -54,7 +62,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- First open-source version (v0.1): bundle format, `iw` CLI, local server and web UI, result store sync (folder and S3-compatible), Playwright reporter, GitHub Action, agent skills and MCP server, Cloudflare deploy, full archive export/import. See [docs/roadmap.md](docs/roadmap.md#v01--file-first-core-this-release).
+- First open-source version (v0.1): bundle format, `iw` CLI, local server and web UI, result store sync (folder and S3-compatible), Playwright reporter, GitHub Action, agent skills and MCP server, Cloudflare deploy, full archive export/import. See [docs/roadmap.md](docs/roadmap.md#v01--file-first-core).
 - A `Demo` workflow deploys `examples/shop` to a public Cloudflare Worker from `main`, so every change has a live demo site (T-118).
 - GitHub Action: `comment` and `check` inputs keep one PR comment per bundle and release and create an `INDX Watch` check run (T-204).
 - `iw judge <run>`: an LLM judge (Claude, `claude-opus-5-5` by default) that adds an `llm` judgement from the test case's rubric, the run's steps and its last screenshot (T-202).

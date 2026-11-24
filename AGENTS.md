@@ -74,7 +74,7 @@ pnpm verify                # what the CI check job runs, except the tarball cold
 
 `pnpm lint && pnpm typecheck && pnpm test` must pass (`pnpm verify` runs everything). Coding agents: the CLI treats `CLAUDECODE=1` as an agent and refuses `--ready`, so run `pnpm e2e` and manual quickstarts with `env -u CLAUDECODE`. For CLI or format changes also run `pnpm iw check --dir examples/shop/.indx-watch`. For UI changes run `pnpm iw serve --dir examples/shop/.indx-watch` and look at the page. After changing `skills/`, run `pnpm iw skills install` and commit the installed copies.
 
-The block below is written by `iw skills install` for this repository's own QA in `.indx-watch/` (dogfooding); the rules above still apply when you change INDX Watch itself. Its `indx-watch` MCP server (`.mcp.json`) runs the published package, which may be older than this repository's `.indx-watch/` and then cannot load it; until the next release, use `pnpm iw …` or a local MCP server ([CONTRIBUTING.md](CONTRIBUTING.md#dogfooding)).
+The block below is written by `iw skills install` for this repository's own QA in `.indx-watch/` (dogfooding); the rules above still apply when you change INDX Watch itself. Its `indx-watch` MCP server (`.mcp.json`) runs the published package (0.1.1 loads this repository's `.indx-watch/`); when the bundle uses a format addition that is not on npm yet, it cannot load it, so use `pnpm iw …` or a local MCP server ([CONTRIBUTING.md](CONTRIBUTING.md#dogfooding)).
 
 <!-- indx-watch:start -->
 ## INDX Watch
