@@ -81,7 +81,11 @@ function loader(fs: BundleFs, paths: string[]) {
     try {
       seen.raw = parseToml(text);
     } catch (e) {
-      add('error', 'invalid-toml', path, (e as Error).message.split('\n')[0]!);
+      // smol-toml errors carry the position: name it and quote the line (docs/spec/cli.md#iw-check)
+      const { message, line, column } = e as Error & { line?: number; column?: number };
+      const src = text.replace(/\r\n/g, '\n').split('\n')[(line ?? 0) - 1]?.trim();
+      const at = line ? ` at line ${line}, column ${column}${src ? `: ${src}` : ''}` : '';
+      add('error', 'invalid-toml', path, message.split('\n')[0]! + at);
       return null;
     }
     const kind = type === 'template' ? (path.split('/')[1]!.split('.')[0] as FileType) : type;
@@ -211,7 +215,8 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
   unknownFiles.push(...fixtureFiles);
   for (const f of unknownFiles.sort()) l.add('warning', 'unknown-file', f, 'File is not part of the format');
   const { useCases, testCases } = await specs(of);
-  const bundle = { project, useCases, testCases, fixtures, templates, unknownFiles } as Bundle;
+  const invalidFiles = [...new Set(l.problems.filter((p) => p.severity === 'error').map((p) => p.file!))];
+  const bundle = { project, useCases, testCases, fixtures, templates, unknownFiles, invalidFiles } as Bundle;
   for (const k of ['environment', 'release', 'feature', 'plan'])
     (bundle as never as Record<string, unknown>)[`${k}s`] = of(k as FileType);
   return { bundle, problems: l.problems, files: l.files };

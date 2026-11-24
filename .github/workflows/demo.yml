@@ -3,7 +3,9 @@ name: Demo
 # Deploys a public demo of the web app on Cloudflare Workers: the server and UI built from this commit,
 # loaded with examples/shop (bundle snapshot + sample results). Guide: docs/guides/self-host-cloudflare.md#demo-site-from-github-actions.
 # Requires the `demo` environment with secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
-# The demo is deployed with --public: anyone with the URL can read and write it. Only sample data goes there.
+# The demo is deployed with --public, which is read-only (docs/spec/security.md#public-deploys): visitors cannot
+# write, so this job loads the sample straight into the R2 bucket, after emptying the bucket and the D1 index.
+# Every run (push, the weekly schedule, by hand) starts from an empty store, so the demo shows exactly the sample.
 on:
   push:
     branches: [main]
@@ -12,6 +14,8 @@ on:
       - examples/shop/.indx-watch/**
       - examples/shop/store/**
       - .github/workflows/demo.yml
+  schedule:
+    - cron: "17 3 * * 1" # weekly reset, Mondays 03:17 UTC
   workflow_dispatch:
     inputs:
       name:
@@ -36,10 +40,14 @@ jobs:
       DEMO_NAME: ${{ inputs.name || 'indx-watch-demo' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # the wrangler `iw deploy` falls back to when none is on PATH
+      WRANGLER: npx --yes wrangler@4
     steps:
       # runner.temp is not available in job-level env, so DEMO_DIR is set here.
       - run: echo "DEMO_DIR=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -59,6 +67,39 @@ jobs:
           cp -r examples/shop/.indx-watch examples/shop/store "$DEMO_DIR/"
           sed -i -E '/^(r2_bucket|d1_database|access_team|access_aud) =/d' "$DEMO_DIR/.indx-watch/project.toml"
           pnpm iw check --dir "$DEMO_DIR/.indx-watch"
+      - name: Publish the sample results and the bundle snapshot into a local store
+        # sync pulls examples/shop/store into the local replica; push writes records, blobs and a snapshot to $DEMO_DIR/seed.
+        # sync fetches blobs lazily, and push holds back a record whose blobs are not in the replica, so copy them in.
+        run: |
+          pnpm -s iw sync --dir "$DEMO_DIR/.indx-watch"
+          mkdir -p "$DEMO_DIR/.indx-watch/runs" && cp -r "$DEMO_DIR/store/v1/blobs" "$DEMO_DIR/.indx-watch/runs/"
+          pnpm -s iw push --dir "$DEMO_DIR/.indx-watch" --store "file://$DEMO_DIR/seed" \
+            --message "Demo ${GITHUB_SHA::7}" --json
+      - name: Empty the store and the index
+        # wrangler cannot list R2 objects, so the Cloudflare API lists them (List Objects: per_page up to 1000,
+        # result_info.cursor and is_truncated); wrangler deletes them. The index tables are dropped; the Worker
+        # creates them again on first use. On the first run neither the bucket nor the database exists yet.
+        run: |
+          if $WRANGLER r2 bucket info "$DEMO_NAME" > /dev/null 2>&1; then
+            api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$DEMO_NAME/objects"
+            keys="$RUNNER_TEMP/keys.txt" cursor=""
+            : > "$keys"
+            while :; do
+              page=$(curl -fsS -G -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" --data-urlencode per_page=1000 \
+                ${cursor:+--data-urlencode "cursor=$cursor"} "$api")
+              jq -r '.result[].key' <<< "$page" >> "$keys"
+              [ "$(jq -r '.result_info.is_truncated // false' <<< "$page")" = true ] || break
+              cursor=$(jq -r '.result_info.cursor' <<< "$page")
+            done
+            echo "Deleting $(wc -l < "$keys") objects from $DEMO_NAME"
+            while IFS= read -r key; do
+              $WRANGLER r2 object delete "$DEMO_NAME/$key" --remote > /dev/null
+            done < "$keys"
+          fi
+          if $WRANGLER d1 info "$DEMO_NAME" > /dev/null 2>&1; then
+            $WRANGLER d1 execute "$DEMO_NAME" --remote --yes --command \
+              "DROP TABLE IF EXISTS records; DROP TABLE IF EXISTS record_keys; DROP TABLE IF EXISTS definitions; DROP TABLE IF EXISTS meta"
+          fi
       - name: Deploy
         id: deploy
         run: |
@@ -66,6 +107,14 @@ jobs:
           url=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).data.url ?? ''" "$RUNNER_TEMP/deploy.json")
           test -n "$url" || { echo "::error::wrangler printed no URL"; cat "$RUNNER_TEMP/deploy.json"; exit 1; }
           echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Load the sample into the bucket
+        # Blobs first and the log last, so the Worker never indexes a record whose snapshot blob is missing.
+        working-directory: ${{ env.DEMO_DIR }}/seed
+        run: |
+          { find v1/blobs -type f; echo indx-watch-store.json; find v1/log -type f | sort; } | while IFS= read -r key; do
+            case "$key" in *.json) type=application/json ;; *) type=application/octet-stream ;; esac
+            $WRANGLER r2 object put "$DEMO_NAME/$key" --file "$key" --content-type "$type" --remote > /dev/null
+          done
       - name: Wait for the Worker
         run: |
           for _ in $(seq 1 30); do
@@ -73,22 +122,23 @@ jobs:
             sleep 5
           done
           echo "::error::/healthz did not answer"; exit 1
-      - name: Load the sample results and the bundle snapshot
-        # sync pulls examples/shop/store into the local replica; push uploads records, blobs and a snapshot.
-        # sync fetches blobs lazily, and push holds back a record whose blobs are not in the replica, so copy them in.
-        run: |
-          pnpm -s iw sync --dir "$DEMO_DIR/.indx-watch"
-          mkdir -p "$DEMO_DIR/.indx-watch/runs" && cp -r "$DEMO_DIR/store/v1/blobs" "$DEMO_DIR/.indx-watch/runs/"
-          pnpm -s iw push --dir "$DEMO_DIR/.indx-watch" --store "${{ steps.deploy.outputs.url }}" \
-            --message "Demo ${GITHUB_SHA::7}" --json
       - name: Smoke test
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
         run: |
-          curl -fsS "${{ steps.deploy.outputs.url }}/" | grep -qi '<html'
-          # sample records missing from the demo show as untested; visitors' runs may change the other values
+          curl -fsS "$URL/" | grep -qi '<html'
+          # read-only: an anonymous write answers 403
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' "$URL/api/runs")
+          test "$code" = 403 || { echo "::error::POST /api/runs answered $code, not 403: the demo is writable"; exit 1; }
+          # the Worker indexes the bucket on a request (every 5 s) or its cron: retry until the sample shows
           pnpm -s iw status --dir "$DEMO_DIR/.indx-watch" --json > "$RUNNER_TEMP/local.json"
-          curl -fsS "${{ steps.deploy.outputs.url }}/api/status" > "$RUNNER_TEMP/demo.json"
-          node scripts/compare-gate.mjs "$RUNNER_TEMP/local.json" "$RUNNER_TEMP/demo.json"
+          for _ in $(seq 1 12); do
+            curl -fsS "$URL/api/status" > "$RUNNER_TEMP/demo.json" &&
+              node scripts/compare-gate.mjs "$RUNNER_TEMP/local.json" "$RUNNER_TEMP/demo.json" && exit 0
+            sleep 10
+          done
+          exit 1
       - name: Summary
         run: |
           echo "### INDX Watch demo" >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.deploy.outputs.url }} (commit \`${GITHUB_SHA::7}\`, examples/shop)" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.deploy.outputs.url }} (commit \`${GITHUB_SHA::7}\`, examples/shop, read-only)" >> "$GITHUB_STEP_SUMMARY"

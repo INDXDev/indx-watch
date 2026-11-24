@@ -294,6 +294,7 @@ export function buildModel(
     secrets: set.all.filter((r) => r.kind === 'secret'),
     snapshots: (live(set, 'bundle') as BundleRecord[]).sort((a, b) => (snapOrder(a) < snapOrder(b) ? 1 : -1)),
     keyOf: keyResolver(p.key, index.ids, runs),
+    invalidFiles: bundle.invalidFiles ?? [],
   };
   if (!unverified?.size) return { model, warnings };
   model.unverified = new Set([...unverified, ...flagged]);

@@ -1,6 +1,6 @@
 /** Sharing definitions: push (upload a snapshot), clone (download one), translate (content i18n). */
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import * as iwb from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
@@ -110,11 +110,13 @@ const fieldsOfAll = async (targets: Target[], locale: string) =>
 
 /** The translations given by --from (a JSON file or - for stdin) and --set <path>=<text>. */
 async function givenOf(ctx: Ctx, a: Args) {
-  const raw =
-    str(a.from) === '-'
-      ? await new Response(process.stdin as never).text()
-      : str(a.from) && (await readFile(resolve(ctx.cwd, str(a.from)!), 'utf8'));
-  const given: Record<string, string> = raw ? JSON.parse(raw) : {};
+  const raw = str(a.from) && (await cx.readFrom(ctx, str(a.from)!));
+  let given: Record<string, string> = {};
+  try {
+    given = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    fail('INVALID_INPUT', `--from: ${(e as Error).message}`);
+  }
   for (const kv of many(a.set)) {
     const at = kv.indexOf('=');
     if (at < 1) fail('USAGE', `--set ${kv}: use <path>=<text>`);

@@ -25,7 +25,7 @@ const parseStep = (s: string) =>
     : fail('USAGE', `--step "${s}" must look like "<instruction> => <expected>"`);
 
 /** `iw init --example`: the shop bundle and its sample store, with the store's blobs in the replica. */
-async function copyExample(fs: iwb.BundleFs, dir: string, target: string) {
+async function copyExample(ctx: Ctx, fs: iwb.BundleFs, dir: string, target: string) {
   // test paths relative to the source: the package itself may live under a folder named cache/
   const from = asset('example-bundle', 'examples/shop/.indx-watch');
   const filter = (src: string) => !/(^|[/\\])(runs|cache)([/\\]|$)/.test(relative(from, src));
@@ -39,8 +39,16 @@ async function copyExample(fs: iwb.BundleFs, dir: string, target: string) {
     if (f.isFile()) await replica.putBlob(new Uint8Array(await readFile(join(f.parentPath, f.name))));
   const files = await iwb.walk(fs, '');
   if (!files.includes('project.toml')) fail('INTERNAL', `Nothing was copied to ${dir}; reinstall`);
-  return { data: { dir, files }, text: `Copied the shop example to ${dir} and its store to ${store}` };
+  // pull the sample results, so `iw status` and `iw serve` show them right away
+  const { pulled } = (
+    await (await import('./data.js')).dataCommands.sync!.run(ctx, { dir, 'pull-only': true })
+  ).data as { pulled: { records: number } };
+  const text = `Copied the shop example to ${dir}, its store to ${store}, and pulled ${pulled.records} sample results`;
+  return { data: { dir, files }, text };
 }
+
+/** How the user ran iw, for the commands we print: `iw`, else `npx indx-watch`. */
+const binOf = () => (/(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch');
 
 /** Fields of `iw new`: --from input merged with the flags. */
 async function newFields(ctx: Ctx, a: Args, kind: iwb.NewKind) {
@@ -84,7 +92,7 @@ export const specCommands: Record<string, Spec> = {
     description: 'Create .indx-watch/ with a project, an environment, a release and a feature',
     args: {
       target: P('Directory (default: current)', false),
-      ...{ key: S('cx.Project key (default: from the directory name)'), name: S('cx.Project name') },
+      ...{ key: S('Project key (default: from the directory name)'), name: S('Project name') },
       ...{ locale: S('Source locale: en or ja'), example: B('Copy the examples/shop bundle') },
       agents: {
         type: 'boolean',
@@ -95,17 +103,24 @@ export const specCommands: Record<string, Spec> = {
     async run(ctx, a) {
       const target = resolve(ctx.cwd, str(a.target) ?? '.');
       const fresh = !existsSync(target); // a new directory is its own repository root
-      const dir = join(target, '.indx-watch');
-      if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', `${dir} already has a project.toml`);
+      const [dir, bin] = [join(target, '.indx-watch'), binOf()];
+      const again = `Already set up (${dir}). To refresh the agent files: ${bin} skills install`;
+      if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', again);
       const fs = nodeFs(dir);
+      // agent-first next steps, runnable as printed
+      const serve = `${bin} serve${str(a.target) ? ` --dir ${join(str(a.target)!, '.indx-watch')}` : ''} --open`;
       const withAgents = async (out: { data: object; text: string }) => {
-        if (a.agents === false) return out;
+        if (a.agents === false) return { ...out, text: `${out.text}\nThen: ${serve}` };
         const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
         const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
-        const text = `${out.text}\nSet up Claude Code and Codex in ${root} (iw skills install)`;
+        const say = a.example
+          ? '"Can we ship?" (/iw-status, $iw-status)'
+          : '"Set up testing for this repo" (/iw-setup, $iw-setup)';
+        const next = `Next: open Claude Code or Codex in ${root} and say ${say}, or run \`${serve}\``;
+        const text = `${out.text}\nSet up Claude Code and Codex in ${root} (${bin} skills install)\n${next}`;
         return { data: { ...out.data, agents }, warnings, text };
       };
-      if (a.example) return withAgents(await copyExample(fs, dir, target));
+      if (a.example) return withAgents(await copyExample(ctx, fs, dir, target));
       // letters and digits, without leading digits, at most 10
       const guess = /^\d*(.{0,10})/.exec(
         basename(target)
@@ -136,8 +151,7 @@ export const specCommands: Record<string, Spec> = {
         ['feature', { title: 'General' }],
       ] as const)
         files.push((await iwb.createDefinition(fs, bundle!, { kind, fields })).file);
-      const bin = /(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch';
-      const text = `Created ${dir} (${key}). Next: ${bin} new uc --title "…" --ac "…"`;
+      const text = `Created ${dir} (${key}). Write a use case: ${bin} new uc --title "…" --ac "…"`;
       return withAgents({ data: { dir, files }, text });
     },
   },
@@ -149,7 +163,7 @@ export const specCommands: Record<string, Spec> = {
       strict: B('Warnings are errors'),
     },
     async run(ctx, a) {
-      const p = await cx.openProject(ctx, a);
+      const p = await cx.openProject(ctx, a, false); // load errors are this command's own problems
       const branch = p.bundle.project.data.default_branch ?? 'main';
       const sub = relative(p.root, p.dir) || '.';
       const deps: iwb.CheckDeps = {
@@ -169,15 +183,17 @@ export const specCommands: Record<string, Spec> = {
       for (const message of Object.values(conflicts))
         r.problems.push({ severity: 'warning', code: 'record-conflict', file: 'runs/', message });
       r.warnings += Object.keys(conflicts).length;
-      const summary = `${r.files} files, ${r.errors} errors, ${r.warnings} warnings`;
-      const text = [
+      const n = (k: number, what: string) => `${k} ${what}${k === 1 ? '' : 's'}`;
+      const summary = `${n(r.files, 'file')}, ${n(r.errors, 'error')}, ${n(r.warnings, 'warning')}`;
+      const lines = [
         ...r.problems.map(problemLine),
         ...r.renumbered.map((x) => `renumbered ${x.from} → ${x.to} (${x.id})`),
         ...r.changed.map((f) => `rewrote ${f}`),
-        summary,
-      ].join('\n');
-      if (r.errors || (a.strict && r.warnings)) fail('CHECK_FAILED', summary, r.problems, r, text);
-      return { data: r, text };
+      ];
+      // on failure the summary is the error line (stderr), so it is printed once
+      if (r.errors || (a.strict && r.warnings))
+        fail('CHECK_FAILED', summary, r.problems, r, lines.join('\n'));
+      return { data: r, text: [...lines, summary].join('\n') };
     },
   },
 

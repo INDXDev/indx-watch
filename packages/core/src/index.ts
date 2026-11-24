@@ -12,7 +12,7 @@ export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases 
  * buildModel(bundle, records): unknown/invalid records are skipped and reported.
  * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
  */
-export { approvedBaseline, buildModel, buildVerifiedModel, verifyRecords } from './model.js';
+export { approvedBaseline, buildModel, buildVerifiedModel, byKey, verifyRecords } from './model.js';
 export { reportData } from './report.js';
 /** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles); ownedFeatures, ownedModel: feature owners; canSee, sharedModel: sharing (docs/spec/security.md#sharing). */
 export {

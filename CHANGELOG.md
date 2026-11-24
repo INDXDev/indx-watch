@@ -4,9 +4,22 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- A definition file that does not load (for example a TOML syntax error) no longer disappears silently: every command warns about it (text and `--json` `warnings`, also on error envelopes and MCP tools), and the readiness gate fails while it exists with a new first check `valid_definitions` in `evaluateGate()`, so `iw status --gate` can no longer flip to passed when a use case breaks.
+- `iw check` names the line and column of a TOML syntax error and quotes the line; its summary is printed once and pluralized (`1 error`).
+- `iw serve --port abc|70000` is a usage error instead of a stack trace that never exits; the server stops its watcher when it cannot listen.
+- A missing `--from` file (`iw record`, `iw new`, `iw translate`) or `--out` folder (`iw report`) is `NOT_FOUND` (exit 2) instead of an internal error with a stack.
+- A positional argument to a command that takes none (`iw sync s3://other`) is a usage error instead of being ignored.
+- The MCP server reports the package version in `serverInfo` instead of `0.1.0`.
+- `iw init --help` no longer shows a stray `cx.` prefix; `iw init` on an initialized directory says it is already set up and how to refresh the agent files.
+- `iw list` sorts keys by number (`TC-2` before `TC-10`) and marks drafts in text output; `iw status` without ready criteria no longer prints `Coverage: 0/0 ACs (100%)`.
+- The Playwright reporter prints why a run lands in `needs_review` (the decision policy's reason, and the `mode = "manual"` hint).
+
 ### Changed
 
 - `iw init` and `iw skills install` install seven skills instead of twelve: the `indx-watch` overview and the six job skills. The five recipe skills of 0.1 (`write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`), whose triggers overlapped the job skills', are now reference files of the job skill they served (`iw-design`, `iw-data`, `iw-test`, `iw-triage`, `iw-status`), loaded on demand. Re-running `iw skills install` removes the recipe folders INDX Watch wrote (a folder with files you added stays, with a warning) and lists them in `data.removed`.
+- `iw init` ends with agent-first next steps that run as printed (`npx indx-watch serve --open`, or ask Claude Code or Codex to "Set up testing for this repo"); `iw init --example` also pulls the sample results so `iw status` and `iw serve` show them at once.
 
 ### Added
 

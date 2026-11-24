@@ -170,18 +170,20 @@ Every record carries an `actor` ([security](./security.md#identity)). The app sh
 
 **Unverified** *(v0.2)*: when a record claims a verified `via` but has no valid signature ([signed records](./security.md#signed-records)), the ✓ is replaced by an amber "unverified" chip whose tooltip says the record may have been written directly to the store. This applies to runs (lists, Activity, Home, the run viewer), judgements in the run viewer, and uploads. The server computes the flag; the app never verifies signatures itself.
 
-**"Who's testing?"** A local server runs as the machine's git user. In a shared or cloud workspace that may not be the person at the browser. A hosted app with `--public` has no identity at all. In these modes the avatar menu offers "Not you?". It opens a dialog asking for a name and email, stored in the `iw_tester` cookie (one year, `SameSite=Strict`, `Path=/`). The server then records writes as:
+**"Who's testing?"** A local server runs as the machine's git user. In a shared or cloud workspace that may not be the person at the browser. In that mode the avatar menu offers "Not you?". It opens a dialog asking for a name and email, stored in the `iw_tester` cookie (one year, `SameSite=Strict`, `Path=/`). The server then records writes as:
 
 ```json
 { "kind": "human", "id": "sam@shop.test", "name": "Sam", "via": "browser" }
 ```
 
 - `via = "browser"` is self-asserted, like `git` and `env`. Reports show it, and the v0.2 `gate.require_verified_human` option excludes it.
-- The cookie is honored only when the server has no verified identity for the request: `iw serve` without `--identity-header`, and hosted `--public`. Behind Cloudflare Access or a trusted identity header the cookie is ignored, and "Not you?" is not offered.
+- The cookie is honored only when the server has no verified identity for the request: `iw serve` without `--identity-header`. Behind Cloudflare Access, a trusted identity header or on a *(v0.5)* read-only public deploy the cookie is ignored, and "Not you?" is not offered.
 - Agent detection does not apply to the cookie. Agents must not use the browser to review or waive ([agents](./agents.md)), and the skills say so.
 - The server validates the cookie: `id` is an email or a name of 1 to 80 characters, and `name` is at most 80 characters. Anything else is ignored, and the default identity is used.
 
 **Roles** *(v0.3)*: on a hosted app with [roles](./security.md#roles), the avatar menu shows the identity's role ("Role: customer (assigned items only)"), and the app hides what the role cannot do, from `can` in `GET /api/project`: without `can.run` (viewers) the Run, Start testing and Run manually buttons and the queue's Run actions; without `can.review` (viewers, customers) the review form; without `can.approve` (all but leads) "Approve as baseline"; without `can.upload` the upload drop zone; without `can.share` the Share links section. A customer's app shows only their assigned items, because the API returns nothing else. Hiding is a convenience: the server refuses these requests anyway.
+
+**Read-only demo** *(v0.5)*: on a [public deploy](./security.md#public-deploys) (`readOnly` in `GET /api/project`) every visitor is an anonymous viewer, so the app hides the same actions and shows a notice under the top bar: "This is a read-only demo. Install INDX Watch to run tests: `npx indx-watch init`".
 
 ## CLI panel
 

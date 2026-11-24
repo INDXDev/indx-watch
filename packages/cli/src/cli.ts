@@ -1,11 +1,11 @@
 /** Command dispatch with citty: flags, the --json envelope, human output and exit codes (docs/spec/cli.md). */
 import { stripVTControlCharacters } from 'node:util';
-import { BundleError } from '@indx-watch/bundle';
+import { BundleError, type Problem } from '@indx-watch/bundle';
 import { StoreError } from '@indx-watch/store';
 import { type ArgsDef, type CommandDef, defineCommand, renderUsage, runCommand } from 'citty';
 import { DeployError } from './deploy/index.js';
 import { ErrorCode, EXIT_CODES } from './json.js';
-import { type Args, B, CliError, type Ctx, type Out, S } from './util.js';
+import { type Args, B, CliError, type Ctx, many, type Out, S } from './util.js';
 
 export interface Spec {
   description: string;
@@ -54,6 +54,10 @@ export function toError(e: unknown): CliError {
   const code = ErrorCode.safeParse(err?.code);
   if (e instanceof BundleError) return new CliError(code.data ?? 'INVALID_INPUT', err.message, err.details);
   if (err?.name === 'CLIError') return new CliError('USAGE', stripVTControlCharacters(err.message));
+  // a file or folder the user named that is missing or unusable: no stack (docs/spec/cli.md#exit-codes)
+  if (err?.code === 'ENOENT') return new CliError('NOT_FOUND', err.message);
+  if (/^(EACCES|EPERM|EISDIR|ENOTDIR)$/.test(err?.code ?? ''))
+    return new CliError('INVALID_INPUT', err.message);
   return new CliError('INTERNAL', err?.stack ?? String(e));
 }
 
@@ -65,20 +69,26 @@ export const problemLine = (p: unknown) => {
     : String(p);
 };
 
-/** Print the result: one JSON envelope with --json, text otherwise; set the exit code. */
-export function emit(name: string, json: boolean, r: Out | CliError): void {
+/** Warnings without repeats (a command may open the project twice). */
+export const unique = (ws: Problem[]) => [...new Map(ws.map((w) => [JSON.stringify(w), w])).values()];
+
+/** Print the result: one JSON envelope with --json, text otherwise; set the exit code. `notes`: ctx.notes. */
+export function emit(name: string, json: boolean, r: Out | CliError, notes: Problem[] = []): void {
   const write = (s: string) => process.stdout.write(s.endsWith('\n') ? s : `${s}\n`);
   const err = (s: string) => process.stderr.write(`${s}\n`);
+  const warnings = unique([...((r instanceof CliError ? [] : r.warnings) ?? []), ...notes]);
   if (r instanceof CliError) {
     const { code, message, details, data } = r;
-    if (json) write(JSON.stringify({ ok: false, command: name, error: { code, message, details }, data }));
+    const more = warnings.length ? { warnings } : {};
+    if (json)
+      write(JSON.stringify({ ok: false, command: name, error: { code, message, details }, data, ...more }));
     else if (r.text) write(r.text);
+    if (!json) for (const w of warnings) err(`warning: ${problemLine(w)}`);
     if (!json) err(`error: ${message}`);
     if (!json && !r.text) for (const d of details ?? []) err(`  ${problemLine(d)}`);
     process.exitCode = EXIT_CODES[code];
     return;
   }
-  const warnings = r.warnings ?? [];
   if (json) write(JSON.stringify({ ok: true, command: name, data: r.data, warnings }));
   else write(r.text ?? JSON.stringify(r.data, null, 2));
   if (!json) for (const w of warnings) err(`warning: ${problemLine(w)}`);
@@ -104,7 +114,11 @@ function leaf(name: string, spec: Spec, ctx: Ctx): CommandDef {
     args,
     async run({ args: parsed, rawArgs }) {
       const a: Args = { ...parsed, ...preparse(rawArgs, args, spec.repeat ?? []) };
-      emit(name, !!a.json, await spec.run(ctx, a).catch(toError));
+      // a command without arguments takes no words: `iw sync s3://other` must not sync the configured store
+      const extra = Object.values(args).some((d) => d.type === 'positional') ? [] : many(parsed._);
+      if (extra.length) return emit(name, !!a.json, new CliError('USAGE', `Unexpected argument ${extra[0]}`));
+      const c: Ctx = { ...ctx, notes: [] };
+      emit(name, !!a.json, await spec.run(c, a).catch(toError), c.notes);
     },
   });
 }

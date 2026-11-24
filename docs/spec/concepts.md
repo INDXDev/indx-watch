@@ -274,6 +274,7 @@ Each suggestion carries every reason that applies (`kind`, the changed `file`, a
 
 | Key | Default | Check | `actual` / `expected` format |
 |---|---|---|---|
+| `valid_definitions` | always on, listed only when it fails | Every definition file loads without errors (`Bundle.invalidFiles` is empty); a file that does not load is missing from the model, so status alone could look better than it is. `items` are the files | `"1"` / `"≤ 0"` |
 | `has_gated_tests` | always on | The scope has at least one `ready` P0 or P1 test case (in the release's plan, when it names one) | `"8"` / `"≥ 1"` |
 | `p0_coverage` | `1.0` | Coverage of ACs of P0 use cases | `"9/9"` / `"≥ 1.00"` |
 | `p0_all_pass` | `true` | Every in-scope `ready` P0 test case's result is `pass` | `"3/4"` / `"4/4"` |
@@ -285,7 +286,8 @@ Each suggestion carries every reason that applies (`kind`, the changed `file`, a
 
 - `ignore_unverified` (default `false`, *v0.2*) is not a check: when `true`, every check is computed as if records that claim a verified `via` without a valid signature, and the judgements in them, did not exist ([signed records](./security.md#signed-records)). Status, the UI and reports still show those records, marked unverified.
 - A check with an empty denominator passes with `actual = "n/a"`. `has_gated_tests` comes first and fails when nothing is gated, so an empty project, or one with only P2–P3 or draft test cases, is never "ready to ship".
-- Each failing check lists the offending keys in `items`.
+- Each failing check lists the offending keys in `items` (files, for `valid_definitions`).
+- `valid_definitions` is computed in `evaluateGate()` like every other check, so `iw status --gate`, the web app, MCP `status`, reports and the hosted server agree; it appears first, and only when a definition file has a load error (syntax, schema, a missing `feature.toml`/`use-case.toml`, a missing fixture data file, a workspace conflict file).
 - The gate passes only when every check passes. `iw status --release v1.2.0 --gate` exits 1 when it does not, so CI can block a release.
 
 ## Fixture kinds

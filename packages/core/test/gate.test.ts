@@ -140,6 +140,25 @@ describe('readiness gate scope', () => {
     expect(g.checks.slice(1).every((c) => c.passed && c.actual === 'n/a')).toBe(true);
   });
 
+  it('a definition file that does not load fails valid_definitions, listed first', () => {
+    const recs = [
+      ...sampleRecords(b),
+      run(b, 'TC-8', { judgements: [humanPass], evidence: true }),
+      waiver(b, 'TC-2', versionOf(b, 'TC-2')),
+    ];
+    expect(evaluateGate(model(recs), SCOPE).passed).toBe(true);
+    const file = 'specs/FEAT-3-account/UC-4-customer-signs-in/use-case.toml';
+    const g = evaluateGate(model(recs, { ...b, invalidFiles: [file] }), SCOPE);
+    expect(g.passed).toBe(false);
+    expect(g.checks[0]).toEqual({
+      key: 'valid_definitions',
+      passed: false,
+      actual: '1',
+      expected: '≤ 0',
+      items: [file],
+    });
+  });
+
   it('release.plan limits the gate to the plan', () => {
     const scoped: Bundle = structuredClone(b);
     scoped.releases[0]!.data.plan = 'PLAN-1';

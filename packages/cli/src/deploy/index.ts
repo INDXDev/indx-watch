@@ -83,7 +83,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
   if (!hosting.access_team && !opts.public) {
     throw new DeployError(
       'INVALID_CONFIG',
-      'refusing to deploy without Cloudflare Access: set [hosting].access_team in project.toml, or pass --public (not recommended)',
+      'refusing to deploy without Cloudflare Access: set [hosting].access_team in project.toml, or pass --public for a read-only demo',
     );
   }
   const outDir = join(opts.dir, 'cache', 'deploy');
@@ -183,7 +183,7 @@ const posix = (p: string) => p.split(sep).join('/');
 const LABEL = { r2: 'R2 bucket %s (binding STORE)', d1: 'D1 database %s (binding DB)', worker: 'Worker %s' };
 
 const PUBLIC_WARNING =
-  'WARNING: deploying with --public. Anyone who has the URL can read and write this project. Put Cloudflare Access in front of it as soon as possible.';
+  'WARNING: deploying with --public. Anyone who has the URL can read this project; the app is a read-only demo and refuses every write. Only sample data belongs here: put Cloudflare Access in front of anything else.';
 
 export function accessSteps(hosting: HostingConfig, worker: string): string {
   const team = `${hosting.access_team}.cloudflareaccess.com`;
