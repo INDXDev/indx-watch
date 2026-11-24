@@ -55,6 +55,7 @@ test('expired coupon is rejected', { tag: ['@TC-4'] }, async ({ page }) => {
   files = ["examples/shop/tests/coupon.spec.ts"]
   ```
 
+- A passing Playwright test only counts as a pass when the test case lets the test decide it: set `mode = "playwright"`. A `manual` test case expects a person's judgement, so its runs land in `needs_review`, and the reporter prints why (for example `TC-8 needs_review: No human judgement yet; TC-8 has mode = "manual" (set mode = "playwright")`). How judgements become a verdict: [decision policy](../spec/concepts.md#decision-policy).
 - Run one test case by tag. `--grep` is a regular expression, so anchor it or `@TC-1` also matches `@TC-12`:
 
   ```bash

@@ -29,7 +29,13 @@
         "groups": [
           {
             "group": "Get started",
-            "pages": ["index", "guides/journey", "guides/quickstart", "guides/testing-with-agents", "guides/web-app"]
+            "pages": [
+              "index",
+              "guides/journey",
+              "guides/quickstart",
+              "guides/testing-with-agents",
+              "guides/web-app"
+            ]
           },
           {
             "group": "Write tests and data",

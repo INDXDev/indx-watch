@@ -5,7 +5,7 @@ description: "Each job skill: who uses it, what you say, what the agent does and
 
 # Testing with Claude Code or Codex
 
-Every job a team does with INDX Watch starts from a sentence to your coding agent. Six job skills cover the work: set up, design tests, prepare data, run tests, fix failures and know where you are. The agent reads first, asks one question at a time with a recommended answer, runs the `iw` CLI or the MCP tools itself, and stops wherever a person must decide. This guide shows, for each job, who you are, what you say, what happens and what you approve. All examples come from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop); the full conversations are in the [job skills spec](../spec/agents.md#job-skills-v04).
+Every job a team does with INDX Watch starts from a sentence to your coding agent. Six job skills cover the work: set up, design tests, prepare data, run tests, fix failures and know where you are. The agent reads first, asks one question at a time with a recommended answer, runs the `iw` CLI or the MCP tools itself, and stops wherever a person must decide. This guide shows, for each job, who you are, what you say, what happens and what you approve. All examples come from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop); the full conversations are in the [job skills spec](../spec/agents.md#job-skills).
 
 Not installed yet? Run `npx indx-watch init` in your repository ([quickstart](./quickstart.md#1-install-once)).
 

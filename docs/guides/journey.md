@@ -154,7 +154,7 @@ Run Playwright with the reporter, then the action:
     gate: true
 ```
 
-It syncs results, writes the readiness report into the job summary, and with `gate: true` fails the job when the gate fails. `comment: true` and `check: true` add one PR comment and a check run, including the test cases a pull request touches. Details: [GitHub Actions](./github-actions.md).
+It syncs results, writes the readiness report into the job summary, and with `gate: true` fails the job when the gate fails. The gate also fails while any definition file does not load (the `valid_definitions` check), so a broken TOML file in a pull request cannot pass unnoticed. `comment: true` and `check: true` add one PR comment and a check run, including the test cases a pull request touches. Details: [GitHub Actions](./github-actions.md).
 
 ## 9. Share results with the team
 

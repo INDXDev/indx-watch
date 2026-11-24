@@ -117,7 +117,11 @@ for (const file of walk(root).filter((f) => !IGNORE.has(relative(root, f).split(
       } else if (!existsSync(dest)) {
         problems.push({ where, target, problem: 'missing file' });
       } else if (gh && (gh[1] === 'tree') !== statSync(dest).isDirectory()) {
-        problems.push({ where, target, problem: `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path` });
+        problems.push({
+          where,
+          target,
+          problem: `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path`,
+        });
       } else if (
         hash &&
         dest.endsWith('.md') &&
