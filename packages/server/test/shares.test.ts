@@ -100,6 +100,9 @@ describe('share links', () => {
     expect(((await (await h.send('/api/project')).json()) as ProjectInfo).can.share).toBe(true);
     expect((await h.send('/api/shares?days=91', 'POST')).status).toBe(400);
     expect((await h.send('/api/shares?evidence=links', 'POST')).status).toBe(400);
+    // an unknown value is refused too, not rendered as links
+    expect((await h.send('/api/shares?evidence=x', 'POST')).status).toBe(400);
+    expect((await h.send('/api/report?evidence=x')).status).toBe(400);
     expect((await h.app.fetch(req('/api/shares', { method: 'POST' }))).status).toBe(401);
   });
 

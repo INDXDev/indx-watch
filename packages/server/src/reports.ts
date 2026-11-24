@@ -8,6 +8,8 @@ import { renderReport, reportTexts } from './report.js';
 
 const CSP_REPORT = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'";
 
+const EVIDENCE = ['none', 'embed', 'links'] as const;
+
 /** `v` when it is one of `allowed`, else 400 with `message`. */
 const oneOf = <T extends string>(v: string, allowed: readonly T[], message: string) =>
   (allowed as readonly string[]).includes(v) ? (v as T) : fail(bad(message));
@@ -19,10 +21,10 @@ function reportOptions(c: Context, m: Model, fixed?: 'html', customer = false) {
   const asked = customer ? 'customer' : (q(c, 'audience') ?? (fixed ? 'customer' : 'internal'));
   const audience = oneOf(asked, ['internal', 'customer'], 'audience: internal or customer');
   const locale = oneOf(q(c, 'locale') ?? m.project.source_locale, ['en', 'ja'], 'locale must be en or ja');
-  const evidence =
-    q(c, 'evidence') ?? (audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links');
+  const byDefault = audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links';
+  const evidence = oneOf(q(c, 'evidence') ?? byDefault, EVIDENCE, 'evidence: none, embed or links');
   if (fixed && evidence === 'links') throw bad('share links embed evidence or leave it out');
-  return { format, audience, locale, evidence: evidence as 'none' } as const;
+  return { format, audience, locale, evidence } as const;
 }
 
 type ReportOf = { scope: Scope; audience: 'internal' | 'customer'; locale: B.Locale; plan?: string };
