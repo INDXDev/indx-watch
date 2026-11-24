@@ -81,7 +81,7 @@ export const upkeepCommands: Record<string, Spec> = {
           'USAGE',
           `--deploy ships the running version ${VERSION}: run \`npx indx-watch@${to} update --deploy\``,
         );
-      const failing = await up.failingPatches(p, to);
+      const failing = await up.failingPatches(p, to, ctx.env);
       if (failing.length)
         fail('CONFLICT', `these patches no longer apply to ${to}: ${failing.join(', ')}`, failing);
 

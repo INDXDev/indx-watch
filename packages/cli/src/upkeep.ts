@@ -11,8 +11,8 @@ import type { ReleaseSource } from '@indx-watch/store';
 import { parse } from 'smol-toml';
 import { MANIFEST, readManifest, setupAgents, sha } from './agents.js';
 import type { Project } from './context.js';
-import type { Ctx } from './util.js';
-import { here } from './util.js';
+import { checkPatches, type PatchData } from './patch.js';
+import { CliError, type Ctx, type Env, here } from './util.js';
 import { VERSION } from './version.js';
 
 export type State = 'ok' | 'outdated' | 'unpinned' | 'locally-edited';
@@ -231,12 +231,15 @@ const step = (name: StepName, changed: string[], note?: string): Step => ({
   ...(note && { note }),
 });
 
-/**
- * The patches of the project that no longer apply to version `to`. W7 (T-508, `iw patch check --to`) replaces this
- * body; while it returns none, `iw update` is never refused on that ground.
- */
-export async function failingPatches(_p: Project, _to: string): Promise<string[]> {
-  return [];
+/** The files of the project's patches that no longer apply to version `to` (`iw patch check --to`); none without patches. */
+export async function failingPatches(p: Project, to: string, env?: Env): Promise<string[]> {
+  if (!existsSync(join(p.dir, 'patches', 'patches.toml'))) return [];
+  try {
+    return (await checkPatches({ dir: p.dir, env }, to)).conflicts;
+  } catch (e) {
+    if (e instanceof CliError && e.code === 'CONFLICT') return (e.data as PatchData).conflicts;
+    throw e;
+  }
 }
 
 /** The install command that brings the lockfile in line with package.json. */
