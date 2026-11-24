@@ -1,3 +1,8 @@
+---
+title: "Self-host on Cloudflare"
+description: "Deploy the INDX Watch server to Cloudflare Workers with R2, D1 and Cloudflare Access using iw deploy."
+---
+
 # Self-host on Cloudflare
 
 `iw deploy` puts the same server and web UI that `iw serve` runs locally on Cloudflare Workers. Results go to an R2 bucket (the store), the query index lives in D1, and Cloudflare Access decides who gets in. Your team then syncs with `iw sync` against the Worker's URL and opens the UI in a browser. The command reference is [cli.md](../spec/cli.md#iw-deploy); the security model is [security.md](../spec/security.md#hosted-app).
@@ -21,7 +26,7 @@ flowchart LR
 
 ## Configure `[hosting]`
 
-Add a `[hosting]` table to `.indx-watch/project.toml` (from [`examples/shop`](../../examples/shop/.indx-watch/project.toml)):
+Add a `[hosting]` table to `.indx-watch/project.toml` (from [`examples/shop`](https://github.com/INDXDev/indx-watch/blob/main/examples/shop/.indx-watch/project.toml)):
 
 ```toml
 [hosting]
@@ -183,7 +188,7 @@ The bundle (definitions) still travels through git. CI on the default branch run
 
 ## Demo site from GitHub Actions
 
-This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](../../.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](../../examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
+This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](https://github.com/INDXDev/indx-watch/blob/main/.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
 
 The job copies `examples/shop`, drops the Access keys from the copy's `[hosting]` so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`), runs `iw deploy --public`, waits for `/healthz`, then runs `iw sync` (sample results into the local replica), copies the sample's blobs into the replica (sync fetches blobs lazily, and `iw push` holds back a record whose blobs are missing locally) and runs `iw push --store <url>` (records, blobs and a bundle snapshot). The smoke test fails when the demo's gate differs from `iw status` on the sample. The URL appears on the run's summary and on the `demo` environment.
 

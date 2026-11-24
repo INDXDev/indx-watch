@@ -1,3 +1,8 @@
+---
+title: "0013. One pure function turns judgements into a verdict"
+description: "Architecture decision record: One pure function turns judgements into a verdict."
+---
+
 # 0013. One pure function turns judgements into a verdict
 
 - Status: accepted

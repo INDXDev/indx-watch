@@ -1,3 +1,8 @@
+---
+title: "0004. One canonical TOML serializer; comments are not preserved"
+description: "Architecture decision record: One canonical TOML serializer; comments are not preserved."
+---
+
 # 0004. One canonical TOML serializer; comments are not preserved
 
 - Status: accepted

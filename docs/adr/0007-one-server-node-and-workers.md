@@ -1,3 +1,8 @@
+---
+title: "0007. One Hono server for Node and Cloudflare Workers; the index is SQLite-shaped"
+description: "Architecture decision record: One Hono server for Node and Cloudflare Workers; the index is SQLite-shaped."
+---
+
 # 0007. One Hono server for Node and Cloudflare Workers; the index is SQLite-shaped
 
 - Status: accepted
@@ -9,7 +14,7 @@
 
 ## Decision
 
-- `packages/server` exports `createApp(deps)`, a Hono app that depends only on the `AppDeps` in [`contract.ts`](../../packages/server/src/contract.ts) (model loader, record and blob writers, `IdentityProvider`, optional `ObjectStore`). `node.ts` wires Node adapters (fs/S3 store, SQLite or memory index, git identity) and serves the built SPA; `worker.ts` wires R2, D1 and Cloudflare Access and serves the SPA through Workers static assets.
+- `packages/server` exports `createApp(deps)`, a Hono app that depends only on the `AppDeps` in [`contract.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/server/src/contract.ts) (model loader, record and blob writers, `IdentityProvider`, optional `ObjectStore`). `node.ts` wires Node adapters (fs/S3 store, SQLite or memory index, git identity) and serves the built SPA; `worker.ts` wires R2, D1 and Cloudflare Access and serves the SPA through Workers static assets.
 - The index schema is one plain SQL file used with D1 on Workers; Node used an in-memory index in v0.1 and uses `node:sqlite` with the same SQL since v0.2 (see Notes). The brief suggested Drizzle, but the stable Drizzle release has no `node:sqlite` driver and three JSON-row tables do not need an ORM ([platform notes](../research/platform-notes.md#libraries-and-versions)); revisit when Drizzle 1.0 ships. The index stores records and definitions as JSON rows plus a few indexed columns; domain logic runs in `packages/core` over an in-memory model, so the index stays tiny.
 - Node ≥ 22.13. TypeScript 5.9, Vitest 4 (required by the Workers Vitest pool) and Biome 2 are pinned for stability ([platform notes](../research/platform-notes.md#libraries-and-versions)).
 

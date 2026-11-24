@@ -1,3 +1,8 @@
+---
+title: "0009. Every vendor sits behind a port"
+description: "Architecture decision record: Every vendor sits behind a port."
+---
+
 # 0009. Every vendor sits behind a port
 
 - Status: accepted

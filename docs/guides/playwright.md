@@ -1,6 +1,11 @@
+---
+title: "Playwright"
+description: "Link Playwright tests to test cases with @TC-n tags and record their results with the reporter."
+---
+
 # Playwright
 
-The `indx-watch/playwright` reporter turns Playwright results into INDX Watch runs, next to manual results, with the commit, the CI job, the fixture versions and screenshots. The link between a test and a test case is a tag. The reporter's behavior and options are specified in [integrations](../spec/integrations.md#playwright-reporter); this guide shows how to set it up, using [`examples/shop`](../../examples/shop).
+The `indx-watch/playwright` reporter turns Playwright results into INDX Watch runs, next to manual results, with the commit, the CI job, the fixture versions and screenshots. The link between a test and a test case is a tag. The reporter's behavior and options are specified in [integrations](../spec/integrations.md#playwright-reporter); this guide shows how to set it up, using [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop).
 
 ## Install
 
@@ -8,7 +13,7 @@ The `indx-watch/playwright` reporter turns Playwright results into INDX Watch ru
 npm install --save-dev indx-watch @playwright/test
 ```
 
-You need an `.indx-watch/` bundle in the repository ([quickstart](quickstart.md)).
+You need an `.indx-watch/` bundle in the repository ([quickstart](./quickstart.md)).
 
 ## Configure the reporter
 
@@ -26,7 +31,7 @@ export default defineConfig({
 - Keep your usual reporter (`list`, `html`) in front; the INDX Watch reporter is added, not a replacement.
 - `screenshot: 'on'` gives every run screenshot evidence. The gate's `require_evidence` accepts an `assert` judgement as proof for passing P0 test cases, but screenshots make reports far more useful.
 - Options (`dir`, `release`, `environment`, `evidence`, `strict`, `sync`, `dryRun`) are listed in the [options table](../spec/integrations.md#options). Options can only be passed in the config, not on the command line.
-- [`examples/shop/playwright.config.ts`](../../examples/shop/playwright.config.ts) names the reporter `indx-watch/playwright`, exactly as your project does; inside this repository it resolves to the workspace CLI package, so run `pnpm build` first.
+- [`examples/shop/playwright.config.ts`](https://github.com/INDXDev/indx-watch/blob/main/examples/shop/playwright.config.ts) names the reporter `indx-watch/playwright`, exactly as your project does; inside this repository it resolves to the workspace CLI package, so run `pnpm build` first.
 - To try it without editing the config: `npx playwright test --add-reporter=indx-watch/playwright` (Playwright 1.63+, default options).
 
 ## Link tests to test cases with tags
@@ -74,7 +79,7 @@ Without numbered steps, the run has no step results; the verdict still comes fro
 
 ## Fixtures and rows
 
-The reporter records the current version of every fixture the test case references, computed from the bundle at the commit under test, so results become [stale](../spec/concepts.md#versions-and-staleness) when the data changes. Tests should read their data from the bundle rather than duplicating it ([fixtures](fixtures.md)). When a test uses particular dataset rows, record them with an annotation:
+The reporter records the current version of every fixture the test case references, computed from the bundle at the commit under test, so results become [stale](../spec/concepts.md#versions-and-staleness) when the data changes. Tests should read their data from the bundle rather than duplicating it ([fixtures](./fixtures.md)). When a test uses particular dataset rows, record them with an annotation:
 
 ```ts
 test.info().annotations.push({ type: '_iw.fixture', description: 'FX-1:SUMMER10' });
@@ -152,4 +157,4 @@ iw show TC-3           # the test case with its recent runs
 iw list runs --tc TC-3 --limit 5
 ```
 
-In CI, the [GitHub Action](github-actions.md) adds the report to the job summary and can block a release on the gate.
+In CI, the [GitHub Action](./github-actions.md) adds the report to the job summary and can block a release on the gate.

@@ -1,3 +1,8 @@
+---
+title: "0001. The bundle is the source of truth; databases are indexes"
+description: "Architecture decision record: The bundle is the source of truth; databases are indexes."
+---
+
 # 0001. The bundle is the source of truth; databases are indexes
 
 - Status: accepted

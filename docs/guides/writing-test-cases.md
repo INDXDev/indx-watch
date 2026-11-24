@@ -1,6 +1,11 @@
+---
+title: "Writing good test cases"
+description: "Use cases, observable acceptance criteria, steps with checks, literal strings, modes, priorities and approval."
+---
+
 # Writing good test cases
 
-INDX Watch can only tell you a release is done if the definitions say clearly what "done" means. This guide shows how to write use cases, acceptance criteria and test cases that anyone — a new tester, a customer, Playwright or an agent — can execute the same way. Field-level rules live in the [bundle format](../spec/bundle-format.md); the meaning of each entity in [concepts](../spec/concepts.md). All examples are from [`examples/shop`](../../examples/shop/.indx-watch). With Claude Code or Codex, `/iw-design` writes test cases that follow this guide and explains each one before it writes it ([testing with agents](testing-with-agents.md#design-tests-iw-design)).
+INDX Watch can only tell you a release is done if the definitions say clearly what "done" means. This guide shows how to write use cases, acceptance criteria and test cases that anyone — a new tester, a customer, Playwright or an agent — can execute the same way. Field-level rules live in the [bundle format](../spec/bundle-format.md); the meaning of each entity in [concepts](../spec/concepts.md). All examples are from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop/.indx-watch). With Claude Code or Codex, `/iw-design` writes test cases that follow this guide and explains each one before it writes it ([testing with agents](./testing-with-agents.md#design-tests-iw-design)).
 
 ## Start from the use case
 
@@ -99,7 +104,7 @@ expected = "「This coupon has expired」と表示され、合計は「40.00」�
 
 ## Data comes from fixtures
 
-Do not hard-code test data or credentials in steps. Reference a [fixture](fixtures.md) and use placeholders:
+Do not hard-code test data or credentials in steps. Reference a [fixture](./fixtures.md) and use placeholders:
 
 - `{{FX-1.code}}` — column `code` of the selected row of dataset `FX-1` (rows are chosen with `rows = ["SUMMER10"]`)
 - `{{FX-3.username}}` — a field of account `FX-3`; the password is never written, steps say "the account password"
@@ -112,7 +117,7 @@ Say on each fixture reference what the tester does with it (`use`, `note`; see [
 | Mode         | When                                                                                                                      | Default judge    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `manual`     | A person follows the steps in the browser runner (or records with `iw record`)                                            | `human`          |
-| `playwright` | A Playwright test tagged `@TC-n` implements it; list the file in `[automation] files` ([Playwright guide](playwright.md)) | `assert`         |
+| `playwright` | A Playwright test tagged `@TC-n` implements it; list the file in `[automation] files` ([Playwright guide](./playwright.md)) | `assert`         |
 | `agent`      | An LLM browser agent follows the plain-language steps (`iw run`)                                                          | `assert` + `llm` |
 | `hybrid`     | An agent or script executes, a person confirms; always ends in `needs_review` until a human judges                        | any + `human`    |
 
@@ -132,7 +137,7 @@ Set the priority on the use case. A test case inherits the highest priority of t
 
 Every new item starts as `draft` unless a human creates it with `--ready`. Drafts can be run and planned, but they do not count towards coverage or readiness.
 
-Coding agents with the [shipped skills](../../skills/README.md) (`/iw-design` in Claude Code, `$iw-design` in Codex) write drafts with `origin = "ai"` and an `[ai]` table naming the model — `TC-9` in the shop is one:
+Coding agents with the [shipped skills](https://github.com/INDXDev/indx-watch/blob/main/skills/README.md) (`/iw-design` in Claude Code, `$iw-design` in Codex) write drafts with `origin = "ai"` and an `[ai]` table naming the model — `TC-9` in the shop is one:
 
 ```toml
 key = "TC-9"

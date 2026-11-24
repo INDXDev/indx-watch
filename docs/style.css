@@ -1,0 +1,6 @@
+/* Mintlify loads this file on every page (docs/adr/0014-docs-site.md).
+ * Pages keep their "# Title" so they read well on GitHub; on the docs site the frontmatter
+ * title is already the page heading, so hide the duplicate first heading of the content. */
+#content > h1:first-child {
+  display: none;
+}

@@ -1,3 +1,8 @@
+---
+title: "0008. Identity comes from the environment; no custom auth"
+description: "Architecture decision record: Identity comes from the environment; no custom auth."
+---
+
 # 0008. Identity comes from the environment; no custom auth
 
 - Status: accepted

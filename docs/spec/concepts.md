@@ -1,6 +1,11 @@
+---
+title: "Concepts"
+description: "Entities, IDs, states, the decision policy, computed done and the readiness gate."
+---
+
 # Concepts
 
-This page defines the domain model: every entity, ID, state, and the rules that compute "done" and release readiness. The file layout lives in [bundle-format.md](bundle-format.md); result records live in [sync.md](sync.md). All examples use the canonical sample project [`examples/shop`](../../examples/shop).
+This page defines the domain model: every entity, ID, state, and the rules that compute "done" and release readiness. The file layout lives in [bundle-format.md](./bundle-format.md); result records live in [sync.md](./sync.md). All examples use the canonical sample project [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop).
 
 ## Overview
 
@@ -51,7 +56,7 @@ Definitions say **what done means**. Results say **what actually happened**, wit
 | Judgement | inside the run, or a `judgement` record | — | One judge's conclusion: `assert`, `visual`, `llm` or `human`, with reason and confidence. |
 | Verdict | computed | `pass` | The final result of a run, computed by the decision policy from its judgements. |
 | Waiver | `waiver` record | — | A human decision to accept a known failure of a P1–P3 test case for a release, with a reason. |
-| Report | rendered file | — | A snapshot for a release or plan: readiness, coverage, failures, evidence. See [reports.md](reports.md). |
+| Report | rendered file | — | A snapshot for a release or plan: readiness, coverage, failures, evidence. See [reports.md](./reports.md). |
 
 ## IDs
 
@@ -91,7 +96,7 @@ A test case inherits the highest priority of the use cases it covers unless it s
 |---|---|---|
 | `manual` | A person follows the steps in the browser runner or CLI | `human` |
 | `playwright` | A Playwright test tagged `@TC-128` | `assert` (+ `visual`) |
-| `agent` | An LLM browser agent follows the plain-language steps ([`iw run`](cli.md#iw-run-tc-ref), v0.2) | `assert` + `llm` |
+| `agent` | An LLM browser agent follows the plain-language steps ([`iw run`](./cli.md#iw-run-tc-ref), v0.2) | `assert` + `llm` |
 | `hybrid` | An agent or script executes, a person confirms | any + `human` |
 
 **Judges** — who or what decides:
@@ -123,7 +128,7 @@ One pure function, `decide(judgements, policy, { priority, mode, reported, judge
 | 10 | Anything else (e.g. an `assert` with verdict `unknown`, or a declared judge kind with no judgement yet) | `needs_review` |
 
 - A missing `llm` confidence counts as 0.
-- Declared judges matter: an agent's confident `llm` pass on a test case whose `judges` is `[{ kind = "human" }]` is `needs_review` (rule 10) until a person reviews it, whatever the priority. `judges` is the test case's own list or, without `[[judges]]`, the default of its mode (`human` for `manual`, `assert` for `playwright`, [bundle format](bundle-format.md#specsfeatuctc-n-slugtoml)); `decide` gets these kinds as `judges` from `runFacts()`, so `iw record`, `record_run` and `iw show` give the same verdict.
+- Declared judges matter: an agent's confident `llm` pass on a test case whose `judges` is `[{ kind = "human" }]` is `needs_review` (rule 10) until a person reviews it, whatever the priority. `judges` is the test case's own list or, without `[[judges]]`, the default of its mode (`human` for `manual`, `assert` for `playwright`, [bundle format](./bundle-format.md#specsfeatuctc-n-slugtoml)); `decide` gets these kinds as `judges` from `runFacts()`, so `iw record`, `record_run` and `iw show` give the same verdict.
 - **Judgement order**: by `at` as an instant (so `…:00Z` and `…:00.100Z` compare correctly), then `id`. `buildModel` fills a judgement's `at`/`by` from its enclosing record when absent (a run's inline judgements get `ended_at` and the run's actor).
 - A `human` judgement's verdict is one of `pass`, `fail`, `blocked`, `skipped`. A reason is required for `fail`, `blocked` and `skipped`, and for every `judgement` record (a review).
 - `decide` returns the verdict, the rule number and a reason; `iw show <run> --json` prints them.
@@ -145,7 +150,7 @@ A human review never edits a run. It appends a `judgement` record; the verdict i
 
 ### Visual baselines
 
-*(v0.2)* A `visual` judge compares the PNG screenshots of a run with **approved baselines**. A baseline is not a file in the bundle: it is a screenshot blob that a person approved with a `baseline` record ([sync](sync.md#other-records)).
+*(v0.2)* A `visual` judge compares the PNG screenshots of a run with **approved baselines**. A baseline is not a file in the bundle: it is a screenshot blob that a person approved with a `baseline` record ([sync](./sync.md#other-records)).
 
 - **Key.** A baseline belongs to (test case, screenshot `name`, the run's `automation.project`), so `confirmation.png` from `chromium` and from `webkit` have separate baselines. The current baseline for a key is the latest `baseline` record by `at`, then `id`. Approving another screenshot replaces it; nothing is deleted.
 - **Humans only.** `iw baseline approve <run>` and "Approve as baseline" in the run viewer refuse agent and CI actors, and `buildModel` ignores `baseline` records whose actor is not `human` (or that are retracted), so a record written straight to the store by an agent changes nothing.
@@ -168,7 +173,7 @@ stateDiagram-v2
 ```
 
 - `draft` items can be run and planned but **do not count** towards coverage or readiness.
-- `iw approve <ref>` sets `status = "ready"`, `approved_by` (from the [identity](security.md#identity) of whoever runs it — never a flag) and `approved_version` (the current version hash). Agents cannot approve.
+- `iw approve <ref>` sets `status = "ready"`, `approved_by` (from the [identity](./security.md#identity) of whoever runs it — never a flag) and `approved_version` (the current version hash). Agents cannot approve.
 - An `origin = "ai"` item is only valid as `ready` while `approved_version` equals its current version. Editing an approved AI-written test case therefore fails `iw check` until a human approves it again.
 - Items are **deprecated, not deleted**, so their keys stay reserved. Acceptance criteria have their own `status`: `draft`, `ready` (default) or `retired`.
 - An `origin = "ai"` acceptance criterion counts as `ready` only with `approved_by`; `iw approve AC-n.m` writes it (criteria have no version of their own: rewording one changes the versions of the test cases that cover it).
@@ -189,7 +194,7 @@ A plan item's scope is (`plan.release`, `item.environment` ?? `plan.environment`
 | `blocked` | Result is `blocked` |
 | `review` | Result is `needs_review` or `stale` |
 
-A test case may appear in a plan more than once only with different environments (`iw check`). *(v0.3)* On the hosted app, a person with the `customer` role sees only the plan items assigned to them, by email or Access group ([roles](security.md#roles)).
+A test case may appear in a plan more than once only with different environments (`iw check`). *(v0.3)* On the hosted app, a person with the `customer` role sees only the plan items assigned to them, by email or Access group ([roles](./security.md#roles)).
 
 ### Release
 
@@ -197,7 +202,7 @@ A test case may appear in a plan more than once only with different environments
 
 ## Versions and staleness
 
-- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, guidance and translations do not.
+- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, guidance and translations do not.
 - **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`). Text data files (`.csv`, `.json`, `.txt`, `.md`, `.toml`, `.yaml`, …) are hashed with CRLF read as LF, so a Windows checkout gives the same version.
 - A run records the test case version and the version of every fixture it used.
 - A result is **stale** when its test case version differs from the current one, or any fixture version it used differs from the current version of that fixture.
@@ -234,16 +239,16 @@ A test case may appear in a plan more than once only with different environments
 `testCaseStatus()` (and so `computeStatus()`) also reports how flaky a test case is in the scope. It is information only: it changes no verdict, status, count or gate check.
 
 1. **Decided runs**: the scope's relevant runs (as in [computed done](#computed-done)) whose verdict from the decision policy is `pass` or `fail`, ordered by `ended_at` as instants (ties: run ID). `blocked`, `skipped` and `needs_review` runs say nothing about flakiness and are left out.
-2. A decided run is a **flake** when any of its judgements has `flaky: true` (e.g. a Playwright test that passed on retry, [integrations](integrations.md#playwright-reporter)), or when its verdict **flips** against `p`, the previous decided run of the same variant and test case version that belongs to another execution, and either
+2. A decided run is a **flake** when any of its judgements has `flaky: true` (e.g. a Playwright test that passed on retry, [integrations](./integrations.md#playwright-reporter)), or when its verdict **flips** against `p`, the previous decided run of the same variant and test case version that belongs to another execution, and either
    - both runs name the same `build.commit` (the app did not change), or
    - `p` itself flipped against its own `p` (the verdict went back and forth, e.g. pass → fail → pass).
 
    A single change that then holds (pass, pass, fail, fail…) is a regression, and the change back is a fix; neither is a flake. A change of test case version is not a flip either.
 3. **Flake rate** = flakes ÷ decided runs among the last **10** decided runs. The window counts runs, not executions: an execution that reports a test case through several run records (shards) fills several places. `flaky = { rate, flakes, runs }` is present only when there is at least one flake in that window.
 
-`flaky: true` is read from every judgement on the run, including unverified ones ([signed records](security.md#signed-records)), as the flake rate is information only and `gate.ignore_unverified` affects only the gate.
+`flaky: true` is read from every judgement on the run, including unverified ones ([signed records](./security.md#signed-records)), as the flake rate is information only and `gate.ignore_unverified` affects only the gate.
 
-**Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
+**Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](./web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
 
 ## Impact analysis
 
@@ -259,7 +264,7 @@ Each suggestion carries every reason that applies (`kind`, the changed `file`, a
 
 ## Feature owners
 
-*(v0.4)* A feature's optional `owners` ([bundle format](bundle-format.md#specsfeatfeaturetoml)) name the people who look after its tests: emails (or other actor IDs) and `group:<name>` entries. "My features" for a person are the features whose owners name their actor ID or, where groups are known (the hosted app with [roles](security.md#roles)), `group:<name>` of one of their groups, without case, exactly like a plan item's assignee (one matcher in `packages/core/src/roles.ts`).
+*(v0.4)* A feature's optional `owners` ([bundle format](./bundle-format.md#specsfeatfeaturetoml)) name the people who look after its tests: emails (or other actor IDs) and `group:<name>` entries. "My features" for a person are the features whose owners name their actor ID or, where groups are known (the hosted app with [roles](./security.md#roles)), `group:<name>` of one of their groups, without case, exactly like a plan item's assignee (one matcher in `packages/core/src/roles.ts`).
 
 `ownedFeatures(model, who)` lists a person's features, and `ownedModel(model, features)` is the one place that narrows a model to them: their features and use cases, the test cases of those use cases plus any test case that covers one of their criteria, and every record. Status, the gate and counts are computed by the usual functions over that model, so `iw status --mine`, `GET /api/status?mine=1` and the web app's "My features" describe only those features; the gate shown there is the gate of that slice, not the release's. Owners are a view, not a permission: anyone may still see and run every test case ("All features").
 
@@ -278,7 +283,7 @@ Each suggestion carries every reason that applies (`kind`, the changed `file`, a
 | `allow_stale` | `false` | Whether a stale result counts as its underlying verdict; when `false`, stale P0–P1 results fail this check | `"0"` / `"≤ 0"` |
 | `require_evidence` | `true` | Passing P0 results carry evidence or an `assert` judgement | `"4/4"` / `"4/4"` |
 
-- `ignore_unverified` (default `false`, *v0.2*) is not a check: when `true`, every check is computed as if records that claim a verified `via` without a valid signature, and the judgements in them, did not exist ([signed records](security.md#signed-records)). Status, the UI and reports still show those records, marked unverified.
+- `ignore_unverified` (default `false`, *v0.2*) is not a check: when `true`, every check is computed as if records that claim a verified `via` without a valid signature, and the judgements in them, did not exist ([signed records](./security.md#signed-records)). Status, the UI and reports still show those records, marked unverified.
 - A check with an empty denominator passes with `actual = "n/a"`. `has_gated_tests` comes first and fails when nothing is gated, so an empty project, or one with only P2–P3 or draft test cases, is never "ready to ship".
 - Each failing check lists the offending keys in `items`.
 - The gate passes only when every check passes. `iw status --release v1.2.0 --gate` exits 1 when it does not, so CI can block a release.
@@ -292,7 +297,7 @@ Each suggestion carries every reason that applies (`kind`, the changed `file`, a
 | `account` | Public fields + secret references | Logging in | `FX-3` staging customer |
 | `file` | Any file (image, PDF) | Upload steps | `FX-4` review photo (stored as a blob pointer) |
 
-Small data files live in git next to `fixture.toml`. Files over `fixtures.inline_max_bytes` (default 1 MiB) become `*.blob.toml` pointers to the result store's blob area. See [bundle-format.md](bundle-format.md#fixtures).
+Small data files live in git next to `fixture.toml`. Files over `fixtures.inline_max_bytes` (default 1 MiB) become `*.blob.toml` pointers to the result store's blob area. See [bundle-format.md](./bundle-format.md#fixtures).
 
 ## Invariants
 
@@ -312,7 +317,7 @@ These are enforced by `iw check` and unit tests:
 - [x] `decide()` has a unit test per decision-policy row (1–10), including rule-order conflicts (human beats assert fail; assert fail beats llm pass), missing llm confidence, and a visual diff within the threshold.
 - [x] A TC with a failing webkit run and a later passing chromium run in the same scope has status `fail`.
 - [x] Rewording a covered AC makes earlier results of its test cases `stale`; editing a translation does not.
-- [x] `evaluateGate()` on `examples/shop` with its sample results returns the documented values in [reports.md](reports.md#example).
+- [x] `evaluateGate()` on `examples/shop` with its sample results returns the documented values in [reports.md](./reports.md#example).
 - [x] Changing only the title of a test case keeps its version hash; changing a step changes it and makes earlier results `stale`.
 - [x] `iw check` fails on an `origin = "ai"` test case marked `ready` without `approved_by`, or whose `approved_version` differs from its current version.
 - [x] `iw check` warns (not fails) on an `origin = "ai"` feature, environment, release or plan without `approved_by`, and fails on one without an `[ai]` table.

@@ -1,6 +1,6 @@
 # NNNN. Title
 
-- Status: proposed | accepted | superseded by [NNNN](NNNN-title.md)
+- Status: proposed | accepted | superseded by [NNNN](./NNNN-title.md)
 - Date: YYYY-MM-DD
 
 ## Context

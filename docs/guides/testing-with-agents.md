@@ -1,8 +1,13 @@
+---
+title: "Testing with Claude Code or Codex"
+description: "Each job skill: who uses it, what you say, what the agent does and what a person approves."
+---
+
 # Testing with Claude Code or Codex
 
-Every job a team does with INDX Watch starts from a sentence to your coding agent. Six job skills cover the work: set up, design tests, prepare data, run tests, fix failures and know where you are. The agent reads first, asks one question at a time with a recommended answer, runs the `iw` CLI or the MCP tools itself, and stops wherever a person must decide. This guide shows, for each job, who you are, what you say, what happens and what you approve. All examples come from [`examples/shop`](../../examples/shop); the full conversations are in the [job skills spec](../spec/agents.md#job-skills-v04).
+Every job a team does with INDX Watch starts from a sentence to your coding agent. Six job skills cover the work: set up, design tests, prepare data, run tests, fix failures and know where you are. The agent reads first, asks one question at a time with a recommended answer, runs the `iw` CLI or the MCP tools itself, and stops wherever a person must decide. This guide shows, for each job, who you are, what you say, what happens and what you approve. All examples come from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop); the full conversations are in the [job skills spec](../spec/agents.md#job-skills-v04).
 
-Not installed yet? Run `npx indx-watch init` in your repository ([quickstart](quickstart.md#1-install-once)).
+Not installed yet? Run `npx indx-watch init` in your repository ([quickstart](./quickstart.md#1-install-once)).
 
 ## How to call a skill
 
@@ -60,7 +65,7 @@ It writes the environment, the release `v1.2.0` and the three features with thei
 
 It asks which to add ("I suggest both: they are P0 paths the app already handles") and whether a test should be manual or Playwright. For the ones you accept, it writes a draft criterion and test case with a purpose, a start page and yes/no checks per step, the Japanese translation, and for Playwright the test tagged `@TC-11`.
 
-**What you approve:** the drafts (`iw approve AC-2.3 && iw approve TC-11`). A proposal you did not accept is never written. How a good test case reads: [writing test cases](writing-test-cases.md).
+**What you approve:** the drafts (`iw approve AC-2.3 && iw approve TC-11`). A proposal you did not accept is never written. How a good test case reads: [writing test cases](./writing-test-cases.md).
 
 ## Prepare test data: `iw-data`
 
@@ -70,7 +75,7 @@ It asks which to add ("I suggest both: they are P0 paths the app already handles
 
 **What happens:** the agent reads UC-5, TC-9 and the fixtures and explains what is there: "TC-9 has what it needs: the tester signs in with the FX-3 account and uploads the photo from FX-4. A test that a wrong file is refused needs one more file." It proposes `not-a-photo.txt` as FX-5 and, on a yes, writes it as a draft with a note on what the tester does with it ("Attach this file in the review form"). An account never gets a password: it names a reference such as `env:SHOP_CUSTOMER_PASSWORD`, and the agent asks you to set the variable.
 
-**What you approve:** the new fixture, and you set any secret variable yourself. More: [fixtures](fixtures.md).
+**What you approve:** the new fixture, and you set any secret variable yourself. More: [fixtures](./fixtures.md).
 
 ## Run tests: `iw-test`
 
@@ -80,7 +85,7 @@ It asks which to add ("I suggest both: they are P0 paths the app already handles
 
 **What happens:** "My features" are the features whose owners include your git email. For alex@shop.test that is Checkout: "You own Checkout: TC-3–TC-6." The agent offers to run the Playwright tests of TC-3, TC-4 and TC-5 ("they take about a minute and start the shop app themselves") and reports pass or fail in one line each. TC-6, a manual test on a phone-sized window assigned to Alex in PLAN-1, needs you, so it asks: "Walk through it together now? It takes about 3 minutes."
 
-A guided run starts with the test in three lines, read from the test case's [guidance fields](writing-test-cases.md#guidance-purpose-start-checks-and-test-data):
+A guided run starts with the test in three lines, read from the test case's [guidance fields](./writing-test-cases.md#guidance-purpose-start-checks-and-test-data):
 
 > **What it checks:** many shoppers order from a phone; the order confirmation is readable on a small screen (AC-3.1).
 > **Where to start:** open http://localhost:4173/ on a phone or in a 390 px wide browser window.

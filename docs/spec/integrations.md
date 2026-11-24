@@ -1,3 +1,8 @@
+---
+title: "Integrations"
+description: "The Playwright reporter, the GitHub Action and CI identity and context."
+---
+
 # Integrations: Playwright, GitHub Actions, CI identity
 
 Automated results land in the same result store, with the same record shape, as manual results. This page specifies the Playwright reporter, the GitHub Action and how CI context is captured. Platform facts are in [platform notes](../research/platform-notes.md#playwright).
@@ -22,7 +27,7 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 1. **The link is a tag.** `@TC-<n>` (or `@<PROJECT>:TC-<n>`, or the machine ID `@tc_01J…`) in the test's `tag` details or title. Tags are static, visible in every Playwright report and usable with `--grep @TC-3`. Annotations carry metadata, never identity.
 2. **Many-to-many.** A test may carry several TC tags; a TC may be implemented by several tests.
-3. **One run per (test case, Playwright project)** per `playwright test` invocation — and per set of selected fixture rows (item 6), since each row is its own [variant](concepts.md#computed-done). Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message with known secret values redacted, `test` = title path). The run's verdict comes from the [decision policy](concepts.md#decision-policy); how runs of several projects, rows and shards combine into one result is defined once in [computed done](concepts.md#computed-done).
+3. **One run per (test case, Playwright project)** per `playwright test` invocation — and per set of selected fixture rows (item 6), since each row is its own [variant](./concepts.md#computed-done). Each Playwright test mapped to the TC adds one `assert` judgement (`pass`/`fail`, reason = first error message with known secret values redacted, `test` = title path). The run's verdict comes from the [decision policy](./concepts.md#decision-policy); how runs of several projects, rows and shards combine into one result is defined once in [computed done](./concepts.md#computed-done).
 4. **Outcome mapping** from `test.outcome()` after all retries: `expected` → `pass`; `unexpected` → `fail` (`interrupted` → run reported as `blocked`); `flaky` → `pass` with `flaky: true` on the judgement; `skipped` → run reported as `skipped`.
 5. **Steps.** If a test uses `test.step('1. …')` / `test.step('2. …')`, step results map by the leading number to TC steps. Otherwise step results are omitted.
 6. **Fixtures.** The run records the current version of every fixture the TC references (computed from the bundle at the commit under test). A test may add `test.info().annotations.push({ type: '_iw.fixture', description: 'FX-1:SUMMER10' })` to record selected rows.
@@ -36,7 +41,7 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 | Option | Default | |
 |---|---|---|
 | `dir` | discovered | Bundle directory |
-| `release` | `IW_RELEASE` → release resolution in [bundle-format](bundle-format.md#releasesversiontoml) | |
+| `release` | `IW_RELEASE` → release resolution in [bundle-format](./bundle-format.md#releasesversiontoml) | |
 | `environment` | `IW_ENV` → `project.default_environment` | |
 | `evidence` | `all` | `all`, `failures`, `none` |
 | `strict` | `false` | Fail the Playwright run on unlinked tests, unknown keys, a missing bundle or a failed push |
@@ -46,7 +51,7 @@ test('valid coupon reduces the total', { tag: ['@TC-3'] }, async ({ page }) => {
 
 ### Sharding
 
-Every run gets `automation.group` = `IW_RUN_GROUP`, else `<ci.provider>:<ci.run_id>:<ci.run_attempt or 1>` in a detected CI (for example `github:<run_id>:<attempt>`, `gitlab:<pipeline id>:<job retries + 1>`), else a fresh ID per invocation, so runs of one sharded execution are combined ([computed done](concepts.md#computed-done)). A retried job must land in a new execution, or its failed attempt keeps the execution at `fail`: GitHub counts the run attempt, GitLab (`CI_JOB_RETRY_COUNT`, GitLab 19.3+) and Buildkite (`BUILDKITE_RETRY_COUNT`) count the job's retries, and CircleCI gives a rerun a new `CIRCLE_WORKFLOW_ID`. On older GitLab, without `CI_JOB_RETRY_COUNT`, a retried job joins its first attempt's execution; set `IW_RUN_GROUP: gitlab:$CI_PIPELINE_ID:$CI_JOB_ID` on jobs that are not split with `parallel:` to keep retries apart. Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
+Every run gets `automation.group` = `IW_RUN_GROUP`, else `<ci.provider>:<ci.run_id>:<ci.run_attempt or 1>` in a detected CI (for example `github:<run_id>:<attempt>`, `gitlab:<pipeline id>:<job retries + 1>`), else a fresh ID per invocation, so runs of one sharded execution are combined ([computed done](./concepts.md#computed-done)). A retried job must land in a new execution, or its failed attempt keeps the execution at `fail`: GitHub counts the run attempt, GitLab (`CI_JOB_RETRY_COUNT`, GitLab 19.3+) and Buildkite (`BUILDKITE_RETRY_COUNT`) count the job's retries, and CircleCI gives a rerun a new `CIRCLE_WORKFLOW_ID`. On older GitLab, without `CI_JOB_RETRY_COUNT`, a retried job joins its first attempt's execution; set `IW_RUN_GROUP: gitlab:$CI_PIPELINE_ID:$CI_JOB_ID` on jobs that are not split with `parallel:` to keep retries apart. Alternatively, shards use the `blob` reporter and a merge job runs `npx playwright merge-reports --reporter=indx-watch/playwright` — the reporter works unchanged.
 
 ## CI identity and context
 The `ContextProvider` port detects the build and CI context and fills these record fields:
@@ -59,7 +64,7 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | `ci.provider` / `ci.url` | `github` / the job page `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/$IW_CHECK_RUN_ID` when the step sets `IW_CHECK_RUN_ID: ${{ job.check_run_id }}` (GitHub has no default variable for it), else `…/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT` | — |
 | `ci.run_id`, `ci.run_attempt`, `ci.job`, `ci.workflow`, `ci.event` | `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_JOB`, `GITHUB_WORKFLOW`, `GITHUB_EVENT_NAME` | — |
 | `ci.pr` | PR number from the event payload | — |
-| `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }`; `via: "github-oidc"` with `IW_OIDC_SIGNER` and `id-token: write`, unless `IW_ACTOR` or `IW_SIGNING_KEY` is set ([GitHub OIDC](security.md#github-oidc)) | git identity |
+| `actor` | `{ kind: "ci", id: "github:<GITHUB_ACTOR>", via: "github" }`; `via: "github-oidc"` with `IW_OIDC_SIGNER` and `id-token: write`, unless `IW_ACTOR` or `IW_SIGNING_KEY` is set ([GitHub OIDC](./security.md#github-oidc)) | git identity |
 
 *(v0.2)* GitLab CI, CircleCI and Buildkite are detected by their standard variables (`GITLAB_CI`, `CIRCLECI`, `BUILDKITE` = `true`); GitHub Actions wins when several are set, then GitLab CI, then CircleCI, then Buildkite. `IW_COMMIT` overrides the commit and `IW_ACTOR` the actor on every provider, and any other CI can set those two. `build.dirty` is `false` in CI; a field whose variable is unset is left out. When the commit variable is not a SHA (Buildkite sets `HEAD` before checkout), `build.commit` comes from `git rev-parse HEAD`. Buildkite has no stable login, so its actor id uses the creator's notification email and the display name goes in `name`. Variable semantics are recorded in [platform notes](../research/platform-notes.md#other-ci-providers).
 
@@ -74,11 +79,11 @@ The `ContextProvider` port detects the build and CI context and fills these reco
 | `ci.pr` | `CI_MERGE_REQUEST_IID` | trailing number of `CIRCLE_PULL_REQUEST` | `BUILDKITE_PULL_REQUEST` (unless `false`) |
 | `actor` | `{ kind: "ci", id: "gitlab:<GITLAB_USER_LOGIN>", name: GITLAB_USER_NAME, via: "gitlab" }` | `{ kind: "ci", id: "circleci:<CIRCLE_USERNAME>", via: "circleci" }` | `{ kind: "ci", id: "buildkite:<BUILDKITE_BUILD_CREATOR_EMAIL>", name: BUILDKITE_BUILD_CREATOR, via: "buildkite" }` |
 
-Without the user variable (for example a scheduled pipeline) the actor falls back to git, as on GitHub. Like `github`, the `gitlab`, `circleci` and `buildkite` identities are read from variables anyone running the job can set, so they claim a verified source and are only shown as verified when the record is signed ([signed records](security.md#signed-records)).
+Without the user variable (for example a scheduled pipeline) the actor falls back to git, as on GitHub. Like `github`, the `gitlab`, `circleci` and `buildkite` identities are read from variables anyone running the job can set, so they claim a verified source and are only shown as verified when the record is signed ([signed records](./security.md#signed-records)).
 
-**Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](security.md#signed-records)).
+**Signing** *(v0.2)*: `via = "github"` is only shown as verified when the record is signed. Set `IW_SIGNING_KEY: ${{ secrets.IW_SIGNING_KEY }}` in the job's `env` so the reporter, `iw deployment add` and `iw sync --snapshot` (run by the action) sign what they write, and pin the matching public key in `project.toml` ([signed records](./security.md#signed-records)).
 
-**Signing through GitHub OIDC** *(v0.2)*: without a stored secret, grant the job `permissions: id-token: write` and set `IW_OIDC_SIGNER` to your hosted server's URL. The reporter and the CLI then record `via = "github-oidc"` and get each record signed by that server, which checks the job's OIDC token against GitHub's keys and the repositories pinned in `[hosting] oidc_repositories` ([GitHub OIDC](security.md#github-oidc)):
+**Signing through GitHub OIDC** *(v0.2)*: without a stored secret, grant the job `permissions: id-token: write` and set `IW_OIDC_SIGNER` to your hosted server's URL. The reporter and the CLI then record `via = "github-oidc"` and get each record signed by that server, which checks the job's OIDC token against GitHub's keys and the repositories pinned in `[hosting] oidc_repositories` ([GitHub OIDC](./security.md#github-oidc)):
 
 ```yaml
 permissions:
@@ -127,7 +132,7 @@ Steps it runs: optional `iw deployment add --env <deployment>` (first, so the sy
 
 The job summary needs no permissions; `comment` needs `pull-requests: write` and `check` needs `checks: write`. The comment starts with a hidden marker `<!-- indx-watch:<dir>:<release> -->`, which is how the next run finds and edits it instead of adding another. Comment and check-run bodies are cut at a line boundary below GitHub's 65,536-character limit. On pull requests from forks the token is read-only, so both are skipped with a warning.
 
-**Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
+**Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](./cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](./concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
 
 ## Acceptance criteria
 

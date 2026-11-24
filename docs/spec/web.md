@@ -1,6 +1,11 @@
+---
+title: "Web app"
+description: "The web app screens, List and Focus views, the manual runner, upload and test data."
+---
+
 # Web app
 
-The web app is how testers, leads and customers use INDX Watch without a terminal. It runs locally (`iw serve`) and hosted (`iw deploy`) from the same code. This page owns the app's information architecture, screens, interaction patterns and copy rules. The HTTP API is in `packages/server/src/contract.ts`. Visual references are in [design/](../design/index.html); where they differ from this page, this page wins.
+The web app is how testers, leads and customers use INDX Watch without a terminal. It runs locally (`iw serve`) and hosted (`iw deploy`) from the same code. This page owns the app's information architecture, screens, interaction patterns and copy rules. The HTTP API is in `packages/server/src/contract.ts`. Visual references are in [design/](https://github.com/INDXDev/indx-watch/blob/main/docs/design/index.html); where they differ from this page, this page wins.
 
 ## Principles
 
@@ -51,11 +56,11 @@ The List / Focus switch sits at the top right of each collection screen. Each vi
 
 ### My features
 
-*(v0.4, [feature owners](concepts.md#feature-owners))* `GET /api/project` returns `owns`: the keys of the features whose `owners` name the viewer (their actor ID, or `group:` of one of their Access groups when the hosted app has roles). When `owns` is not empty, the app starts in **My features**: it asks `GET /api/status` and `GET /api/specs` with `mine=1`, and the server answers from the model narrowed to those features (`ownedModel()` in core), so Home (hero, cards, queue, Release details), the Tests tree, Focus and the Focus runner's session show only the viewer's features. **All features** in the scope menu drops `mine=1`; the choice is kept per viewer in the browser (`localStorage`, `indx-watch.features`). A viewer who owns nothing sees everything and no switch; when `owns` changes (for example after the viewer changes their local identity), the app picks the default again. A test case opened in Focus outside the viewer's features gets no prev/next. The Tests tree shows each feature's owners next to its title. "My features" is a view: test case pages, runs and reports are not narrowed, and the server ignores `mine` elsewhere.
+*(v0.4, [feature owners](./concepts.md#feature-owners))* `GET /api/project` returns `owns`: the keys of the features whose `owners` name the viewer (their actor ID, or `group:` of one of their Access groups when the hosted app has roles). When `owns` is not empty, the app starts in **My features**: it asks `GET /api/status` and `GET /api/specs` with `mine=1`, and the server answers from the model narrowed to those features (`ownedModel()` in core), so Home (hero, cards, queue, Release details), the Tests tree, Focus and the Focus runner's session show only the viewer's features. **All features** in the scope menu drops `mine=1`; the choice is kept per viewer in the browser (`localStorage`, `indx-watch.features`). A viewer who owns nothing sees everything and no switch; when `owns` changes (for example after the viewer changes their local identity), the app picks the default again. A test case opened in Focus outside the viewer's features gets no prev/next. The Tests tree shows each feature's owners next to its title. "My features" is a view: test case pages, runs and reports are not narrowed, and the server ignores `mine` elsewhere.
 
 ### Quarantine
 
-The Tests filter has a third option, **Flaky** (`#/tests?f=flaky`). It replaces the tree with a flat list of the test cases that have a [flake rate](concepts.md#flaky-tests) in the current scope, highest rate first (ties: key). Each row shows the status badge, the key, the title in the chosen language, the rate as a percentage and "n of m runs". The Tests search box narrows the list by key or title. With no flaky test case (or no match) it says so. The view only reads `flaky` from the API; it never hides a test case from the gate or changes a verdict, so a quarantined test still counts until it is fixed. Focus pages through the same list.
+The Tests filter has a third option, **Flaky** (`#/tests?f=flaky`). It replaces the tree with a flat list of the test cases that have a [flake rate](./concepts.md#flaky-tests) in the current scope, highest rate first (ties: key). Each row shows the status badge, the key, the title in the chosen language, the rate as a percentage and "n of m runs". The Tests search box narrows the list by key or title. With no flaky test case (or no match) it says so. The view only reads `flaky` from the API; it never hides a test case from the gate or changes a verdict, so a quarantined test still counts until it is fixed. Focus pages through the same list.
 
 ### Home
 
@@ -72,17 +77,17 @@ Home is calm. It has four blocks, in this order:
 3. **Your queue.** Open plan items assigned to you, then unassigned open items, then everything else. At most 5 rows, with "See all" for the rest. Each row shows status, key, title in the chosen language, and Run, Review or Inspect.
 4. **Recent activity.** The last 5 runs, reviews and uploads, each with an avatar, name, verb and time ("Alex passed TC-3 · 5 min ago").
 
-Gate checks, counts by status and the use case table move to **Release details**, a disclosure at the bottom of Home. Their content does not change ([concepts](concepts.md#readiness-gate)).
+Gate checks, counts by status and the use case table move to **Release details**, a disclosure at the bottom of Home. Their content does not change ([concepts](./concepts.md#readiness-gate)).
 
-**Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases shows `iw new` examples and a "Write test cases with your agent" link to [agents.md](agents.md).
+**Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases shows `iw new` examples and a "Write test cases with your agent" link to [agents.md](./agents.md).
 
 ### Customer view
 
-*(v0.3, [customer UAT](security.md#customer-uat))* For a `customer` (`role` in `GET /api/project`), Home is a focused page: the verdict hero over their items, then **Your acceptance tests**, every plan item assigned to them grouped by plan, each row with its status, key, title in the chosen language, due date and **Run** (or **Inspect** for a failed run), which opens the Focus runner over that item and the rest of the list (a test case assigned in two plans appears once in that queue). The summary cards, Recent activity and Release details are not shown. The runner is the normal manual runner; a run is recorded with the customer's Access identity. With nothing assigned the page says "No tests are assigned to you yet".
+*(v0.3, [customer UAT](./security.md#customer-uat))* For a `customer` (`role` in `GET /api/project`), Home is a focused page: the verdict hero over their items, then **Your acceptance tests**, every plan item assigned to them grouped by plan, each row with its status, key, title in the chosen language, due date and **Run** (or **Inspect** for a failed run), which opens the Focus runner over that item and the rest of the list (a test case assigned in two plans appears once in that queue). The summary cards, Recent activity and Release details are not shown. The runner is the normal manual runner; a run is recorded with the customer's Access identity. With nothing assigned the page says "No tests are assigned to you yet".
 
 ### Visual baselines
 
-*(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
+*(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](./concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
 
 ### List and Focus
 
@@ -107,7 +112,7 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 
 ### Test case page
 
-*(v0.4)* A test case reads from top to bottom, so that a person who has never seen the app can run it from this one page. The content comes from the test case's [guidance fields](bundle-format.md#specsfeatuctc-n-slugtoml); a test case without them shows the blocks it has.
+*(v0.4)* A test case reads from top to bottom, so that a person who has never seen the app can run it from this one page. The content comes from the test case's [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml); a test case without them shows the blocks it has.
 
 1. **Header.** Key, status, priority, mode and the title, with the Edit button (workspace mode) and the AI draft notice.
 2. **What this tests.** The `purpose`; the feature and use case the test case belongs to; and the criteria it covers, in plain words, each with its status.
@@ -134,7 +139,7 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 - **One step at a time.** The current step shows its instruction, expected result, its `checks` as checkboxes, the result buttons (Pass, Fail, Blocked, Skip), a note and screenshots (upload or paste). Recorded steps collapse to one line with their result, and a click reopens one. Later steps are not shown until you get there.
 - **Checks.** Ticking every check suggests Pass; choosing Pass (or pressing `P`) ticks every check, and unticking one afterwards drops the Pass, so the step needs a result again. A Fail or Blocked step with an unticked check asks for a note ("Which check did not hold, and what did you see?").
 - **Next** records the step and opens the next one. It stays disabled until the step has a result, and the note it asks for. After the last step the **Result** block opens with the verdict suggested from the steps, the reason (required for every verdict except pass) and **Save result** (**Save and next** in a session).
-- **What is recorded.** For each recorded step: its status, note, screenshots and which checks were ticked (`checks`, booleans in the order of the step's source `checks`, [sync.md](sync.md#run-record)).
+- **What is recorded.** For each recorded step: its status, note, screenshots and which checks were ticked (`checks`, booleans in the order of the step's source `checks`, [sync.md](./sync.md#run-record)).
 - **Cancel** closes the runner without saving and keeps the page.
 - **Sessions.** Pressed in the Focus view, Run manually runs the rest of that list as a session: the session bar appears, ← / →, swipes and the footer step through the session, and after saving, **Save and next** opens the next test case with its runner open. Without a next test case, saving opens the run viewer.
 - **Unsaved work.** While a step has a result, a tick, a note or a screenshot, moving to another page (keys, swipe, links, Back) asks first; closing the tab asks through the browser.
@@ -145,7 +150,7 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 
 Home's **Share report** opens `#/report`: a preview of the server-rendered HTML report with the audience (customer by default), the language and the plan (or the whole release), plus "Open HTML" and "Download Markdown".
 
-*(v0.2)* On the hosted app, a person signed in through Cloudflare Access (`can.share` in `GET /api/project`) also sees **Share links** below the preview ([reports.md](reports.md#share-links)):
+*(v0.2)* On the hosted app, a person signed in through Cloudflare Access (`can.share` in `GET /api/project`) also sees **Share links** below the preview ([reports.md](./reports.md#share-links)):
 
 - **Create link** with an expiry of 7, 30 or 90 days freezes the report exactly as previewed (same audience, language and plan) and shows its URL once, with a copy button and a note that it cannot be shown again.
 - A table of the existing links, newest first: created (who, when), audience, release or plan, expiry, state (active, expired, revoked) and opens. Active links have **Revoke**, which asks for confirmation.
@@ -154,9 +159,9 @@ Elsewhere the section is not shown.
 
 ## Identity
 
-Every record carries an `actor` ([security](security.md#identity)). The app shows that actor everywhere a result appears: an avatar (initials, with a color derived from the ID), the name, and a small "verified" mark for identities that come from Cloudflare Access, a trusted proxy header or GitHub OIDC.
+Every record carries an `actor` ([security](./security.md#identity)). The app shows that actor everywhere a result appears: an avatar (initials, with a color derived from the ID), the name, and a small "verified" mark for identities that come from Cloudflare Access, a trusted proxy header or GitHub OIDC.
 
-**Unverified** *(v0.2)*: when a record claims a verified `via` but has no valid signature ([signed records](security.md#signed-records)), the ✓ is replaced by an amber "unverified" chip whose tooltip says the record may have been written directly to the store. This applies to runs (lists, Activity, Home, the run viewer), judgements in the run viewer, and uploads. The server computes the flag; the app never verifies signatures itself.
+**Unverified** *(v0.2)*: when a record claims a verified `via` but has no valid signature ([signed records](./security.md#signed-records)), the ✓ is replaced by an amber "unverified" chip whose tooltip says the record may have been written directly to the store. This applies to runs (lists, Activity, Home, the run viewer), judgements in the run viewer, and uploads. The server computes the flag; the app never verifies signatures itself.
 
 **"Who's testing?"** A local server runs as the machine's git user. In a shared or cloud workspace that may not be the person at the browser. A hosted app with `--public` has no identity at all. In these modes the avatar menu offers "Not you?". It opens a dialog asking for a name and email, stored in the `iw_tester` cookie (one year, `SameSite=Strict`, `Path=/`). The server then records writes as:
 
@@ -166,10 +171,10 @@ Every record carries an `actor` ([security](security.md#identity)). The app show
 
 - `via = "browser"` is self-asserted, like `git` and `env`. Reports show it, and the v0.2 `gate.require_verified_human` option excludes it.
 - The cookie is honored only when the server has no verified identity for the request: `iw serve` without `--identity-header`, and hosted `--public`. Behind Cloudflare Access or a trusted identity header the cookie is ignored, and "Not you?" is not offered.
-- Agent detection does not apply to the cookie. Agents must not use the browser to review or waive ([agents](agents.md)), and the skills say so.
+- Agent detection does not apply to the cookie. Agents must not use the browser to review or waive ([agents](./agents.md)), and the skills say so.
 - The server validates the cookie: `id` is an email or a name of 1 to 80 characters, and `name` is at most 80 characters. Anything else is ignored, and the default identity is used.
 
-**Roles** *(v0.3)*: on a hosted app with [roles](security.md#roles), the avatar menu shows the identity's role ("Role: customer (assigned items only)"), and the app hides what the role cannot do, from `can` in `GET /api/project`: without `can.run` (viewers) the Run, Start testing and Run manually buttons and the queue's Run actions; without `can.review` (viewers, customers) the review form; without `can.approve` (all but leads) "Approve as baseline"; without `can.upload` the upload drop zone; without `can.share` the Share links section. A customer's app shows only their assigned items, because the API returns nothing else. Hiding is a convenience: the server refuses these requests anyway.
+**Roles** *(v0.3)*: on a hosted app with [roles](./security.md#roles), the avatar menu shows the identity's role ("Role: customer (assigned items only)"), and the app hides what the role cannot do, from `can` in `GET /api/project`: without `can.run` (viewers) the Run, Start testing and Run manually buttons and the queue's Run actions; without `can.review` (viewers, customers) the review form; without `can.approve` (all but leads) "Approve as baseline"; without `can.upload` the upload drop zone; without `can.share` the Share links section. A customer's app shows only their assigned items, because the API returns nothing else. Hiding is a convenience: the server refuses these requests anyway.
 
 ## CLI panel
 
@@ -188,16 +193,16 @@ Without a store (local only), Clone shows `git clone` advice instead, because th
 
 ## Editing in workspace mode
 
-*(v0.2)* In [workspace mode](sync.md#workspace-mode-v02) (`[store] mode = "workspace"`) definitions live in the store, so the app edits them; in git mode they are edited as files and reviewed in pull requests, and the app has no editor.
+*(v0.2)* In [workspace mode](./sync.md#workspace-mode-v02) (`[store] mode = "workspace"`) definitions live in the store, so the app edits them; in git mode they are edited as files and reviewed in pull requests, and the app has no editor.
 
-- **Test case.** An **Edit** button on the test case screen turns the title, priority and steps (instruction and expected result; add and remove steps) into a form. **Save** sends only the fields that changed (`PATCH /api/test-cases/:key`); the server applies them to the current file, writes it with `formatToml()` and appends a `file` record whose parents are the current heads, attributed to the request's verified identity. So two people editing different fields both keep their edits; a later save of the same field replaces the earlier one, while two saves made from the same heads (at the same moment, or on two servers before a sync) are concurrent edits and merge with a conflict file ([sync.md](sync.md#workspace-mode-v02)). Invalid input (an empty title or step) is refused with the reason, and nothing is written; a save that changes nothing appends no record (the answer has `file` but no `record`).
-- **Agents** (an agent identity, e.g. `/mcp` or `iw serve` under a coding agent) can save only drafts: the server marks their edit `origin = "ai"`, `status = "draft"` with an `[ai]` table and drops `approved_by` and `approved_version`, so a person approves it again ([security](security.md#identity)).
-- **Roles.** On a hosted app with [roles](security.md#roles), only a `lead` edits definitions (`can.edit` in `GET /api/project`); the Edit button is hidden for testers, viewers and customers, and the server refuses their `PATCH` with 403 before reading the test case, so a customer cannot reach unassigned items through it. Without roles, and on `iw serve`, everyone is `lead`.
+- **Test case.** An **Edit** button on the test case screen turns the title, priority and steps (instruction and expected result; add and remove steps) into a form. **Save** sends only the fields that changed (`PATCH /api/test-cases/:key`); the server applies them to the current file, writes it with `formatToml()` and appends a `file` record whose parents are the current heads, attributed to the request's verified identity. So two people editing different fields both keep their edits; a later save of the same field replaces the earlier one, while two saves made from the same heads (at the same moment, or on two servers before a sync) are concurrent edits and merge with a conflict file ([sync.md](./sync.md#workspace-mode-v02)). Invalid input (an empty title or step) is refused with the reason, and nothing is written; a save that changes nothing appends no record (the answer has `file` but no `record`).
+- **Agents** (an agent identity, e.g. `/mcp` or `iw serve` under a coding agent) can save only drafts: the server marks their edit `origin = "ai"`, `status = "draft"` with an `[ai]` table and drops `approved_by` and `approved_version`, so a person approves it again ([security](./security.md#identity)).
+- **Roles.** On a hosted app with [roles](./security.md#roles), only a `lead` edits definitions (`can.edit` in `GET /api/project`); the Edit button is hidden for testers, viewers and customers, and the server refuses their `PATCH` with 403 before reading the test case, so a customer cannot reach unassigned items through it. Without roles, and on `iw serve`, everyone is `lead`.
 - On `iw serve` the file in `.indx-watch/` changes at once; the next `iw sync` publishes nothing new for it. Elsewhere the edit appears after the next sync.
 - Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy. While a test case has a conflict file, saving it is refused (409), because the edit would silently drop the other value.
 - *(v0.5)* Uploads work in workspace mode too: each changed file becomes a `file` record ([Upload](#upload)).
 
-Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](security.md#customer-uat)), which append a `file` record for the plan the same way.
+Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](./security.md#customer-uat)), which append a `file` record for the plan the same way.
 
 ## Upload
 
@@ -213,7 +218,7 @@ You can upload definitions in three ways:
 - A new test case goes into the folder of the use case whose criteria it covers.
 - A new use case goes into the folder of its feature.
 - A file that is not TOML and has the name of exactly one bundle file replaces that file.
-- *(v0.5)* Any other file that is not TOML (a PDF, an image, a spreadsheet, a CSV, …) becomes **test data**: a new draft fixture `fixtures/FX-n-<slug>/` of its own, so nobody has to write TOML. Its title is the file name without the extension; a CSV with a header, or a JSON array of objects, becomes a `dataset` whose `row_key` is the first column, anything else a `file` fixture. A file larger than `[fixtures].inline_max_bytes` becomes a [pointer](bundle-format.md#fixtures) with its blob in the store, when the project has a `[store]`; without one it stays in the folder.
+- *(v0.5)* Any other file that is not TOML (a PDF, an image, a spreadsheet, a CSV, …) becomes **test data**: a new draft fixture `fixtures/FX-n-<slug>/` of its own, so nobody has to write TOML. Its title is the file name without the extension; a CSV with a header, or a JSON array of objects, becomes a `dataset` whose `row_key` is the first column, anything else a `file` fixture. A file larger than `[fixtures].inline_max_bytes` becomes a [pointer](./bundle-format.md#fixtures) with its blob in the store, when the project has a `[store]`; without one it stays in the folder.
 - A TOML file that fits none of these is listed as "can't place: drop the whole folder instead".
 
 **Preview first.** The dialog lists every file as added, changed or unchanged. It runs `iw check` (including the secret scan) on the result. Errors block the upload; warnings are shown. Nothing is written until you press **Upload n files**.
@@ -221,7 +226,7 @@ You can upload definitions in three ways:
 **What an upload does.**
 
 - **Hosted:** it publishes a new bundle snapshot, as `iw push` does, attributed to you. The hosted app switches to it at once. In git mode the next snapshot from the repository (CI's `iw sync --snapshot`, `iw push`) replaces it, so changes made only in the app do not last; teams that edit in the app use workspace mode.
-- *(v0.5)* **Workspace mode** (hosted or local): every changed file is a `file` record, and a removed one a `deleted` version, as in [the editor](#editing-in-workspace-mode). The store is the source of truth: everyone sees the change at once, and `iw sync` writes it into every working copy ([sync.md](sync.md#workspace-mode-v02)).
+- *(v0.5)* **Workspace mode** (hosted or local): every changed file is a `file` record, and a removed one a `deleted` version, as in [the editor](#editing-in-workspace-mode). The store is the source of truth: everyone sees the change at once, and `iw sync` writes it into every working copy ([sync.md](./sync.md#workspace-mode-v02)).
 - **Local:** it writes the files into `.indx-watch/` as uploaded (and removes the files a whole-folder upload no longer has). You then review and commit them with git like any other edit.
 
 **Uploads screen.** It lists snapshots from `bundle` records: who, when, from where (a commit, or "browser upload"), file count, and the current one. Each row can be downloaded as a `.tar`.
@@ -235,12 +240,12 @@ You can upload definitions in three ways:
 - **Delete.** "Delete" asks once in the page, then removes the fixture's folder. It is refused while a test case uses the fixture, because `iw check` would fail.
 - **Files** download from the detail (`GET /api/blobs/:sha256`).
 - **Where it goes.** The server applies the change to the current definitions, runs `iw check` (including the secret scan) and refuses errors (400) before writing anything, then writes it like an [upload](#upload): files in `.indx-watch/` on `iw serve` in git mode, a bundle snapshot on a hosted app in git mode, and `file` records in workspace mode, so that `iw sync` brings the change to every working copy. In git mode on a hosted app the screen warns that changes made there are replaced by the next publish from the repository.
-- **API.** `POST /api/fixtures`, `PATCH /api/fixtures/:key` (`FixtureInput` → `FixtureSaved`) and `DELETE /api/fixtures/:key` in [`contract.ts`](../../packages/server/src/contract.ts). Agents get 403: they write drafts with `iw new` or the `iw-data` skill.
+- **API.** `POST /api/fixtures`, `PATCH /api/fixtures/:key` (`FixtureInput` → `FixtureSaved`) and `DELETE /api/fixtures/:key` in [`contract.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/server/src/contract.ts). Agents get 403: they write drafts with `iw new` or the `iw-data` skill.
 - **Tabs.** *(v0.5)* Test data, [Secrets](#secrets) and, for leads, [Access](#access) sit as tabs above the screen (`#/fixtures`, `#/secrets`, `#/access`).
 
 ### Sharing
 
-*(v0.5)* Rules: [security → sharing](security.md#sharing).
+*(v0.5)* Rules: [security → sharing](./security.md#sharing).
 
 - The list marks restricted fixtures "Restricted" and fixtures not shared with the viewer "Not shared with you"; such a fixture's detail and its card on the test case page show only its name and say whom to ask.
 - "Share" on a fixture or a secret (for whoever can edit it) opens the share dialog: *Everyone on the team* or *Only the people and groups below*, a field to add an email or `group:<name>`, the list with a remove button per entry and "you" next to the viewer's own entry (prefilled when switching to restricted), and a line naming the leads, who always have access. Without roles the dialog says that everyone who opens the app has access. Saving a fixture's sharing is an edit (`PATCH /api/fixtures/:key` with `shared_with`; `null` for the team), a secret's a `PUT /api/secrets/:name`.
@@ -248,7 +253,7 @@ You can upload definitions in three ways:
 
 ### Secrets
 
-*(v0.5)* The Secrets tab (`#/secrets`, `#/secrets/<name>`) lists the secrets kept by INDX Watch that are shared with the viewer ([security](security.md#secrets)): title and `iw:<name>` reference (with copy), the login ID (with copy), the value as dots with a *Show* button (each show is recorded; then *Copy* and *Hide*), the fixtures and environments using it, and who changed it last. Opening one also shows who has access and its history (changed, deleted, viewed: who and when). "New secret" (with `can.data` and `can.secrets`) asks for the name, title, login ID, value and notes; "Edit" changes them (an empty value keeps the current one) or deletes the secret. Without `IW_SECRETS_KEY` the tab explains how to set it. Accounts whose `secret_ref` is an `iw:` reference show the password the same way on the Test data screen and on the test case page, next to the login ID.
+*(v0.5)* The Secrets tab (`#/secrets`, `#/secrets/<name>`) lists the secrets kept by INDX Watch that are shared with the viewer ([security](./security.md#secrets)): title and `iw:<name>` reference (with copy), the login ID (with copy), the value as dots with a *Show* button (each show is recorded; then *Copy* and *Hide*), the fixtures and environments using it, and who changed it last. Opening one also shows who has access and its history (changed, deleted, viewed: who and when). "New secret" (with `can.data` and `can.secrets`) asks for the name, title, login ID, value and notes; "Edit" changes them (an empty value keeps the current one) or deletes the secret. Without `IW_SECRETS_KEY` the tab explains how to set it. Accounts whose `secret_ref` is an `iw:` reference show the password the same way on the Test data screen and on the test case page, next to the login ID.
 
 ### Access
 
@@ -256,11 +261,11 @@ You can upload definitions in three ways:
 
 ## Clone
 
-`npx indx-watch clone <url> [dir]` downloads the newest snapshot from a hosted app or a store, writes `.indx-watch/` and pulls results. It is the "download" half of Upload ([cli](cli.md#iw-clone-source-dir)).
+`npx indx-watch clone <url> [dir]` downloads the newest snapshot from a hosted app or a store, writes `.indx-watch/` and pulls results. It is the "download" half of Upload ([cli](./cli.md#iw-clone-source-dir)).
 
 ## Languages
 
-- **UI strings** come from `messages/{en,ja}.json` ([i18n](i18n.md#ui-locales)).
+- **UI strings** come from `messages/{en,ja}.json` ([i18n](./i18n.md#ui-locales)).
 - **Content** (titles, steps, criteria, fixture names, environment guides, release and plan titles) is resolved with `localize()` everywhere it is shown, including list rows, Home and the CLI panel's titles. Raw `title` fields are never rendered directly.
 - When an item's title uses a `machine` translation, a "Machine translation" switch sits next to the title (once per item, not on every field). Pressing it shows the original text of every content field on the page until it is pressed again. A stale translation shows the source text with a "Translation outdated" badge.
 - The language the tester read is recorded on runs (`locale`) and on reviews (`judgement.locale`).
