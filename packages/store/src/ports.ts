@@ -226,7 +226,7 @@ export interface IssueData {
   url: string;
 }
 export interface IssueSource {
-  /** Read one issue of `repo` ("owner/name"). Throws StoreError('not_found') when it does not exist. */
+  /** Read one issue of `repo` ("owner/name"). Throws StoreError('not-found') when it does not exist. */
   get(repo: string, number: number): Promise<IssueData>;
 }
 

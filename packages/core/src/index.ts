@@ -4,10 +4,35 @@
 import type { Locale } from '@indx-watch/bundle';
 import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 
+/** splitAssignments, assignItems, assigneeBoard, automationMix: who has which plan item (docs/spec/concepts.md#assignment-and-automation-mix). */
+export {
+  type Assigned,
+  type AssigneeBoard,
+  type AutomationMix,
+  assigneeBoard,
+  assignItems,
+  automationMix,
+  type Change,
+  parseSplit,
+  splitAssignments,
+  type Weight,
+} from './assign.js';
 /** decide(judgements, policy, ctx): the decision policy (docs/spec/concepts.md#decision-policy). */
 export { decide, runFacts } from './decide.js';
+/** bundleDiff(base, head): added, changed and removed use cases, criteria and test cases (docs/spec/concepts.md#bundle-diff). */
+export { type BundleDiff, bundleDiff, type DiffEntry, type DiffKind, type DiffPart } from './diff.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
+/** issueUrl, repoOfRemote, parseIssueUrl: prefilled GitHub issues (docs/spec/integrations.md#github-issues). */
+export {
+  FAILURE_TEMPLATE,
+  ISSUE_URL_MAX,
+  type IssueInput,
+  type IssueLink,
+  issueUrl,
+  parseIssueUrl,
+  repoOfRemote,
+} from './issue.js';
 /**
  * buildModel(bundle, records): unknown/invalid records are skipped and reported.
  * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
@@ -38,6 +63,7 @@ export {
  */
 export { computeStatus, evaluateGate, gateTestCases, planItemStatus, testCaseStatus } from './status.js';
 export * from './types.js';
+export { compareVersions, isOlderVersion } from './version.js';
 
 /** Extra options localize() reads at run time (the frozen signature stays unchanged). */
 export interface LocalizeOptions {
@@ -69,6 +95,8 @@ export function localize(
 /** Data for a release or plan report (docs/spec/reports.md#contents); rendering lives in the server package. */
 export interface ReportData {
   project: { key: string; name: string };
+  /** (v0.5) `[report]` of project.toml; `logo` is a data URI (docs/spec/reports.md#rendering-rules) */
+  brand?: { title?: string; footer?: string; logo?: string };
   scope: Scope;
   plan?: string | undefined;
   audience: 'internal' | 'customer';
@@ -79,6 +107,8 @@ export interface ReportData {
   policy: Required<import('@indx-watch/bundle').DecisionPolicy>;
   gateThresholds: Record<string, number | boolean>;
   countsByPriority: Record<import('@indx-watch/bundle').Priority, Record<string, number>>;
+  /** (v0.5) who runs the plan items: people, CI, agents (docs/spec/concepts.md#assignment-and-automation-mix) */
+  automation?: import('./assign.js').AutomationMix;
   planItems?: {
     testCase: string;
     assignee?: string | undefined;

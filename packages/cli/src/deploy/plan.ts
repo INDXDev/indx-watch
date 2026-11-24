@@ -23,6 +23,8 @@ export interface PlanOptions {
   public?: boolean;
   /** project.toml [[signing_keys]], pinned as the Worker's SIGNING_KEYS (docs/spec/security.md#signed-records) */
   signingKeys?: SigningKey[];
+  /** the CLI version that deploys, pinned as the Worker's IW_VERSION (shown by /healthz) */
+  version?: string;
   /** Path of the generated wrangler.jsonc (appears in the deploy command) */
   configPath: string;
   /** Paths relative to the config file: the Worker bundle and the web build */
@@ -76,6 +78,7 @@ export function planDeploy(hosting: HostingConfig, existing: Existing, opts: Pla
   if (hosting.access_team) vars.ACCESS_TEAM = hosting.access_team;
   if (hosting.access_aud) vars.ACCESS_AUD = hosting.access_aud;
   if (opts.public) vars.PUBLIC = 'true';
+  if (opts.version) vars.IW_VERSION = opts.version;
   if (opts.signingKeys?.length) vars.SIGNING_KEYS = JSON.stringify(opts.signingKeys);
   if (hosting.oidc_repositories?.length) vars.OIDC_REPOSITORIES = JSON.stringify(hosting.oidc_repositories);
   if (hosting.roles) vars.ROLES = JSON.stringify(hosting.roles);

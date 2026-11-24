@@ -10,6 +10,12 @@ export type MsgKey = keyof typeof en;
 export type Vars = Record<string, string | number>;
 export const LOCALES: readonly Locale[] = ['en', 'ja'];
 export const catalogs: Record<Locale, Record<string, string>> = { en, ja };
+
+/** (v0.5) The built-in texts with the project's `ui/messages.<locale>.json` on top (docs/spec/bundle-format.md#customizing-v05). */
+export function applyMessages(over?: Partial<Record<Locale, Record<string, string>>>): void {
+  catalogs.en = { ...en, ...over?.en };
+  catalogs.ja = { ...ja, ...over?.ja };
+}
 const isLocale = (v: unknown): v is Locale => v === 'en' || v === 'ja';
 
 /**

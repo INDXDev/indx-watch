@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874NKR0DVR5MJ4HEQYNM4RW"
-key = "TC-19"
+key = "TC-34"
 title = "A shared step shows in the test case that uses it, and its edit makes that test case stale"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1", "AC-11.2"]
+covers = ["AC-16.1", "AC-16.2"]
 mode = "manual"
 
 [[steps]]

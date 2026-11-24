@@ -5,6 +5,7 @@ import { canonicalText, fix } from './check-fix.js';
 import { loadDetailed, walk } from './load.js';
 import { type Priority, SecretRef } from './schema/common.js';
 import type { Bundle, BundleFs, Problem } from './types.js';
+import { logoProblem, uiKeyProblems } from './ui.js';
 import { TRANSLATABLE_FIELDS as TF, translationSourceHash, useCaseVersion } from './versions.js';
 
 export interface CheckOptions {
@@ -25,6 +26,8 @@ export interface CheckDeps extends CheckOptions {
   repo?: { read(path: string): Promise<string | null>; write(path: string, text: string): Promise<void> };
   /** whether a blob is available (local replica or cache/blobs/); a missing pointer blob is a warning */
   hasBlob?: (sha256: string) => Promise<boolean>;
+  /** the English UI texts by key (packages/web/src/messages/en.json): without them `ui/messages.*.json` keys are not checked */
+  uiMessages?: Record<string, string>;
 }
 
 export interface CheckResult {
@@ -47,6 +50,17 @@ export async function checkBundle(fs: BundleFs, opts?: CheckOptions): Promise<Ch
   }
   const problems = [...loaded.problems];
   if (loaded.bundle) problems.push(...(await semanticChecks(loaded.bundle, deps)));
+  if (loaded.bundle && deps.uiMessages) problems.push(...uiKeyProblems(loaded.bundle.ui, deps.uiMessages));
+  const logo = loaded.bundle?.project.data.report?.logo;
+  const bad = logo && (await logoProblem(fs, logo));
+  if (bad)
+    problems.push({
+      severity: 'error',
+      code: 'invalid-logo',
+      file: 'project.toml',
+      path: 'report.logo',
+      message: `[report] logo ${bad}`,
+    });
   problems.push(...(await scanBundleSecrets(fs)));
   for (const f of loaded.files) {
     const canonical = canonicalText(f);

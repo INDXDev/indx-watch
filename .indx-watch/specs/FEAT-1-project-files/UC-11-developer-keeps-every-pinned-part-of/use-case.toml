@@ -1,0 +1,73 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874H1VWYR4KM8CZWSMT5B8A"
+key = "UC-11"
+title = "Developer keeps every pinned part of INDX Watch current"
+status = "draft"
+origin = "ai"
+actor = "Developer"
+goal = "see which parts are out of date and move them all to one version with a single command"
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M874H1VWYR4KM8CZWSMT5B87"
+key = "AC-11.1"
+text = "iw doctor lists each pinned part as ok, outdated, unpinned or locally-edited without changing anything"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:24Z
+
+[criteria.i18n.ja]
+text = "iw doctor は、固定されている各部分を ok・outdated・unpinned・locally-edited のいずれかで一覧し、何も変更しない"
+status = "machine"
+source_hash = "d9773163f9bf"
+
+[[criteria]]
+id = "ac_01M874H1VWYR4KM8CZWSMT5B88"
+key = "AC-11.2"
+text = "iw update moves the package, the MCP entry, the skill copies, workflow versions and schema URLs to one version, and a second run changes nothing"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:24Z
+
+[criteria.i18n.ja]
+text = "iw update は、パッケージ・MCP の設定・スキルのコピー・ワークフローのバージョン・スキーマ URL を 1 つのバージョンにそろえ、2 回目の実行では何も変わらない"
+status = "machine"
+source_hash = "3ca5a79fae6b"
+
+[[criteria]]
+id = "ac_01M874H1VWYR4KM8CZWSMT5B89"
+key = "AC-11.3"
+text = "A lead is told in the web app when the project pins a newer version than the app runs"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:24Z
+
+[criteria.i18n.ja]
+text = "プロジェクトがアプリより新しいバージョンを指定しているとき、リードにウェブアプリで知らせる"
+status = "machine"
+source_hash = "6e3f9b540259"
+
+[i18n.ja]
+title = "開発者が INDX Watch の固定バージョンをすべて最新に保つ"
+actor = "開発者"
+goal = "古くなっている部分を確認し、1 つのコマンドですべてを同じバージョンにそろえる"
+status = "machine"
+source_hash = "834676505319"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:24Z

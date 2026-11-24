@@ -6,7 +6,7 @@ import type { CheckDeps, CheckResult } from './check.js';
 import { type KeyKind, nextCriterionKey, nextKey } from './ids.js';
 import { type SeenFile, walk } from './load.js';
 import type { FileType } from './schema/definitions.js';
-import { formatToml, formatTomlBody } from './toml.js';
+import { formatToml, formatTomlBody, schemaRefOf } from './toml.js';
 import type { Bundle, BundleFs } from './types.js';
 import { slugify } from './write.js';
 
@@ -27,7 +27,7 @@ const renumber = (x: Fix, m: Moved) => x.seen.add(m.to) && x.res.renumbered.push
 /** Canonical text of a valid TOML file (with `data` in place of its contents), or null when it has none. */
 export function canonicalText(f: SeenFile, data = f.raw): string | null {
   if (!f.valid || !data || f.type === 'data') return null;
-  if (f.type !== 'template') return formatToml(f.type, data);
+  if (f.type !== 'template') return formatToml(f.type, data, schemaRefOf(f.text));
   return formatTomlBody(f.path.split('/').pop()!.split('.')[0] as FileType, data);
 }
 

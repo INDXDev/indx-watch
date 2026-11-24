@@ -525,6 +525,23 @@ export const ja: Content = {
       },
     ],
   },
+  selfHost: {
+    kicker: 'セルフホスト',
+    title: 'テストは git に。アプリは自分の Cloudflare に。',
+    lead: 'コマンド 1 つで GitHub のワークフローができます。以後はプルリクエストが **チェックされてコメントが付き**、マージすると **自分の Cloudflare アカウントで動くアプリが更新されます**。まずは無料枠から。',
+    steps: [
+      { title: 'ブランチ', body: 'テストケースやアプリを変更します。' },
+      { title: 'プルリクエスト', body: 'コードと同じようにレビュー。' },
+      { title: 'Action', body: '`iw check` と Playwright を実行。' },
+      { title: 'PR コメント', body: 'ゲートと、この PR で変わったテストケース。' },
+      { title: 'マージ', body: '`main` へ。' },
+      { title: 'デプロイ', body: '`iw deploy` で Workers・R2・D1 へ。' },
+      { title: 'チームでテスト', body: 'Cloudflare Access の背後の Web アプリで。' },
+    ],
+    note: 'INDX Watch のクラウドはありません。上の流れはどれも、手元のマシンで実行できるコマンドです。',
+    code: 'npx indx-watch init --github',
+    guide: { label: 'GitHub から Cloudflare にセルフホストする', href: DOCS.selfHostGithub },
+  },
   openSource: {
     kicker: 'オープンソース',
     title: 'オープンソース。セルフホスト。あなたのもの。',

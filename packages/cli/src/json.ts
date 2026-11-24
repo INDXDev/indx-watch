@@ -76,12 +76,73 @@ const Gate = z.object({
 
 /** `iw skills install` and the agent setup of `iw init`: skill folders, the files this run changed and the retired skill folders it removed. */
 const PATHS = z.array(z.string());
-const AGENT_SETUP = z.object({ installed: PATHS, files: PATHS, removed: PATHS });
+const AGENT_SETUP = z.object({
+  ...{ installed: PATHS, files: PATHS, removed: PATHS },
+  /** (v0.5) skill folders left alone because a person edited them */
+  skipped: PATHS.optional(),
+});
+/** `iw init --github` (docs/spec/cli.md#iw-init): paths are relative to the repository root. */
+export const InitGithubData = z.object({
+  ...{ root: z.string(), written: PATHS, skipped: PATHS },
+  secrets: PATHS,
+});
+export type InitGithubData = z.infer<typeof InitGithubData>;
+const DIFF_ITEMS = z.array(
+  z.object({
+    kind: z.enum(['uc', 'ac', 'tc']),
+    ...{ key: z.string(), title: z.string() },
+    what: z.array(z.enum(['title', 'steps', 'criteria', 'data', 'details'])).optional(),
+  }),
+);
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
+/** `iw issue`: the prefilled issue; `link` when --link stored the issue URL (docs/spec/cli.md#iw-issue-ref) */
+export const IssueData = z.object({
+  ref: z.string(),
+  /** the run the issue text comes from (a test case ref uses its latest run) */
+  run: z.string().nullable(),
+  repo: z.string().nullable(),
+  url: z.string().nullable(),
+  title: z.string().optional(),
+  keys: z.array(z.string()).optional(),
+  trimmed: z.array(z.string()).optional(),
+  secrets: z.array(z.string()).optional(),
+  link: z
+    .object({ file: z.string(), key: z.string(), links: z.array(z.string()), added: z.boolean() })
+    .nullable(),
+});
+/** `iw import github-issue`: `created` is null and `existing` the use case key when the issue was imported before */
+export const ImportIssueData = z.object({
+  issue: z.string(),
+  created: z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() }).nullable(),
+  existing: z.string().nullable(),
+  criteria: z.number(),
+});
+
 /** `data` shape per command. */
+/** (v0.5) PatchData: the patches, the files each touches, which are refused or do not apply, and the build */
+const PATCH = z.object({
+  action: z.enum(['create', 'apply', 'check']),
+  base: z.string(),
+  to: z.string().nullable(),
+  patches: z.array(
+    z.object({
+      file: z.string(),
+      files: z.array(z.string()),
+      refused: z.array(z.string()),
+      applies: z.boolean().nullable(),
+    }),
+  ),
+  conflicts: z.array(z.string()),
+  patch_hash: z.string().nullable(),
+  dist: z.string().nullable(),
+});
+
 export const CommandData = {
-  init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
+  init: z.object({
+    ...{ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() },
+    github: InitGithubData.optional(),
+  }),
   check: z.object({
     files: z.number(),
     errors: z.number(),
@@ -101,6 +162,10 @@ export const CommandData = {
     counts: z.record(z.string(), z.number()),
     /** with --mine (docs/spec/concepts.md#feature-owners) */
     mine: z.object({ actor: z.string(), features: z.array(z.string()) }).optional(),
+    /** who runs the plan items of the release: people, CI, agents (v0.5, docs/spec/concepts.md#assignment-and-automation-mix) */
+    automation: z
+      .object({ people: z.number(), ci: z.number(), agents: z.number(), total: z.number() })
+      .optional(),
   }),
   /** docs/spec/concepts.md#impact-analysis */
   impact: z.object({
@@ -112,6 +177,8 @@ export const CommandData = {
       }),
     ),
   }),
+  /** docs/spec/concepts.md#bundle-diff */
+  diff: z.object({ base: z.string(), added: DIFF_ITEMS, changed: DIFF_ITEMS, removed: DIFF_ITEMS }),
   show: z.record(z.string(), z.unknown()),
   list: z.object({ items: z.array(z.record(z.string(), z.unknown())) }),
   record: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),
@@ -132,6 +199,20 @@ export const CommandData = {
     ...{ email: z.string(), plan: z.string(), file: z.string(), items: z.array(z.string()) },
     reassigned: z.array(z.string()),
     ...{ revoked: z.boolean(), access: z.enum(['added', 'removed', 'kept', 'manual']) },
+  }),
+  /** docs/spec/cli.md#iw-assign */
+  assign: z.object({
+    ...{ plan: z.string(), file: z.string().optional(), dry_run: z.boolean() },
+    assignments: z.array(
+      z.object({
+        test_case: z.string(),
+        environment: z.string().optional(),
+        assignee: z.string(),
+        from: z.string().optional(),
+      }),
+    ),
+    load: z.record(z.string(), z.number()),
+    unassigned: z.number(),
   }),
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
   'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
@@ -251,7 +332,9 @@ export const CommandData = {
       /** cases left out because an earlier import already made them */
       skipped: z.number(),
     }),
+    ImportIssueData,
   ]),
+  issue: IssueData,
   deploy: z.object({
     resources: z.array(
       z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() }),
@@ -259,8 +342,46 @@ export const CommandData = {
     commands: z.array(z.string()),
     url: z.string().nullable(),
   }),
+  /** iw patch create | apply | check */
+  'patch create': PATCH,
+  'patch apply': PATCH,
+  'patch check': PATCH,
   reindex: z.object({ records: z.number(), definitions: z.number(), ms: z.number() }),
   migrate: z.object({ from: z.number(), to: z.number(), changed: z.array(z.string()) }),
   'skills install': AGENT_SETUP,
+  /** iw doctor (v0.5): every pinned part against the target version */
+  doctor: z.object({
+    version: z.string(),
+    pinned: z.string().nullable(),
+    latest: z.string().nullable(),
+    ok: z.boolean(),
+    parts: z.array(
+      z.object({
+        part: z.enum(['tool', 'cli', 'package', 'mcp', 'skills', 'workflow', 'worker']),
+        target: z.string(),
+        version: z.string().nullable(),
+        state: z.enum(['ok', 'outdated', 'unpinned', 'locally-edited']),
+        note: z.string().optional(),
+      }),
+    ),
+    releases: z.array(z.object({ version: z.string(), breaking: z.boolean(), migrate: z.boolean() })),
+  }),
+  /** iw update (v0.5): what each step changed (or would, with --dry-run) */
+  update: z.object({
+    from: z.string().nullable(),
+    to: z.string(),
+    dryRun: z.boolean(),
+    steps: z.array(
+      z.object({
+        step: z.enum(['tool', 'package', 'skills', 'workflow', 'schema', 'migrate', 'check', 'deploy']),
+        changed: z.array(z.string()),
+        note: z.string().optional(),
+      }),
+    ),
+    install: z.string().nullable(),
+    notes: z.string(),
+  }),
 } as const;
 export type CommandName = keyof typeof CommandData;
+export type DoctorData = z.infer<(typeof CommandData)['doctor']>;
+export type UpdateData = z.infer<(typeof CommandData)['update']>;

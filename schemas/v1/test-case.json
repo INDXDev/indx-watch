@@ -323,6 +323,13 @@
       },
       "additionalProperties": false
     },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^https?:\\/\\/[^\\s]+$"
+      }
+    },
     "i18n": {
       "type": "object",
       "propertyNames": {

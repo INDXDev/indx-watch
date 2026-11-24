@@ -6,9 +6,12 @@ import type {
   BrowserAction,
   BrowserObservation,
   BrowserProvider,
+  IssueData,
+  IssueSource,
   LlmClient,
   LlmJudgement,
 } from './ports.js';
+import { StoreError } from './ports.js';
 
 type Page = Omit<BrowserObservation, 'url'>;
 const href = (url: string, base?: string) => new URL(url, base).href;
@@ -90,4 +93,18 @@ export function fakeAccessPolicy(emails = new Set<string>()): AccessPolicy & { e
     return true;
   };
   return { emails, allow: (e) => change(e, true), revoke: (e) => change(e, false) };
+}
+
+/** An issue source over the given issues, keyed by `owner/name`: what the REST adapter returns, without the network. */
+export function fakeIssueSource(issues: Record<string, IssueData[]>): IssueSource & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    async get(repo, number) {
+      reads.push(`${repo}#${number}`);
+      const hit = issues[repo]?.find((i) => i.number === number);
+      if (!hit) throw new StoreError('not-found', `GitHub ${repo}#${number}: not found`);
+      return hit;
+    },
+  };
 }

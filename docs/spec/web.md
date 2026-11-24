@@ -80,6 +80,12 @@ Home is calm. It has four blocks, in this order:
 
 Gate checks, counts by status and the use case table move to **Release details**, a disclosure at the bottom of Home. Their content does not change ([concepts](./concepts.md#readiness-gate)).
 
+**Assignee board** *(v0.5, [assignment](./concepts.md#assignment-and-automation-mix))*. The plan in Release details opens with a board: one row per assignee with their item count, a progress bar split by status (done, review, blocked, to do; each segment has a text count, so colour is never the only signal) and, last, the unassigned items. Below it a line shows the **automation mix**: how many items people, CI and agents run (`3 people · 4 CI · 1 agent`). The item table has a checkbox per row and an **Unassigned only** filter. What a person can do depends on their [role](./security.md#roles) (without roles, and on `iw serve`, everyone is a lead):
+- A **lead** selects rows and chooses **Assign selected** with a person (the plan's assignees, a typed email, `ci` or `agent:<name>`) or **Unassign**, or opens **Split…**: weights per assignee, an "Only unassigned" box and a preview of the proposed changes (`dry_run`), then **Apply**.
+- A **tester** sees **Take** on an unassigned row and **Give back** on a row assigned to them; nothing else.
+- Viewers and customers see the board and no buttons. In git mode (definitions come from git) the board is read-only and says to run `iw assign`; writes need workspace mode, like [edits](#editing-in-workspace-mode).
+- Saving calls `POST /api/plans/:key/assign` ([contract](#editing-in-workspace-mode)): the same write path as customer invites, a `file` record of the plan (workspace mode) or the plan file on `iw serve`, always through `formatToml()`. Agents get 403.
+
 **Drafts.** A draft test case ([states](./concepts.md#test-case-use-case-fixture)) carries a **Draft** chip wherever it is listed: Home's queue, the Tests tree and Flaky list, the plan in Release details, a customer's Home and the test case page. A criterion whose only test cases are drafts reads **No approved test** (the `uncovered` status).
 
 **Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases (as `iw init` leaves it) shows, on Home under the verdict and on Tests, **No test cases yet** with the two ways to start: ask your coding agent ("Set up testing for this repo", or `/iw-setup` in Claude Code and `$iw-setup` in Codex), or run `npx indx-watch new uc …` and `new tc …` from the terminal, each ready to copy, and a link to the [quickstart](../guides/quickstart.md). Home then has no progress bar, Start testing or Share report.
@@ -91,6 +97,10 @@ Gate checks, counts by status and the use case table move to **Release details**
 ### Visual baselines
 
 *(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](./concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
+
+### Open as GitHub issue
+
+*(v0.5)* The run viewer and the [test case page](#test-case-page) show **Open as GitHub issue** when `GET /api/project` has `github.repo` (`[github] repo`, else the working copy's remote; never for customers). It fetches `GET /api/issue?ref=<run or TC>` and opens the prefilled new-issue page in a new tab, so a person reads the text and submits it; the app sends nothing. Beside it, **Paste the issue URL** takes the URL of the issue they created and stores it in the test case's `links`: through `PATCH /api/test-cases/:key` in workspace mode; in git mode the app shows the command `iw issue TC-n --link <url>` to run instead. Linked issues show as **Related issue #42** (a link to GitHub) on the test case page, the run viewer (the test case's links) and the use case. Only http(s) links are rendered.
 
 ### Reviews
 
@@ -197,6 +207,10 @@ Every record carries an `actor` ([security](./security.md#identity)). The app sh
 
 **Read-only demo** *(v0.5)*: on a [public deploy](./security.md#public-deploys) (`readOnly` in `GET /api/project`) every visitor is an anonymous viewer, so the app hides the same actions and shows a notice under the top bar: "This is a read-only demo. Install INDX Watch to run tests: `npx indx-watch init`".
 
+### Version notice
+
+*(v0.5)* When `GET /api/project` has `server.pinned` (the project's `[tool] indx_watch`) and `server.outdated` (the running `server.version` is older; both sent to leads only), leads see one quiet line under the top bar: "This app runs 0.1.2; the project pins 0.1.3. Run `iw deploy`." (on `iw serve`: "Restart `iw serve` with that version."). It is computed from data the page already has: there is no outbound request, other roles never see it, and a project without `[tool]` or a server that is not older shows nothing. The comparison is one function, `compareVersions()` in `@indx-watch/core`, used by the server and `iw doctor`.
+
 ## CLI panel
 
 The **CLI** button opens a panel with the commands that match what you are looking at, each with a copy button. The commands use the real URLs of this server and store:
@@ -223,7 +237,7 @@ Without a store (local only), Clone shows `git clone` advice instead, because th
 - Conflict files from concurrent edits show in the problems banner (`workspace-conflict`) until someone resolves them in a working copy. While a test case has a conflict file, saving it is refused (409), because the edit would silently drop the other value.
 - *(v0.5)* Uploads work in workspace mode too: each changed file becomes a `file` record ([Upload](#upload)).
 
-Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](./security.md#customer-uat)), which append a `file` record for the plan the same way.
+Use cases and plans are edited in a working copy in this version (fixtures on the [Test data](#test-data) screen); only a plan's assignees change in the app, through the [assignee board](#home) (`POST /api/plans/:key/assign`) and customer invites (`POST` / `DELETE /api/plans/:key/invites`, [customer UAT](./security.md#customer-uat)), which append a `file` record for the plan the same way.
 
 ## Upload
 
@@ -289,10 +303,12 @@ You can upload definitions in three ways:
 - **UI strings** come from `messages/{en,ja}.json` ([i18n](./i18n.md#ui-locales)). Counted nouns use ICU plurals (`{count, plural, one {# file} other {# files}}`), picked with the locale's plural rules.
 - **Content** (titles, steps, criteria, fixture names, environment guides, release and plan titles) is resolved with `localize()` everywhere it is shown, including list rows, Home and the CLI panel's titles. Raw `title` fields are never rendered directly.
 - When an item's title uses a `machine` translation, a "Machine translation" switch sits next to the title (once per item, not on every field). Pressing it shows the original text of every content field on the page until it is pressed again. A stale translation shows the source text with a "Translation outdated" badge.
+- *(v0.5)* A project may override UI texts per locale, set a few theme tokens and brand reports with the optional `ui/` folder ([Customizing](./bundle-format.md#customizing-v05)); `GET /api/project` carries them as `ui = { messages, css }` and the app applies them before it renders, so the built-in texts and colors are the fallback. A patched server shows a quiet note with its build id ([patched servers](./security.md#patched-servers)).
 - The language the tester read is recorded on runs (`locale`) and on reviews (`judgement.locale`).
 
 ## Acceptance criteria
 
+- [ ] With `ui/messages.en.json` overriding one key and `ui/theme.toml` setting `accent`, the app shows the new text and color on `iw serve` (server and web tests); a project without `ui/` looks as before; on a patched server the note shows the build id (web and server tests).
 - [x] Home shows the verdict hero, four summary cards, your queue and recent activity. The gate checks are inside Release details (e2e `@TC-12`).
 - [x] With examples/shop, Home says "7 of 8 tests pass · 2 drafts not counted until approved", TC-9 and TC-10 carry a Draft chip in the queue and the Tests tree, and AC-5.1 reads "No approved test"; a project fresh from `iw init` shows "No test cases yet" with `/iw-setup` on Home and Tests (e2e `@TC-12`).
 - [x] The bar's language switch turns the app Japanese and back, and the choice survives a reload (e2e `@TC-12`).
@@ -309,6 +325,7 @@ You can upload definitions in three ways:
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
+- [x] With `[github] repo` set, the run viewer and the test case page show Open as GitHub issue, which opens the prefilled form page; pasting the issue URL shows Related issue #42 (e2e `@TC-27`). Without a repository the button is hidden.
 - [x] TC-4 in examples/shop (`style = "bdd"`) shows the Scenario (BDD) chip, the How to run this scenario guide and Given / When / Then labels, and 前提 / もし / ならば after switching to Japanese; TC-3 (no `style`) shows Preconditions, Steps and Expected (checked by hand with Playwright screenshots against `iw serve`).
 - [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test, web unit tests and e2e `@TC-17`).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
@@ -321,4 +338,5 @@ You can upload definitions in three ways:
 - [x] `POST /api/fixtures` creates a dataset from a table as CSV; `PATCH` changes its title, notes and rows, adds and removes a file; `DELETE` removes the folder; deleting a used fixture, an unsafe file name or a plain password as `secret_ref` is refused with nothing written; an agent gets 403 (server test). Creating, editing a table and saving on the screen was checked in a browser.
 - [x] In workspace mode on a Worker, uploading a PDF, editing the new fixture and deleting it write `file` records (the delete as `deleted` versions), and the fixture is gone from the API afterwards (Worker test).
 - [x] A tester may add and edit test data and upload files that only touch `fixtures/`; a viewer gets 403 (server tests).
+- [x] *(v0.5, T-514)* The plan in Release details shows one row per assignee with item count and a status bar (with text), the unassigned items and the automation mix; in workspace mode a lead selects rows, assigns, unassigns or splits with a preview, "Unassigned only" filters, and a tester takes or gives back (e2e `@TC-32`; role rules in `packages/server/test/assign.test.ts`).
 - [x] TC-8 in examples/shop shows its second step with a "from SS-1" chip ("SS-1 から" in Japanese), and `PATCH /api/test-cases/TC-8` with `steps` is refused in workspace mode (server test).

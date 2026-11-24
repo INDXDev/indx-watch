@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useApp } from '../App';
 import { api, type RunSummary, type SpecTree, type TestCaseDetail } from '../api';
 import { useI18n } from '../i18n';
+import { IssueBar } from '../issue';
 import { href } from '../router';
 import { SecretValue } from '../share';
 import {
@@ -44,7 +45,7 @@ export function TestCaseView({ tcKey, run }: { tcKey: string; run?: InPlaceRun |
         editing ? (
           <EditForm d={d} done={done} />
         ) : (
-          <Detail d={d} tree={specs.data} run={run} edit={() => setEditing(true)} />
+          <Detail d={d} tree={specs.data} run={run} edit={() => setEditing(true)} reload={tc.reload} />
         )
       }
     </Load>
@@ -52,10 +53,10 @@ export function TestCaseView({ tcKey, run }: { tcKey: string; run?: InPlaceRun |
 }
 
 type Tree = SpecTree | undefined;
-type Props = { d: TestCaseDetail; tree: Tree; run?: InPlaceRun | undefined; edit(): void };
+type Props = { d: TestCaseDetail; tree: Tree; run?: InPlaceRun | undefined; edit(): void; reload(): void };
 
 /** One test case, top to bottom: what it tests, before you start, the steps (or the runner) and the result. */
-function Detail({ d, tree, run, edit }: Props) {
+function Detail({ d, tree, run, edit, reload }: Props) {
   const { t } = useI18n();
   const { project } = useApp();
   const tc = d.data;
@@ -67,6 +68,7 @@ function Detail({ d, tree, run, edit }: Props) {
           {t('tc.edit')}
         </button>
       )}
+      {!run && <IssueBar ref_={d.key} tcKey={d.key} links={tc.links} reload={reload} />}
       {tc.origin === 'ai' && tc.status !== 'ready' && (
         <div className="callout s-needs_review">
           {t('tc.aiDraft', { model: tc.ai?.model ?? 'AI' })} <code>iw approve {d.key}</code>

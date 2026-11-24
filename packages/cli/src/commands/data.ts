@@ -20,6 +20,7 @@ import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, fail, git, iso, P, S, str } from '../util.js';
 import { importCases } from './import-cases.js';
+import { importGithubIssue } from './import-issue.js';
 import { importPlaywrightPlan } from './playwright-plan.js';
 import { mediaType } from './results.js';
 import { cacheBlob } from './specs.js';
@@ -344,21 +345,25 @@ export const dataCommands: Record<string, Spec> = {
 
   import: {
     description:
-      'Read an archive from iw export --full, or: iw import playwright-plan <file.md> --uc <UC>, iw import testrail <cases.csv>, iw import testomatio <dir|file.md>',
+      'Read an archive from iw export --full, or: iw import playwright-plan <file.md> --uc <UC>, iw import github-issue <n|URL>, iw import testrail <cases.csv>, iw import testomatio <dir|file.md>',
     args: {
       archive: P('.tar.zst, .tar.gz or .tar (or playwright-plan, testrail or testomatio, then the file)'),
       'dry-run': B('Report what would change'),
       merge: B('Into an existing bundle'),
       ...{ uc: S('Plan: use case of the new test cases'), mode: S('Plan: test case mode (default manual)') },
       ...{ model: S('Plan: model ID of the planner (or IW_AGENT_MODEL)'), skill: S('Plan: skill name') },
-      feature: S('testrail, testomatio: feature of the new use cases (default: the only one)'),
+      ...{
+        from: S('github-issue: gh issue view --json file'),
+        feature: S('github-issue, testrail, testomatio: feature of the new use cases'),
+      },
     },
     async run(ctx, a) {
       if (str(a.archive) === 'playwright-plan') return importPlaywrightPlan(ctx, a);
+      if (str(a.archive) === 'github-issue') return importGithubIssue(ctx, a);
       if (str(a.archive) === 'testrail' || str(a.archive) === 'testomatio')
         return importCases(ctx, a, str(a.archive) as 'testrail');
-      if (a.uc || a.mode || a.model || a.skill || a.feature)
-        fail('USAGE', '--uc, --mode, --model, --skill and --feature apply to plans and imports only');
+      if (a.uc || a.mode || a.model || a.skill || a.from || a.feature)
+        fail('USAGE', '--uc, --mode, --model, --skill, --from and --feature apply to plans and imports only');
       const archive = resolve(ctx.cwd, str(a.archive)!);
       const x = await iwb
         .readArchive(new Uint8Array(await readTar(archive, a.archive)))

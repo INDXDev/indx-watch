@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874NN9MAP1A1WQFW6YGXNBN"
-key = "TC-22"
+key = "TC-37"
 title = "A testomat.io Markdown folder becomes drafts"
 status = "draft"
 origin = "ai"
-covers = ["AC-12.2"]
+covers = ["AC-17.2"]
 mode = "manual"
 
 [[steps]]

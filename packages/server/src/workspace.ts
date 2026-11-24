@@ -4,8 +4,9 @@ import { canInvite, EMAIL, inviteItems, isAssignee, type Model } from '@indx-wat
 import { headsOf, versionsByEntity } from '@indx-watch/sync';
 import type { Context } from 'hono';
 import type { Ctx } from './app.js';
-import type { InviteInput, InviteResult, TestCaseEdit } from './contract.js';
+import type { AssignInput, AssignResult, InviteInput, InviteResult, TestCaseEdit } from './contract.js';
 import { bad, fail, HttpError, notFound } from './http.js';
+import { assignPlan } from './tools.js';
 
 const [enc, dec] = [new TextEncoder(), new TextDecoder()];
 export const workspaceMode = (m: Model | undefined) => m?.project.store?.mode === 'workspace';
@@ -21,6 +22,13 @@ function applyEdit(data: Record<string, unknown>, input: TestCaseEdit) {
     out.priority = B.Priority.safeParse(input.priority).success
       ? input.priority
       : fail(bad('priority: P0–P3'));
+  if (input.links === null) delete out.links;
+  else if (input.links !== undefined) {
+    const links = [...new Set(input.links)];
+    if (!links.every((l) => typeof l === 'string' && /^https?:\/\/[^\s]+$/i.test(l)))
+      throw bad('links: http(s) URLs');
+    out.links = links;
+  }
   if (input.steps !== undefined) {
     if (!Array.isArray(input.steps) || !input.steps.length) throw bad('steps: at least one step');
     const old = (data.steps ?? []) as Record<string, unknown>[];
@@ -136,4 +144,50 @@ export async function invite(c: Context, x: Ctx, revoke: boolean) {
   const { changed: items, reassigned } = r!;
   const out: InviteResult = { ...saved, email, plan: plan.key, items, reassigned, revoked: revoke, access };
   return c.json(out, revoke ? 200 : 201);
+}
+
+const mine = (a: string | undefined, id: string) => a?.toLowerCase() === id.toLowerCase();
+
+/**
+ * POST /api/plans/:key/assign: set or split assignees (docs/spec/security.md#customer-uat). A lead may do all of it; a
+ * tester may take an unassigned item for themselves or give back one assigned to them. Writes like an invite.
+ */
+export async function assign(c: Context, x: Ctx) {
+  const [who, { role }] = [await x.actor(c), await x.grant(c)];
+  const body = await c.req.json<AssignInput>().catch(() => fail(bad('request body must be JSON')));
+  const m = await x.model(c);
+  const plan =
+    m.plans.find((p) => p.key.toUpperCase() === c.req.param('key')!.toUpperCase()) ?? fail(notFound('plan'));
+  const dry = body.dry_run === true;
+  if (!dry && who.kind !== 'human')
+    throw new HttpError(403, 'forbidden', 'only a person may assign; propose with dry_run');
+  const split = body.split !== undefined;
+  if (split === (body.to !== undefined)) throw bad('send `split`, or `to` with `items`');
+  const keys = new Set((body.items ?? []).map((k) => k.toUpperCase()));
+  const items = (plan.items ?? []).filter((i) => keys.has(i.test_case.toUpperCase()));
+  const ownTurn =
+    typeof body.to === 'string'
+      ? mine(body.to, who.id) && items.every((i) => !i.assignee)
+      : body.to === null && items.every((i) => mine(i.assignee, who.id));
+  if (role !== 'lead' && !(role === 'tester' && ownTurn && !split && !dry && keys.size))
+    throw new HttpError(403, 'forbidden', 'a tester may only take unassigned items or give back their own');
+  let r: ReturnType<typeof assignPlan>;
+  try {
+    r = assignPlan(m, {
+      plan: plan.key,
+      split: body.split,
+      to: body.to,
+      items: [...keys],
+      onlyUnassigned: body.only_unassigned,
+    });
+  } catch (e) {
+    if (!(e instanceof B.BundleError)) throw e;
+    throw e.code === 'NOT_FOUND' ? notFound(e.message.replace(/ not found$/, '')) : bad(e.message);
+  }
+  const out: AssignResult = { ...r.data, dry_run: dry };
+  if (dry) return c.json(out);
+  const next = r.data.assignments;
+  const target = { entity: plan.id, type: 'plan' } as const;
+  const saved = await saveFile(c, x, m, target, (data) => (next.length ? { ...data, items: r.items } : data));
+  return c.json({ ...out, ...saved } satisfies AssignResult, 201);
 }

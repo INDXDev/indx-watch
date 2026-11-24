@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874NMRJTPKGJQ11A9WEA1TK"
-key = "TC-21"
+key = "TC-36"
 title = "A TestRail export becomes drafts, and a second import changes nothing"
 status = "draft"
 origin = "ai"
-covers = ["AC-12.1", "AC-12.3"]
+covers = ["AC-17.1", "AC-17.3"]
 mode = "manual"
 
 [[steps]]

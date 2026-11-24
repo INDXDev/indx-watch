@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874NM7K9K3PS143BWPM1CTV"
-key = "TC-20"
+key = "TC-35"
 title = "Check rejects an unknown shared step and a loop"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.3"]
+covers = ["AC-16.3"]
 mode = "manual"
 
 [[steps]]

@@ -12,5 +12,6 @@ export * from './sign.js';
 export * from './steps.js';
 export * from './toml.js';
 export type * from './types.js';
+export * from './ui.js';
 export * from './versions.js';
 export * from './write.js';

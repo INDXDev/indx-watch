@@ -9,7 +9,7 @@ branding:
 
 inputs:
   version:
-    description: indx-watch npm version to run (default the action's tag, e.g. v0.1.0 → 0.1.0; otherwise latest).
+    description: indx-watch npm version to run (default `[tool] indx_watch` in project.toml, else the action's tag, e.g. v0.1.0 → 0.1.0; otherwise latest).
     required: false
     default: ""
   cli:
@@ -110,6 +110,7 @@ runs:
         IW_IN_COMMENT: ${{ inputs.comment }}
         IW_IN_CHECK: ${{ inputs.check }}
         IW_PR: ${{ github.event.pull_request.number }}
+        IW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         IW_TOKEN: ${{ inputs.token }}
       run: |
         set -o pipefail
@@ -123,6 +124,11 @@ runs:
           iw() { node "$local_bin" "$@"; }
         else
           version="$IW_IN_VERSION"
+          if [ -z "$version" ]; then
+            # the project's own pin: [tool] indx_watch = "x.y.z" in project.toml
+            pin_file="${IW_IN_DIR:-.indx-watch}"; [ -f "$pin_file/project.toml" ] || pin_file="$pin_file/.indx-watch"
+            version="$(sed -n '/^\[tool\]/,/^\[/s/^indx_watch *= *"\([^"]*\)".*/\1/p' "$pin_file/project.toml" 2>/dev/null | head -n 1)"
+          fi
           if [ -z "$version" ]; then
             if [[ "$IW_ACTION_REF" =~ ^v[0-9] ]]; then version="${IW_ACTION_REF#v}"; else version=latest; fi
           fi
@@ -203,6 +209,13 @@ runs:
           else
             echo "::warning::indx-watch could not list the suggested test cases"
           fi
+          # Test cases changed in this PR: the bundle at the PR's base commit against this one (`iw diff`).
+          if [ -n "$IW_BASE_SHA" ] && git fetch --no-tags --quiet --depth=1 origin "$IW_BASE_SHA" \
+            && iw diff "${common[@]}" --base "$IW_BASE_SHA" > "$out/diff.md"; then
+            echo "diff=$out/diff.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::indx-watch could not list the changed test cases"
+          fi
         fi
 
     - if: ${{ !cancelled() && (inputs.comment == 'true' || inputs.check == 'true') && steps.iw.outputs.gate != '' }}
@@ -219,6 +232,7 @@ runs:
         IW_UNTESTED: ${{ steps.iw.outputs.untested }}
         IW_REPORT: ${{ steps.iw.outputs.report }}
         IW_IMPACT: ${{ steps.iw.outputs.impact }}
+        IW_DIFF: ${{ steps.iw.outputs.diff }}
         IW_PR: ${{ github.event.pull_request.number }}
         IW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         IW_CHECK_RUN_ID: ${{ job.check_run_id }}
@@ -237,9 +251,12 @@ runs:
           const [marker, file, job, name] = process.argv.slice(1);
           const e = process.env, ok = e.IW_GATE === "pass";
           const cut = (s, max, note) => s.length > max ? s.slice(0, s.lastIndexOf("\n", max - note.length)) + note : s;
+          const read = (f) => (f && fs.existsSync(f) ? fs.readFileSync(f, "utf8").trim() : "");
+          const diff = read(e.IW_DIFF);
           const impact = e.IW_IMPACT && fs.existsSync(e.IW_IMPACT) ? fs.readFileSync(e.IW_IMPACT, "utf8").trim() : "";
           const head = `${marker}\n**${ok ? "✅" : "❌"} ${name}: gate ${ok ? "passed" : "failed"}** · ` +
             `pass ${e.IW_PASS || 0} · fail ${e.IW_FAIL || 0} · untested ${e.IW_UNTESTED || 0} · [job](${job})\n\n` +
+            (diff ? `${cut(diff, 6000, "\n- …")}\n\n` : "") +
             (impact ? `${cut(impact, 20000, "\n- …")}\n\n` : "");
           let report = file && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
           const max = 65000 - head.length, note = "\n\n_Report truncated; see the job summary._\n";

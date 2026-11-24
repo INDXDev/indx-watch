@@ -8,6 +8,7 @@ import {
   computeStatus,
   decide,
   type FixtureNode,
+  isOlderVersion,
   type Model,
   ownedFeatures,
   ownedModel,
@@ -15,15 +16,17 @@ import {
 } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
+import { patchesOf } from './build.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
+import { type IssueResult, issueFor } from './issue.js';
 import { report } from './reports.js';
 import { accessOf } from './secrets.js';
 import { checksError } from './tools.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
-import { editTestCase, invite, workspaceMode } from './workspace.js';
+import { assign, editTestCase, invite, workspaceMode } from './workspace.js';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
 /** A test case by key or ID, else 404. */
@@ -74,6 +77,23 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
     return c.json(runs.map((v) => V.runSummary(v, m)));
   });
   get('/api/runs/:id', (m, c) => runDetail(m, c.req.param('id')!));
+  app.get('/api/issue', async (c) => {
+    if ((await x.grant(c)).role === 'customer')
+      throw new HttpError(403, 'forbidden', 'customers cannot open issues');
+    const m = await model(c);
+    const repo = m.project.github?.repo ?? x.deps.githubRepo;
+    const hosted = x.deps.mode === 'hosted' ? new URL(c.req.url).origin : undefined;
+    try {
+      return c.json(issueFor(m, q(c, 'ref') ?? '', { repo, appUrl: hosted }) satisfies IssueResult);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      throw code === 'NOT_FOUND'
+        ? notFound(String((e as Error).message))
+        : code === 'INVALID_CONFIG'
+          ? new HttpError(409, 'conflict', (e as Error).message)
+          : e;
+    }
+  });
   app.get('/api/blobs/:sha', (c) => blob(c, x));
   app.get('/api/report', (c) => report(c, x));
 }
@@ -86,9 +106,18 @@ function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role)
     ...{ declare: !!deps.declaredIdentity, upload: writer && files, share: sharer(who) && lead },
     ...{ run: role !== 'viewer', review: writer, approve: lead },
     edit: workspaceMode(m) && !!deps.bundleFiles && lead,
+    assign: workspaceMode(m) && !!deps.bundleFiles && writer,
     data: writer && files,
     secrets: !!deps.secretsKey,
   };
+}
+
+/** The running version; for a lead also the pinned one and whether the server is older (no outbound call). */
+function serverInfo(version: string, role: B.Role | undefined, pinned: string | undefined) {
+  const patches = patchesOf();
+  const base = { version, ...(patches && { patches }) };
+  if (role !== 'lead' || !pinned) return base;
+  return { ...base, pinned, ...(isOlderVersion(version, pinned) && { outdated: true as const }) };
 }
 
 async function projectInfo(c: Context, x: Ctx) {
@@ -111,18 +140,22 @@ async function projectInfo(c: Context, x: Ctx) {
   };
   const clone = deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null);
   const who = await actor(c);
+  const github = m.project.github?.repo ?? deps.githubRepo;
   const info: ProjectInfo = {
     project: { key, name, source_locale, locales, default_environment, current_release },
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
     ...{ identity: who, mode: deps.mode, problems: customer ? [] : problems, role },
+    ...(github && !customer && { github: { repo: github } }),
     owns: ownedFeatures(m, principal),
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone: customer ? null : clone },
     can: abilities(x, m, who, role),
     ...(!customer && deps.roles && { team: deps.roles }),
     ...(deps.readOnly && { readOnly: true }),
+    server: serverInfo(x.version, role, m.project.tool?.indx_watch),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
+    ...(m.ui && { ui: { messages: m.ui.messages, css: B.themeCss(m.ui.theme) } }),
   };
   return c.json(info);
 }
@@ -133,7 +166,11 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   const { key = record.test_case.key, title = key } = t?.data ?? {};
   const i18n = t?.data.i18n && (await V.markStale(t.data, 'test-case')).i18n;
   const currentVersion = t?.version ?? record.test_case.version;
-  const testCase = { key, title, currentVersion, ...(i18n && { i18n }) };
+  const testCase = {
+    ...{ key, title, currentVersion },
+    ...(i18n && { i18n }),
+    ...(t?.data.links && { links: t.data.links }),
+  };
   // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
   const flagged = (jid: string, i: number) => m.unverified?.has(i ? `${record.id}#${jid}` : jid);
   const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);
@@ -187,6 +224,7 @@ export function registerWriteRoutes(app: Hono, x: Ctx) {
   app.post('/api/fixtures', (c) => saveFixture(c, x, 'create'));
   app.patch('/api/fixtures/:key', (c) => saveFixture(c, x, 'edit'));
   app.delete('/api/fixtures/:key', (c) => saveFixture(c, x, 'delete'));
+  app.post('/api/plans/:key/assign', (c) => assign(c, x));
   app.post('/api/plans/:key/invites', (c) => invite(c, x, false));
   app.delete('/api/plans/:key/invites/:email', (c) => invite(c, x, true));
 }

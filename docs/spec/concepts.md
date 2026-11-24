@@ -196,13 +196,23 @@ A plan item's scope is (`plan.release`, `item.environment` ?? `plan.environment`
 
 A test case may appear in a plan more than once only with different environments (`iw check`). *(v0.3)* On the hosted app, a person with the `customer` role sees only the plan items assigned to them, by email or Access group ([roles](./security.md#roles)).
 
+#### Assignment and automation mix
+
+*(v0.5)* Three pure functions in `packages/core` answer every question about who has what; the CLI, the server API, the web app and the MCP tool call them and never recompute.
+
+- `splitAssignments(model, planKey, weights, { onlyUnassigned })` proposes an assignee for each plan item. Weights are whole numbers per assignee (`alex@shop.test:2,sam@shop.test:1,agent:claude:1`); an assignee's quota is its share of the items, rounded by largest remainder (ties go to the earlier entry). The result is deterministic: the same plan and weights always give the same split. Rules, in order: (1) a feature's `owners` ([feature owners](#feature-owners)) get the items of their own features first, until their quota is full; (2) the other items are handed out most important first (P0, then P1 …, then plan order), each to the assignee with room left who holds the fewest items of that priority for their weight, so no one person holds all the P0s; (3) with `onlyUnassigned`, items that already have an assignee keep it and count toward that assignee's quota. An assignee that is not in the weights is never added or removed.
+- `assigneeBoard(model, planKey)` counts a plan's items per assignee by [plan item status](#plan-item-computed) (`todo`, `done`, `blocked`, `review`), plus the unassigned items, ordered by item count (most first), then name.
+- `automationMix(model, plans)` counts plan items by who runs them: **CI** when the item's assignee is `ci` or its test case `mode` is `playwright`; **agents** when the assignee is `agent:<name>` or the mode is `agent`; otherwise **people** (`manual` and `hybrid` modes, and any assigned person or group). It returns `{ people, ci, agents, total }` (whole items; a test case in a plan twice counts twice).
+
+Who may change an assignee (hosted app; without [roles](./security.md#roles) and on `iw serve` everyone is a `lead`): a lead assigns anyone; a tester may **take** an item that has no assignee for themselves, or **give back** an item assigned to them; viewers and customers never. Agents only propose (`iw assign --dry-run`, the MCP tool `assign`); writing needs a person. A test case still appears in a plan more than once only with different environments, and one plan item has one assignee.
+
 ### Release
 
 `planning` → `testing` → `ready` → `released`, set in `releases/<version>.toml` by a person. The [gate](#readiness-gate) tells them whether `ready` is justified; it never sets the state itself.
 
 ## Versions and staleness
 
-- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables; *(v0.5)* with each `use = "SS-n"` replaced by the steps of that [shared step](./bundle-format.md#shared-steps), so editing a shared step makes results of every test case that uses it stale), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, guidance and translations do not.
+- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables; *(v0.5)* with each `use = "SS-n"` replaced by the steps of that [shared step](./bundle-format.md#shared-steps), so editing a shared step makes results of every test case that uses it stale), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, `links`, guidance and translations do not.
 - **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`). Text data files (`.csv`, `.json`, `.txt`, `.md`, `.toml`, `.yaml`, …) are hashed with CRLF read as LF, so a Windows checkout gives the same version.
 - A run records the test case version and the version of every fixture it used.
 - A result is **stale** when its test case version differs from the current one, or any fixture version it used differs from the current version of that fixture.
@@ -261,6 +271,20 @@ Changed paths are relative to the repository root with `/` separators, as `git d
 3. **fixture**: lies inside the directory of a fixture the test case references.
 
 Each suggestion carries every reason that applies (`kind`, the changed `file`, and for `automation` the matching entry as `pattern`). Suggestions are ordered by priority (P0 first), then key. Drafts are included; their definition `status` tells them apart.
+
+## Bundle diff
+
+`bundleDiff(base, head)` says what a change did to the definitions: which use cases (UC), acceptance criteria (AC) and test cases (TC) were added, changed or removed between two loaded bundles, for example the bundle at a pull request's base commit and at its head. It is information only (like [impact analysis](#impact-analysis)): it changes no verdict, status or gate check.
+
+Items match by `id`, so renumbering a key is a change, not a removal plus an addition. A changed item lists what differs:
+
+| Item | `what` |
+|---|---|
+| Test case | `title`; `steps` (the steps, in order); `criteria` (the covered criteria, or the text of one of them); `data` (the fixture references, or the version of a referenced fixture); `details` (anything else, such as mode, priority or preconditions) |
+| Use case | `title`; `details` (actor, goal, priority, status, links …) |
+| Criterion | `title` (its text) |
+
+Translations and field order count only when they change the stored value. Results are ordered use cases, criteria, test cases, each by key. Runs are not part of a bundle diff.
 
 ## Feature owners
 

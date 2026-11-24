@@ -4,6 +4,7 @@
  */
 import { type Locale, TRANSLATABLE_FIELDS, translationSourceHash } from '@indx-watch/bundle';
 import { localize, type Model, type ReportData } from '@indx-watch/core';
+import { patchedLabel } from './build.js';
 import type { RenderOptions } from './contract.js';
 import LABELS from './report-labels.json' with { type: 'json' };
 import STYLE from './report-style.json' with { type: 'json' };
@@ -93,7 +94,7 @@ function inline(x: Inline, html: boolean): string {
   return INLINE[x.k][html ? 0 : 1](x.v, x.x ?? '');
 }
 
-function toHtml(blocks: Block[], title: string, footer: string, locale: Locale): string {
+function toHtml(blocks: Block[], title: string, footer: string, locale: Locale, logo?: string): string {
   const h = (x: Inline) => inline(x, true);
   const all = <T>(xs: T[], f: (x: T, i: number) => string) => xs.map(f).join('');
   const body = blocks.map((b) => {
@@ -118,7 +119,7 @@ function toHtml(blocks: Block[], title: string, footer: string, locale: Locale):
   });
   return `<!doctype html>\n<html lang="${locale}">\n<head>\n<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">\n<meta http-equiv="Content-Security-Policy" content="${CSP}">\n<title>${esc(title)}</title>
-<style>\n${CSS}\n</style>\n</head>\n<body>\n<main class="doc">\n${body.join('\n')}
+<style>\n${CSS}\n</style>\n</head>\n<body>\n<main class="doc">\n${logo ? `<img src="${esc(logo)}" alt="" style="display:block;max-height:48px;max-width:200px;margin-bottom:12px">\n` : ''}${body.join('\n')}
 <footer>${esc(footer)}</footer>\n</main>\n</body>\n</html>\n`;
 }
 
@@ -228,7 +229,10 @@ function summary({ data, s, t, T, h2, icon }: Ctx): Block[] {
   const rows = prio.map(([p, c]) => [p, ...COLS.map((k) => `${c[k] ?? 0}`), ac(c)]);
   const byPriority = { head: T(`priority ${COLS.join(' ')} acCoverage`), num: [1, 2, 3, 4, 5, 6, 7], rows };
   const coverage: Inline = [`${t('coverage')}: `, { k: 'bold', v: cov }];
-  return [h2('summary'), { counts }, { p: coverage }, byPriority];
+  const a = data.automation;
+  const mix =
+    a && `${t('runBy')}: ${(['people', 'ci', 'agents'] as const).map((k) => `${t(k)} ${a[k]}`).join(' · ')}`;
+  return [h2('summary'), { counts }, { p: coverage }, ...(mix ? [{ p: mix }] : []), byPriority];
 }
 
 /** 4. Use cases with their criteria and the latest status of each test case, or plan items grouped by assignee */
@@ -326,12 +330,15 @@ export async function renderReport(data: ReportData, opts: RenderOptions): Promi
   const c = context(data, opts);
   const { t, T, section } = c;
   const subject = data.plan ? `${t('plan')} ${data.plan}` : `${t('release')} ${data.scope.release ?? '—'}`;
-  const title = `${data.project.name} — ${subject}`;
+  const title = `${data.brand?.title ?? data.project.name} — ${subject}`;
+  // a patched server always says so, even under a custom footer (docs/spec/reports.md#rendering-rules)
+  const footer = [data.brand?.footer ?? t('footer'), patchedLabel()].filter(Boolean).join(' · ');
   // 6. Waivers
   const rows = data.waivers.map((w) => [key(w.testCase), w.reason, w.by, when(w.at)]);
   const waivers = section('waivers', !rows.length, () => ({ head: T('testCase reason who when'), rows }));
   const first = [header(c, title), summary(c), items(c), await failures(c), waivers];
   const B = [...first, matrix(c), runLog(c), appendix(c)].flat();
-  const out = opts.format === 'html' ? toHtml(B, title, t('footer'), opts.locale) : toMd(B, t('footer'));
+  const out =
+    opts.format === 'html' ? toHtml(B, title, footer, opts.locale, data.brand?.logo) : toMd(B, footer);
   return c.customer ? out.replace(EMAIL, '[email removed]') : out;
 }

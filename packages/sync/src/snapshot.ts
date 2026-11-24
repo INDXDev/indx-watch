@@ -2,10 +2,11 @@
 import { type BundleFs, sha256Hex } from '@indx-watch/bundle';
 import { packTar } from 'modern-tar';
 
-/** Collect the definition files, leaving out cache/, runs/ and names starting with a dot (.gitignore and the like). */
+/** Collect the definition files, leaving out cache/, runs/, patches/ and names starting with a dot (.gitignore and the like). */
 async function collect(fs: BundleFs, dir: string, out: string[]): Promise<void> {
   for (const e of await fs.list(dir)) {
-    if (e.name.startsWith('.') || (!dir && (e.name === 'cache' || e.name === 'runs'))) continue;
+    if (e.name.startsWith('.') || (!dir && (e.name === 'cache' || e.name === 'runs' || e.name === 'patches')))
+      continue;
     const path = dir ? `${dir}/${e.name}` : e.name;
     if (e.dir) await collect(fs, path, out);
     else out.push(path);

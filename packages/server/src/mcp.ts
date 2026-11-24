@@ -74,6 +74,11 @@ function hostedTools(x: Ctx, c: Context, server: McpServer): T.ToolHandlers {
         if (format === 'json') return T.toolData(data);
         return T.toolText(await renderReport(data, { format: 'md', locale, evidence: 'links' }));
       }),
+    assign: (i) =>
+      read((m) => ({
+        ...T.assignPlan(m, { plan: i.plan, split: i.split, onlyUnassigned: i.only_unassigned }).data,
+        dry_run: true,
+      })),
     sync: async () =>
       T.toolError(
         'USAGE',
