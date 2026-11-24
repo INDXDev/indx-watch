@@ -16,6 +16,7 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
   const [priority, setPriority] = useState(d.data.priority ?? '');
   const [steps, setSteps] = useState(() => draftsOf(d));
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const save = async (e: FormEvent) => {
     e.preventDefault();
     const changed = JSON.stringify(plain(steps)) !== JSON.stringify(plain(draftsOf(d)));
@@ -24,10 +25,12 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
       ...(priority !== (d.data.priority ?? '') && { priority: priority || null }),
       ...(changed && { steps: plain(steps) }),
     };
+    setBusy(true);
     await api.editTestCase(d.key, input).then(
       () => done(true),
       (x: Error) => setError(x.message),
     );
+    setBusy(false);
   };
   return (
     <form className="tc-focus stack" onSubmit={save}>
@@ -48,7 +51,7 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
       <StepsField steps={steps} setSteps={setSteps} />
       {error && <p className="callout s-fail">{error}</p>}
       <p className="chips">
-        <button type="submit" className="btn btn-primary">
+        <button type="submit" className="btn btn-primary" disabled={busy}>
           {t('tc.save')}
         </button>
         <button type="button" className="btn" onClick={() => done(false)}>
