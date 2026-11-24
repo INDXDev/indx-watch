@@ -1,5 +1,0 @@
-interface:
-  display_name: "Triage failure"
-  short_description: "Investigate a failed, blocked or needs-review INDX Watch run — read its steps, judgements and evidence, compare with…"
-policy:
-  allow_implicit_invocation: true

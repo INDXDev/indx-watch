@@ -11,7 +11,7 @@ import {
 } from '../api';
 import { type MsgKey, useI18n } from '../i18n';
 import { href } from '../router';
-import { Badge, FeedItem, Icon, Load, Priority, txt, useAgo, useApi, Who } from '../ui';
+import { Badge, Chip, Copy, FeedItem, Icon, Load, Priority, txt, useAgo, useApi, Who } from '../ui';
 import { ReleaseDetails } from './Dashboard';
 
 export const OPEN = ['fail', 'needs_review', 'blocked', 'stale', 'untested'];
@@ -68,9 +68,12 @@ function useHome(status: StatusResult, specs: SpecTree | undefined, plans: PlanV
   const me = project.identity.id;
   const todo = queue(status, prio, plan, me);
   const byKey = new Map(status.testCases.map((x) => [x.key, x]));
-  const total = status.testCases.length;
+  const drafts = new Set(tcs.filter(({ tc }) => tc.lifecycle === 'draft').map(({ tc }) => tc.key));
+  // counts cover ready test cases only, like the gate (docs/spec/concepts.md#computed-done); drafts are listed apart
+  const { uncovered, ...byStatus } = status.counts;
+  const total = Object.values(byStatus).reduce((a, b) => a + b, 0);
   const passing = status.counts.pass + status.counts.waived;
-  return { status, title, prio, plan, me, todo, byKey, total, passing };
+  return { status, title, prio, plan, me, todo, byKey, total, passing, drafts };
 }
 type HomeData = ReturnType<typeof useHome>;
 
@@ -86,11 +89,18 @@ function Ready({ status, specs, plans, runs }: Props) {
         <Assigned d={d} plans={plans} />
       </div>
     );
+  if (status.testCases.length === 0)
+    return (
+      <div className="home">
+        <Hero d={d} />
+        <GetStarted />
+      </div>
+    );
   return (
     <div className="home">
       <Hero d={d} />
 
-      <Cards d={d} />
+      <Cards d={d} runs={runs} />
 
       <div className="grid-2">
         <Queue d={d} />
@@ -109,7 +119,7 @@ function Ready({ status, specs, plans, runs }: Props) {
 }
 
 /** The release verdict, progress and the main call to action. */
-function Hero({ d: { status, todo, passing, total } }: { d: HomeData }) {
+function Hero({ d: { status, todo, passing, total, drafts } }: { d: HomeData }) {
   const { t, locale } = useI18n();
   const { project, scope } = useApp();
   const release = project.releases.find((r) => r.version === scope.release);
@@ -132,10 +142,17 @@ function Hero({ d: { status, todo, passing, total } }: { d: HomeData }) {
               ? t('dash.ready')
               : t('dash.notReady', { failed: failing.length, total: status.gate.checks.length })}
         </p>
-        <div className="progress" role="img" aria-label={t('home.progress', { passing, total })}>
-          <span style={{ width: `${total ? Math.round((passing / total) * 100) : 0}%` }} />
-        </div>
-        <p className="muted small">{t('home.progress', { passing, total })}</p>
+        {status.testCases.length > 0 && (
+          <>
+            <div className="progress" role="img" aria-label={t('home.progress', { passing, total })}>
+              <span style={{ width: `${total ? Math.round((passing / total) * 100) : 0}%` }} />
+            </div>
+            <p className="muted small">
+              {t('home.progress', { passing, total })}
+              {drafts.size > 0 && ` · ${t('home.drafts', { count: drafts.size })}`}
+            </p>
+          </>
+        )}
       </div>
       <div className="hero-actions">
         {todo.length > 0 && project.can.run !== false && (
@@ -143,17 +160,21 @@ function Hero({ d: { status, todo, passing, total } }: { d: HomeData }) {
             ▶ {t('home.start', { count: todo.length })}
           </a>
         )}
-        <a className={todo.length > 0 ? 'btn btn-lg' : 'btn btn-primary btn-lg'} href={href.report()}>
-          {t('home.share')}
-        </a>
+        {status.testCases.length > 0 && (
+          <a className={todo.length > 0 ? 'btn btn-lg' : 'btn btn-primary btn-lg'} href={href.report()}>
+            {t('home.share')}
+          </a>
+        )}
       </div>
     </section>
   );
 }
 
-function Cards({ d: { status, passing, total } }: { d: HomeData }) {
+function Cards({ d: { status, passing, total }, runs }: { d: HomeData; runs: RunSummary[] }) {
   const { t } = useI18n();
   const snap = useApp().project.snapshot;
+  const latest = runs.reduce<RunSummary | undefined>((a, r) => (a && a.at > r.at ? a : r), undefined);
+  const last = snap ?? latest;
   const ago = useAgo();
   const c = status.counts;
   const attention = c.fail + c.needs_review + c.blocked + c.stale;
@@ -177,15 +198,16 @@ function Cards({ d: { status, passing, total } }: { d: HomeData }) {
           <small> / {status.coverage.total}</small>
         </span>
       </a>
-      <a className="stat" href={href.uploads()}>
-        <span className="stat-label">{t('home.card.upload')}</span>
-        {snap ? (
+      {/* the last upload when there is one; else the latest result, which may have come through sync or CI */}
+      <a className="stat" href={snap ? href.uploads() : latest ? href.run(latest.id) : href.activity()}>
+        <span className="stat-label">{t(snap ? 'home.card.upload' : 'home.card.latest')}</span>
+        {last ? (
           <span className="stat-who">
-            <Who who={snap.actor} unverified={snap.unverified} />{' '}
-            <span className="muted small">{ago(snap.at)}</span>
+            <Who who={last.actor} unverified={last.unverified} />{' '}
+            <span className="muted small">{ago(last.at)}</span>
           </span>
         ) : (
-          <span className="muted small">{t('home.card.noUpload')}</span>
+          <span className="muted small">{t('home.activity.empty')}</span>
         )}
       </a>
     </div>
@@ -193,7 +215,7 @@ function Cards({ d: { status, passing, total } }: { d: HomeData }) {
 }
 
 /** The first open test cases in queue order, each with its next action. */
-function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
+function Queue({ d: { todo, byKey, title, prio, plan, me, drafts } }: { d: HomeData }) {
   const { t } = useI18n();
   const canRun = useApp().project.can.run !== false;
   const action = (key: string) => {
@@ -231,6 +253,7 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
                   <span className="key">{k}</span> {title.get(k)}
                 </a>
                 <span className="queue-actions">
+                  {drafts.has(k) && <Chip tone="warn">{t('tc.draft')}</Chip>}
                   {prio.get(k) && <Priority p={prio.get(k)!} />}
                   {mine && <span className="chip chip-accent">{t('plan.you')}</span>}
                   {a && (
@@ -249,7 +272,7 @@ function Queue({ d: { todo, byKey, title, prio, plan, me } }: { d: HomeData }) {
 }
 
 /** A customer's Home: every plan item assigned to them, by plan (docs/spec/web.md#customer-view). */
-function Assigned({ d: { title, byKey }, plans }: { d: HomeData; plans: PlanView[] }) {
+function Assigned({ d: { title, byKey, drafts }, plans }: { d: HomeData; plans: PlanView[] }) {
   const { t, locale } = useI18n();
   const keys = [...new Set(plans.flatMap((p) => (p.items ?? []).map((i) => i.test_case)))];
   const row = (i: NonNullable<PlanView['items']>[number]) => {
@@ -263,6 +286,7 @@ function Assigned({ d: { title, byKey }, plans }: { d: HomeData; plans: PlanView
           <span className="key">{i.test_case}</span> {title.get(i.test_case)}
         </span>
         <span className="queue-actions">
+          {drafts.has(i.test_case) && <Chip tone="warn">{t('tc.draft')}</Chip>}
           {i.due && <span className="muted small">{i.due}</span>}
           <a className="btn btn-sm" href={to}>
             {t(failed ? 'dash.action.inspect' : 'dash.action.run')}
@@ -283,6 +307,43 @@ function Assigned({ d: { title, byKey }, plans }: { d: HomeData; plans: PlanView
           <ul className="list">{(p.items ?? []).map(row)}</ul>
         </div>
       ))}
+    </section>
+  );
+}
+
+const QUICKSTART = 'https://github.com/INDXDev/indx-watch/blob/main/docs/guides/quickstart.md';
+const FIRST = [
+  'uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total"',
+  'tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%"',
+];
+
+/** A project without test cases: the two ways to write the first ones (docs/spec/web.md#home). */
+export function GetStarted() {
+  const { t } = useI18n();
+  return (
+    <section className="card start" aria-labelledby="start-h">
+      <h2 id="start-h">{t('start.title')}</h2>
+      <p className="muted">{t('start.intro')}</p>
+      <div className="grid-2">
+        <div className="stack-sm">
+          <h3>1. {t('start.agent')}</h3>
+          <p className="muted small">{t('start.agentHint')}</p>
+          <Copy label="Claude Code" text="/iw-setup" />
+          <Copy label="Codex" text="$iw-setup" />
+        </div>
+        <div className="stack-sm">
+          <h3>2. {t('start.cli')}</h3>
+          <p className="muted small">{t('start.cliHint')}</p>
+          {FIRST.map((c) => (
+            <Copy key={c} text={`npx indx-watch new ${c} --ready`} />
+          ))}
+        </div>
+      </div>
+      <p>
+        <a href={QUICKSTART} target="_blank" rel="noreferrer">
+          {t('start.docs')} ↗
+        </a>
+      </p>
     </section>
   );
 }

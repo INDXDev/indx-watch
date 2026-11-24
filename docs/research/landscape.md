@@ -1,6 +1,11 @@
+---
+title: "Test management landscape"
+description: "Other test management, tests-as-text and AI-native QA tools, with sources, and where INDX Watch fits."
+---
+
 # Test Case Management Landscape (OSS, Commercial, Tests-as-Text, AI-Native)
 
-INDX Watch enters a crowded market. Classic open-source TCMs (Kiwi TCMS, TestLink, Squash TM, Tuleap) are database-first web apps with GPL-family licenses. Reporting tools (ReportPortal, Allure Report) are strong on automated results and weak on authored specs. Commercial SaaS (TestRail, Qase, Xray, Zephyr, Testmo, Testiny, testomat.io, Allure TestOps) all have the same model: projects, suites or folders, cases, runs, and plans live in the vendor's database. In 2025-2026 nearly every one of them added AI case generation and an MCP server. Two trends point toward INDX Watch's thesis. First, tests are moving back into git as text: testomat.io's `.test.md` sync, Momentic deprecating cloud authoring in favour of `*.test.yaml` in the repo, and Playwright's own planner agent writing Markdown specs under `specs/`. Second, the browser-agent layer is turning into a commodity: Playwright Test Agents, Stagehand, and QA Wolf's per-run pricing. No tool we found combines all of the following: a canonical file bundle as the source of truth, with no vendor DB; fixtures and test accounts as versioned, first-class data; result sync through a dumb object store; "done" computed from acceptance criteria coverage; and customer-facing acceptance reports. That combination is the gap INDX Watch fills.
+Test case management is a mature field with many good tools. Classic open-source TCMs (Kiwi TCMS, TestLink, Squash TM, Tuleap) are database-first web apps with GPL-family licenses. Reporting tools (ReportPortal, Allure Report) focus on automated results rather than authored specs. Commercial SaaS (TestRail, Qase, Xray, Zephyr, Testmo, Testiny, testomat.io, Allure TestOps) all have the same model: projects, suites or folders, cases, runs, and plans live in the vendor's database. In 2025-2026 nearly every one of them added AI case generation and an MCP server. Two trends point toward INDX Watch's thesis. First, tests are moving back into git as text: testomat.io's `.test.md` sync, Momentic deprecating cloud authoring in favour of `*.test.yaml` in the repo, and Playwright's own planner agent writing Markdown specs under `specs/`. Second, the browser-agent layer is turning into a commodity: Playwright Test Agents, Stagehand, and QA Wolf's per-run pricing. No tool we found combines all of the following: a canonical file bundle as the source of truth, with no vendor DB; fixtures and test accounts as versioned, first-class data; result sync through a dumb object store; "done" computed from acceptance criteria coverage; and customer-facing acceptance reports. That combination is the space INDX Watch aims at.
 
 Last verified: 2026-11-19
 
@@ -19,7 +24,7 @@ Last verified: 2026-11-19
 - **AI features:** None built in. The only AI-facing feature is the `llms.txt` / OpenAPI output in 17.0.
 - **Self-hosting:** Yes (container). A paid hosted/enterprise flavor also exists.
 - **Pricing:** Free OSS. Paid subscriptions cover hosted and enterprise images.
-- **Weaknesses:** DB-first, with no text or git workflow. No first-class fixtures or test data. Dated UI. No Playwright-native reporter. No AI.
+- **Gaps for our use case:** DB-first, with no text or git workflow. No first-class fixtures or test data. No Playwright-native reporter. No built-in AI.
 
 ### 1.2 TestLink
 - **License:** GPL-2.0 ("TestLink is a GPL licensed open source project"). Source: https://github.com/TestLinkOpenSourceTRMS/testlink-code (as of 2026-11-19).
@@ -30,7 +35,7 @@ Last verified: 2026-11-19
 - **AI:** None.
 - **Self-hosting:** Only option.
 - **Pricing:** Free.
-- **Weaknesses:** Stagnant, legacy UX, no modern CI, Playwright, or AI story. It matters mainly as a source of migrations, so an importer is worth having.
+- **Gaps for our use case:** Development has slowed, and there is no built-in CI, Playwright or AI integration. Teams still using it may want an importer.
 
 ### 1.3 Squash TM (Henix)
 - **License:** Open core. Squash TM is **LGPL-3.0**, and Squash AUTOM/DEVOPS are Apache-2.0. Premium and Ultimate plugins need a commercial license. Sources: https://www.squashtest.com/source-code?lang=en and https://tm-en.doc.squashtest.com/v9/downloads.html (as of 2026-11-19).
@@ -41,7 +46,7 @@ Last verified: 2026-11-19
 - **AI:** "Write test cases with AI assistance". This requires an admin to configure an AI server (bring your own) and a prompt set, then enable AI per project. Same source.
 - **Self-hosting:** Yes. This is the primary mode, and SaaS is also offered.
 - **Pricing:** Free core. Premium and Ultimate licenses are quote-based.
-- **Weaknesses:** Heavy Java app aimed at enterprise and regulated QA. DB-first. Requirement → case → campaign traceability is excellent, but it is not developer- or agent-friendly.
+- **Gaps for our use case:** A Java application aimed at enterprise and regulated QA. DB-first. Requirement → case → campaign traceability is excellent; the workflow is built around its web UI rather than files and coding agents.
 
 ### 1.4 Tuleap (Enalean)
 - **License:** GPL-2.0-or-later (Tuleap overall) **(secondary)**: https://en.wikipedia.org/wiki/Tuleap (as of 2026-11-19).
@@ -53,7 +58,7 @@ Last verified: 2026-11-19
 - **Self-hosting:** Yes.
 - **Pricing:** Community free. Enterprise is a subscription.
 - **Ownership change:** Dassault Systèmes reportedly acquired Enalean in March 2026 **(secondary, unverified against a primary source)**: https://startupstash.com/alternatives/tuleap/.
-- **Weaknesses:** TCM is an add-on to a full ALM. Heavyweight. Paid tier for testing.
+- **Gaps for our use case:** Test management is a module of a full ALM, in the paid tier.
 
 ### 1.5 ReportPortal (EPAM)
 - **License:** Apache-2.0. Quality Gates, the SCIM Server, and "Test Executions" are paid premium features. Source: https://www.reportportal.io/docs/FAQ/ (as of 2026-11-19).
@@ -63,7 +68,7 @@ Last verified: 2026-11-19
 - **AI:** "Auto-Analysis" ML triage. OpenSearch finds similar past failure logs (TF-IDF), then an XGBoost model (about 30 features) assigns a defect type when probability is at least 50%. No LLM or generative features are documented on that page. Source: https://reportportal.io/docs/analysis/AutoAnalysisOfLaunches/ (as of 2026-11-19).
 - **Self-hosting:** Yes (docker-compose or Kubernetes; needs OpenSearch, Postgres, RabbitMQ, MinIO, and so on). Same FAQ.
 - **Pricing:** Free OSS. Premium features and SaaS are paid.
-- **Weaknesses:** Operationally heavy (many services). No manual-case authoring, no requirements, no fixtures. It answers "why did automation fail", not "is the feature done".
+- **Gaps for our use case:** Runs several services. No manual-case authoring, requirements or fixtures. It answers "why did automation fail" rather than "is the feature done".
 
 ### 1.6 Allure Report (Qameta, OSS) and Allure TestOps (commercial)
 - **Allure Report license:** Apache-2.0. Allure Report 3 is a TypeScript rewrite with a plugin system, one config file, rerun grouping, multi-environment reports, "known/muted/accepted" failure resolutions, a `watch` mode, quality gates, and an Allure Storage Service for history (cloud or self-hosted). Source: https://allurereport.org/docs/v3/ (as of 2026-11-19).
@@ -73,7 +78,7 @@ Last verified: 2026-11-19
 - **AI:** Built-in **MCP server (public beta, from release 26.1.1)** with 13 tools (test case CRUD and AQL search, shared steps, result search, mutes, project, issue lookup). The docs warn it "may be subject to additional fees". Source: https://docs.qameta.io/allure-testops/howto/mcp/ (as of 2026-11-19). The built-in AI chat reportedly needs a separate license **(secondary)**: https://habr.com/ru/articles/993090.
 - **Self-hosting:** TestOps is offered as cloud or on-prem.
 - **Pricing:** Per user. Commonly listed at about $39 per user per month for cloud, with unlimited read-only users **(secondary)**: https://www.capterra.com/p/227555/Allure-TestOps/.
-- **Weaknesses:** TestOps is a closed DB product. Allure Report has no concept of authored specs, requirements, or assignments.
+- **Gaps for our use case:** TestOps is a closed DB product. Allure Report has no concept of authored specs, requirements, or assignments.
 
 ---
 
@@ -86,7 +91,7 @@ Last verified: 2026-11-19
 - **Automation:** `trcli` (open source) parses JUnit XML and uploads results, merging multiple files into one run. Source: https://github.com/gurock/trcli (as of 2026-11-19).
 - **File-based:** No. CSV and XML import/export only.
 - **Self-hosting:** TestRail Server (Windows, Unix, Docker).
-- **Weaknesses:** Seat pricing. DB lock-in. Cases are mostly free text. The test data and fixtures story is weak. AI is cloud-only per one source **(secondary)**: https://www.issoh.co.jp/md/tech/3106.
+- **Gaps for our use case:** Seat pricing. Data lives in its database. Cases are mostly free text. Test data and fixtures are not first-class entities. AI is cloud-only per one source **(secondary)**: https://www.issoh.co.jp/md/tech/3106.
 
 ### 2.2 Qase
 - **License:** Proprietary SaaS. The reporters and the MCP server are open source.
@@ -94,7 +99,7 @@ Last verified: 2026-11-19
 - **Data model:** Projects → suites (tree) → cases (steps, pre/postconditions, severity, priority, layer, custom fields) → test runs (and plans) → results; defects; shared steps.
 - **Tests as code:** Reporters (including `playwright-qase-reporter`) can treat **code as the source of truth** for case title, suite, severity, priority, layer, description, pre/postconditions, custom fields, and tags. IDs are linked with `qase.id()` or a `QaseID` annotation. Sources: https://developers.qase.io/docs/metadata-tests-as-code and https://reporters.qase.io/js/syntax/syntax-playwright.html (as of 2026-11-19).
 - **AI:** The **AIDEN brand was retired on 2026-06-09**. Features are now "Qase AI": AI Test Designer (cases from a Jira or GitHub issue, tagged AI-generated and **staged for review**) and AI QA Architect (manual → automated, export to Playwright, Cypress, or Selenium). Source: https://www.qase.io/blog/aiden-is-just-qase-now/ (as of 2026-11-19). **QA Architect retired on 2026-11-06**; users are pointed to "your own AI client with the Qase MCP Server". Source: https://docs.qase.io/en/articles/11012497-ai-qa-architect (as of 2026-11-19). The official MCP server is https://github.com/qase-tms/qase-mcp-server (as of 2026-11-19). Qase also launched **Tiden**, "intent verification for coding agents", which records the agent session's request as a spec and checks whether tests prove each promise (Oct 2026) **(secondary)**: https://www.producthunt.com/products/tiden.
-- **Weaknesses:** DB-first. The vendor just retired its own hosted test-automation agent in favour of BYO agent plus MCP. **This strongly validates INDX Watch's "agent-native via your own agent" bet.**
+- **Gaps for our use case:** DB-first. The vendor retired its own hosted test-automation agent in favour of BYO agent plus MCP, the same direction INDX Watch takes ("bring your own agent").
 
 ### 2.3 Xray (Xblend / Idera, Jira app)
 - **License:** Proprietary. Sold on the Atlassian Marketplace and priced on the whole Jira instance's user tier.
@@ -104,34 +109,34 @@ Last verified: 2026-11-19
 - **File-based:** No. Everything is in Jira (though Gherkin can be exported and imported).
 - **Self-hosting:** Jira Data Center edition.
 - **Pricing:** Per Jira user tier, cloud or DC. Exact list prices are on the Marketplace: https://marketplace.atlassian.com/apps/1211769/xray-test-management-for-jira (as of 2026-11-19).
-- **Weaknesses:** Requires Jira. Cost scales with all Jira users. Issue-type sprawl. Not usable outside Atlassian.
+- **Gaps for our use case:** Requires Jira; cost scales with all Jira users; many issue types. Not usable outside Atlassian.
 
 ### 2.4 Zephyr (SmartBear; formerly Zephyr Scale / Squad)
 - **Status:** At Atlassian Team '25 (2025-04-03 announcement), SmartBear launched a unified **Zephyr** platform, sold only on the Atlassian Marketplace, with HaloAI-powered no-code automation and "unlimited storage". Source: https://smartbear.com/news/news-releases/smartbear-launches-unified-zephyr-platform-at-atla/ (as of 2026-11-19). Earlier names: TM4J → Zephyr Scale, Zephyr for Jira → Zephyr Squad. Source: https://smartbear.com/news/news-releases/smartbear-renames-1-test-management-solution/ (as of 2026-11-19). Zephyr Enterprise is a separate standalone product.
 - **Data model:** Test cases → test cycles → test executions, with test plans. Jira issues serve as requirements.
 - **AI:** HaloAI (manual → automated conversion). Rovo natural-language coverage queries (March 2026) were reported only in a search-engine summary of an SD Times article. **Unverified; no primary URL was confirmed.**
 - **Pricing:** Per Jira user tier on the Marketplace. Third-party figures conflict **(secondary)**: https://getautonoma.com/blog/zephyr-pricing.
-- **Weaknesses:** Same Jira lock-in as Xray. Product renames create confusion.
+- **Gaps for our use case:** Requires Jira, like Xray. Several product renames.
 
 ### 2.5 Testmo (Idera / Gurock)
 - **Pricing:** Team $59 per month (5 users), Business $249 (15), Enterprise $599 (25). Annual plans are 15% off. **No on-prem edition.** Testmo AI is included in all plans, but case generation and update are "coming soon", and an **MCP Server is in beta**. Source: https://www.testmo.com/pricing/ (as of 2026-11-19).
 - **Data model:** Projects → repository (folders, cases) → test runs (manual), **exploratory sessions**, and automation runs grouped by **automation sources**; milestones. Source **(secondary)**: https://providers.apievangelist.com/providers/testmo/ (as of 2026-11-19).
 - **Automation:** `@testmo/testmo-cli` submits JUnit XML from CI. Example repos: https://github.com/testmoapp (as of 2026-11-19).
-- **Weaknesses:** SaaS only. DB-first. AI is still immature.
+- **Gaps for our use case:** SaaS only. DB-first. AI features are partly in beta.
 
 ### 2.6 Testiny
 - **Pricing:** Free up to 3 users and 1,000 total cases/plans/runs (no history, no MCP). Starter $15.42 per user per month. Business $17.08. Enterprise $25.00 (5-seat packs). **Testiny Server (self-hosted) from $300 per user per year.** The MCP Server is available from Starter up. Source: https://www.testiny.io/pricing/ (as of 2026-11-19).
 - **Data model:** Projects → test cases (folders) → test plans → test runs/executions; milestones; custom result states. Same source.
 - **Automation:** JUnit import via CLI. Source: https://www.testiny.io/docs/integrations/automation/junit/ (as of 2026-11-19).
 - **AI:** MCP server only ("connects to the AI of your choice"); no built-in generation found.
-- **Weaknesses:** DB-first. AI is limited to MCP. Small vendor.
+- **Gaps for our use case:** DB-first. AI is through MCP only.
 
 ### 2.7 testomat.io
 - **Pricing:** Free (2 users, 2 projects, MCP server). Professional $27 per user per month yearly or $30 monthly (AI test creation, AI agents, AI analytics). Enterprise quote (custom AI provider, branching/versioning, **self-hosting**). Source: https://testomat.io/pricing/ (as of 2026-11-19).
 - **Tests as text (most relevant competitor here):** "Classical" projects store each manual test as **Markdown**. `npx check-tests pull` downloads one **`.test.md` file per suite**, and `check-tests push` uploads them. Metadata lives in HTML comments (`<!-- suite id: @S… -->`, `<!-- test id: @T… type: manual priority: high -->`); steps go under `## Steps` with nested `*Expected*:` items; there are optional examples tables. Sources: https://docs.testomat.io/project/import-export/export-tests/classical-tests-markdown-format/ and https://docs.testomat.io/project/tests/classical-test-case-editor/ (as of 2026-11-19).
 - **Agent skills:** Open-source, **MIT-licensed** skills for Claude Code, Codex, Cursor, Copilot, and Cline (`npx skills add testomatio/skills`). Many work on local Markdown files with no account. Coverage mapping writes `coverage.manual.yml` and `coverage.e2e.yml` so CI can run only affected tests. Source: https://testomat.io/features/ai-skills/ (as of 2026-11-19).
 - **Automation:** `check-tests` imports automated tests from source code for many frameworks; reporters exist for Playwright, Cypress, JUnit, and others.
-- **Weaknesses:** The Markdown files are an **export/sync format; the platform DB stays canonical** (IDs are minted server-side). There are no fixtures or environments as files, and results do not sync without the SaaS.
+- **Gaps for our use case:** The Markdown files are an **export/sync format; the platform DB stays canonical** (IDs are minted server-side). There are no fixtures or environments as files, and results do not sync without the SaaS.
 
 ---
 
@@ -165,7 +170,7 @@ Last verified: 2026-11-19
 | **SkyTest Agent** (Oursky) | Self-hosted natural-language test cases; MCP and agent skill so coding agents generate cases from specs; Next.js + Midscene.js + Playwright. | OSS (license not verified) | https://gh.r-mj.com/oursky/skytest-agent **(secondary mirror)** |
 | **ReportPortal Auto-Analysis** | Classic ML (XGBoost) failure triage, not generative. | Apache-2.0 | https://reportportal.io/docs/analysis/AutoAnalysisOfLaunches/ |
 
-Takeaway: the **execution agent is commoditizing**. Playwright ships agents, Stagehand is MIT, QA Wolf sells per run, and Qase shut down its own hosted agent. The durable value moves to **what the agent is given** (spec, AC, fixtures, environment, accounts) and **what is kept** (evidence, verdicts, human review, "done" status).
+Takeaway: browser **execution agents are becoming widely available**. Playwright ships agents, Stagehand is MIT, QA Wolf sells per run, and Qase replaced its own hosted agent with MCP. The durable value moves to **what the agent is given** (spec, AC, fixtures, environment, accounts) and **what is kept** (evidence, verdicts, human review, "done" status).
 
 ---
 
@@ -202,16 +207,16 @@ Legend: Y = yes, P = partial, N = no. "Git-native" means the canonical artifacts
 
 ## 6. Gap and positioning
 
-**The gap.** Every incumbent TCM (OSS or SaaS) has a **database as the source of truth**. Text formats exist only as import/export (TestLink XML, TestRail CSV), as a sync mirror (testomat.io `.test.md`), or as code annotations that a server mirrors (Qase, Allure TestOps). Tools that *are* git-native (Momentic YAML, Playwright `specs/`, Gherkin, Doorstop) each cover one slice: agent-run steps, or a plan to codegen, or BDD, or requirements. None manages assignments, manual execution, evidence, environments, fixtures, or a release "done" status. Results tools (Allure Report, ReportPortal) handle runs but not specs.
+**Where INDX Watch fits.** Every established TCM (OSS or SaaS) has a **database as the source of truth**. Text formats exist only as import/export (TestLink XML, TestRail CSV), as a sync mirror (testomat.io `.test.md`), or as code annotations that a server mirrors (Qase, Allure TestOps). Tools that *are* git-native (Momentic YAML, Playwright `specs/`, Gherkin, Doorstop) each cover one slice: agent-run steps, or a plan to codegen, or BDD, or requirements. None manages assignments, manual execution, evidence, environments, fixtures, or a release "done" status. Results tools (Allure Report, ReportPortal) handle runs but not specs.
 
 **What INDX Watch combines, and why each part matters:**
 
-1. **File-first canonical bundle (`.indx-watch/*.toml`).** The repo *is* the database. Indexes (SQLite/D1) are rebuildable caches. This matches the direction Momentic took when it deprecated cloud authoring, and the direction Playwright took with `specs/`. Unlike testomat.io, IDs are minted locally (ULID), so there is no server round-trip and no lock-in.
-2. **Agent-native, BYO agent.** Ship Claude Code and Codex skills, an MCP server, and a CLI that agents can drive. Qase retiring its hosted QA Architect (2026-11-06) in favour of "your own AI client with the Qase MCP Server" shows that hosting the agent is not a moat. Owning the **spec, context, and evidence contract** the agent works against is.
-3. **Fixtures as first-class versioned data.** No incumbent models test data, seed scripts, files, or test accounts as versioned entities that runs pin to. The closest are Xray Preconditions (text only), Momentic modules plus env vars, and Playwright `seed.spec.ts`. INDX Watch records "which fixture version, which spec version, which deployment" per run, with secrets kept as references only.
+1. **File-first canonical bundle (`.indx-watch/*.toml`).** The repo *is* the database. Indexes (SQLite/D1) are rebuildable caches. This matches the direction Momentic took when it deprecated cloud authoring, and the direction Playwright took with `specs/`. IDs are minted locally (ULID), so no server is needed to create an item (testomat.io mints them server-side).
+2. **Agent-native, BYO agent.** Ship Claude Code and Codex skills, an MCP server, and a CLI that agents can drive. Qase retiring its hosted QA Architect (2026-11-06) in favour of "your own AI client with the Qase MCP Server" points the same way. INDX Watch focuses on the **spec, context, and evidence contract** the agent works against.
+3. **Fixtures as first-class versioned data.** None of the tools we reviewed models test data, seed scripts, files, or test accounts as versioned entities that runs pin to. The closest are Xray Preconditions (text only), Momentic modules plus env vars, and Playwright `seed.spec.ts`. INDX Watch records "which fixture version, which spec version, which deployment" per run, with secrets kept as references only.
 4. **Git/Drive-style sync of results.** Specs go through git. Heavy results (runs, evidence, blobs) go through a **storage-only result store** (local fs or any S3-compatible bucket, including R2 and MinIO). That is simpler to operate than ReportPortal's multi-service stack. It takes Allure's "results are files" idea and adds sync and identity.
-5. **Computed done.** UC → AC → TC coverage, combined with the latest verdicts per deployment, yields "done" mechanically. Incumbents report pass rates. Few compute *acceptance* status per requirement without Jira (Xray and Zephyr need Jira; Squash and Tuleap need heavy ALM setups).
-6. **Customer reports.** Shareable, read-only UAT and acceptance reports (with evidence) for external customers. Incumbents gate this behind seats or Jira access.
+5. **Computed done.** UC → AC → TC coverage, combined with the latest verdicts per deployment, yields "done" mechanically. Most tools report pass rates; few compute *acceptance* status per requirement without Jira (Xray and Zephyr need Jira; Squash and Tuleap need heavy ALM setups).
+6. **Customer reports.** Shareable, read-only UAT and acceptance reports (with evidence) for external customers. In most tools this needs a seat or Jira access.
 
 **Positioning line:** *"Your test specs, fixtures and evidence as files you own; any agent can run them, and 'done' is computed, not claimed."*
 

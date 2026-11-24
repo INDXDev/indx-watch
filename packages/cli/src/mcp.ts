@@ -9,7 +9,7 @@ import {
 } from '@indx-watch/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { type Spec, toError } from './cli.js';
+import { type Spec, toError, unique } from './cli.js';
 import { appCommands } from './commands/app.js';
 import { dataCommands } from './commands/data.js';
 import { resultCommands as R } from './commands/results.js';
@@ -26,12 +26,13 @@ export function createMcpServer(base: Ctx, dir?: string): McpServer {
     const call = async (spec: Spec, a: Args, write?: Write): Promise<Result> => {
       const w = write ? writeModel(server, write.model, ctx.env.IW_AGENT_MODEL) : { warnings: [] };
       const env = 'model' in w && w.model ? { ...ctx.env, IW_AGENT_MODEL: w.model } : ctx.env;
+      const c: Ctx = { ...ctx, env, input: write?.input, notes: [] };
       try {
-        const out = await spec.run({ ...ctx, env, input: write?.input }, { ...a, dir, json: true });
-        return toolData(out.data, [...(out.warnings ?? []), ...w.warnings]);
+        const out = await spec.run(c, { ...a, dir, json: true });
+        return toolData(out.data, unique([...(out.warnings ?? []), ...w.warnings, ...c.notes!]));
       } catch (e) {
         const { code, message, details, data } = toError(e);
-        return data && typeof data === 'object' ? toolData(data) : toolError(code, message, details);
+        return data && typeof data === 'object' ? toolData(data, c.notes) : toolError(code, message, details);
       }
     };
     type Step = { index: number; status: string; note?: string; checks?: boolean[] };

@@ -1,3 +1,8 @@
+---
+title: "0011. Docs are Markdown with one home per fact; HTML only for design mockups"
+description: "Architecture decision record: Docs are Markdown with one home per fact; HTML only for design mockups."
+---
+
 # 0011. Docs are Markdown with one home per fact; HTML only for design mockups
 
 - Status: accepted
@@ -10,7 +15,7 @@ The previous design used Japanese HTML for every document. It was heavy for agen
 ## Decision
 
 - All docs are English Markdown; GitHub renders Mermaid.
-- Each fact has exactly one home ([docs/README.md](../README.md) lists them). Other pages link to it.
+- Each fact has exactly one home ([docs/README.md](https://github.com/INDXDev/indx-watch/blob/main/docs/README.md) lists them). Other pages link to it.
 - HTML is only used for visual design mockups in `docs/design/`.
 - Platform facts that change (Cloudflare, Playwright, agent tooling) live only in [platform-notes.md](../research/platform-notes.md) with dates and sources.
 - CI checks links, schema generation, the canonical round trip and that `examples/shop` validates.

@@ -2,27 +2,21 @@
 
 These folders are [Agent Skills](https://agentskills.io/specification): a `SKILL.md` with YAML frontmatter plus optional `references/`. They teach a coding agent (Claude Code, Codex or any Agent Skills client) how to work with an `.indx-watch/` bundle through the `iw` CLI, and the rules for AI-written content. The design is in [docs/spec/agents.md](../docs/spec/agents.md).
 
-| Skill                                           | Use it to                                                                                       |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`indx-watch`](indx-watch/SKILL.md)             | Get the overview: layout, keys, `--json` envelopes, the agent rules. Links the others.          |
-| [`write-test-cases`](write-test-cases/SKILL.md) | Propose acceptance criteria and test cases for a use case as drafts                             |
-| [`manage-fixtures`](manage-fixtures/SKILL.md)   | Create datasets, seeds, files and accounts (secret references only)                             |
-| [`run-tests`](run-tests/SKILL.md)               | Run Playwright test cases by tag, execute manual steps, record results with evidence            |
-| [`triage-failure`](triage-failure/SKILL.md)     | Classify a failure (product bug, test problem, environment or data) and propose the next action |
-| [`release-report`](release-report/SKILL.md)     | Compute readiness and write a release or plan report                                            |
+Seven skills: an overview and one skill per job. A job skill holds a whole conversation: it reads first, asks one question at a time with a recommended answer, explains test cases in plain words, writes only what the user accepted, stops where a person must decide and ends with a "Next:" line. The exact commands, flags and JSON fields are in each skill's `references/`, which it loads when it needs them.
 
-Job skills (v0.4) hold a whole conversation for one job: they read first, ask one question at a time with a recommended answer, explain test cases in plain words, write only what the user accepted, stop where a person must decide and end with a "Next:" line. They use the skills above as references for command details.
+| Skill | Use it to | References |
+| --- | --- | --- |
+| [`indx-watch`](indx-watch/SKILL.md) | Get the overview: layout, keys, `--json` envelopes, the agent rules; points to the job skills | `cli-json.md` |
+| [`iw-setup`](iw-setup/SKILL.md) | Connect a repository: bundle, environment, release, features and proposed owners, Playwright reporter and CI | `wiring.md` |
+| [`iw-design`](iw-design/SKILL.md) | Find what is worth testing in a feature from the source and tests, propose it in plain words, write accepted drafts | `write-test-cases.md` |
+| [`iw-data`](iw-data/SKILL.md) | Give test cases the fixtures they need, with what the tester does with each; secrets as references | `manage-fixtures.md` |
+| [`iw-test`](iw-test/SKILL.md) | Run "my features" or named test cases; walk a person through a manual test case check by check and record the run for their review | `run-tests.md` |
+| [`iw-triage`](iw-triage/SKILL.md) | Explain why a test case failed, with evidence, and propose a fix or an issue text | `triage-failure.md` |
+| [`iw-status`](iw-status/SKILL.md) | Say whether a release can ship, progress by feature and owner, who acts next; write the report | `release-report.md` |
 
 What each job looks like from the user's side (what you say, what happens, what you approve): [Testing with Claude Code or Codex](../docs/guides/testing-with-agents.md).
 
-| Skill                                | Use it to                                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [`iw-setup`](iw-setup/SKILL.md)      | Connect a repository: bundle, environment, release, features and proposed owners, Playwright reporter and CI       |
-| [`iw-design`](iw-design/SKILL.md)    | Find what is worth testing in a feature from the source and tests, propose it in plain words, write accepted drafts |
-| [`iw-data`](iw-data/SKILL.md)        | Give test cases the fixtures they need, with what the tester does with each; secrets as references                |
-| [`iw-test`](iw-test/SKILL.md) | Run "my features" or named test cases; walk a person through a manual test case check by check and record the run for their review |
-| [`iw-triage`](iw-triage/SKILL.md) | Explain why a test case failed, with evidence, and propose a fix or an issue text |
-| [`iw-status`](iw-status/SKILL.md) | Say whether a release can ship, progress by feature and owner, who acts next; write the report |
+**Upgrading from indx-watch 0.1.** It installed the references as five more skills (`write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`). Re-running `skills install` removes those folders when INDX Watch wrote them and you added nothing to them ([details](../docs/spec/agents.md#install)).
 
 ## Install
 
@@ -39,11 +33,11 @@ npx indx-watch skills install --codex    # only Codex
 | Claude Code                          | `.claude/skills/<name>/` (`/<name>`)                        | `.mcp.json`                                     |
 | Codex and other Agent Skills clients | `.agents/skills/<name>/` + `agents/openai.yaml` (`$<name>`) | `.codex/config.toml` `[mcp_servers.indx-watch]` |
 
-Both also get a marked block in `AGENTS.md` that lists the skills and when to use them (and `@AGENTS.md` in an existing `CLAUDE.md`). Commit the result so everyone who opens the repository gets it. Re-run the command after upgrading `indx-watch`: it updates what it wrote and leaves your other servers and text alone. Details: [docs/spec/agents.md](../docs/spec/agents.md#install).
+Both also get a marked block in `AGENTS.md` that lists the skills and when to use them (and `@AGENTS.md` in an existing `CLAUDE.md`). Commit the result so everyone who opens the repository gets it. Re-run the command after upgrading `indx-watch`: it updates what it wrote, removes skills INDX Watch no longer ships, and leaves your other servers and text alone. Details: [docs/spec/agents.md](../docs/spec/agents.md#install).
 
 **Manual install.** Copy each folder of this directory (with its `references/`) to `.claude/skills/` and/or `.agents/skills/` of your repository, or to `~/.claude/skills/` / `~/.agents/skills/` for all your projects. The folder name must stay equal to the skill's `name`.
 
-**With the `skills` CLI.** The third-party [`skills`](https://www.npmjs.com/package/skills) installer (Node 22.20+) can install them straight from GitHub, e.g. `npx skills add INDXDev/indx-watch --skill write-test-cases -a claude-code`.
+**With the `skills` CLI.** The third-party [`skills`](https://www.npmjs.com/package/skills) installer (Node 22.20+) can install them straight from GitHub, e.g. `npx skills add INDXDev/indx-watch --skill iw-test -a claude-code`.
 
 **claude.ai.** The `.agents/skills/` copies keep only the portable frontmatter keys (`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`), so a zipped folder from there also uploads to claude.ai. There the agent needs a shell with Node to run `iw`.
 
@@ -66,4 +60,4 @@ codex mcp add indx-watch -- npx -y indx-watch mcp
 
 ## Editing these skills
 
-Keep each `SKILL.md` short (about 150 lines; a test holds the job skills to 150) and move long material into `references/`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop). `pnpm test` checks this with the [skill lint](../docs/spec/agents.md#lint): frontmatter keys and limits, every `iw` command against the headings of cli.md (write *planned* on the line for a command that does not exist yet), every key against `examples/shop` (or the next free key a worked example creates), and relative links.
+Keep each `SKILL.md` short (about 150 lines; a test holds the job skills to 150) and move commands, field lists and long examples into `references/`, linked from `SKILL.md`. Use only the portable frontmatter keys above (plus the Claude Code keys `argument-hint` and `disable-model-invocation`, which the installer keeps only in `.claude/` copies), commands exactly as in [docs/spec/cli.md](../docs/spec/cli.md), and examples only from [`examples/shop`](../examples/shop). `pnpm test` checks this with the [skill lint](../docs/spec/agents.md#lint): frontmatter keys and limits, every `iw` command against the headings of cli.md (write *planned* on the line for a command that does not exist yet), every key against `examples/shop` (or the next free key a worked example creates), relative links, and that every reference is linked from its `SKILL.md`.

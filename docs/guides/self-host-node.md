@@ -1,6 +1,11 @@
+---
+title: "Self-host on Node or Docker"
+description: "Run a shared INDX Watch server on a VM or in Docker behind an SSO proxy."
+---
+
 # Self-host on Node or Docker
 
-Any machine with Node ≥ 22.13 can host a shared INDX Watch: it runs the same server and web UI as `iw serve` on your laptop. Results live in a store that everyone syncs with (an S3-compatible bucket or a shared folder), and a proxy in front of the server decides who gets in. For a fully managed setup, see [Self-host on Cloudflare](self-host-cloudflare.md). The runtime targets are compared in [architecture.md](../architecture.md#runtime-targets).
+Any machine with Node ≥ 22.13 can host a shared INDX Watch: it runs the same server and web UI as `iw serve` on your laptop. There is no published container image: to use Docker, clone this repository and build the image from its [`Dockerfile`](https://github.com/INDXDev/indx-watch/blob/main/Dockerfile) ([below](#run-with-docker)); without Docker, `npx indx-watch` is all you need. Results live in a store that everyone syncs with (an S3-compatible bucket or a shared folder), and a proxy in front of the server decides who gets in. For a fully managed setup, see [Self-host on Cloudflare](./self-host-cloudflare.md). The runtime targets are compared in [architecture.md](../architecture.md#runtime-targets).
 
 ```mermaid
 flowchart LR
@@ -77,11 +82,11 @@ Run `iw serve` with `--host 127.0.0.1` in this setup: only the proxy on the same
 
 ## Run with Docker
 
-The repository ships a [`Dockerfile`](../../Dockerfile) based on `node:22-slim`. It installs `indx-watch` from npm, or from a tarball you packed yourself, runs as the `node` user, and starts `iw serve --host 0.0.0.0` in `/project`.
+Clone the repository first (`git clone https://github.com/INDXDev/indx-watch && cd indx-watch`); the image is built locally, not pulled from a registry. The repository ships a [`Dockerfile`](https://github.com/INDXDev/indx-watch/blob/main/Dockerfile) based on `node:22-slim`. It installs `indx-watch` from npm, or from a tarball you packed yourself, runs as the `node` user, and starts `iw serve --host 0.0.0.0` in `/project`.
 
 ```console
 $ docker build -t indx-watch .                                   # latest release from npm
-$ docker build -t indx-watch --build-arg IW_VERSION=0.1.0 .      # a specific version
+$ docker build -t indx-watch --build-arg IW_VERSION=0.1.2 .      # a specific version
 $ (cd packages/cli && npm pack --pack-destination ../..) && docker build -t indx-watch .   # this checkout
 ```
 

@@ -1,3 +1,8 @@
+---
+title: "Self-host on Cloudflare"
+description: "Deploy the INDX Watch server to Cloudflare Workers with R2, D1 and Cloudflare Access using iw deploy."
+---
+
 # Self-host on Cloudflare
 
 `iw deploy` puts the same server and web UI that `iw serve` runs locally on Cloudflare Workers. Results go to an R2 bucket (the store), the query index lives in D1, and Cloudflare Access decides who gets in. Your team then syncs with `iw sync` against the Worker's URL and opens the UI in a browser. The command reference is [cli.md](../spec/cli.md#iw-deploy); the security model is [security.md](../spec/security.md#hosted-app).
@@ -21,7 +26,7 @@ flowchart LR
 
 ## Configure `[hosting]`
 
-Add a `[hosting]` table to `.indx-watch/project.toml` (from [`examples/shop`](../../examples/shop/.indx-watch/project.toml)):
+Add a `[hosting]` table to `.indx-watch/project.toml` (from [`examples/shop`](https://github.com/INDXDev/indx-watch/blob/main/examples/shop/.indx-watch/project.toml)):
 
 ```toml
 [hosting]
@@ -82,7 +87,7 @@ $ npx indx-watch deploy
 
 The command creates the missing R2 bucket and D1 database, fills the database ID into the configuration, runs `wrangler deploy` and prints the URL (`https://shop-watch.<your-subdomain>.workers.dev`). Running it again is safe: it only deploys a new version.
 
-If `wrangler` is not logged in, `iw deploy` stops before changing anything with exit code 4 (`EXTERNAL_TOOL`). Without `access_team` it refuses with exit code 3, unless you pass `--public`. Do not use `--public` for anything but a throwaway demo with sample data: anyone with the URL can read and write.
+If `wrangler` is not logged in, `iw deploy` stops before changing anything with exit code 4 (`EXTERNAL_TOOL`). Without `access_team` it refuses with exit code 3, unless you pass `--public`. Use `--public` only for a demo with sample data: anyone with the URL can read it, and the app is read-only (every visitor is an anonymous viewer, every write answers 403, secrets are off; [security](../spec/security.md#public-deploys)). There is no writable public mode.
 
 ## 3. Put Cloudflare Access in front
 
@@ -183,9 +188,15 @@ The bundle (definitions) still travels through git. CI on the default branch run
 
 ## Demo site from GitHub Actions
 
-This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](../../.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](../../examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
+This repository deploys a public demo of the web app with [`.github/workflows/demo.yml`](https://github.com/INDXDev/indx-watch/blob/main/.github/workflows/demo.yml): the server and UI from the current commit, loaded with [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop) (its bundle snapshot and sample results). It runs on every push to `main` that touches `packages/` or the shop bundle, every Monday at 03:17 UTC, and on demand (**Actions → Demo → Run workflow**, optionally with another Worker name for a second demo).
 
-The job copies `examples/shop`, drops the Access keys from the copy's `[hosting]` so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`), runs `iw deploy --public`, waits for `/healthz`, then runs `iw sync` (sample results into the local replica), copies the sample's blobs into the replica (sync fetches blobs lazily, and `iw push` holds back a record whose blobs are missing locally) and runs `iw push --store <url>` (records, blobs and a bundle snapshot). The smoke test fails when the demo's gate differs from `iw status` on the sample. The URL appears on the run's summary and on the `demo` environment.
+The demo is a [public deploy](../spec/security.md#public-deploys), so it is read-only: visitors browse the sample, and the app shows a notice pointing to `npx indx-watch init` instead of Run, Upload and Test data actions. Because the app accepts no writes, the job loads the sample into the bucket from outside, and every run starts from an empty store, so the demo always shows exactly the sample:
+
+1. Copy `examples/shop` and drop the Access keys from the copy's `[hosting]`, so the Worker, R2 bucket and D1 database all take the demo name (default `indx-watch-demo`).
+2. Publish the sample into a local store: `iw sync` (sample results into the local replica), copy the sample's blobs into the replica (sync fetches blobs lazily, and `iw push` holds back a record whose blobs are missing locally), then `iw push --store file://<dir>` (records, blobs and a bundle snapshot).
+3. Reset: list the bucket's objects through the Cloudflare API (`GET /accounts/<id>/r2/buckets/<name>/objects`; wrangler has no listing command) and delete each with `wrangler r2 object delete --remote`, then drop the index tables with `wrangler d1 execute --remote` (the Worker creates them again on first use). On the first run, when the bucket or database does not exist yet, there is nothing to reset.
+4. `iw deploy --public`, then copy the local store's objects into the bucket with `wrangler r2 object put --remote` (blobs first, the log last), and wait for `/healthz`.
+5. The smoke test checks that writes answer 403 and fails when the demo's gate differs from `iw status` on the sample (the Worker indexes the copied objects on its next request or its one-minute cron). The URL appears on the run's summary and on the `demo` environment.
 
 Setup, once per repository:
 
@@ -193,7 +204,7 @@ Setup, once per repository:
 2. **Settings → Environments → New environment** `demo`; add the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` there (or with `gh secret set CLOUDFLARE_API_TOKEN --env demo`).
 3. Run the workflow once by hand.
 
-`--public` means anyone with the URL can read and write the demo, so only sample data goes there, and visitors' runs stay until you empty the bucket. To reset it, follow [Teardown](#teardown) for the demo name and run the workflow again. Never point a real project at a public deploy.
+`--public` means anyone with the URL can read the demo, so only sample data goes there. To reset it by hand, run the workflow. Never point a real project at a public deploy.
 
 ## Costs and limits
 

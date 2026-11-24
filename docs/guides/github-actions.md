@@ -1,6 +1,11 @@
+---
+title: "GitHub Actions"
+description: "Sync results, write the readiness report into the job summary and gate releases in CI."
+---
+
 # GitHub Actions
 
-Run your Playwright tests with the [reporter](playwright.md), then let the INDX Watch composite action sync results, write the readiness report into the job summary and, if you want, fail the job when the release gate fails. The action's inputs, outputs and steps are specified in [integrations](../spec/integrations.md#github-action); CI identity and context in [CI identity](../spec/integrations.md#ci-identity-and-context).
+Run your Playwright tests with the [reporter](./playwright.md), then let the INDX Watch composite action sync results, write the readiness report into the job summary and, if you want, fail the job when the release gate fails. The action's inputs, outputs and steps are specified in [integrations](../spec/integrations.md#github-action); CI identity and context in [CI identity](../spec/integrations.md#ci-identity-and-context).
 
 ## The workflow
 
@@ -114,7 +119,7 @@ The store URL lives in `.indx-watch/project.toml` (`[store]`); credentials come 
 | Cloudflare R2, MinIO, GCS interop          | The same two variables, holding the R2 token's / HMAC key's access key ID and secret |
 | Hosted INDX Watch behind Cloudflare Access | `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` (an Access service token)           |
 
-Create the bucket and a least-privilege key with the [S3 sync guide](s3-sync.md). Give CI a read-write key scoped to the one bucket.
+Create the bucket and a least-privilege key with the [S3 sync guide](./s3-sync.md). Give CI a read-write key scoped to the one bucket.
 
 ## No store: the artifact fallback
 
@@ -171,7 +176,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.IW_S3_SECRET }}
 ```
 
-Without a store, use Playwright's `blob` reporter in the shards and run `npx playwright merge-reports --reporter=indx-watch/playwright` in the merge job, followed by the action ([Playwright → sharding](playwright.md#sharding)).
+Without a store, use Playwright's `blob` reporter in the shards and run `npx playwright merge-reports --reporter=indx-watch/playwright` in the merge job, followed by the action ([Playwright → sharding](./playwright.md#sharding)).
 
 ## Recording deployments
 
@@ -191,4 +196,4 @@ This runs `indx-watch deployment add --env staging` for the current commit.
 
 ## Versions
 
-`INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.0`), or pin the action to an exact release tag.
+`INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.2`), or pin the action to an exact release tag.

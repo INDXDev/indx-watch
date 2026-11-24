@@ -4,10 +4,40 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-24
+
+### Fixed
+
+- A definition file that does not load (for example a TOML syntax error) no longer disappears silently: every command warns about it (text and `--json` `warnings`, also on error envelopes and MCP tools), and the readiness gate fails while it exists with a new first check `valid_definitions` in `evaluateGate()`, so `iw status --gate` can no longer flip to passed when a use case breaks.
+- `iw check` names the line and column of a TOML syntax error and quotes the line; its summary is printed once and pluralized (`1 error`).
+- `iw serve --port abc|70000` is a usage error instead of a stack trace that never exits; the server stops its watcher when it cannot listen.
+- A missing `--from` file (`iw record`, `iw new`, `iw translate`) or `--out` folder (`iw report`) is `NOT_FOUND` (exit 2) instead of an internal error with a stack.
+- A positional argument to a command that takes none (`iw sync s3://other`) is a usage error instead of being ignored.
+- The MCP server reports the package version in `serverInfo` instead of `0.1.0`.
+- `iw init --help` no longer shows a stray `cx.` prefix; `iw init` on an initialized directory says it is already set up and how to refresh the agent files.
+- `iw list` sorts keys by number (`TC-2` before `TC-10`) and marks drafts in text output; `iw status` without ready criteria no longer prints `Coverage: 0/0 ACs (100%)`.
+- The Playwright reporter prints why a run lands in `needs_review` (the decision policy's reason, and the `mode = "manual"` hint).
+
+### Changed
+
+- Docs: a restructured README (who it's for, screenshots, quickstart, key terms, status and versioning); new guides [From zero to "can we ship?"](docs/guides/journey.md) (the whole path by role) and [Using the web app](docs/guides/web-app.md); the docs are also published as a Mintlify site from the same Markdown files ([ADR 0014](docs/adr/0014-docs-site.md)), and `pnpm check:docs` also checks links to this repository on GitHub and the docs-site link rules.
+- `iw init` and `iw skills install` install seven skills instead of twelve: the `indx-watch` overview and the six job skills. The five recipe skills of 0.1 (`write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`), whose triggers overlapped the job skills', are now reference files of the job skill they served (`iw-design`, `iw-data`, `iw-test`, `iw-triage`, `iw-status`), loaded on demand. Re-running `iw skills install` removes the recipe folders INDX Watch wrote (a folder with files you added stays, with a warning) and lists them in `data.removed`.
+- `iw init` ends with agent-first next steps that run as printed (`npx indx-watch serve --open`, or ask Claude Code or Codex to "Set up testing for this repo"); `iw init --example` also pulls the sample results so `iw status` and `iw serve` show them at once.
+
 ### Added
 
+- Web app first run: a project without test cases shows "No test cases yet" on Home and Tests with the two ways to start (ask your agent, `/iw-setup` or `$iw-setup`, or `npx indx-watch new uc …`) and a quickstart link; draft test cases carry a Draft chip wherever they are listed and a criterion with only drafts reads "No approved test"; Home counts ready tests like the gate ("7 of 8 tests pass · 2 drafts not counted until approved"); without an upload the fourth card shows the latest result; the bar has a language switch; on your own run the review form explains that your review changes your verdict; UI strings use ICU plurals ("1 feature").
+- `pnpm screenshots` regenerates the docs screenshots in `docs/images/` from the web app with `examples/shop` and its sample results; the guides use them instead of hand-made images.
+- Test data in the web app for the whole team: any dropped file (PDF, image, CSV, …) becomes a draft fixture without writing TOML, and the Test data screen creates, edits (table rows, seed JSON, account, files) and deletes fixtures. Writes go through the upload path in git mode and as `file` records in workspace mode (uploads included), so edits on the hosted app reach every working copy with `iw sync`; testers may edit test data (T-410).
 - Sharing test data and secrets like a shared drive: fixtures and secrets are shared with the whole team or only with listed emails and `group:` names (`shared_with`; leads always have access). The Test data screen gains a Share dialog, "Who has access" per item, a Secrets tab and, for leads, an Access tab that shows everything one email can open and why. On the hosted app with roles, people see only the data shared with them (T-411).
 - Secrets kept by INDX Watch: `iw:<name>` references to a login ID and a value sealed with AES-256-GCM under the server's `IW_SECRETS_KEY` (`iw keygen --secrets`), stored as `secret` records; the value is shown only to people it is shared with, next to an account's login ID on the Test data screen and the test case page, and every view is recorded (T-411).
+
+### Security
+
+- `iw deploy --public` deploys are read-only: every visitor is an anonymous `viewer`, every write (bundle, store objects, blobs, runs, reviews, waivers, fixtures, secrets, share links, MCP write tools) answers 403 `read-only`, `[hosting.roles]`, the `iw_tester` cookie and `IW_SECRETS_KEY` are ignored, and the web app shows a read-only notice. Before, every visitor of a public deploy had the `lead` role.
+- Secrets: an opened `secret` record is remembered by its content, not its ID, so a body swapped in the bucket under the same ID no longer counts without the key; revealing a value answers with `Cache-Control: no-store`.
+- Release workflow: install and `pnpm verify` run without write tokens; publishing only downloads the packed tarball; the floating `v0` tag follows each 0.x release so `uses: INDXDev/indx-watch@v0` resolves. Dependabot watches GitHub Actions and npm; CI checkouts do not keep credentials.
+- The public demo resets weekly and on each deploy from `examples/shop`.
 
 ## [0.1.1] - 2026-11-23
 
@@ -52,7 +82,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- First open-source version (v0.1): bundle format, `iw` CLI, local server and web UI, result store sync (folder and S3-compatible), Playwright reporter, GitHub Action, agent skills and MCP server, Cloudflare deploy, full archive export/import. See [docs/roadmap.md](docs/roadmap.md#v01--file-first-core-this-release).
+- First open-source version (v0.1): bundle format, `iw` CLI, local server and web UI, result store sync (folder and S3-compatible), Playwright reporter, GitHub Action, agent skills and MCP server, Cloudflare deploy, full archive export/import. See [docs/roadmap.md](docs/roadmap.md#v01--file-first-core).
 - A `Demo` workflow deploys `examples/shop` to a public Cloudflare Worker from `main`, so every change has a live demo site (T-118).
 - GitHub Action: `comment` and `check` inputs keep one PR comment per bundle and release and create an `INDX Watch` check run (T-204).
 - `iw judge <run>`: an LLM judge (Claude, `claude-opus-5-5` by default) that adds an `llm` judgement from the test case's rubric, the run's steps and its last screenshot (T-202).
@@ -73,6 +103,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw translate` keeps every `--set`, not only the last.
 - The remaining acceptance criteria are tested (T-117, #6).
 
-[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/INDXDev/indx-watch/releases/tag/v0.1.0

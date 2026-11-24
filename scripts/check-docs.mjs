@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Checks relative links and #anchors in every Markdown file of the repository. Zero dependencies.
+// Checks relative links, links to this repository on GitHub (…/blob|tree/main/<path>) and
+// #anchors in every Markdown file of the repository. Zero dependencies.
 // Usage: node scripts/check-docs.mjs [--json]   Exit 1 when a link target or anchor is missing.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -14,6 +15,7 @@ const SKIP = new Set([
   'test-results',
   'playwright-report',
   '.wrangler',
+  '.next',
 ]);
 /** Files whose links are placeholders by design. */
 const IGNORE = new Set(['docs/adr/0000-template.md']);
@@ -81,6 +83,11 @@ function anchors(file) {
 
 const LINK =
   /!?\[(?:[^\]\\]|\\.)*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)|^\s{0,3}\[[^\]]+\]:\s+<?(\S+?)>?(?:\s|$)/g;
+const GITHUB = /^https:\/\/github\.com\/INDXDev\/indx-watch\/(blob|tree)\/main\/([^?\s]+)$/;
+/** Pages published on the docs site (docs/docs.json), where relative links need ./ or ../. */
+const SITE = /^docs[/\\](?!design[/\\])/;
+/** Targets under docs/ that the docs site does not serve (README files, docs/.mintignore). */
+const OFF_SITE = /[/\\](README\.md|design[/\\].*\.(html|css)|0000-template\.md)$/;
 const problems = [];
 
 for (const file of walk(root).filter((f) => !IGNORE.has(relative(root, f).split('\\').join('/')))) {
@@ -89,13 +96,32 @@ for (const file of walk(root).filter((f) => !IGNORE.has(relative(root, f).split(
     const line = raw.replace(/`[^`]*`/g, '');
     for (const m of line.matchAll(LINK)) {
       const target = m[1] ?? m[2];
-      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')) continue;
-      const [pathPart, hash] = target.split('#');
+      // Links to this repository on GitHub (used where a page is also published outside the
+      // repository, e.g. docs/ on Mintlify) are checked against the working tree.
+      const gh = target.match(GITHUB);
+      if (!gh && (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//'))) continue;
+      const [pathPart, hash] = (gh ? gh[2] : target).split('#');
       const path = decodeURIComponent(pathPart);
-      const dest = path ? resolve(dirname(file), path) : file;
+      const dest = gh ? resolve(root, path) : path ? resolve(dirname(file), path) : file;
       const where = `${relative(root, file)}:${i + 1}`;
-      if (!existsSync(dest)) {
+      if (!gh && SITE.test(relative(root, file)) && /^[^./#]/.test(target)) {
+        // Mintlify serves `page.md` as raw Markdown; it rewrites only ./ and ../ links.
+        problems.push({ where, target, problem: 'start the link with ./ (docs site)' });
+      } else if (
+        !gh &&
+        SITE.test(relative(root, file)) &&
+        !file.endsWith('README.md') &&
+        (!relative(join(root, 'docs'), dest).match(/^[^.]/) || OFF_SITE.test(dest))
+      ) {
+        problems.push({ where, target, problem: 'not on the docs site: use the GitHub URL' });
+      } else if (!existsSync(dest)) {
         problems.push({ where, target, problem: 'missing file' });
+      } else if (gh && (gh[1] === 'tree') !== statSync(dest).isDirectory()) {
+        problems.push({
+          where,
+          target,
+          problem: `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path`,
+        });
       } else if (
         hash &&
         dest.endsWith('.md') &&

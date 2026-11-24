@@ -289,8 +289,10 @@ async function listen(
     const host = local ? hostGuard(request.headers.get('host'), port) : undefined;
     return host ?? writeGuard(request.method, address, opts.identityHeader) ?? app.fetch(request);
   };
-  const server = serve({ hostname, port: opts.port ?? DEFAULT_PORT, fetch });
+  let server!: ReturnType<typeof serve>;
   try {
+    // inside the try: serve() itself throws on a bad port, and stop() must still end the watcher and sync
+    server = serve({ hostname, port: opts.port ?? DEFAULT_PORT, fetch });
     await new Promise((ok, no) =>
       server.listening ? ok(0) : server.once('listening', ok).once('error', no),
     );

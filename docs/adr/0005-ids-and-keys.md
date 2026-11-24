@@ -1,3 +1,8 @@
+---
+title: "0005. ULID machine IDs; human keys assigned locally and renumbered on conflict"
+description: "Architecture decision record: ULID machine IDs; human keys assigned locally and renumbered on conflict."
+---
+
 # 0005. ULID machine IDs; human keys assigned locally and renumbered on conflict
 
 - Status: accepted

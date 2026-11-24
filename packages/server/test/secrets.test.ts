@@ -153,6 +153,20 @@ describe('secrets kept by INDX Watch', () => {
     expect((await h.json<SecretList>('lead', '/api/secrets')).secrets).toEqual([]);
   });
 
+  it('opens another body under the ID of a record that opened before on its own', async () => {
+    const h = await hosted();
+    await h.send('lead', '/api/secrets/staging-admin', { method: 'PUT', json: login });
+    expect((await h.json<SecretList>('tester', '/api/secrets')).secrets).toHaveLength(1);
+    const shown = await h.send('tester', '/api/secrets/staging-admin/reveal', { method: 'POST' });
+    expect(shown.headers.get('cache-control')).toBe('no-store');
+    // a direct bucket write replaces the body under the same ID with other sharing
+    const i = h.written.findIndex((r) => r.kind === 'secret');
+    h.written[i] = { ...(h.written[i] as SecretRecord), shared_with: undefined };
+    expect((await h.json<SecretList>('viewer', '/api/secrets')).secrets).toEqual([]);
+    const reveal = await h.send('viewer', '/api/secrets/staging-admin/reveal', { method: 'POST' });
+    expect(reveal.status).toBe(404);
+  });
+
   it('needs IW_SECRETS_KEY', async () => {
     const h = await hosted({});
     expect(await h.json<SecretList>('lead', '/api/secrets')).toEqual({ available: false, secrets: [] });

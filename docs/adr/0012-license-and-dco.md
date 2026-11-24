@@ -1,3 +1,8 @@
+---
+title: "0012. Apache-2.0 and the Developer Certificate of Origin"
+description: "Architecture decision record: Apache-2.0 and the Developer Certificate of Origin."
+---
+
 # 0012. Apache-2.0 and the Developer Certificate of Origin
 
 - Status: accepted

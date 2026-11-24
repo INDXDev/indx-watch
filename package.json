@@ -21,7 +21,8 @@
     "check:report": "scripts/check-report.sh",
     "check:worker": "tsx scripts/check-worker.ts",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm schemas --check && pnpm check:docs && pnpm check:pure && node scripts/loc.mjs && pnpm build && pnpm check:example && pnpm check:report && pnpm check:worker",
-    "e2e": "playwright test -c e2e"
+    "e2e": "playwright test -c e2e",
+    "screenshots": "tsx scripts/screenshots.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",

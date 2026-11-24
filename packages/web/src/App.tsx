@@ -10,7 +10,16 @@ import { Report } from './screens/Report';
 import { AccessOverview, Secrets } from './screens/Secrets';
 import { TestFocus, Tests } from './screens/Tests';
 import { Uploads } from './screens/Uploads';
-import { AccountMenu, CliPanel, IdentityDialog, ScopeMenu, startMine, THEMES, type Theme } from './shell';
+import {
+  AccountMenu,
+  CliPanel,
+  IdentityDialog,
+  LanguageSwitch,
+  ScopeMenu,
+  startMine,
+  THEMES,
+  type Theme,
+} from './shell';
 import { Load, OriginalContext, useApi } from './ui';
 import { DropOverlay, type Picked, Pickers, UploadDialog } from './upload';
 
@@ -154,9 +163,15 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
             </button>
           )}
           <CliPanel info={info} route={route} release={scope.release} />
+          <LanguageSwitch />
           <AccountMenu info={info} theme={theme} onTheme={nextTheme} onIdentity={() => setWho(true)} />
         </div>
       </header>
+      {info.readOnly && (
+        <p className="problems" role="note">
+          {t('readOnly.notice')} <code>npx indx-watch init</code>
+        </p>
+      )}
       {info.problems.length > 0 && (
         <div className="problems" role="status">
           <button

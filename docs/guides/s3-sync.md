@@ -1,3 +1,8 @@
+---
+title: "Sync results through S3"
+description: "Share runs and evidence through a folder or an S3-compatible bucket (AWS S3, Cloudflare R2, MinIO, GCS)."
+---
+
 # Sync results through S3 (or R2, MinIO, GCS)
 
 Definitions travel through git. Results — runs, reviews, waivers, deployments and their screenshots — travel through a **result store**: a shared folder or any S3-compatible bucket. Nobody runs a server; `iw sync` exchanges immutable records with the bucket, so two people (or a laptop and CI) see each other's runs within seconds. How it works: [sync](../spec/sync.md); why: [ADR 0002](../adr/0002-two-sync-channels.md), [ADR 0003](../adr/0003-storage-only-store-protocol.md).
@@ -153,7 +158,7 @@ Running it again transfers nothing: sync is idempotent and safe to interrupt. Us
 | `iw sync --full`                         | List the whole store log once, e.g. after a writer's clock was wrong                                              |
 | `iw status --sync`                       | Sync, then compute the status                                                                                     |
 
-`iw sync` runs the secret scan first and refuses to push while `iw check` reports secrets. `iw serve` syncs in the background when a store is configured, and the [Playwright reporter](playwright.md) pushes at the end of each run.
+`iw sync` runs the secret scan first and refuses to push while `iw check` reports secrets. `iw serve` syncs in the background when a store is configured, and the [Playwright reporter](./playwright.md) pushes at the end of each run.
 
 ## Live sync: `iw sync --watch`
 
@@ -165,7 +170,7 @@ iw sync --watch    # push local writes within ~300 ms, poll the store every 3 s
 
 ## Two-clone demo
 
-This shows definition of done #2 with your bucket. It uses the shop example; any project works.
+Two copies of a project on one machine show how sync works with your bucket: a run recorded in one appears in the other within seconds. It uses the shop example; any project works.
 
 ```bash
 npx indx-watch init demo --example     # the examples/shop bundle
@@ -184,7 +189,7 @@ cd demo-b
 iw sync --watch
 ```
 
-**Terminal A** — record a manual run of `TC-8` ("Wrong password is rejected") and push it:
+**Terminal A** — record a manual run of `TC-8` ("Wrong password is rejected") with a screenshot and push it. Any PNG works as the screenshot, for example one you take of the shop's sign-in page:
 
 ```bash
 cd demo

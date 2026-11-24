@@ -1,3 +1,8 @@
+---
+title: "Sync and the result store"
+description: "Records, the store layout, merge rules and the iw sync algorithm."
+---
+
 # Sync and the result store
 
 Definitions sync through git (or, in [workspace mode](#workspace-mode-v02), also through the store). Results — runs, judgements, waivers, deployments, bundle snapshots and their blobs — sync through a **result store**: a folder or any S3-compatible bucket, optionally fronted by a hosted INDX Watch server. This page specifies the store layout, the record format, the merge rules and `iw sync`. Why it is split this way: [ADR 0002](../adr/0002-two-sync-channels.md), [ADR 0003](../adr/0003-storage-only-store-protocol.md). Prior art and S3 facts: [platform notes](../research/platform-notes.md#s3-and-conditional-writes).
@@ -62,11 +67,11 @@ Writes use `If-None-Match: *` (on GCS: `x-goog-if-generation-match: 0`), so noth
 
 ### Store HTTP endpoints
 
-A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; always create-only: 412 when the key exists, with or without `If-None-Match`; 400 for keys outside the layout, invalid manifests or log objects, records of another project, and blobs whose content does not match their key), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. *(v0.2)* `POST /api/sign` (a GitHub OIDC token instead of Access) signs records for a CI job without a key and returns them; it writes nothing to the store ([GitHub OIDC](security.md#github-oidc)). Types: [`packages/server/src/contract.ts`](../../packages/server/src/contract.ts).
+A hosted server exposes the same layout over HTTP (behind Cloudflare Access): `GET`/`HEAD /api/store/objects/<key>` (404 when absent), `PUT /api/store/objects/<key>` (201; always create-only: 412 when the key exists, with or without `If-None-Match`; 400 for keys outside the layout, invalid manifests or log objects, records of another project, and blobs whose content does not match their key), `GET /api/store/list?prefix=&startAfter=&limit=` → `{ "keys": [{ "key", "size", "etag"? }], "truncated" }`. *(v0.2)* `POST /api/sign` (a GitHub OIDC token instead of Access) signs records for a CI job without a key and returns them; it writes nothing to the store ([GitHub OIDC](./security.md#github-oidc)). Types: [`packages/server/src/contract.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/server/src/contract.ts).
 
 ## Records
 
-Every record is a JSON object that starts with `kind` and `id`, followed by the envelope. The Zod schemas in [`packages/bundle/src/schema/records.ts`](../../packages/bundle/src/schema/records.ts) are the field-level reference and are published as `schemas/v1/record.json`.
+Every record is a JSON object that starts with `kind` and `id`, followed by the envelope. The Zod schemas in [`packages/bundle/src/schema/records.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/bundle/src/schema/records.ts) are the field-level reference and are published as `schemas/v1/record.json`.
 
 | Field | |
 |---|---|
@@ -75,14 +80,14 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `v` | `1` |
 | `project` | project machine ID |
 | `at` | creation time (RFC 3339) |
-| `actor`, `source` | [security.md](security.md#identity) |
+| `actor`, `source` | [security.md](./security.md#identity) |
 | `sig` | optional, *v0.2*: the writer's signature ([signed records](#signed-records)) |
 
 **Canonical record JSON.** Writers validate a record with its strict schema and store `JSON.stringify` of the parsed result (keys in schema order, defaults materialized, no whitespace). Those exact bytes go into the replica, log objects and archives. Readers accept unknown extra fields (from newer tools) and keep the bytes they received; two records with the same ID are compared by these bytes.
 
 ### Signed records
 
-*(v0.2)* A writer with `IW_SIGNING_KEY` adds `sig = { "alg": "Ed25519", "kid", "value" }` to every record it writes: an Ed25519 signature (base64url) over `indx-watch/record/v1\n` + the canonical record JSON without `sig`. Readers recompute those bytes from the record they decoded, so a reader whose schema lacks a field a newer writer signed sees the record as unverified until it is upgraded. Signing never changes merge rules: a signed and an unsigned body with the same ID are two different bodies. A GitHub Actions job without a key gets the same signature from the hosted server by exchanging its OIDC token (`POST /api/sign`, [GitHub OIDC](security.md#github-oidc)); the token never goes into the record. Which keys are trusted, and what "unverified" means for the UI, reports and the gate: [security.md](security.md#signed-records).
+*(v0.2)* A writer with `IW_SIGNING_KEY` adds `sig = { "alg": "Ed25519", "kid", "value" }` to every record it writes: an Ed25519 signature (base64url) over `indx-watch/record/v1\n` + the canonical record JSON without `sig`. Readers recompute those bytes from the record they decoded, so a reader whose schema lacks a field a newer writer signed sees the record as unverified until it is upgraded. Signing never changes merge rules: a signed and an unsigned body with the same ID are two different bodies. A GitHub Actions job without a key gets the same signature from the hosted server by exchanging its OIDC token (`POST /api/sign`, [GitHub OIDC](./security.md#github-oidc)); the token never goes into the record. Which keys are trusted, and what "unverified" means for the UI, reports and the gate: [security.md](./security.md#signed-records).
 
 ### Run record
 
@@ -108,8 +113,8 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 ```
 
 - `reported`: what the executor reported for the whole run (`blocked`, `skipped`, or `null`). Only used by decision-policy rule 2.
-- `steps[].checks` *(v0.4)*: for a step whose test case step has [`checks`](bundle-format.md#specsfeatuctc-n-slugtoml), which of them the tester ticked, as booleans in the order of the source `checks` (`[true, false]`: the first held, the second did not). The manual runner writes it; other writers leave it out. It never changes the verdict.
-- The verdict is **not stored**; it is computed ([concepts](concepts.md#decision-policy)).
+- `steps[].checks` *(v0.4)*: for a step whose test case step has [`checks`](./bundle-format.md#specsfeatuctc-n-slugtoml), which of them the tester ticked, as booleans in the order of the source `checks` (`[true, false]`: the first held, the second did not). The manual runner writes it; other writers leave it out. It never changes the verdict.
+- The verdict is **not stored**; it is computed ([concepts](./concepts.md#decision-policy)).
 
 ### Other records
 
@@ -120,9 +125,9 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `deployment` | `environment`, `build`, `release`, `url` | A build was deployed to an environment (`iw deployment add`). |
 | `bundle` | `commit`, `commit_time`, `ref`, `sha256` (blob: `.tar` of the definition files), `definitions_hash` (SHA-256 over the sorted lines `<path> <sha256>\n` of every definition file — excluding `cache/`, `runs/` and dot-files — to skip unchanged snapshots), `files` (count), `dirty` and `message` (*v0.2*, [snapshots from people](#snapshots-from-people-v02)) | A snapshot of definitions for hosted viewers in git mode. |
 | `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
-| `baseline` | *v0.2*: `test_case` (ID + key), `name` (screenshot evidence name), `automation_project` (the run's `automation.project`, if any), `sha256` (blob: the PNG), `run` (run it was taken from) | A person approved this screenshot as the [visual baseline](concepts.md#visual-baselines) for (test case, name, project). Only `human` actors count; the latest per key wins. Tools older than v0.2 skip it with a warning. |
-| `share` | `action` (`create`, `open`, `revoke`); `link` (the `create` record's ID, on `open` and `revoke`); on `create`: `token_sha256`, `expires_at`, `audience`, `locale`, `release`, `environment`, `plan`, `sha256` (blob: the frozen HTML report) | *v0.2*: a [report share link](reports.md#share-links) was created, opened or revoked. Written only by the hosted server; a retracted `create` record also ends its link. |
-| `secret` | `action` (`set`, `delete`, `reveal`), `name`; on `set` and `delete`: optional `title`, `username` (login ID), `notes`, `shared_with`, and `sealed` (base64url of IV and AES-256-GCM ciphertext) | *v0.5*: a [secret kept by INDX Watch](security.md#secrets) was changed, deleted or viewed. Written only by the server holding `IW_SECRETS_KEY`; a `set` or `delete` counts only if its seal opens, so nobody else can change a secret's value or sharing. Never retracted; the push secret scan skips `sealed` like `sig`. |
+| `baseline` | *v0.2*: `test_case` (ID + key), `name` (screenshot evidence name), `automation_project` (the run's `automation.project`, if any), `sha256` (blob: the PNG), `run` (run it was taken from) | A person approved this screenshot as the [visual baseline](./concepts.md#visual-baselines) for (test case, name, project). Only `human` actors count; the latest per key wins. Tools older than v0.2 skip it with a warning. |
+| `share` | `action` (`create`, `open`, `revoke`); `link` (the `create` record's ID, on `open` and `revoke`); on `create`: `token_sha256`, `expires_at`, `audience`, `locale`, `release`, `environment`, `plan`, `sha256` (blob: the frozen HTML report) | *v0.2*: a [report share link](./reports.md#share-links) was created, opened or revoked. Written only by the hosted server; a retracted `create` record also ends its link. |
+| `secret` | `action` (`set`, `delete`, `reveal`), `name`; on `set` and `delete`: optional `title`, `username` (login ID), `notes`, `shared_with`, and `sealed` (base64url of IV and AES-256-GCM ciphertext) | *v0.5*: a [secret kept by INDX Watch](./security.md#secrets) was changed, deleted or viewed. Written only by the server holding `IW_SECRETS_KEY`; a `set` or `delete` counts only if its seal opens, so nobody else can change a secret's value or sharing. Never retracted; the push secret scan skips `sealed` like `sig`. |
 | `file` | *v0.2*: `path` (bundle-relative), `entity` (the `id` inside the file, if any), `sha256` (blob: the file's bytes; absent when deleted), `deleted`, `bases` (unused, empty), `parents` (the `file` record IDs this version replaces) | One version of a definition file in [workspace mode](#workspace-mode-v02). |
 
 ## Merge rules
@@ -140,7 +145,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 **Two bodies with one record ID.** Normal writers never produce this; it means a forged or corrupted upload. So that every replica and index ends with the same body, each one remembers, per record ID, the earliest log key under which it read the body it holds: the sync state (`keys` in `cache/sync/<store>.json`) for a clone, the `record_keys` table for an index. A record written locally and not yet pushed, or held before keys were remembered, has no key and sorts last. When a log object brings another body for a held ID:
 
-- exactly one of the two bodies carries a valid signature by a key pinned in `project.toml` [[signing_keys]] (on the hosted app: the keys `iw deploy` pinned, see [signed records](security.md#signed-records)): that body wins, whatever the log keys, so a forged unsigned body can never replace a signed one;
+- exactly one of the two bodies carries a valid signature by a key pinned in `project.toml` `[[signing_keys]]` (on the hosted app: the keys `iw deploy` pinned, see [signed records](./security.md#signed-records)): that body wins, whatever the log keys, so a forged unsigned body can never replace a signed one;
 - otherwise, its key sorts first: the held copy is replaced (`LocalReplica.replaceRecord`, which only sync calls; a guarded `UPDATE` in the D1 index), and the key is remembered;
 - otherwise the held copy stays.
 
@@ -195,13 +200,13 @@ A full listing fetches every log object, so a fresh clone of a store with 100,00
 ```
 
 - `logs`: log objects in ascending key order, each with its own key and its records as read (the canonical record JSON, `sig` included). Keeping the log key of every record means a clone applies them exactly as if it had read those log objects in key order, so the [merge rules](#merge-rules) (remembered keys, two bodies with one ID, signed bodies win) converge to the same result. `upto` is the greatest key it holds.
-- **Who writes it:** `iw compact` ([cli.md](cli.md#iw-compact)), run by hand or on a schedule by anyone with direct write access to the store (`file://` or `s3://`). It reads the newest valid snapshot, adds every log object from the log listing that it lacks and whose key is older than the lookback window (now − 15 minutes), and uploads a new snapshot under a fresh ULID with a create-only write. Log objects that cannot be read, or that hold invalid records, are left out, so clones read them from the log and warn as before. When nothing is new it writes nothing. The hosted server's `/api/store` refuses writes under `v1/snapshots/` (as any key outside the layout), so a holder of an Access token alone cannot add one.
+- **Who writes it:** `iw compact` ([cli.md](./cli.md#iw-compact)), run by hand or on a schedule by anyone with direct write access to the store (`file://` or `s3://`). It reads the newest valid snapshot, adds every log object from the log listing that it lacks and whose key is older than the lookback window (now − 15 minutes), and uploads a new snapshot under a fresh ULID with a create-only write. Log objects that cannot be read, or that hold invalid records, are left out, so clones read them from the log and warn as before. When nothing is new it writes nothing. The hosted server's `/api/store` refuses writes under `v1/snapshots/` (as any key outside the layout), so a holder of an Access token alone cannot add one.
 - **How a clone uses it:** a full listing ([pull step 4](#iw-sync-algorithm), and every fresh clone) reads the newest snapshot whose key is not in the reader's future, merges its records log object by log object, marks those log keys as read, then lists the whole log and fetches only the keys the snapshot does not hold. The cursor then advances as usual. Every daily full listing merges the snapshot's records again, as it would re-read the log objects they replace, so a replica that lost files is repaired and a newly trusted signing key applies to them too.
 - **Safety:** snapshots are additive and immutable; the log is never deleted or rewritten, and removing every snapshot only makes full listings slower. Readers do not compare a snapshot's copies with the log objects they name, so a snapshot is trusted as much as the log: whoever can write to the bucket can write either, and a wrong snapshot (from a buggy or hostile direct writer) can hide the contents of the log objects it names from full listings. `iw sync --full` reads every log object and is the remedy; deleting the bad snapshot fixes it for everyone. A snapshot that is not valid JSON, has another `format`, a newer `v`, another project, keys out of order or above `upto`, or an invalid record is ignored with a warning (`…; reading the whole log instead`), and the clone reads the whole log. `iw sync --full` ignores snapshots and reads every log object. Old snapshots may be deleted by hand or by a bucket lifecycle rule; readers only read the newest.
 
 ### Snapshots from people *(v0.2)*
 
-Besides CI (`iw sync --snapshot` on the default branch), a person can publish a snapshot with `iw push` or by uploading files in the hosted web app ([web.md](web.md#upload)). These `bundle` records carry `dirty: true` when the working tree had uncommitted changes, an optional `message`, and `commit_time` set to the upload time when there is no clean commit, so the newest upload wins under the "by `commit_time`, then `at`" order the hosted server uses. A browser upload has `source = "manual"` and no `commit`.
+Besides CI (`iw sync --snapshot` on the default branch), a person can publish a snapshot with `iw push` or by uploading files in the hosted web app ([web.md](./web.md#upload)). These `bundle` records carry `dirty: true` when the working tree had uncommitted changes, an optional `message`, and `commit_time` set to the upload time when there is no clean commit, so the newest upload wins under the "by `commit_time`, then `at`" order the hosted server uses. A browser upload has `source = "manual"` and no `commit`.
 
 ## Workspace mode (v0.2)
 
@@ -226,25 +231,25 @@ For teams without git, definitions also sync through the store, Drive-style ([AD
 - A working-tree file equal to the current content is adopted as is. A file changed since the last sync (added, edited, moved or deleted) is published as a new version whose parents are the heads it was based on (none on a first sync, which then merges against an empty file and marks every differing field as a conflict).
 - Then the current content is written to the working tree: changed files are rewritten, deleted ones removed, moved ones renamed, conflict files written, and conflict files of earlier merges removed once the entity has one head again.
 - **Resolving a conflict:** edit the file and delete the conflict file; the next sync publishes the file with every head as a parent, so the entity has one head again. Deleting the conflict file alone keeps the merged file as the resolution.
-- **Agents publish drafts only:** when the actor is an agent ([identity](security.md#identity)), a changed file is published only if it is TOML with `origin = "ai"` and, if it has a `status`, `status = "draft"`; anything else (also deletions and data files) stays local with a warning, and that entity is not overwritten.
+- **Agents publish drafts only:** when the actor is an agent ([identity](./security.md#identity)), a changed file is published only if it is TOML with `origin = "ai"` and, if it has a `status`, `status = "draft"`; anything else (also deletions and data files) stays local with a warning, and that entity is not overwritten.
 - **Files that do not parse are held:** a TOML file that does not parse (for example while a person is mid-edit and `iw serve` syncs in the background) is neither published nor overwritten, and its entity is not deleted; it is listed as held with a warning until it parses again.
 - **Git and the store must not both own definitions.** `iw sync` refuses (exit 1, `CONFLICT`) in workspace mode when files of the bundle are tracked by git, and explains how to choose: switch to `mode = "git"`, or stop tracking `.indx-watch/` (`git rm -r --cached .indx-watch`, keeping `runs/` and `cache/` ignored).
 - **Joining:** copy `project.toml` unchanged (same `[store]` URL) into an empty `.indx-watch/` and run `iw sync`; it is adopted, and every other file is written.
 - `iw serve` applies definitions on each background sync too, and refuses it the same way (shown as the sync error) while git tracks files of the bundle.
 
-**The hosted server** shows the current content of the `file` records as its definitions whenever the store holds any (otherwise the newest [bundle snapshot](#snapshots-from-people-v02)), including conflict files, so its problems banner shows `workspace-conflict` too. Its editor ([web.md](web.md#editing-in-workspace-mode)), *(v0.5)* uploads and the [Test data](web.md#test-data) screen write `file` records (a removed file as a `deleted` version) with the request's verified identity (and the server's signature). `iw serve` in workspace mode writes the same record to its replica and the file to the working tree. Like bundle snapshots, `file` records are trusted as they are: whoever can write to the store can change definitions, so give direct bucket access only to people who may edit; their signatures only change how the editor's identity is shown.
+**The hosted server** shows the current content of the `file` records as its definitions whenever the store holds any (otherwise the newest [bundle snapshot](#snapshots-from-people-v02)), including conflict files, so its problems banner shows `workspace-conflict` too. Its editor ([web.md](./web.md#editing-in-workspace-mode)), *(v0.5)* uploads and the [Test data](./web.md#test-data) screen write `file` records (a removed file as a `deleted` version) with the request's verified identity (and the server's signature). `iw serve` in workspace mode writes the same record to its replica and the file to the working tree. Like bundle snapshots, `file` records are trusted as they are: whoever can write to the store can change definitions, so give direct bucket access only to people who may edit; their signatures only change how the editor's identity is shown.
 
 v0.1 tools reject `[store] mode = "workspace"` and skip `file` records.
 
 ## The hosted server and the index
 
-The hosted server keeps an index (D1 on Cloudflare) of records and the current definitions; on Node, `iw reindex` builds the same index in `cache/index.sqlite`, and `iw serve` reads the local replica's records through it ([`iw serve`](cli.md#iw-serve)). The hosted server ingests:
+The hosted server keeps an index (D1 on Cloudflare) of records and the current definitions; on Node, `iw reindex` builds the same index in `cache/index.sqlite`, and `iw serve` reads the local replica's records through it ([`iw serve`](./cli.md#iw-serve)). The hosted server ingests:
 
 - its own writes, immediately;
 - uploads through `/api/store/*`, on receipt;
 - writes made directly to the bucket (e.g. CI using S3 credentials), by running the pull algorithm against its own store at most every 5 s on read requests and from a scheduled trigger. Each ingest handles at most 50 log objects, saves its cursor in the index, and holds a lease row so only one runs at a time; a fresh deploy on a large bucket catches up over several invocations. Like a clone, it lists the whole log once a day (step 4), resuming across invocations within the same 50-object budget, so another body under an older key converges in the index as in clones.
 
-Records written by the hosted server itself carry an Access-verified actor and, when the Worker has `IW_SIGNING_KEY`, a signature. Records written directly to the bucket are ingested as written; those claiming a verified `via` without a valid signature by a key the deploy pinned (`SIGNING_KEYS`) are shown as unverified ([signed records](security.md#signed-records), [threat model](security.md#threat-model)).
+Records written by the hosted server itself carry an Access-verified actor and, when the Worker has `IW_SIGNING_KEY`, a signature. Records written directly to the bucket are ingested as written; those claiming a verified `via` without a valid signature by a key the deploy pinned (`SIGNING_KEYS`) are shown as unverified ([signed records](./security.md#signed-records), [threat model](./security.md#threat-model)).
 
 `iw reindex` (or deleting the index) rebuilds it from the store; nothing is lost.
 

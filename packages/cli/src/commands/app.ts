@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   formatTomlBody,
@@ -106,13 +106,16 @@ export const appCommands: Record<string, Spec> = {
       },
     },
     async run(ctx, a) {
+      const port = Number(str(a.port) ?? 4321);
+      if (!Number.isInteger(port) || port < 0 || port > 65535)
+        fail('USAGE', '--port: a number from 0 to 65535');
       const p = await cx.openProject(ctx, a);
       const webRoot = [join(here, 'web'), join(here, '../../web/dist')].find((d) =>
         existsSync(join(d, 'index.html')),
       );
       const host = str(a.host) ?? '127.0.0.1';
       const { url } = await startNodeServer({
-        ...{ dir: p.dir, port: Number(str(a.port) ?? 4321), host, webRoot },
+        ...{ dir: p.dir, port, host, webRoot },
         sync: typeof a.sync === 'boolean' ? a.sync : !!p.bundle.project.data.store,
         identityHeader: str(a['identity-header']),
         toolOutputs: TOOL_OUTPUTS,
@@ -157,6 +160,8 @@ export const appCommands: Record<string, Spec> = {
           ? `${JSON.stringify(data, null, 2)}\n`
           : await renderReport(data, { format: html, locale, evidence, getBlob });
       const file = out ? resolve(ctx.cwd, out) : undefined;
+      if (file && !existsSync(dirname(file)))
+        fail('NOT_FOUND', `--out: the folder ${dirname(file)} does not exist`);
       if (file) await (format === 'pdf' ? printPdf(ctx, text, file) : writeFile(file, text));
       const gate = data.status.gate;
       const result = { file: out ?? null, gate, ...(file || !a.json ? {} : { text }) };
@@ -194,7 +199,8 @@ export const appCommands: Record<string, Spec> = {
       const both = !a.claude && !a.codex;
       const to = { claude: !!a.claude || both, codex: !!a.codex || both };
       const { warnings, ...data } = await setupAgents(root, asset('../skills', 'skills'), to);
-      const text = `Installed:\n${data.installed.join('\n')}\n${data.files.length} files written`;
+      const gone = data.removed.length ? `\nRemoved (no longer shipped):\n${data.removed.join('\n')}` : '';
+      const text = `Installed:\n${data.installed.join('\n')}${gone}\n${data.files.length} files written`;
       return { data, warnings, text };
     },
   },

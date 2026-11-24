@@ -1,44 +1,49 @@
 # Documentation
 
-INDX Watch keeps test cases, fixtures and results as typed files, syncs results through any bucket, and computes release readiness. These docs are the single source of truth for its design. Each fact has exactly one home; other pages link to it.
+INDX Watch keeps test cases, fixtures and results as typed files, syncs results through any bucket, and computes release readiness. These docs are the single source of truth for its design. Each fact has exactly one home; other pages link to it. The same Markdown files are published as a docs site with Mintlify ([ADR 0014](./adr/0014-docs-site.md)).
 
 ## Reading order
 
 | You are… | Read |
 |---|---|
-| **A user** trying it out | [Quickstart](guides/quickstart.md) (install once, then ask your agent) → [Testing with Claude Code or Codex](guides/testing-with-agents.md) → [Writing good test cases](guides/writing-test-cases.md) → [Fixtures](guides/fixtures.md) → [Playwright](guides/playwright.md) → [GitHub Actions](guides/github-actions.md) → [S3 sync](guides/s3-sync.md) |
-| **Self-hosting** a shared instance | [Cloudflare](guides/self-host-cloudflare.md) or [Node/Docker](guides/self-host-node.md), then [Security](spec/security.md) |
-| **A maintainer / contributor** | [Vision](vision.md) → [Concepts](spec/concepts.md) → [Architecture](architecture.md) → [Bundle format](spec/bundle-format.md) → [Sync](spec/sync.md) → [ADRs](adr/README.md) → [Roadmap](roadmap.md) → [CONTRIBUTING](../CONTRIBUTING.md) |
-| **A coding agent** | [AGENTS.md](../AGENTS.md) (working on this repo) or [Agents spec](spec/agents.md) (using INDX Watch from an agent) |
+| **New** to INDX Watch | [From zero to "can we ship?"](./guides/journey.md) (the whole path, by role) → [Quickstart](./guides/quickstart.md) (install once, then ask your agent) |
+| **A user** trying it out | [Quickstart](./guides/quickstart.md) → [Testing with Claude Code or Codex](./guides/testing-with-agents.md) → [Using the web app](./guides/web-app.md) → [Writing good test cases](./guides/writing-test-cases.md) → [Fixtures](./guides/fixtures.md) → [Playwright](./guides/playwright.md) → [GitHub Actions](./guides/github-actions.md) → [S3 sync](./guides/s3-sync.md) |
+| **Self-hosting** a shared instance | [Cloudflare](./guides/self-host-cloudflare.md) or [Node/Docker](./guides/self-host-node.md), then [Security](./spec/security.md) |
+| **A maintainer / contributor** | [Vision](./vision.md) → [Concepts](./spec/concepts.md) → [Architecture](./architecture.md) → [Bundle format](./spec/bundle-format.md) → [Sync](./spec/sync.md) → [ADRs](./adr/README.md) → [Roadmap](./roadmap.md) → [CONTRIBUTING](https://github.com/INDXDev/indx-watch/blob/main/CONTRIBUTING.md) |
+| **A coding agent** | [AGENTS.md](https://github.com/INDXDev/indx-watch/blob/main/AGENTS.md) (working on this repo) or [Agents spec](./spec/agents.md) (using INDX Watch from an agent) |
 
 ## Where each fact lives
 
 | Fact | Home |
 |---|---|
-| Problem, principles, non-goals | [vision.md](vision.md) |
-| Entities, IDs, states, computed done, gate, decision policy | [spec/concepts.md](spec/concepts.md) |
-| `.indx-watch/` layout and every file type | [spec/bundle-format.md](spec/bundle-format.md) |
-| Records, store layout, merge rules, `iw sync` | [spec/sync.md](spec/sync.md) |
-| Commands, flags, JSON output, exit codes | [spec/cli.md](spec/cli.md) |
-| Playwright reporter, GitHub Action, CI identity | [spec/integrations.md](spec/integrations.md) |
-| Skills, MCP tools, AI rules | [spec/agents.md](spec/agents.md) |
-| Report contents, formats, customer sharing | [spec/reports.md](spec/reports.md) |
-| Identity, secrets, access, threat model | [spec/security.md](spec/security.md) |
-| UI locales, content translations, literal strings | [spec/i18n.md](spec/i18n.md) |
-| Web app screens, List/Focus views, upload, CLI panel | [spec/web.md](spec/web.md) |
-| Packages, ports, runtime targets, line budget, dependencies | [architecture.md](architecture.md) |
-| Decisions and their reasons | [adr/](adr/README.md) |
-| Milestones and task IDs | [roadmap.md](roadmap.md) |
-| Other tools and positioning | [research/landscape.md](research/landscape.md) |
-| Dated platform facts with sources | [research/platform-notes.md](research/platform-notes.md) |
-| Screen designs (HTML) | [design/](design/index.html) |
-| Reusable maintainer prompts | [prompts/](prompts/) |
+| Problem, principles, non-goals | [vision.md](./vision.md) |
+| Entities, IDs, states, computed done, gate, decision policy | [spec/concepts.md](./spec/concepts.md) |
+| `.indx-watch/` layout and every file type | [spec/bundle-format.md](./spec/bundle-format.md) |
+| Records, store layout, merge rules, `iw sync` | [spec/sync.md](./spec/sync.md) |
+| Commands, flags, JSON output, exit codes | [spec/cli.md](./spec/cli.md) |
+| Playwright reporter, GitHub Action, CI identity | [spec/integrations.md](./spec/integrations.md) |
+| Skills, MCP tools, AI rules | [spec/agents.md](./spec/agents.md) |
+| Report contents, formats, customer sharing | [spec/reports.md](./spec/reports.md) |
+| Identity, secrets, access, threat model | [spec/security.md](./spec/security.md) |
+| UI locales, content translations, literal strings | [spec/i18n.md](./spec/i18n.md) |
+| Web app screens, List/Focus views, upload, CLI panel | [spec/web.md](./spec/web.md) |
+| Packages, ports, runtime targets, line budget, dependencies | [architecture.md](./architecture.md) |
+| Decisions and their reasons | [adr/](./adr/README.md) |
+| Milestones, task IDs and which npm version shipped them | [roadmap.md](./roadmap.md) |
+| Other tools and positioning | [research/landscape.md](./research/landscape.md) |
+| Dated platform facts with sources | [research/platform-notes.md](./research/platform-notes.md) |
+| Docs site navigation (Mintlify) | [docs.json](https://github.com/INDXDev/indx-watch/blob/main/docs/docs.json) |
+| Screenshots in the guides (generated by `pnpm screenshots`) | [images/](https://github.com/INDXDev/indx-watch/tree/main/docs/images) |
+| HTML mockups (source) | [design/](https://github.com/INDXDev/indx-watch/blob/main/docs/design/index.html) |
 
 ## Writing rules
 
 - Plain, specific English. Lead with the answer.
-- Examples come from [`examples/shop`](../examples/shop) only.
+- Examples come from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop) only.
 - Diagrams in Mermaid.
 - Every spec page ends with **Acceptance criteria** that tests can check.
-- Platform facts go in [platform-notes.md](research/platform-notes.md) with a date and a source URL, never inline in other pages.
-- CI (`pnpm check:docs`) checks every relative link and anchor.
+- Platform facts go in [platform-notes.md](./research/platform-notes.md) with a date and a source URL, never inline in other pages.
+- Pages in the docs site start with `title` and `description` frontmatter, and are listed in [`docs.json`](https://github.com/INDXDev/indx-watch/blob/main/docs/docs.json).
+- Link to other pages and images under `docs/` with relative paths that start with `./` or `../`. Link to what the docs site does not serve (anything outside `docs/` such as code, examples and `CHANGELOG.md`; the `README.md` maps; the HTML mockups) with its `https://github.com/INDXDev/indx-watch/blob/main/…` (file) or `…/tree/main/…` (folder) URL ([ADR 0014](./adr/0014-docs-site.md)).
+- In prose, put `<`, `{` and `}` in backticks; the docs site reads pages as MDX.
+- CI (`pnpm check:docs`) checks every relative link, every link to this repository on GitHub, every anchor and the docs-site link rules above. Before changing `docs.json`, run `npx mint validate` and `npx mint broken-links` in `docs/`.

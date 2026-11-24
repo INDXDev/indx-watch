@@ -1,8 +1,13 @@
+---
+title: "Bundle format"
+description: "The .indx-watch/ layout and every file type of schema version 1."
+---
+
 # Bundle format (schema version 1)
 
-The **bundle** is the `.indx-watch/` directory: typed TOML files plus data files. It is the source of truth for definitions. This page is the format specification; the meaning of each entity is in [concepts.md](concepts.md), and how results are stored is in [sync.md](sync.md). Every example below is a real file in [`examples/shop/.indx-watch/`](../../examples/shop/.indx-watch).
+The **bundle** is the `.indx-watch/` directory: typed TOML files plus data files. It is the source of truth for definitions. This page is the format specification; the meaning of each entity is in [concepts.md](./concepts.md), and how results are stored is in [sync.md](./sync.md). Every example below is a real file in [`examples/shop/.indx-watch/`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop/.indx-watch).
 
-The Zod schemas in [`packages/bundle/src/schema/`](../../packages/bundle/src/schema) implement this page. JSON Schemas generated from them are published in [`schemas/v1/`](../../schemas/v1).
+The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/indx-watch/tree/main/packages/bundle/src/schema) implement this page. JSON Schemas generated from them are published in [`schemas/v1/`](https://github.com/INDXDev/indx-watch/tree/main/schemas/v1).
 
 ## Layout
 
@@ -79,15 +84,15 @@ key = "TC-3"
 | `approved_version` | string | Version hash at approval (`tcv:…`, `fxv:…`, or the use case's content hash). |
 | `tags` | string[] | Lowercase, `[a-z0-9-]+`. |
 | `notes` | string | Free text that survives formatting. Always the last plain value of a file. |
-| `[i18n.<locale>]` | table | Translations; see [i18n.md](i18n.md#content-translations). |
+| `[i18n.<locale>]` | table | Translations; see [i18n.md](./i18n.md#content-translations). |
 | `[ai]` | table | `model`, `skill`, `created_at` — required when `origin = "ai"`. |
 | `[x]` | table | Free-form extension data. |
 
-Features, environments, releases and plans have no `status`, `approved_version` or `tags`: only `origin`, `approved_by` (right after `title`), `notes`, `[ai]` and `[x]` of these. An `origin = "ai"` one without `approved_by` is an `iw check` warning, not an error ([concepts](concepts.md#test-case-use-case-fixture)).
+Features, environments, releases and plans have no `status`, `approved_version` or `tags`: only `origin`, `approved_by` (right after `title`), `notes`, `[ai]` and `[x]` of these. An `origin = "ai"` one without `approved_by` is an `iw check` warning, not an error ([concepts](./concepts.md#test-case-use-case-fixture)).
 
-Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](../../packages/bundle/src/schema/definitions.ts).
+Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/bundle/src/schema/definitions.ts).
 
-**Secret references.** Anywhere a secret is needed, the file stores a reference string matching `^((env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+|iw:[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$`, for example `env:SHOP_STAGING_PASSWORD`, or *(v0.5)* `iw:staging-customer` for a secret kept by INDX Watch. See [security.md](security.md#secrets).
+**Secret references.** Anywhere a secret is needed, the file stores a reference string matching `^((env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+|iw:[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$`, for example `env:SHOP_STAGING_PASSWORD`, or *(v0.5)* `iw:staging-customer` for a secret kept by INDX Watch. See [security.md](./security.md#secrets).
 
 ## `project.toml`
 
@@ -151,11 +156,11 @@ definition = "A code that reduces the order total."
 | `default_environment` | no | Environment used for manual runs (UI, `iw record`) that name none. `iw status`, `iw report` and the dashboard cover all environments unless one is chosen. |
 | `current_release` | no | Release used by `iw status` and runs when none is given. |
 | `default_branch` | no | Branch whose builds fall back to `current_release` (default `main`). |
-| `[gate]` | no | Readiness gate thresholds; defaults in [concepts](concepts.md#readiness-gate). |
+| `[gate]` | no | Readiness gate thresholds; defaults in [concepts](./concepts.md#readiness-gate). |
 | `[decision_policy]` | no | Project defaults; a test case may override. |
-| `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default: definitions sync through git) or `workspace` (*v0.2*: definitions also sync through the store, [workspace mode](sync.md#workspace-mode-v02)). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](sync.md). |
-| `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](security.md#roles)). |
-| `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](security.md#signed-records). |
+| `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default: definitions sync through git) or `workspace` (*v0.2*: definitions also sync through the store, [workspace mode](./sync.md#workspace-mode-v02)). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](./sync.md). |
+| `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](./security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](./security.md#roles)). |
+| `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](./security.md#signed-records). |
 
 ## `environments/<name>.toml`
 
@@ -214,7 +219,7 @@ source_hash = "12a2e2d62f5e"
 
 - `state`: `planning`, `testing`, `ready`, `released`.
 - `refs`: git tags or branches whose builds belong to this release.
-- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](i18n.md#content-translations)).
+- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](./i18n.md#content-translations)).
 - `plan`: optional plan key. When set, the readiness gate counts only the test cases in that plan, so a release does not need fresh results for features it did not touch.
 - A run's release is resolved in this order: explicit `--release` / `IW_RELEASE` → a release whose `refs` contains the build's tag or branch → `project.current_release`, but only when the build's branch is `default_branch` or the run is not in CI. Otherwise the run has no release and a warning is printed: results from unmerged branches do not count towards a release.
 
@@ -236,7 +241,7 @@ status = "reviewed"
 source_hash = "21d4059be89b"
 ```
 
-- `owners` *(v0.4, optional)*: who looks after the feature's tests, each an email (or another actor ID) or `group:<name>` for everyone in an Access group, matched like a plan item's [`assignee`](#plansplan-slugtoml) (without case; a group matches its ID, name or email, and only where groups are known: the hosted app with [roles](security.md#roles)). Owners decide what "my features" means ([concepts](concepts.md#feature-owners)); they grant no permission and are not translated.
+- `owners` *(v0.4, optional)*: who looks after the feature's tests, each an email (or another actor ID) or `group:<name>` for everyone in an Access group, matched like a plan item's [`assignee`](#plansplan-slugtoml) (without case; a group matches its ID, name or email, and only where groups are known: the hosted app with [roles](./security.md#roles)). Owners decide what "my features" means ([concepts](./concepts.md#feature-owners)); they grant no permission and are not translated.
 
 ## `specs/<FEAT>/<UC>/use-case.toml`
 
@@ -374,15 +379,15 @@ source_hash = "72d5db16627a"
 | `preconditions` | no | Plain language. |
 | `[[fixtures]]` | no | `ref` (fixture key), optional `rows` (dataset row keys), optional `apply` (`before_run` for seeds), optional `use`: what the tester does with the data — `download` (save the file to look at or keep), `upload` (save it, then attach it in a step), `enter` (type or paste the values), `seeded` (already in the app; nothing to do) — and optional `note` (one sentence, e.g. which step uses it), translated in `[fixtures.i18n.<locale>]`. |
 | `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
-| `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
+| `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](./concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
-| `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](integrations.md#playwright-reporter)). |
+| `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](./concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](./integrations.md#playwright-reporter)). |
 
-**Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](i18n.md#literal-strings)).
+**Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](./i18n.md#literal-strings)).
 
 **Guidance.** `purpose`, `start`, `start_note`, step `checks` and fixture `use` and `note` help a person (or an agent) run the test case without other context; tools never need them, and they do not change the test case version. `iw check` warns (`missing-guidance`) when a `ready` test case in `manual` or `hybrid` mode has no `purpose`, or neither `start` nor `start_note`.
 
-**Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](concepts.md#versions-and-staleness). It is not stored in the file.
+**Version.** The test case version is computed from these fields and the text of the covered criteria — see [concepts](./concepts.md#versions-and-staleness). It is not stored in the file.
 
 ## Fixtures
 
@@ -418,7 +423,7 @@ OLD5,0.05,2020-01-01,This coupon has expired
 | `file` | `files` | Any files. |
 | `account` | `[account]`: `username`, `secret_ref`, optional `fields` (public key/values) | No data files. |
 
-*(v0.5)* Any fixture may have `shared_with`, a list of emails (or other actor IDs) and `group:<name>` entries: only they and leads see its data in the app. Without it the whole team does. It is not part of the fixture's version. See [sharing](security.md#sharing).
+*(v0.5)* Any fixture may have `shared_with`, a list of emails (or other actor IDs) and `group:<name>` entries: only they and leads see its data in the app. Without it the whole team does. It is not part of the fixture's version. See [sharing](./security.md#sharing).
 
 ```toml
 shared_with = ["group:qa"]
@@ -504,9 +509,9 @@ status = "machine"
 source_hash = "862ca86fb166"
 ```
 
-- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](i18n.md#content-translations)).
-- `assignee`: an email, `ci`, `agent:<name>`, or *(v0.3)* `group:<name>` for everyone in an Access group (matched against the group's ID, name or email). On the hosted app a `customer` sees only the items assigned to them ([roles](security.md#roles)).
-- An item may override `environment` and `due`. Item status is computed ([concepts](concepts.md#plan-item-computed)).
+- `[i18n.<locale>]` *(v0.2)*: a translated `title` ([i18n](./i18n.md#content-translations)).
+- `assignee`: an email, `ci`, `agent:<name>`, or *(v0.3)* `group:<name>` for everyone in an Access group (matched against the group's ID, name or email). On the hosted app a `customer` sees only the items assigned to them ([roles](./security.md#roles)).
+- An item may override `environment` and `due`. Item status is computed ([concepts](./concepts.md#plan-item-computed)).
 
 ## Templates
 

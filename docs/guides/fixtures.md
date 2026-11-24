@@ -1,6 +1,11 @@
+---
+title: "Fixtures"
+description: "Test data as versioned files: datasets, seeds, files and accounts, with secrets as references."
+---
+
 # Fixtures
 
-A fixture is the test data a test case needs: coupon codes, a catalog to seed, a photo to upload, an account to sign in with. Fixtures live next to the test cases in `.indx-watch/fixtures/`, are versioned by content hash, and every run records which version it used. Format reference: [bundle format → fixtures](../spec/bundle-format.md#fixtures); kinds and versions: [concepts](../spec/concepts.md#fixture-kinds). All examples are from [`examples/shop`](../../examples/shop/.indx-watch/fixtures).
+A fixture is the test data a test case needs: coupon codes, a catalog to seed, a photo to upload, an account to sign in with. Fixtures live next to the test cases in `.indx-watch/fixtures/`, are versioned by content hash, and every run records which version it used. Format reference: [bundle format → fixtures](../spec/bundle-format.md#fixtures); kinds and versions: [concepts](../spec/concepts.md#fixture-kinds). All examples are from [`examples/shop`](https://github.com/INDXDev/indx-watch/tree/main/examples/shop/.indx-watch/fixtures).
 
 ## Pick a kind
 
@@ -87,7 +92,7 @@ The blob itself goes to the local replica and is uploaded to the result store by
 iw fixture fetch FX-4
 ```
 
-Pointers need a `[store]` in `project.toml`, otherwise nobody else could resolve them; `fixture add` refuses to create one without a store unless you pass `--local-only`. Setting up a store: [S3 sync](s3-sync.md).
+Pointers need a `[store]` in `project.toml`, otherwise nobody else could resolve them; `fixture add` refuses to create one without a store unless you pass `--local-only`. Setting up a store: [S3 sync](./s3-sync.md).
 
 ## Accounts and secrets
 
@@ -102,7 +107,7 @@ username = "casey@shop.test"
 secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
 ```
 
-- The bundle stores **references only**: `env:NAME` in v0.1, plus `cf:`, `gh:`, `op:`, `aws-sm:`, `gcp-sm:` and `vault:` forms ([security](../spec/security.md#secrets)).
+- The bundle stores **references only**: `env:NAME` (resolved from the environment), `iw:<name>` (a secret kept by INDX Watch, below), and the `cf:`, `gh:`, `op:`, `aws-sm:`, `gcp-sm:` and `vault:` forms ([security](../spec/security.md#secrets)).
 - Each tester and CI job sets the variable (`SHOP_CUSTOMER_PASSWORD`) in their own environment or secret store. The value is resolved at execution time and never written to records, reports or the index.
 - Public details that help testers (a display name, a role) go into `[account] fields`.
 - List the accounts an environment offers in its `accounts = ["FX-3"]`.
@@ -111,7 +116,7 @@ secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
 
 ### Keeping passwords in INDX Watch
 
-*(v0.5)* A team without a secret store can keep passwords, API keys and logins on the app's **Test data → Secrets** tab. Give the server a key once (`iw keygen --secrets`, then set `IW_SECRETS_KEY` on the hosted Worker with `wrangler secret put IW_SECRETS_KEY`, or in the environment of `iw serve`), add a secret with a name, the login ID and the password, and point the account at it:
+*(Since 0.1.2.)* A team without a secret store can keep passwords, API keys and logins on the app's **Test data → Secrets** tab. Give the server a key once (`iw keygen --secrets`, then set `IW_SECRETS_KEY` on the hosted Worker with `wrangler secret put IW_SECRETS_KEY`, or in the environment of `iw serve`), add a secret with a name, the login ID and the password, and point the account at it:
 
 ```toml
 [account]
@@ -123,7 +128,7 @@ The value is stored encrypted; the test case page and the Test data screen show 
 
 ## Sharing
 
-*(v0.5)* Like files in a shared drive, test data and secrets are shared with the whole team unless you restrict them. **Share** on a fixture or a secret opens the dialog: *Everyone on the team*, or *Only the people and groups below* (emails and `group:<name>` of an Access group). Leads always have access. The detail shows **Who has access**, and leads see, on the **Access** tab, everything a given email can open and why.
+*(Since 0.1.2.)* Like files in a shared drive, test data and secrets are shared with the whole team unless you restrict them. **Share** on a fixture or a secret opens the dialog: *Everyone on the team*, or *Only the people and groups below* (emails and `group:<name>` of an Access group). Leads always have access. The detail shows **Who has access**, and leads see, on the **Access** tab, everything a given email can open and why.
 
 In the file, a restricted fixture lists who may see it:
 
@@ -159,7 +164,7 @@ export function coupon(code: string): Record<string, string> {
 }
 ```
 
-See [Playwright → fixtures](playwright.md#fixtures-and-rows).
+See [Playwright → fixtures](./playwright.md#fixtures-and-rows).
 
 ## Drafts
 

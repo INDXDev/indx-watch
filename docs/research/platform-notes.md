@@ -1,3 +1,8 @@
+---
+title: "Platform notes"
+description: "Dated facts about Cloudflare, S3, Playwright and agent tooling, with sources."
+---
+
 # Platform Notes
 
 Dated facts about the platforms and libraries INDX Watch depends on. Each fact has a source.
@@ -38,7 +43,7 @@ Last verified: 2026-11-19
 - `Reporter.preprocess({ config, suite, testRun })` (1.62+) runs before `onBegin`. It can call `testRun.skip / exclude / fixme / fail` per test, which allows plan-driven runs. It sees the full corpus and ignores `--shard`. (verified 2026-11-19, https://github.com/microsoft/playwright/blob/v1.65.1/docs/src/release-notes-js.md)
 - Custom reporters run unchanged under `merge-reports`. During a merge, attachments are extracted to `<blob dir>/resources/`, and each shard's project is a separate `TestProject` with the same name. All shards and the merge job must use the same Playwright version. (verified 2026-11-19, https://github.com/microsoft/playwright/blob/v1.65.1/docs/src/test-sharding-js.md)
 - Playwright Test Agents (planner, generator, healer) arrived in 1.56; `npx playwright init-agents --loop=<vscode|claude|opencode>` writes the agent definitions. (verified 2026-11-21, https://github.com/microsoft/playwright/releases/tag/v1.56.0)
-- The planner saves its plan with the `planner_save_plan` MCP tool, which renders fixed Markdown: `# <name>`, `## Application Overview`, `## Test Scenarios`, then per suite `### <i>. <suite>` and `**Seed:** \`<file>\``, per test `#### <i>.<j>. <test>`, `**File:** \`<file>\`` and `**Steps:**` with `  <k>. <perform>` (or `-` when there is no action) followed by `    - expect: <result>` lines. The tool's example is `examples/todomvc/specs/basic-operations.plan.md`. The Test Agents docs page still shows an older hand-written layout with a separate `**Expected Results:**` list. (verified 2026-11-21, https://github.com/microsoft/playwright/blob/main/packages/playwright/src/mcp/test/plannerTools.ts , https://github.com/microsoft/playwright/blob/main/examples/todomvc/specs/basic-operations.plan.md , https://playwright.dev/docs/test-agents)
+- The planner saves its plan with the `planner_save_plan` MCP tool, which renders fixed Markdown: `# <name>`, `## Application Overview`, `## Test Scenarios`, then per suite `### <i>. <suite>` and `` **Seed:** `<file>` ``, per test `#### <i>.<j>. <test>`, `` **File:** `<file>` `` and `**Steps:**` with `  <k>. <perform>` (or `-` when there is no action) followed by `    - expect: <result>` lines. The tool's example is `examples/todomvc/specs/basic-operations.plan.md`. The Test Agents docs page still shows an older hand-written layout with a separate `**Expected Results:**` list. (verified 2026-11-21, https://github.com/microsoft/playwright/blob/main/packages/playwright/src/mcp/test/plannerTools.ts , https://github.com/microsoft/playwright/blob/main/examples/todomvc/specs/basic-operations.plan.md , https://playwright.dev/docs/test-agents)
 - The generator starts each test with `// spec: <plan>` and `// seed: <seed>` comments and keeps the plan's steps as comments. (verified 2026-11-21, https://playwright.dev/docs/test-agents)
 - The official CI template uses `actions/checkout@v6`, `actions/setup-node@v6` (`lts/*`) and `npx playwright install --with-deps`. The docs say "Caching browser binaries is not recommended", and they warn that the built-in `github` reporter multiplies annotations in a matrix. (verified 2026-11-19, https://github.com/microsoft/playwright/blob/v1.65.1/docs/src/ci-intro.md)
 

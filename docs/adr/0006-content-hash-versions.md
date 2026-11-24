@@ -1,3 +1,8 @@
+---
+title: "0006. Test case and fixture versions are content hashes"
+description: "Architecture decision record: Test case and fixture versions are content hashes."
+---
+
 # 0006. Test case and fixture versions are content hashes
 
 - Status: accepted

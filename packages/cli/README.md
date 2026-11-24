@@ -1,20 +1,32 @@
 # indx-watch
 
-File-first, agent-native test management. Use cases, acceptance criteria, test cases and fixtures are typed TOML files in `.indx-watch/` in your repository; results are immutable records that sync through any folder or S3-compatible bucket. One package gives you the `iw` CLI, a local web UI, a Playwright reporter, an MCP server and agent skills.
+Test management that lives in your repository, for people and coding agents. Use cases, acceptance criteria, test cases and test data are typed TOML files in `.indx-watch/`; manual, Playwright and agent results sync through any folder or S3-compatible bucket; whether a release can ship is computed from them. One package gives you the `iw` CLI, a local web app, a Playwright reporter, an MCP server and agent skills for Claude Code and Codex.
 
-Requires Node.js 22.13 or later.
+![INDX Watch Home: release v1.2.0 "Not ready to ship: 1 of 8 checks fail"](https://raw.githubusercontent.com/INDXDev/indx-watch/main/docs/images/home.png)
+
+Requires Node.js 22.13 or later. Docs: <https://github.com/INDXDev/indx-watch/tree/main/docs> · Live demo (read-only): <https://indx-watch-demo.i-248.workers.dev>
 
 ## Quick start
 
+In your app's repository:
+
 ```bash
-npx indx-watch init                       # creates .indx-watch/ (project, environment, release, feature)
-npx indx-watch new uc --title "Guest applies a coupon" --ac "A valid coupon reduces the total" --ready
-npx indx-watch new tc --uc UC-1 --title "Valid coupon" --step "Apply SUMMER10 => Total drops by 10%" --ready
-npx indx-watch check                      # validate everything
-npx indx-watch serve                      # web UI on http://127.0.0.1:4321
+npx indx-watch init
 ```
 
-`npx indx-watch init --example` copies a complete sample project (with a sample store) instead.
+This writes the `.indx-watch/` bundle, the skills for Claude Code (`.claude/skills/`) and Codex (`.agents/skills/`), the `indx-watch` MCP server for both (`.mcp.json`, `.codex/config.toml`) and a block in `AGENTS.md`. Commit it, open Claude Code or Codex in the repository, and say "Set up testing for this repo" (or type `/iw-setup`, `$iw-setup` in Codex). Then:
+
+| Job | Claude Code | You say |
+|---|---|---|
+| Design tests | `/iw-design` | "What should we test in checkout?" |
+| Prepare data | `/iw-data` | "The review photo tests need data" |
+| Run tests | `/iw-test` | "Walk me through TC-3" |
+| Fix failures | `/iw-triage` | "Why did TC-8 fail?" |
+| Know where you are | `/iw-status` | "Can we ship 1.2.0?" |
+
+Agents write drafts (`origin = "ai"`) and record runs with a confidence; only people approve, review and waive. Guides: [quickstart](https://github.com/INDXDev/indx-watch/blob/main/docs/guides/quickstart.md), [from zero to "can we ship?"](https://github.com/INDXDev/indx-watch/blob/main/docs/guides/journey.md).
+
+To look around first: `npx indx-watch init demo --example`, then `cd demo && npx indx-watch serve --open`. Without an agent, `npx indx-watch serve --open` starts the web app and every step is also a command (below).
 
 The tables below use `iw`, the short command the package installs. Without installing, write `npx indx-watch <command>` instead; never `npx iw`, which downloads an unrelated npm package. To get `iw` on your PATH, run `npm i -g indx-watch`.
 
@@ -48,13 +60,7 @@ Tag tests with the test case key (`test('valid coupon @TC-3', …)`); each resul
 
 ## Agents
 
-```bash
-npx indx-watch skills install                                   # .claude/skills/ and .agents/skills/
-claude mcp add --scope project indx-watch -- npx -y indx-watch mcp
-codex mcp add indx-watch -- npx -y indx-watch mcp
-```
-
-Agents write drafts (`origin = "ai"`) and record runs with a confidence; only people approve, review and waive.
+`iw init` (unless `--no-agents`) installs the skills and the MCP server for Claude Code and Codex. After upgrading the package, `npx indx-watch skills install` updates what it wrote. Each person approves the project MCP server once in their agent.
 
 ## Programmatic API
 
@@ -67,4 +73,4 @@ const status = computeStatus(model, { release: 'v1.2.0' });
 
 ## Documentation
 
-Full documentation: <https://github.com/INDXDev/indx-watch/tree/main/docs>. License: Apache-2.0.
+Full documentation: <https://github.com/INDXDev/indx-watch/tree/main/docs>. Source and issues: <https://github.com/INDXDev/indx-watch>. License: Apache-2.0.

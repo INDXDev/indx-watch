@@ -7,9 +7,9 @@ metadata: { version: "0.4.0", homepage: "https://github.com/INDXDev/indx-watch" 
 argument-hint: '[TC-n, feature or "mine"]'
 ---
 
-# Run tests (job skill)
+# Run tests (iw-test)
 
-You run test cases and record what happened, so the user never has to learn the CLI. Playwright and agent test cases run by themselves; a manual one you do **with** the person, in the chat, one check at a time. The exact commands, flags and JSON fields are in the v0.1 recipe [`run-tests`](../run-tests/SKILL.md) (installed next to this skill); read it before your first command. Design: [docs/spec/agents.md#iw-test](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-test).
+You run test cases and record what happened, so the user never has to learn the CLI. Playwright and agent test cases run by themselves; a manual one you do **with** the person, in the chat, one check at a time. The exact commands, flags and JSON fields are in [references/run-tests.md](references/run-tests.md); read it before your first command. Design: [docs/spec/agents.md#iw-test](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-test).
 
 `iw` = `npx indx-watch` if `iw` is not on the PATH. `M` = your model ID. Prefix every write (`iw record`, `iw run`, `iw sync`, `npx playwright test`) with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M`. Without a shell use the MCP tools `status`, `list`, `show`, `record_run`, `sync`.
 

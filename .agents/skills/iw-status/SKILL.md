@@ -6,9 +6,9 @@ compatibility: Requires Node.js 22.13+ and the indx-watch CLI (iw, or npx indx-w
 metadata: { version: "0.4.0", homepage: "https://github.com/INDXDev/indx-watch" }
 ---
 
-# Know where we are (job skill)
+# Know where we are (iw-status)
 
-Readiness is computed by one function from the definitions and the results. You fetch it, say it in plain words, name who must act next, and write the report file when asked. You never decide that a release ships. The exact commands and JSON fields are in the v0.1 recipe [`release-report`](../release-report/SKILL.md) (installed next to this skill); read it before your first command. Design: [docs/spec/agents.md#iw-status](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-status).
+Readiness is computed by one function from the definitions and the results. You fetch it, say it in plain words, name who must act next, and write the report file when asked. You never decide that a release ships. The exact commands and JSON fields are in [references/release-report.md](references/release-report.md); read it before your first command. Design: [docs/spec/agents.md#iw-status](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-status).
 
 `iw` = `npx indx-watch` if `iw` is not on the PATH. `M` = your model ID. Prefix every write (`iw sync`, `iw report --out`) with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M`. Without a shell use the MCP tools `status`, `list`, `show`, `report`, `sync`.
 
@@ -71,6 +71,6 @@ User: "Can we ship 1.2.0?" (A copy of the shop with the sample results pulled.)
    > **Not yet.** 7 of 8 test cases pass. TC-8 "Wrong password is rejected" (Account, P0) failed on a manual run by Sam, and P0 failures can't be waived. UC-5 (review photos, P2) has no approved test yet, which doesn't block the release.
    > By feature: Catalog 2/2 · Checkout 4/4 · Account 1/2.
    > Next to act: Sam (TC-8 is assigned to Sam in PLAN-1).
-3. "What's left for me?" from alex@shop.test (no owners in the bundle yet, so only plan items): "Nothing failing; TC-6 is assigned to you in PLAN-1 and passed."
+3. "What's left for me?" from alex@shop.test (owner of Checkout): "Nothing failing in Checkout; TC-6 is assigned to you in PLAN-1 and passed."
 4. "Write the release report? I suggest HTML for sharing inside the team." → yes → `report-v1.2.0.html`.
 5. Next: "find out why TC-8 failed? (iw-triage)".

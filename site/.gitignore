@@ -1,0 +1,8 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+.wrangler/
+# copied from ../docs/images by scripts/copy-images.mjs before dev and build
+public/images/

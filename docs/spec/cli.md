@@ -1,3 +1,8 @@
+---
+title: "CLI (iw)"
+description: "Every iw command, its flags, JSON output and exit codes."
+---
+
 # CLI (`iw`)
 
 `iw` is the command-line interface of the `indx-watch` npm package. `npx indx-watch <command>` and `iw <command>` are the same. Every command works offline unless it talks to a store or Cloudflare.
@@ -9,11 +14,13 @@
 | Bundle discovery | Walk up from the current directory to find `.indx-watch/`. Override with `--dir <path>` or `IW_DIR`. |
 | Output | Human-readable by default. `--json` prints exactly one JSON document to stdout (the **envelope** below) and nothing else; logs go to stderr. |
 | Color | Off when stdout is not a TTY or `NO_COLOR` is set. |
-| Identity | See [security.md](security.md#identity). Override with `IW_ACTOR`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`. |
+| Identity | See [security.md](./security.md#identity). Override with `IW_ACTOR`, `IW_ACTOR_KIND`, `IW_AGENT_MODEL`. |
 | Keys and IDs | Wherever a command takes `<ref>`, it accepts a human key (`TC-3`), a machine ID (`tc_01J…`), or a cross-project key (`SHOP:TC-3`). Runs are referenced by ID or a unique prefix of ≥ 8 characters after `run_`; runs recorded together share the ULID timestamp prefix, so scripts and agents should pass the full ID. |
-| Agents | When the actor is an agent (see [security.md](security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
-| Running tests | Automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; `agent` test cases run with [`iw run`](#iw-run-tc-ref); anything else is recorded with `iw record`. |
+| Agents | When the actor is an agent (see [security.md](./security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
+| Running tests | Automated tests run with Playwright and the [reporter](./integrations.md#playwright-reporter); people run tests in the browser runner; `agent` test cases run with [`iw run`](#iw-run-tc-ref); anything else is recorded with `iw record`. |
 | Non-interactive | Commands never prompt when stdin is not a TTY or `--yes` is given; missing input is an error (exit 2). |
+| Arguments | A command that takes no positional argument rejects one with `USAGE` (exit 2): `iw sync s3://other` does not quietly sync the configured store. A file or folder named by a flag that does not exist (`--from`, `--out`, `--evidence`) is `NOT_FOUND` (exit 2), never an internal error. |
+| Load problems | A definition file that does not load (a TOML syntax error, an invalid value, a missing `feature.toml`/`use-case.toml`) is left out of the bundle. Every command that opens the bundle then reports each such error as a warning (the problem with `severity = "warning"`, same `code`, `file` and `message`) in its output: on stderr as text, in `warnings` with `--json`; `iw check` reports them as its own errors instead. The [readiness gate](./concepts.md#readiness-gate) fails while one exists (`valid_definitions`). |
 
 ### JSON envelope
 
@@ -25,13 +32,13 @@
 { "ok": false, "command": "check", "error": { "code": "CHECK_FAILED", "message": "3 problems in 2 files", "details": [] } }
 ```
 
-`warnings` and `error.details` items are **problems**:
+`warnings` and `error.details` items are **problems**. An error envelope also carries `warnings` when there were any before the error (such as definition files that do not load).
 
 ```json
 { "severity": "error", "code": "unknown-key", "file": "specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml", "path": "steps[0].expectd", "message": "Unknown key \"expectd\". Did you mean \"expected\"?" }
 ```
 
-The shapes are defined as Zod schemas in [`packages/cli/src/json.ts`](../../packages/cli/src/json.ts) (`CommandData`, `ErrorEnvelope`), which is the field-level reference; the `data` lines below summarize them. They are part of the public contract: additive changes only within a major version. When the answer is "no" (`check` with errors, `status --gate` failing), the error envelope also carries the command's `data`.
+The shapes are defined as Zod schemas in [`packages/cli/src/json.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/cli/src/json.ts) (`CommandData`, `ErrorEnvelope`), which is the field-level reference; the `data` lines below summarize them. They are part of the public contract: additive changes only within a major version. When the answer is "no" (`check` with errors, `status --gate` failing), the error envelope also carries the command's `data`.
 
 ### Exit codes
 
@@ -61,7 +68,13 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
-`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[] } }` (`agents` is the `iw skills install` data)
+With `--example`, `init` also pulls the sample results from the copied store (`iw sync --pull-only`), so `iw status` and `iw serve` show them at once.
+
+The text output ends with next steps that run as printed: with agents, open Claude Code or Codex and say "Set up testing for this repo" (`/iw-setup`, `$iw-setup`; "Can we ship?" for `--example`), or run `npx indx-watch serve --open` (with `--dir` when `dir` was given). Commands are printed as `iw …` when `init` was run as `iw`, else as `npx indx-watch …`.
+
+When `dir` already has `.indx-watch/project.toml`, `init` changes nothing and exits 1 (`CONFLICT`) with "Already set up. To refresh the agent files: npx indx-watch skills install".
+
+`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] } }` (`agents` is the `iw skills install` data)
 
 ### `iw check`
 
@@ -72,7 +85,9 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--fix` | Canonicalize files, regenerate slugs, renumber duplicate keys (prints mapping) |
 | `--strict` | Treat warnings as errors |
 
-Reference checks: see [concepts invariants](concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
+A TOML syntax error (`invalid-toml`) names the line and column and quotes the line (`… at line 37, column 3: [[[`). The text output ends with one summary line (`30 files, 1 error, 0 warnings`); when the check fails, that line is the error message on stderr and is not repeated on stdout.
+
+Reference checks: see [concepts invariants](./concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](./sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](./sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
 `data`: `{ "files": number, "errors": number, "warnings": number, "problems": Problem[], "changed": string[], "renumbered": { "from": string, "to": string, "id": string }[] }`
 
@@ -114,7 +129,7 @@ Approve a draft use case, test case or fixture (or a draft acceptance criterion)
 
 ### `iw invite <email>`
 
-*(v0.3)* Invite a customer to plan items for [customer UAT](security.md#customer-uat): set `assignee = "<email>"` on the items of `--plan` (written through `formatToml()`), then add the email to the Access policy named by `IW_ACCESS_POLICY` (`<account id>/<policy id>`) with `CLOUDFLARE_API_TOKEN`. Without those variables the plan is still written, `access` is `"manual"` and a warning says to add the email in the dashboard. Humans only (agents: exit 2). Exits 3 (`INVALID_CONFIG`) when `project.toml` has no `[hosting.roles]` or gives them a `default` other than `customer`, 2 (`NOT_FOUND`) for an unknown plan or a test case that is not in it, and 4 (`EXTERNAL_TOOL`) when the Cloudflare API call fails (the plan is already written; run it again).
+*(v0.3)* Invite a customer to plan items for [customer UAT](./security.md#customer-uat): set `assignee = "<email>"` on the items of `--plan` (written through `formatToml()`), then add the email to the Access policy named by `IW_ACCESS_POLICY` (`<account id>/<policy id>`) with `CLOUDFLARE_API_TOKEN`. Without those variables the plan is still written, `access` is `"manual"` and a warning says to add the email in the dashboard. Humans only (agents: exit 2). Exits 3 (`INVALID_CONFIG`) when `project.toml` has no `[hosting.roles]` or gives them a `default` other than `customer`, 2 (`NOT_FOUND`) for an unknown plan or a test case that is not in it, and 4 (`EXTERNAL_TOOL`) when the Cloudflare API call fails (the plan is already written; run it again).
 
 | Flag | |
 |---|---|
@@ -134,7 +149,7 @@ Compute coverage, use case status and the readiness gate for a scope.
 | `--env <name>` | any | |
 | `--gate` | | Exit 1 if the gate fails |
 | `--sync` | | Run `iw sync` first |
-| `--mine` | | *(v0.4)* Only the features you own ([feature owners](concepts.md#feature-owners)): yours by your actor ID (`IW_ACTOR`, else `git config user.email`); `group:` owners do not match locally. `data` adds `mine` |
+| `--mine` | | *(v0.4)* Only the features you own ([feature owners](./concepts.md#feature-owners)): yours by your actor ID (`IW_ACTOR`, else `git config user.email`); `group:` owners do not match locally. `data` adds `mine` |
 
 `data`:
 
@@ -151,11 +166,13 @@ Compute coverage, use case status and the readiness gate for a scope.
 
 With `--mine`, `data` also has `"mine": { "actor": "alex@shop.test", "features": ["FEAT-2"] }` (the features you own; empty when you own none, and then the rest of `data` is empty too). `iw list features` shows every feature's `owners`, including `group:` ones.
 
-A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](concepts.md#flaky-tests)).
+A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](./concepts.md#flaky-tests)).
+
+When the scope has no `ready` acceptance criterion (a new bundle, or only drafts), the text output says "Coverage: no ready acceptance criteria yet" instead of a 0/0 ratio; `data.coverage` is unchanged. While a definition file does not load, the gate's first check is a failing `valid_definitions` and the file is a warning ([load problems](#conventions)).
 
 ### `iw impact`
 
-Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4); `--base` reads non-ASCII paths unquoted (`core.quotePath=false`). `--changed` splits on commas, so pass a path that contains a comma through `--changed -` (stdin, one path per line). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](integrations.md#github-action).
+Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](./concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4); `--base` reads non-ASCII paths unquoted (`core.quotePath=false`). `--changed` splits on commas, so pass a path that contains a comma through `--changed -` (stdin, one path per line). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](./integrations.md#github-action).
 
 | Flag | |
 |---|---|
@@ -170,7 +187,7 @@ Show one entity with resolved references, current version hash and recent runs. 
 
 ### `iw list <kind>`
 
-List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`, and *(v0.4)* `--mine` (only the features you own, their use cases and test cases, as in `iw status --mine`). `data`: `{ "items": object[] }`
+List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Keyed items are sorted by key number (`TC-2` before `TC-10`); runs keep their time order. In the text output, a draft use case or test case ends with `(draft)`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`, and *(v0.4)* `--mine` (only the features you own, their use cases and test cases, as in `iw status --mine`). `data`: `{ "items": object[] }`
 
 ### `iw record <tc-ref>`
 
@@ -180,19 +197,19 @@ Record a run that was executed outside the browser runner — by a person in a t
 |---|---|
 | `--verdict <pass\|fail\|blocked\|skipped>` | Executor's reported result; becomes a judgement of the executor's kind (`human` for people, `llm` for agents with `--confidence`) |
 | `--step <n>=<status>[:note]` | Repeatable |
-| `--checks <n>=<1\|0>[,…]` | *(v0.4)* Repeatable: which of step `n`'s `checks` hold, one `1` or `0` per check in order (`--checks 2=1,0`); recorded as that step's `checks` ([run record](sync.md#run-record)). Needs `--step n=…`; a count that differs from the step's checks, or a second `--checks` for the same step, is a usage error |
+| `--checks <n>=<1\|0>[,…]` | *(v0.4)* Repeatable: which of step `n`'s `checks` hold, one `1` or `0` per check in order (`--checks 2=1,0`); recorded as that step's `checks` ([run record](./sync.md#run-record)). Needs `--step n=…`; a count that differs from the step's checks, or a second `--checks` for the same step, is a usage error |
 | `--evidence <path>[@step]` | Repeatable; files are hashed into the local replica |
 | `--note <text>` | |
 | `--confidence <0-1>` | Agents only |
 | `--release`, `--env`, `--commit` | Override detection |
 | `--rows <key,...>` | Dataset rows used |
-| `--from <run.json\|->` | Full run input as JSON (see [sync.md](sync.md#run-record)) |
+| `--from <run.json\|->` | Full run input as JSON (see [sync.md](./sync.md#run-record)) |
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
 
 ### `iw run <tc-ref>`
 
-Execute an `agent` or `hybrid` test case in a browser: Claude follows its steps through a `BrowserProvider` and the run is recorded with `source = "agent"`, a note and a screenshot per step, and one `llm` judgement ([agent execution mode](agents.md#agent-execution-mode-v02)). Other modes fail with `USAGE` before a browser opens. Available to agents.
+Execute an `agent` or `hybrid` test case in a browser: Claude follows its steps through a `BrowserProvider` and the run is recorded with `source = "agent"`, a note and a screenshot per step, and one `llm` judgement ([agent execution mode](./agents.md#agent-execution-mode-v02)). Other modes fail with `USAGE` before a browser opens. Available to agents.
 
 | Flag | Default | |
 |---|---|---|
@@ -210,7 +227,7 @@ Append a `human` judgement to a run. `--verdict <pass|fail|blocked|skipped>` and
 
 ### `iw judge <run-ref>`
 
-Ask an LLM to judge a recorded run against the `rubric` of the test case's `llm` judge, and append the answer as an `llm` judgement (`verdict` `pass`/`fail`/`unknown`, `confidence`, `reason`; `by` names the model as an `agent` actor). The model sees the test case's steps (instruction, expected result), the run's step results and notes, and the run's last screenshot (fetched from the store when only a pointer is local). Bundle text, notes and page content are data, not instructions, for the judge. The [decision policy](concepts.md#decision-policy) then applies as for any `llm` judgement: below `llm_pass_confidence` the run is `needs_review`. A refusal by the model becomes `unknown` with confidence 0. Fails with `USAGE` when the test case declares no `llm` judge, and with `INVALID_CONFIG` when no Anthropic credential is available. Available to agents (it adds a judgement, it does not review).
+Ask an LLM to judge a recorded run against the `rubric` of the test case's `llm` judge, and append the answer as an `llm` judgement (`verdict` `pass`/`fail`/`unknown`, `confidence`, `reason`; `by` names the model as an `agent` actor). The model sees the test case's steps (instruction, expected result), the run's step results and notes, and the run's last screenshot (fetched from the store when only a pointer is local). Bundle text, notes and page content are data, not instructions, for the judge. The [decision policy](./concepts.md#decision-policy) then applies as for any `llm` judgement: below `llm_pass_confidence` the run is `needs_review`. A refusal by the model becomes `unknown` with confidence 0. Fails with `USAGE` when the test case declares no `llm` judge, and with `INVALID_CONFIG` when no Anthropic credential is available. Available to agents (it adds a judgement, it does not review).
 
 | Flag | Default | |
 |---|---|---|
@@ -218,13 +235,13 @@ Ask an LLM to judge a recorded run against the `rubric` of the test case's `llm`
 | `--dry-run` | | Print the judgement without recording it |
 | `--visual` | | *v0.2*: compare the run's PNG screenshots with their approved baselines instead of asking an LLM (below) |
 
-**`--visual`** appends one `visual` judgement per compared screenshot ([visual baselines](concepts.md#visual-baselines)): `pass`, `diff` with `diff_ratio`, or `unknown` when the screenshot has no approved baseline or is not a decodable PNG. Screenshot and baseline blobs that are not local (the default `[store].evidence = "on-demand"` does not pull them) are fetched from the store; a blob found in neither gives `unknown` with the reason `baseline blob not found` or `screenshot blob not found`. It needs no credential, and runs offline when the blobs are local. Fails with `USAGE` when the test case declares no `visual` judge or the run has no PNG screenshot to compare. `data` adds `judgements` (every judgement appended; `judgement` is the first).
+**`--visual`** appends one `visual` judgement per compared screenshot ([visual baselines](./concepts.md#visual-baselines)): `pass`, `diff` with `diff_ratio`, or `unknown` when the screenshot has no approved baseline or is not a decodable PNG. Screenshot and baseline blobs that are not local (the default `[store].evidence = "on-demand"` does not pull them) are fetched from the store; a blob found in neither gives `unknown` with the reason `baseline blob not found` or `screenshot blob not found`. It needs no credential, and runs offline when the blobs are local. Fails with `USAGE` when the test case declares no `visual` judge or the run has no PNG screenshot to compare. `data` adds `judgements` (every judgement appended; `judgement` is the first).
 
 Credentials: `ANTHROPIC_API_KEY` (or any credential the Anthropic SDK resolves, such as an `ant auth login` profile). `ANTHROPIC_BASE_URL` routes requests through a gateway (for example Cloudflare AI Gateway). `data`: `{ "judgement": Judgement, "judgements"?: Judgement[], "verdict": Verdict, "recorded": boolean }`
 
 ### `iw baseline approve <run-ref>`
 
-*(v0.2)* Approve a run's PNG screenshots as the [visual baselines](concepts.md#visual-baselines) of its test case: one `baseline` record per screenshot (`--name <evidence name>` approves only that one). Humans only: agents and CI actors exit 2. Fails with `USAGE` when the run has no matching PNG screenshot. `data`: `{ "baselines": BaselineRecord[] }`
+*(v0.2)* Approve a run's PNG screenshots as the [visual baselines](./concepts.md#visual-baselines) of its test case: one `baseline` record per screenshot (`--name <evidence name>` approves only that one). Humans only: agents and CI actors exit 2. Fails with `USAGE` when the run has no matching PNG screenshot. `data`: `{ "baselines": BaselineRecord[] }`
 
 ### `iw waive <tc-ref>`
 
@@ -246,7 +263,7 @@ Add a data file to a fixture (pointer if large, or with `--blob`) / download poi
 
 ### `iw sync`
 
-Exchange records and blobs between the local replica (`.indx-watch/runs/`) and the store in `project.toml`. With `--snapshot`, also publishes a bundle snapshot when the bundle changed. *(v0.2)* In [workspace mode](sync.md#workspace-mode-v02) it also publishes changed definition files as `file` records and writes the store's current definitions into the working tree, with conflict files where concurrent edits of one field disagree; it refuses (exit 1, `CONFLICT`) while git tracks files of the bundle. See [sync.md](sync.md).
+Exchange records and blobs between the local replica (`.indx-watch/runs/`) and the store in `project.toml`. With `--snapshot`, also publishes a bundle snapshot when the bundle changed. *(v0.2)* In [workspace mode](./sync.md#workspace-mode-v02) it also publishes changed definition files as `file` records and writes the store's current definitions into the working tree, with conflict files where concurrent edits of one field disagree; it refuses (exit 1, `CONFLICT`) while git tracks files of the bundle. See [sync.md](./sync.md).
 
 | Flag | |
 |---|---|
@@ -257,11 +274,11 @@ Exchange records and blobs between the local replica (`.indx-watch/runs/`) and t
 | `--snapshot` | Also publish a bundle snapshot for hosted viewers (used by CI on the default branch) |
 | `--full` | List the whole store log |
 
-`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string, "workspace"?: { "published": string[], "written": string[], "removed": string[], "conflicts": string[], "held": string[] } }`. `workspace` (workspace mode only) lists bundle-relative paths: files published as new versions, written or removed in the working tree, conflict files present after the sync, and changes kept local (an agent's change that is not an AI draft, or a TOML file that does not parse). `logSnapshot` is the key of the [log snapshot](sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
+`data`: `{ "pushed": { "records": number, "blobs": number }, "pulled": { "records": number, "blobs": number }, "snapshot": string | null, "cursor": string | null, "warnings"?: string[], "held"?: Problem[], "logSnapshot"?: string, "workspace"?: { "published": string[], "written": string[], "removed": string[], "conflicts": string[], "held": string[] } }`. `workspace` (workspace mode only) lists bundle-relative paths: files published as new versions, written or removed in the working tree, conflict files present after the sync, and changes kept local (an agent's change that is not an AI draft, or a TOML file that does not parse). `logSnapshot` is the key of the [log snapshot](./sync.md#log-snapshots-v02) a full listing started from. Records held back by the secret scan stay local; the command then fails with `SECRETS_FOUND` and carries this `data` too.
 
 ### `iw compact`
 
-Write a [log snapshot](sync.md#log-snapshots-v02) to the store: the newest snapshot plus every readable log object older than the lookback window that it lacks, so fresh clones fetch one object instead of every log object. Needs direct write access (`file://` or `s3://`); a hosted server refuses the upload (`STORE_ERROR`, exit 4). Writes nothing when no log object is new. Safe to run at any time, from any number of places: snapshots are create-only and the log is never changed.
+Write a [log snapshot](./sync.md#log-snapshots-v02) to the store: the newest snapshot plus every readable log object older than the lookback window that it lacks, so fresh clones fetch one object instead of every log object. Needs direct write access (`file://` or `s3://`); a hosted server refuses the upload (`STORE_ERROR`, exit 4). Writes nothing when no log object is new. Safe to run at any time, from any number of places: snapshots are create-only and the log is never changed.
 
 | Flag | |
 |---|---|
@@ -271,7 +288,7 @@ Write a [log snapshot](sync.md#log-snapshots-v02) to the store: the newest snaps
 
 ### `iw push`
 
-Upload everything in one step: sync results (like `iw sync`), then publish a bundle snapshot of the current definitions so hosted viewers and `iw clone` get them. This is the terminal side of the web app's [Upload](web.md#upload). Unlike `iw sync --snapshot`, it publishes even from a dirty working tree or a branch other than the default, because a person asked for it. The snapshot records `dirty: true` and the commit, if there is one. Refused while `iw check` has errors (exit 1, `CHECK_FAILED`). It skips the upload when the definitions are unchanged since the newest snapshot in the store.
+Upload everything in one step: sync results (like `iw sync`), then publish a bundle snapshot of the current definitions so hosted viewers and `iw clone` get them. This is the terminal side of the web app's [Upload](./web.md#upload). Unlike `iw sync --snapshot`, it publishes even from a dirty working tree or a branch other than the default, because a person asked for it. The snapshot records `dirty: true` and the commit, if there is one. Refused while `iw check` has errors (exit 1, `CHECK_FAILED`). It skips the upload when the definitions are unchanged since the newest snapshot in the store.
 
 | Flag | |
 |---|---|
@@ -295,7 +312,7 @@ Create a working copy from a hosted app or a store. `<source>` is either a hoste
 
 ### `iw translate [ref]`
 
-Read and write content translations ([i18n](i18n.md#content-translations)) with the right `source_hash`, so nobody computes hashes by hand.
+Read and write content translations ([i18n](./i18n.md#content-translations)) with the right `source_hash`, so nobody computes hashes by hand.
 
 | Usage | |
 |---|---|
@@ -309,27 +326,27 @@ Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`
 
 ### `iw serve`
 
-If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`.
+If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`. A `--port` that is not a whole number from 0 to 65535 is a usage error (exit 2).
 
 Start the server and web UI on Node: readiness dashboard, spec tree, test case view, manual runner, run viewer with review, fixture browser, report preview.
 
 | Flag | Default | |
 |---|---|---|
 | `--port <n>` | `4321` | |
-| `--host <addr>` | `127.0.0.1` | Use `0.0.0.0` to share on a LAN (no auth: see [security.md](security.md)) |
+| `--host <addr>` | `127.0.0.1` | Use `0.0.0.0` to share on a LAN (no auth: see [security.md](./security.md)) |
 | `--open` | | Open the browser |
 | `--sync` | on if `[store]` is set | Run sync in the background |
-| `--identity-header <name>` | | Trust this proxy header for the user's email (e.g. `X-Forwarded-Email`). Without it, writes from non-loopback clients are rejected ([security.md](security.md#shared-servers)). |
+| `--identity-header <name>` | | Trust this proxy header for the user's email (e.g. `X-Forwarded-Email`). Without it, writes from non-loopback clients are rejected ([security.md](./security.md#shared-servers)). |
 
 Prints the URL. With `--json`, prints `{ "url": string }` once listening and keeps running.
 
-Records come from the local replica through the `node:sqlite` index at `cache/index.sqlite` (the one `iw reindex` builds), always, with no size threshold or flag. On start and after every replica change the server lists `runs/records/` with file times and parses only the files whose record the index does not hold yet, then ingests them; a restart on a large replica therefore reads no record file it already indexed. The API answers exactly as if every file had been read: same records, same order, same `invalid record` warnings (invalid files, and a second file holding a record ID another file already holds, are not indexed and are read again each time). The index remembers each indexed file's path and modification time; when such a file is gone, or its modification time changed in either direction (sync applying the [merge rule](sync.md#merge-rules) replaces a file), the index is emptied and rebuilt from the replica once. An index file from another schema version is emptied when opened, and one that is not a SQLite database is deleted and created again; if the index still cannot be used, the server reads every replica file, as before. A file rewritten with exactly the same modification time is not noticed: run `iw reindex` or delete `cache/`.
+Records come from the local replica through the `node:sqlite` index at `cache/index.sqlite` (the one `iw reindex` builds), always, with no size threshold or flag. On start and after every replica change the server lists `runs/records/` with file times and parses only the files whose record the index does not hold yet, then ingests them; a restart on a large replica therefore reads no record file it already indexed. The API answers exactly as if every file had been read: same records, same order, same `invalid record` warnings (invalid files, and a second file holding a record ID another file already holds, are not indexed and are read again each time). The index remembers each indexed file's path and modification time; when such a file is gone, or its modification time changed in either direction (sync applying the [merge rule](./sync.md#merge-rules) replaces a file), the index is emptied and rebuilt from the replica once. An index file from another schema version is emptied when opened, and one that is not a SQLite database is deleted and created again; if the index still cannot be used, the server reads every replica file, as before. A file rewritten with exactly the same modification time is not noticed: run `iw reindex` or delete `cache/`.
 
 ### `iw report`
 
 Without `--out`, `html` and `pdf` reports are written to `report-<release or plan>.<ext>`, and customer reports to `report-<release or plan>.customer.<ext>`.
 
-Render a report offline from the bundle plus the local replica. See [reports.md](reports.md).
+Render a report offline from the bundle plus the local replica. See [reports.md](./reports.md).
 
 | Flag | Default | |
 |---|---|---|
@@ -339,7 +356,7 @@ Render a report offline from the bundle plus the local replica. See [reports.md]
 | `--format <md\|html\|pdf\|json>` | `md` | `pdf` needs a local Chromium (Playwright) |
 | `--out <path>` | stdout for `md`/`json`, `report-<release>.<ext>` otherwise | |
 | `--evidence <none\|links\|embed>` | `embed` for `html`, `links` otherwise | |
-| `--audience <internal\|customer>` | `internal` | `customer` applies the [redaction rules](reports.md#sharing-with-customers) |
+| `--audience <internal\|customer>` | `internal` | `customer` applies the [redaction rules](./reports.md#sharing-with-customers) |
 | `--locale <en\|ja>` | project `source_locale` | Labels and content translations |
 | `--evidence-base <url>` | | Prefix for evidence links in `md` |
 
@@ -351,7 +368,7 @@ Write / read a portable archive (`.tar.zst`, or `.tar.gz` where zstd is unavaila
 
 ### `iw import playwright-plan <file.md>`
 
-Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planner plan (`specs/*.plan.md`, written by the planner's `planner_save_plan` tool) into test cases: one per scenario, under the use case given by `--uc`. The planner is an AI agent, so every test case is written as `iw new tc --origin ai` would write it: `status = "draft"`, `origin = "ai"` and an `[ai]` table with the model from `--model` (or `IW_AGENT_MODEL`; otherwise exit 2) and `skill = "playwright-test-planner"` (override with `--skill`). They count towards nothing until a human runs `iw approve` ([states](concepts.md#test-case-use-case-fixture)). Example: [`examples/shop/specs/coupon.plan.md`](../../examples/shop/specs/coupon.plan.md).
+Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planner plan (`specs/*.plan.md`, written by the planner's `planner_save_plan` tool) into test cases: one per scenario, under the use case given by `--uc`. The planner is an AI agent, so every test case is written as `iw new tc --origin ai` would write it: `status = "draft"`, `origin = "ai"` and an `[ai]` table with the model from `--model` (or `IW_AGENT_MODEL`; otherwise exit 2) and `skill = "playwright-test-planner"` (override with `--skill`). They count towards nothing until a human runs `iw approve` ([states](./concepts.md#test-case-use-case-fixture)). Example: [`examples/shop/specs/coupon.plan.md`](https://github.com/INDXDev/indx-watch/blob/main/examples/shop/specs/coupon.plan.md).
 
 | Plan | Test case |
 |---|---|
@@ -381,7 +398,7 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 |---|---|
 | `--dry-run` | Print the resources and the exact `wrangler` commands, change nothing |
 | `--name <worker>` | Overrides `[hosting].name` |
-| `--public` | Allow deploying without Cloudflare Access (not recommended) |
+| `--public` | Allow deploying without Cloudflare Access: a read-only demo, *(v0.5)* anonymous visitors can only read ([public deploys](./security.md#public-deploys)) |
 
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
 
@@ -395,11 +412,11 @@ Upgrade the bundle to the current `schema_version`. In v0.1 there is only versio
 
 ### `iw mcp`
 
-Start the MCP server on stdio. See [agents.md](agents.md#mcp-server). `iw serve` and the hosted server serve the same tools over Streamable HTTP at `/mcp`.
+Start the MCP server on stdio. See [agents.md](./agents.md#mcp-server). `iw serve` and the hosted server serve the same tools over Streamable HTTP at `/mcp`.
 
 ### `iw skills install`
 
-Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch mcp`) and a marked block in `AGENTS.md`.
+Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](./agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch mcp`) and a marked block in `AGENTS.md`.
 
 | Flag | Writes |
 |---|---|
@@ -407,17 +424,17 @@ Set up the repository root (the git root, else the directory above `.indx-watch/
 | `--codex` | `.agents/skills/<name>/` with portable frontmatter and `agents/openai.yaml`, `.codex/config.toml` (`[mcp_servers.indx-watch]`) |
 | (neither) | Both of the above |
 
-Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[] }`: the skill folders, and the files created or changed by this run (empty when nothing changed).
+Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](./agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[], "removed": string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed) and the retired skill folders it removed.
 
 ### `iw keygen`
 
-Create an Ed25519 key pair for [signed records](security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it; run `iw fmt` afterwards so the file stays canonical) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it (the secret scan reports it). In the rare case that `iw check` reports the new public key as a possible secret (about one key in 200,000 looks like an API key), run `iw keygen` again.
+Create an Ed25519 key pair for [signed records](./security.md#signed-records). Prints the `[[signing_keys]]` entry to add to `project.toml` (public; commit it; run `iw fmt` afterwards so the file stays canonical) and the secret to set as `IW_SIGNING_KEY` on the hosted Worker (`wrangler secret put IW_SIGNING_KEY`) or in CI. The secret is printed once and stored nowhere; never commit it (the secret scan reports it). In the rare case that `iw check` reports the new public key as a possible secret (about one key in 200,000 looks like an API key), run `iw keygen` again.
 
 | Flag | Default | |
 |---|---|---|
 | `--kid <id>` | `iw-<date>` | Key ID (letters, digits, `.`, `_`, `-`; at most 64) |
 | `--via <list>` | all | Comma-separated verified `via` values the key may vouch for: `cloudflare-access`, `github-oidc`, `github`, `gitlab`, `circleci`, `buildkite` |
-| `--secrets` | | *(v0.5)* Instead, print a new `IW_SECRETS_KEY` for the server that keeps `iw:` secrets ([security](security.md#secrets)); `data`: `{ "secret": string }` |
+| `--secrets` | | *(v0.5)* Instead, print a new `IW_SECRETS_KEY` for the server that keeps `iw:` secrets ([security](./security.md#secrets)); `data`: `{ "secret": string }` |
 
 `data`: `{ "kid": string, "public_key": string, "via"?: string[], "secret": string, "toml": string }`
 
@@ -442,10 +459,10 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
-| `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](security.md#signed-records)) |
-| `IW_SECRETS_KEY` | serve | *(v0.5)* Secret from `iw keygen --secrets`: seal and open `iw:` secrets ([security](security.md#secrets)) |
-| `IW_OIDC_SIGNER` | writes, reporter (GitHub Actions) | Hosted server URL: with `id-token: write` and no `IW_SIGNING_KEY` or `IW_ACTOR`, record `via = "github-oidc"` and sign through the server ([GitHub OIDC](security.md#github-oidc)) |
-| `IW_ACCESS_POLICY`, `CLOUDFLARE_API_TOKEN` | invite | The Access policy (`<account id>/<policy id>`) and an API token with *Access: Apps and Policies Write* ([customer UAT](security.md#customer-uat)) |
+| `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](./security.md#signed-records)) |
+| `IW_SECRETS_KEY` | serve | *(v0.5)* Secret from `iw keygen --secrets`: seal and open `iw:` secrets ([security](./security.md#secrets)) |
+| `IW_OIDC_SIGNER` | writes, reporter (GitHub Actions) | Hosted server URL: with `id-token: write` and no `IW_SIGNING_KEY` or `IW_ACTOR`, record `via = "github-oidc"` and sign through the server ([GitHub OIDC](./security.md#github-oidc)) |
+| `IW_ACCESS_POLICY`, `CLOUDFLARE_API_TOKEN` | invite | The Access policy (`<account id>/<policy id>`) and an API token with *Access: Apps and Policies Write* ([customer UAT](./security.md#customer-uat)) |
 | `CLOUDFLARE_API_BASE_URL` | invite | Replaces `https://api.cloudflare.com/client/v4` (an `https://` or loopback URL; tests use a fake API) |
 | `IW_LLM_MODEL` | judge | Model for `iw judge` (default `claude-opus-5-5`) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` | judge | Anthropic credential and optional gateway URL |

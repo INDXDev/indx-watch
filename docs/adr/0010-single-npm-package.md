@@ -1,3 +1,8 @@
+---
+title: "0010. Ship one npm package, indx-watch"
+description: "Architecture decision record: Ship one npm package, indx-watch."
+---
+
 # 0010. Ship one npm package, `indx-watch`
 
 - Status: accepted

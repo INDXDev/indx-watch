@@ -1,3 +1,8 @@
+---
+title: "0002. Definitions sync through git; results sync through a result store"
+description: "Architecture decision record: Definitions sync through git; results sync through a result store."
+---
+
 # 0002. Definitions sync through git; results sync through a result store
 
 - Status: accepted

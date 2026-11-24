@@ -1,4 +1,5 @@
 /** `iw mcp` in process (docs/spec/agents.md#acceptance-criteria). */
+import { appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { startNodeServer } from '@indx-watch/server/node';
@@ -27,15 +28,31 @@ async function connect(dir: string, env: Record<string, string> = {}) {
     return ((await reply) as { result: unknown }).result;
   };
   const clientInfo = { name: 'test', version: '1' };
-  await request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo });
+  const init = await request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo });
   await client.send({ jsonrpc: '2.0', method: 'notifications/initialized' } as JSONRPCMessage);
   return {
+    init,
     request,
     call: (name: string, args: object = {}) => request('tools/call', { name, arguments: args }),
   };
 }
 
 describe('iw mcp', () => {
+  it('names the package version and reports definition files that do not load', async () => {
+    const dir = shop();
+    const file = join(dir, '.indx-watch/specs/FEAT-3-account/UC-4-customer-signs-in/use-case.toml');
+    appendFileSync(file, '\n[[[\n');
+    const { init, call } = await connect(dir);
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '../../server/package.json'), 'utf8'));
+    expect(init.serverInfo).toEqual({ name: 'indx-watch', version: pkg.version });
+    const r = await call('status', {});
+    expect(r.structuredContent.gate.checks[0]).toMatchObject({ key: 'valid_definitions', passed: false });
+    expect(JSON.parse(r.content[1].text).warnings[0]).toMatchObject({
+      severity: 'warning',
+      code: 'invalid-toml',
+    });
+  });
+
   it('lists the tools with explicit annotations', async () => {
     const { request } = await connect(shop());
     const { tools } = await request('tools/list', {});

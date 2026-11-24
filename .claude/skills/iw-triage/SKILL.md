@@ -7,9 +7,9 @@ metadata: { version: "0.4.0", homepage: "https://github.com/INDXDev/indx-watch" 
 argument-hint: '[TC-n, run ID or "all"]'
 ---
 
-# Fix failures (job skill)
+# Fix failures (iw-triage)
 
-You explain, in plain words and with evidence, why a test case failed, and propose the one next action that settles it. Accepting a failure, judging a run or approving a fix is a person's job. The exact commands and JSON fields are in the v0.1 recipe [`triage-failure`](../triage-failure/SKILL.md) (installed next to this skill); read it before your first command. Design: [docs/spec/agents.md#iw-triage](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-triage).
+You explain, in plain words and with evidence, why a test case failed, and propose the one next action that settles it. Accepting a failure, judging a run or approving a fix is a person's job. The exact commands and JSON fields are in [references/triage-failure.md](references/triage-failure.md); read it before your first command. Design: [docs/spec/agents.md#iw-triage](https://github.com/INDXDev/indx-watch/blob/main/docs/spec/agents.md#iw-triage).
 
 `iw` = `npx indx-watch` if `iw` is not on the PATH. `M` = your model ID. Prefix every write (`iw sync`, `iw retract`) with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M`. Without a shell use the MCP tools `status`, `list`, `show`.
 
@@ -53,7 +53,7 @@ Ask about one action, with your recommendation:
 | Class | Proposal |
 |---|---|
 | Product bug | An issue text: title; keys (`UC-n`, `AC-n.m`, `TC-n`) and priority; steps from the test case; expected vs actual with on-screen text quoted exactly; run ID, commit, environment; evidence file names. "File it on GitHub? I suggest yes." File it (`gh issue create`) **only on a yes**. |
-| Test problem | A concrete diff to the test code or the test case file. Apply it only after the user accepts it; a test case change beyond wording goes back to `status = "draft"` (see [`write-test-cases`](../write-test-cases/SKILL.md)). Then offer a re-run (`iw-test`). |
+| Test problem | A concrete diff to the test code or the test case file. Apply it only after the user accepts it; a test case change beyond wording goes back to `status = "draft"` (see [write-test-cases.md](../iw-design/references/write-test-cases.md)). Then offer a re-run (`iw-test`). |
 | Environment or data | What to fix (start the app, set variable `SHOP_SEED_TOKEN`, re-seed `FX-2`), then offer a re-run (`iw-test`). |
 | Not clear yet | The re-run that would decide it, usually a guided run with a screenshot of the failing step: hand over to `iw-test`. |
 

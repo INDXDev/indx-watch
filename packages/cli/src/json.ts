@@ -57,6 +57,8 @@ export const ErrorEnvelope = z.object({
   error: z.object({ code: ErrorCode, message: z.string(), details: z.array(z.unknown()).optional() }),
   /** commands like `check` and `status --gate` still return their data on a "no" answer */
   data: z.unknown().optional(),
+  /** warnings found before the error, such as definition files that do not load */
+  warnings: z.array(Problem).optional(),
 });
 
 const Gate = z.object({
@@ -72,8 +74,9 @@ const Gate = z.object({
   ),
 });
 
-/** `iw skills install` and the agent setup of `iw init`: skill folders and the files this run changed. */
-const AGENT_SETUP = z.object({ installed: z.array(z.string()), files: z.array(z.string()) });
+/** `iw skills install` and the agent setup of `iw init`: skill folders, the files this run changed and the retired skill folders it removed. */
+const PATHS = z.array(z.string());
+const AGENT_SETUP = z.object({ installed: PATHS, files: PATHS, removed: PATHS });
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
 /** `data` shape per command. */

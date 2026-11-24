@@ -1,0 +1,7 @@
+# Not published on the docs site (gitignore syntax). See docs/adr/0014-docs-site.md.
+# HTML mockups and their styles are design sources; read them on GitHub.
+design/*.html
+design/*.css
+design/screenshots/
+# Placeholder links by design.
+adr/0000-template.md

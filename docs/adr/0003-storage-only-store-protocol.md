@@ -1,3 +1,8 @@
+---
+title: "0003. The result store protocol needs only object storage"
+description: "Architecture decision record: The result store protocol needs only object storage."
+---
+
 # 0003. The result store protocol needs only object storage
 
 - Status: accepted
