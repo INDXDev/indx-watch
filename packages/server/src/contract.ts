@@ -150,6 +150,10 @@ export interface ProjectInfo {
   readOnly?: true;
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+  /** (v0.5) the running server; `patches` (8 hex digits of the patch-set hash) only on a patched build (docs/spec/security.md#patched-servers) */
+  server?: { version: string; patches?: string };
+  /** (v0.5) `ui/` of the bundle: message overrides per locale and the theme as CSS (docs/spec/bundle-format.md#customizing-v05) */
+  ui?: { messages: Partial<Record<'en' | 'ja', Record<string, string>>>; css?: string };
 }
 
 /** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */

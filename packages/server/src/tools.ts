@@ -7,6 +7,7 @@ import * as core from '@indx-watch/core';
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import PKG from '../package.json' with { type: 'json' };
+import { buildVersion } from './build.js';
 
 const READ = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -90,7 +91,7 @@ export const toolError = (code: string, message: string, details?: unknown[]): T
 
 /** An MCP server with the tools; there is no approve/review/waive tool. */
 export function createToolServer(outputs: ToolOutputs, tools: (s: McpServer) => ToolHandlers): McpServer {
-  const server = new McpServer({ name: 'indx-watch', version: PKG.version });
+  const server = new McpServer({ name: 'indx-watch', version: buildVersion(PKG.version) });
   const h = tools(server);
   for (const [name, inputSchema] of Object.entries(TOOL_INPUTS) as [ToolName, z.ZodType][]) {
     const [description, annotations] = ABOUT[name];

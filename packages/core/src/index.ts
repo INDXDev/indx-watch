@@ -69,6 +69,8 @@ export function localize(
 /** Data for a release or plan report (docs/spec/reports.md#contents); rendering lives in the server package. */
 export interface ReportData {
   project: { key: string; name: string };
+  /** (v0.5) `[report]` of project.toml; `logo` is a data URI (docs/spec/reports.md#rendering-rules) */
+  brand?: { title?: string; footer?: string; logo?: string };
   scope: Scope;
   plan?: string | undefined;
   audience: 'internal' | 'customer';

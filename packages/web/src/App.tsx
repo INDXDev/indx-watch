@@ -1,7 +1,16 @@
 /** App shell: project + scope context, top bar (docs/spec/web.md#layout) and the routed screen. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, type ProjectInfo, type Scope } from './api';
-import { I18nContext, type Locale, makeI18n, pickLocale, readStored, useI18n, writeStored } from './i18n';
+import {
+  applyMessages,
+  I18nContext,
+  type Locale,
+  makeI18n,
+  pickLocale,
+  readStored,
+  useI18n,
+  writeStored,
+} from './i18n';
 import { href, type Route, useRoute } from './router';
 import { Activity, RunFocus } from './screens/Activity';
 import { Fixtures } from './screens/Fixtures';
@@ -49,6 +58,15 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+  // the project's own texts and theme (v0.5); without ui/ the built-in ones
+  applyMessages(project.data?.ui?.messages);
+  const css = project.data?.ui?.css ?? '';
+  useEffect(() => {
+    const el =
+      document.head.querySelector('#iw-theme') ?? document.head.appendChild(document.createElement('style'));
+    el.id = 'iw-theme';
+    el.textContent = css;
+  }, [css]);
   return (
     <I18nContext.Provider value={i18n}>
       {project.code === 'no-snapshot' ? (
@@ -211,6 +229,11 @@ function Notices({ info }: { info: ProjectInfo }) {
       {info.readOnly && (
         <p className="problems" role="note">
           {t('readOnly.notice')} <code>npx indx-watch init</code>
+        </p>
+      )}
+      {info.server?.patches && (
+        <p className="problems" role="note">
+          {t('custom.patched', { build: `${info.server.version}+p.${info.server.patches}` })}
         </p>
       )}
       {info.problems.length > 0 && (

@@ -15,6 +15,7 @@ import {
 } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
+import { patchesOf, VERSION } from './build.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
@@ -123,6 +124,8 @@ async function projectInfo(c: Context, x: Ctx) {
     ...(!customer && deps.roles && { team: deps.roles }),
     ...(deps.readOnly && { readOnly: true }),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
+    server: { version: VERSION, ...(patchesOf() && { patches: patchesOf() }) },
+    ...(m.ui && { ui: { messages: m.ui.messages, css: B.themeCss(m.ui.theme) } }),
   };
   return c.json(info);
 }

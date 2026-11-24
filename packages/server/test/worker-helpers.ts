@@ -1,5 +1,5 @@
 /** Shared fixtures for the worker*.test.ts files: a bucket with a shop snapshot, requests and hosted envs. */
-import { type AnyRecord, newId, sha256Hex } from '@indx-watch/bundle';
+import { type AnyRecord, type BundleFs, newId, sha256Hex } from '@indx-watch/bundle';
 import { nodeFs } from '@indx-watch/bundle/node';
 import { createResultStore } from '@indx-watch/store';
 import { r2ObjectStore } from '@indx-watch/store/workers';
@@ -19,12 +19,12 @@ export const assets = {
 };
 
 /** A bucket with a bundle snapshot (as `iw sync --snapshot` publishes it) and optional records written directly to it. */
-export async function bucket(records: AnyRecord[] = []) {
+export async function bucket(records: AnyRecord[] = [], fs: BundleFs = nodeFs(SHOP)) {
   const r2 = fakeR2({ honorStartAfter: true });
   const store = createResultStore(r2ObjectStore(r2, 'shop'));
   const b = await shop();
   await store.init(b.project.data.id);
-  const snap = await snapshotBundle(nodeFs(SHOP));
+  const snap = await snapshotBundle(fs);
   const sha = await sha256Hex(snap.tar);
   await store.putBlob(sha, snap.tar, 'application/x-tar');
   const bundleRecord = {
