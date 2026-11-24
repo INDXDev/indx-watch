@@ -57,6 +57,8 @@ export const ErrorEnvelope = z.object({
   error: z.object({ code: ErrorCode, message: z.string(), details: z.array(z.unknown()).optional() }),
   /** commands like `check` and `status --gate` still return their data on a "no" answer */
   data: z.unknown().optional(),
+  /** warnings found before the error, such as definition files that do not load */
+  warnings: z.array(Problem).optional(),
 });
 
 const Gate = z.object({

@@ -6,6 +6,7 @@ import * as B from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import PKG from '../package.json' with { type: 'json' };
 
 const READ = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -89,7 +90,7 @@ export const toolError = (code: string, message: string, details?: unknown[]): T
 
 /** An MCP server with the tools; there is no approve/review/waive tool. */
 export function createToolServer(outputs: ToolOutputs, tools: (s: McpServer) => ToolHandlers): McpServer {
-  const server = new McpServer({ name: 'indx-watch', version: '0.1.0' });
+  const server = new McpServer({ name: 'indx-watch', version: PKG.version });
   const h = tools(server);
   for (const [name, inputSchema] of Object.entries(TOOL_INPUTS) as [ToolName, z.ZodType][]) {
     const [description, annotations] = ABOUT[name];
@@ -274,5 +275,7 @@ export function listItems(m: core.Model, kind: string, f: ListFilters, scope: co
       has(x, 'mode', f.mode) &&
       (what !== 'run' || ((!tc || x.testCase === tc) && has(x, 'release', f.release))),
   );
+  // keys in number order (TC-2 before TC-10); runs keep their time order
+  if (what !== 'run') items.sort((x, y) => (x.key && y.key ? core.byKey(`${x.key}`, `${y.key}`) : 0));
   return limit === undefined ? items : items.slice(0, limit);
 }

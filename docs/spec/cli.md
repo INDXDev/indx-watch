@@ -14,6 +14,8 @@
 | Agents | When the actor is an agent (see [security.md](security.md#identity)), `iw approve`, `iw review` and `iw waive` exit 2. |
 | Running tests | Automated tests run with Playwright and the [reporter](integrations.md#playwright-reporter); people run tests in the browser runner; `agent` test cases run with [`iw run`](#iw-run-tc-ref); anything else is recorded with `iw record`. |
 | Non-interactive | Commands never prompt when stdin is not a TTY or `--yes` is given; missing input is an error (exit 2). |
+| Arguments | A command that takes no positional argument rejects one with `USAGE` (exit 2): `iw sync s3://other` does not quietly sync the configured store. A file or folder named by a flag that does not exist (`--from`, `--out`, `--evidence`) is `NOT_FOUND` (exit 2), never an internal error. |
+| Load problems | A definition file that does not load (a TOML syntax error, an invalid value, a missing `feature.toml`/`use-case.toml`) is left out of the bundle. Every command that opens the bundle then reports each such error as a warning (the problem with `severity = "warning"`, same `code`, `file` and `message`) in its output: on stderr as text, in `warnings` with `--json`; `iw check` reports them as its own errors instead. The [readiness gate](concepts.md#readiness-gate) fails while one exists (`valid_definitions`). |
 
 ### JSON envelope
 
@@ -25,7 +27,7 @@
 { "ok": false, "command": "check", "error": { "code": "CHECK_FAILED", "message": "3 problems in 2 files", "details": [] } }
 ```
 
-`warnings` and `error.details` items are **problems**:
+`warnings` and `error.details` items are **problems**. An error envelope also carries `warnings` when there were any before the error (such as definition files that do not load).
 
 ```json
 { "severity": "error", "code": "unknown-key", "file": "specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml", "path": "steps[0].expectd", "message": "Unknown key \"expectd\". Did you mean \"expected\"?" }
@@ -61,6 +63,12 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
+With `--example`, `init` also pulls the sample results from the copied store (`iw sync --pull-only`), so `iw status` and `iw serve` show them at once.
+
+The text output ends with next steps that run as printed: with agents, open Claude Code or Codex and say "Set up testing for this repo" (`/iw-setup`, `$iw-setup`; "Can we ship?" for `--example`), or run `npx indx-watch serve --open` (with `--dir` when `dir` was given). Commands are printed as `iw …` when `init` was run as `iw`, else as `npx indx-watch …`.
+
+When `dir` already has `.indx-watch/project.toml`, `init` changes nothing and exits 1 (`CONFLICT`) with "Already set up. To refresh the agent files: npx indx-watch skills install".
+
 `data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[] } }` (`agents` is the `iw skills install` data)
 
 ### `iw check`
@@ -71,6 +79,8 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 |---|---|
 | `--fix` | Canonicalize files, regenerate slugs, renumber duplicate keys (prints mapping) |
 | `--strict` | Treat warnings as errors |
+
+A TOML syntax error (`invalid-toml`) names the line and column and quotes the line (`… at line 37, column 3: [[[`). The text output ends with one summary line (`30 files, 1 error, 0 warnings`); when the check fails, that line is the error message on stderr and is not repeated on stdout.
 
 Reference checks: see [concepts invariants](concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
@@ -153,6 +163,8 @@ With `--mine`, `data` also has `"mine": { "actor": "alex@shop.test", "features":
 
 A test case has `flaky` only when it has at least one flake among its last 10 pass/fail runs in the scope ([flaky tests](concepts.md#flaky-tests)).
 
+When the scope has no `ready` acceptance criterion (a new bundle, or only drafts), the text output says "Coverage: no ready acceptance criteria yet" instead of a 0/0 ratio; `data.coverage` is unchanged. While a definition file does not load, the gate's first check is a failing `valid_definitions` and the file is a warning ([load problems](#conventions)).
+
 ### `iw impact`
 
 Suggest the test cases a change touches, from the changed files and each test case's `[automation].files`, own file, use case and fixtures ([impact analysis](concepts.md#impact-analysis)). Paths are relative to the repository root (the bundle's parent outside git). One of `--changed` or `--base` is required (exit 2); a failing `git diff` is `EXTERNAL_TOOL` (exit 4); `--base` reads non-ASCII paths unquoted (`core.quotePath=false`). `--changed` splits on commas, so pass a path that contains a comma through `--changed -` (stdin, one path per line). The human output is a Markdown section headed "Suggested test cases", one bullet per test case with its reasons; the GitHub Action puts it in its [PR comment](integrations.md#github-action).
@@ -170,7 +182,7 @@ Show one entity with resolved references, current version hash and recent runs. 
 
 ### `iw list <kind>`
 
-List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`, and *(v0.4)* `--mine` (only the features you own, their use cases and test cases, as in `iw status --mine`). `data`: `{ "items": object[] }`
+List `features`, `ucs`, `tcs`, `fixtures`, `envs`, `releases`, `plans`, `runs`. Keyed items are sorted by key number (`TC-2` before `TC-10`); runs keep their time order. In the text output, a draft use case or test case ends with `(draft)`. Filters: `--status`, `--tag`, `--priority`, `--mode`, `--uc`, `--tc`, `--release`, `--limit`, and *(v0.4)* `--mine` (only the features you own, their use cases and test cases, as in `iw status --mine`). `data`: `{ "items": object[] }`
 
 ### `iw record <tc-ref>`
 
@@ -309,7 +321,7 @@ Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`
 
 ### `iw serve`
 
-If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`.
+If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`. A `--port` that is not a whole number from 0 to 65535 is a usage error (exit 2).
 
 Start the server and web UI on Node: readiness dashboard, spec tree, test case view, manual runner, run viewer with review, fixture browser, report preview.
 
