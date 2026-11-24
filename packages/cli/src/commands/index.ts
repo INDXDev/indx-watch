@@ -6,6 +6,7 @@ import { dataCommands } from './data.js';
 import { resultCommands } from './results.js';
 import { shareCommands } from './share.js';
 import { specCommands } from './specs.js';
+import { upkeepCommands } from './upkeep.js';
 
 export const COMMANDS: Record<string, Spec> = {
   ...specCommands,
@@ -13,5 +14,6 @@ export const COMMANDS: Record<string, Spec> = {
   ...dataCommands,
   ...shareCommands,
   ...appCommands,
+  ...upkeepCommands,
   mcp: mcpCommand,
 };

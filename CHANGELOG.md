@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Staying current with upstream: `iw doctor [--online]` reports every pinned part of a project (`[tool]`, the CLI, `package.json`, `.mcp.json`, skill copies, workflows, the hosted app) as `ok`, `outdated`, `unpinned` or `locally-edited` and changes nothing (T-503).
+- `iw update [--to] [--dry-run] [--deploy] [--workflow]` moves the package entry, skill copies, `.mcp.json`, workflow versions and `#:schema` URLs to one version, prints the install command and checks the bundle; `--workflow` writes a weekly workflow that opens an update pull request (T-504, T-505).
+- `project.toml` accepts `[tool] indx_watch = "x.y.z"`; `iw init` writes it, the GitHub Action runs that version when its `version` input is empty, and `iw deploy` pins `IW_VERSION` on the Worker; `.mcp.json` is written as `npx -y indx-watch@<version> mcp` and an unpinned entry is migrated (T-501, T-502).
+- `GET /healthz` answers `{ ok, version }` and `GET /api/project` has `server: { version, pinned?, outdated? }`; the web app tells leads when it runs an older version than the project pins, in English and Japanese (T-501, T-506).
+- `ReleaseSource` adapters for the npm registry and GitHub releases, a fake, and `releases.json` generated from this changelog and shipped in the package (T-503).
 - BDD style for test cases: `style = "bdd"` reads the preconditions and steps as a Given / When / Then scenario, `iw new tc --template bdd` is built in, and the test case page, the manual runner and the editor show the labels and a "How to run this scenario" guide in English and Japanese (前提 / もし / ならば / かつ). examples/shop's TC-4 uses it.
 
 ### Changed

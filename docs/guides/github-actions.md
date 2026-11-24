@@ -197,3 +197,22 @@ This runs `indx-watch deployment add --env staging` for the current commit.
 ## Versions
 
 `INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.2`), or pin the action to an exact release tag.
+
+*(v0.5)* With an empty `version` input the action runs the version in `project.toml`:
+
+```toml
+[tool]
+indx_watch = "0.1.3"
+```
+
+so the CLI, `.mcp.json`, the skills and the Action share one pin. `iw doctor` shows which parts differ and `iw update` moves them together ([cli.md](../spec/cli.md#iw-doctor)).
+
+## Keep INDX Watch up to date
+
+*(v0.5)* `npx indx-watch update --workflow` writes `.github/workflows/indx-watch-update.yml`. Every Monday (and on demand) it runs `npx indx-watch@latest update`, and when something changed it opens or refreshes one pull request, `indx-watch/update`, whose text is the changelog excerpt of the releases in between. Merging it is the update: the pin, `package.json`, the skill copies, workflow versions and schema URLs move together, and the checks of the pull request run `iw check` and your tests on the new version.
+
+- In the repository settings, allow GitHub Actions to create pull requests (Settings, Actions, General), or the last step stops with a message.
+- The workflow runs the install command `iw update` prints (for example `npm install`) so the lockfile matches; add your package manager's setup step before it when it is not npm.
+- A failing patch check (`iw patch check`) or `iw check` makes the job fail and no pull request opens; read the log.
+- The workflow does not deploy. After merging, run `iw deploy` (or `iw update --deploy`); until then leads see the [version notice](../spec/web.md#version-notice).
+
