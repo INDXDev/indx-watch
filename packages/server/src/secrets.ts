@@ -39,9 +39,13 @@ function usersOf(m: Model) {
 
 type Current = { record: B.SecretRecord; value: string };
 
-/** The secret routes; the sealer and the values of records already opened live as long as the app. */
+/**
+ * The secret routes; the sealer and the values of records already opened live as long as the app. Opened records
+ * are remembered by their whole body: another body under the same ID (a direct bucket write) must open on its own.
+ */
 export function registerSecretRoutes(app: Hono, x: Ctx) {
   const opened = new Map<string, string | null>();
+  const id = (r: B.SecretRecord) => JSON.stringify(r);
   let sealer: B.SecretSealer | undefined;
   const seal = () => {
     if (!x.deps.secretsKey)
@@ -59,8 +63,8 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
       .sort((a, b) => (a.at === b.at ? (a.id < b.id ? 1 : -1) : a.at < b.at ? 1 : -1));
     for (const r of sorted) {
       // every record is opened (once), so the history can leave out the ones that do not count
-      if (!opened.has(r.id)) opened.set(r.id, await s.open(r));
-      const value = opened.get(r.id);
+      if (!opened.has(id(r))) opened.set(id(r), await s.open(r));
+      const value = opened.get(id(r));
       if (value != null && !out.has(r.name))
         out.set(r.name, r.action === 'set' ? { record: r, value } : null);
     }
@@ -88,7 +92,7 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
     const { name, title, username, notes, at, actor } = r;
     const shared_with = customer && r.shared_with ? [] : r.shared_with;
     const history = m.secrets
-      .filter((e) => e.name === name && (e.action === 'reveal' || opened.get(e.id) != null))
+      .filter((e) => e.name === name && (e.action === 'reveal' || opened.get(id(e)) != null))
       .sort((a, b) => (a.at < b.at ? 1 : -1))
       .slice(0, customer ? 0 : 50)
       .map((e) => ({ action: e.action, at: e.at, actor: e.actor }));
@@ -114,7 +118,7 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
     const base = { ...env, actor: await x.actor(c), source: 'manual' as const, ...fields };
     const sealed = value === undefined ? undefined : await seal().seal(base, value);
     const record = B.SecretRecord.parse({ ...base, ...(sealed && { sealed }) });
-    if (sealed) opened.set(record.id, value!);
+    if (sealed) opened.set(id(record), value!);
     await x.deps.writeRecord(record);
     return record;
   }
@@ -142,7 +146,7 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
     const { all, secrets } = await visible(c);
     const s = secrets.get(name) ?? fail(notFound(`secret ${name}`));
     await write(c, all, { action: 'reveal', name });
-    return c.json({ value: s.value });
+    return c.json({ value: s.value }, 200, { 'Cache-Control': 'no-store' });
   });
 
   app.put('/api/secrets/:name', async (c) => {
