@@ -133,7 +133,10 @@ export function initGithub(root: string, pin: string = VERSION): InitGithubData 
   const flows = ['indx-watch', 'indx-watch-deploy'].map((n) => ({
     path: `.github/workflows/${n}.yml`,
     // `iw update` keeps the pinned version in step with [tool] (docs/spec/cli.md#iw-update)
-    content: readFileSync(join(from, `${n}.yml`), 'utf8').replaceAll('npx --yes indx-watch ', `npx --yes indx-watch@${pin} `),
+    content: readFileSync(join(from, `${n}.yml`), 'utf8').replaceAll(
+      'npx --yes indx-watch ',
+      `npx --yes indx-watch@${pin} `,
+    ),
   }));
   const data: InitGithubData = { root, written: [], skipped: [], secrets: [] };
   for (const f of [...flows, ...githubTemplates()]) {
