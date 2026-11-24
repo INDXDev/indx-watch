@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Landing page (`site/`) rebuilt after proven developer-tool pages: a role switch (developer, tester or QA, product manager) that changes the hero, the demo and the For teams tabs (`?for=`), a four-chapter product demo drawn as HTML from the web app's own screens and strings, then features, roles, strengths (GitHub, agents, test data, sync, self-hosting) and getting started, in English and Japanese. Design rules and references: [site/DESIGN.md](site/DESIGN.md).
+- README: developer-first, with benefits for developers, testers and product managers, and new Japanese ([README.ja.md](README.ja.md)) and Simplified Chinese ([README.zh-CN.md](README.zh-CN.md)) versions.
+
 ### Fixed
 
 - `GET /api/report` and `POST /api/shares` refuse an unknown `evidence` value with 400; before, any value but `links` passed the share-link check and was rendered as evidence links, which a share link cannot serve.
