@@ -9,9 +9,10 @@ import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
 import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
-import { registerReadRoutes, registerStoreRoutes, registerWriteRoutes } from './routes.js';
+import { registerReadRoutes, registerWriteRoutes } from './routes.js';
 import { registerSecretRoutes } from './secrets.js';
 import { registerShareRoutes } from './shares.js';
+import { registerStoreRoutes } from './store-routes.js';
 import type { ToolOutputs } from './tools.js';
 
 export { errorResponse, HttpError, MAX_BLOB_BYTES } from './http.js';
@@ -109,7 +110,7 @@ const PERMITS: [RegExp, B.Role[]][] = [
 export const permits = (role: B.Role | undefined, method: string, path: string) =>
   role === 'lead' || !!(role && PERMITS.find(([re]) => re.test(`${method} ${path}`))?.[1].includes(role));
 
-/** Per-app state and request helpers shared by the route groups in routes.ts. */
+/** Per-app state and request helpers shared by the route modules. */
 function appContext(deps: AppDeps) {
   const d = deps as ServerDeps;
   const actors = new WeakMap<Request, Promise<B.Actor>>();

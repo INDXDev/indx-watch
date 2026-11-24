@@ -1,8 +1,11 @@
 /**
- * HTTP errors and small helpers shared by app.ts and routes.ts (runtime-neutral); app.ts re-exports the public ones.
+ * HTTP errors and small request helpers shared by the route modules (runtime-neutral); app.ts re-exports the public
+ * ones.
  */
 import type { Actor } from '@indx-watch/bundle';
+import type { Model, Scope } from '@indx-watch/core';
 import { StoreError } from '@indx-watch/store';
+import type { Context } from 'hono';
 
 export const MAX_BLOB_BYTES = 25 * 1024 * 1024;
 
@@ -49,3 +52,26 @@ export const sniff = (b: Uint8Array) => {
 /** Who may create and revoke report share links (docs/spec/security.md#share-links). */
 export const canShare = (d: { mode: string }, a: Actor) =>
   d.mode === 'hosted' && a.kind === 'human' && a.via === 'cloudflare-access';
+
+/** A non-empty query parameter. */
+export const q = (c: Context, k: string) => c.req.query(k) || undefined;
+/** Scope from `?release=` and `?env=`. */
+export const scopeOf = (c: Context, m: Model, r = m.project.current_release): Scope =>
+  Object.assign({ release: q(c, 'release') ?? r, environment: q(c, 'env') });
+/** The JSON request body, else 400. */
+export const readJson = <T>(c: Context) =>
+  c.req.json<T>().catch(() => fail(bad('request body must be JSON')));
+
+/** The raw request body, refused with 413 over MAX_BLOB_BYTES. */
+export async function readBody(c: Context) {
+  const big = () => new HttpError(413, 'too-large', 'over 25 MB');
+  if (Number(c.req.header('content-length') ?? 0) > MAX_BLOB_BYTES) throw big();
+  // count while reading: a chunked body has no Content-Length
+  const [reader, chunks] = [c.req.raw.body?.getReader(), [] as Uint8Array<ArrayBuffer>[]];
+  for (let r = await reader?.read(), n = 0; r && !r.done; r = await reader!.read()) {
+    n += r.value.byteLength;
+    if (n > MAX_BLOB_BYTES) await reader!.cancel().then(() => fail(big()));
+    chunks.push(r.value);
+  }
+  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}

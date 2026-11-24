@@ -260,6 +260,27 @@ async function snapshotModel(store: Store, index: Index, pinned: Pinned, view: V
   return { model, problems: [...problems, ...(await warningProblems(index, bundle, pinned, warnings))] };
 }
 
+/** What the model of an isolate is loaded from. */
+type Source = { store: Store; index: Index; pinned: Pinned; view: View; ingested: { at: number } };
+/**
+ * The model, after catching up with the bucket (as lease `owner`) at most every CATCH_UP_EVERY_MS; cached until the
+ * index changes.
+ */
+function modelLoader({ store, index, pinned, view, ingested }: Source, owner: string) {
+  let cache: { rev: string; value: Loaded } | undefined;
+  return async (): Promise<Loaded> => {
+    if (Date.now() - ingested.at >= CATCH_UP_EVERY_MS) {
+      ingested.at = Date.now();
+      // best effort: a failed catch-up (lease, bucket or D1 error) serves the records indexed so far; the next
+      // request or the scheduled run retries
+      await catchUp(store, index, owner, { trust: pinned.trust }).catch(() => 0);
+    }
+    const rev = (await index.getMeta('records.rev')) ?? '';
+    if (cache?.rev !== rev) cache = { rev, value: await snapshotModel(store, index, pinned, view) };
+    return cache.value;
+  };
+}
+
 function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   const objects = r2ObjectStore(env.STORE, env.STORE_PREFIX);
   const [store, index] = [S.createResultStore(objects), d1Index(env.DB)];
@@ -267,26 +288,13 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   // a public deploy is read-only: anonymous viewers, no secrets (docs/spec/security.md#public-deploys)
   const open = env.PUBLIC === 'true';
   const identity = open ? anon : access && accessIdentity(access);
-  const ingested = { at: 0 };
-  const pinned = pinnedKeys(env);
+  const [ingested, pinned, owner] = [{ at: 0 }, pinnedKeys(env), newUlid()];
   const { trust } = pinned;
   const view: View = { files: new Map(), blobs: new Map() };
-  let cache: { rev: string; value: Loaded } | undefined;
   const ingest = async (records: AnyRecord[], key?: string) => {
     if (await index.ingest(records, key, trust)) await index.setMeta('records.rev', newUlid());
   };
-
-  const loadModel = async (): Promise<Loaded> => {
-    if (Date.now() - ingested.at >= CATCH_UP_EVERY_MS) {
-      ingested.at = Date.now();
-      // best effort: a failed catch-up (lease, bucket or D1 error) serves the records indexed so far; the next
-      // request or the scheduled run retries
-      await catchUp(store, index, s.owner, { trust }).catch(() => 0);
-    }
-    const rev = (await index.getMeta('records.rev')) ?? '';
-    if (cache?.rev !== rev) cache = { rev, value: await snapshotModel(store, index, pinned, view) };
-    return cache.value;
-  };
+  const loadModel = modelLoader({ store, index, pinned, view, ingested }, owner);
 
   const deps: ServerDeps = {
     mode: 'hosted',
@@ -323,8 +331,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     }),
     toolOutputs,
   };
-  const s = { key, app: createApp(deps), store, index, open: !!identity, owner: newUlid(), ingested, trust };
-  return s;
+  return { key, app: createApp(deps), store, index, open: !!identity, owner, ingested, trust };
 }
 
 /** A browser upload becomes a snapshot like `iw push` (docs/spec/sync.md#snapshots-from-people-v02). */

@@ -9,7 +9,8 @@ import type { Context, Hono } from 'hono';
 import type { z } from 'zod';
 import type { Ctx } from './app.js';
 import { renderReport } from './report.js';
-import { evidenceOf, reportOf, resolveRelease, runFixtures } from './routes.js';
+import { reportOf } from './reports.js';
+import { evidenceOf, resolveRelease, runFixtures } from './routes.js';
 import * as T from './tools.js';
 import { memoryBundleFs, safePath } from './upload.js';
 
