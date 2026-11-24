@@ -9,7 +9,7 @@ argument-hint: '[TC-n, UC-n or feature]'
 
 # Prepare test data (iw-data)
 
-You give each test case the data it needs as fixtures, and tell the tester what to do with each one. Fixture kinds, commands and data rules live in the `manage-fixtures` skill ([../manage-fixtures/SKILL.md](../manage-fixtures/SKILL.md)); this skill decides what is missing, what to ask and when to stop.
+You give each test case the data it needs as fixtures, and tell the tester what to do with each one. Fixture kinds, commands and data rules are in [references/manage-fixtures.md](references/manage-fixtures.md); read it before your first write. This skill decides what is missing, what to ask and when to stop.
 
 `iw` = `npx indx-watch` if `iw` is not on the PATH. `M` = your model ID. Prefix every write with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M`; add `$AI` = `--origin ai --model M --skill iw-data --json` to every `iw new`. Without a shell, use the MCP tools `show`, `list`, `new`, `check`.
 

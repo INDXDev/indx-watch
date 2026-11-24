@@ -1,5 +1,0 @@
-interface:
-  display_name: "Write test cases"
-  short_description: "Propose acceptance criteria and test cases for an INDX Watch use case as AI drafts in .indx-watch/"
-policy:
-  allow_implicit_invocation: true

@@ -61,7 +61,7 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
-`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[] } }` (`agents` is the `iw skills install` data)
+`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] } }` (`agents` is the `iw skills install` data)
 
 ### `iw check`
 
@@ -407,7 +407,7 @@ Set up the repository root (the git root, else the directory above `.indx-watch/
 | `--codex` | `.agents/skills/<name>/` with portable frontmatter and `agents/openai.yaml`, `.codex/config.toml` (`[mcp_servers.indx-watch]`) |
 | (neither) | Both of the above |
 
-Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[] }`: the skill folders, and the files created or changed by this run (empty when nothing changed).
+Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[], "removed": string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed) and the retired skill folders it removed.
 
 ### `iw keygen`
 
