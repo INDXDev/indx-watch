@@ -17,6 +17,21 @@ import { memFs, REPO, SHOP, shopFiles } from './helpers.js';
 const dec = new TextDecoder();
 const TC3 = 'specs/FEAT-2-checkout/UC-2-guest-applies-coupon/TC-3-valid-coupon.toml';
 
+describe('load problems', () => {
+  it('a TOML syntax error names line, column and the line, and lists the file in invalidFiles', async () => {
+    const fs = memFs();
+    const file = 'specs/FEAT-3-account/UC-4-customer-signs-in/use-case.toml';
+    await fs.write(file, `${fs.text(file)}\n[[[\n`);
+    const { bundle, problems } = await loadBundle(fs);
+    const p = problems.find((x) => x.file === file)!;
+    expect(p).toMatchObject({ severity: 'error', code: 'invalid-toml' });
+    expect(p.message).toMatch(/ at line \d+, column \d+: \[\[\[$/);
+    expect(bundle!.invalidFiles).toEqual([file]);
+    expect(bundle!.useCases.some((u) => u.file === file)).toBe(false);
+    expect((await loadBundle(memFs())).bundle!.invalidFiles).toEqual([]);
+  });
+});
+
 describe('docs/spec/bundle-format.md examples', () => {
   const md = readFileSync(join(REPO, 'docs/spec/bundle-format.md'), 'utf8');
   const blocks = [...md.matchAll(/```toml\n([\s\S]*?)```/g)]

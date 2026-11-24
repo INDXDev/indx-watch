@@ -149,6 +149,8 @@ export interface Model {
   unverified?: ReadonlySet<string>;
   /** the same model without unverified records, when gate.ignore_unverified is on; evaluateGate() uses it */
   verifiedOnly?: Model;
+  /** definition files with a load error (Bundle.invalidFiles); the gate fails while any */
+  invalidFiles?: string[];
   /** any ID or key → key (for parseRef resolution) */
   keyOf(ref: string): string | undefined;
 }

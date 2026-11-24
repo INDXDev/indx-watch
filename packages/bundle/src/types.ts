@@ -86,4 +86,6 @@ export interface Bundle {
   templates: LoadedTemplate[];
   /** files present but not part of the format (warnings) */
   unknownFiles: string[];
+  /** files with a load error (left out of the bundle, or loaded with an error); the gate fails while any */
+  invalidFiles?: string[];
 }
