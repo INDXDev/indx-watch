@@ -153,7 +153,11 @@ async function runDetail(m: Model, id: string): Promise<RunDetail> {
   const { key = record.test_case.key, title = key } = t?.data ?? {};
   const i18n = t?.data.i18n && (await V.markStale(t.data, 'test-case')).i18n;
   const currentVersion = t?.version ?? record.test_case.version;
-  const testCase = { key, title, currentVersion, ...(i18n && { i18n }) };
+  const testCase = {
+    ...{ key, title, currentVersion },
+    ...(i18n && { i18n }),
+    ...(t?.data.links && { links: t.data.links }),
+  };
   // judgements are flagged per run (`<run id>#<judgement id>`): their IDs are not unique across records
   const flagged = (jid: string, i: number) => m.unverified?.has(i ? `${record.id}#${jid}` : jid);
   const ids = [record.id, ...judgements.map((j) => j.id)].filter(flagged);

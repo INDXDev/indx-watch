@@ -354,7 +354,7 @@ export interface RunDetail {
   judgements: Judgement[];
   decision: Decision;
   stale: boolean;
-  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
+  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown; links?: string[] };
   /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: string[];
   /** sha256 of this run's screenshots that are the current approved baseline of their name (v0.2) */

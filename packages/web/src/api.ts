@@ -9,6 +9,7 @@ import type {
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
+  IssueResult,
   ManualRunInput,
   ManualRunResult,
   ProjectInfo,
@@ -36,6 +37,7 @@ export type {
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
+  IssueResult,
   ProjectInfo,
   RunDetail,
   RunSummary,
@@ -158,6 +160,7 @@ export const api = {
     call<RunSummary[]>(`api/runs${query({ ...scopeQ(p), tc: p.tc, limit: p.limit })}`),
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),
   createRun: (input: ManualRunInput) => post<ManualRunResult>('api/runs', input),
+  issue: (ref: string) => call<IssueResult>(`api/issue${query({ ref })}`),
   editTestCase: (key: string, input: TestCaseEdit) =>
     call<unknown>(`api/test-cases/${key}`, {
       method: 'PATCH',

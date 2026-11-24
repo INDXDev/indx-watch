@@ -31,7 +31,8 @@ function actualOf(v: RunView, tc: B.TestCase | undefined) {
   for (const j of v.judgements)
     if (j.verdict !== 'pass' && j.reason) lines.push(`${j.test ? `${j.test}: ` : ''}${j.reason}`);
   const expected = tc?.steps[(failed[0]?.index ?? tc.steps.length) - 1]?.expected;
-  const actual = lines.join('\n') || `The run was decided ${v.decision.verdict}: ${v.decision.reason}`;
+  const actual =
+    [...new Set(lines)].join('\n') || `The run was decided ${v.decision.verdict}: ${v.decision.reason}`;
   return { actual, expected };
 }
 
