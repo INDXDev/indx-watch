@@ -16,6 +16,7 @@ import {
   Priority,
   SecretRef,
   Sha256,
+  Sharee,
   SigningKey,
   Tag,
   translation,
@@ -349,6 +350,8 @@ export const Fixture = z.strictObject({
       fields: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
+  /** (v0.5) only these people, groups and leads see it; absent: the whole team (docs/spec/security.md#sharing) */
+  shared_with: z.array(Sharee).optional(),
   i18n: z.partialRecord(Locale, translation({ title: z.string().optional() })).optional(),
   ...tail,
 });
@@ -366,6 +369,7 @@ export const FIXTURE_VERSION_EXCLUDED = [
   'ai',
   'x',
   'i18n',
+  'shared_with',
 ] as const;
 
 // ---------- <file>.blob.toml ----------

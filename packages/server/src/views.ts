@@ -12,6 +12,7 @@ import {
   testCaseStatus,
 } from '@indx-watch/core';
 import type {
+  Access,
   FixtureDetail,
   PlanView,
   RunSummary,
@@ -143,13 +144,19 @@ export const fileList = (fx: FixtureNode) =>
     ...{ pointer: !!p, media_type: p?.media_type ?? mediaOf(name) },
   }));
 
-export async function fixtureDetail(fx: FixtureNode, read: ReadFile): Promise<FixtureDetail> {
+/** `access`: who has access, or none for a customer (it names other people). */
+export async function fixtureDetail(
+  fx: FixtureNode,
+  read: ReadFile,
+  access: Access[] = [],
+): Promise<FixtureDetail> {
   const { kind, account, key } = fx.data;
   const seed = fx.dataFiles.find((x) => !x.pointer);
   const bytes = kind === 'seed' && seed ? await read(seed.file) : null;
   const text = bytes ? new TextDecoder().decode(bytes.slice(0, 100_000)) : '';
-  const preview =
-    kind === 'dataset'
+  const preview = fx.hidden
+    ? undefined
+    : kind === 'dataset'
       ? await datasetRows(fx, read).then(async (r) => ({
           ...{ rows: r.slice(0, 1000), total: r.length },
           columns: r[0] ? Object.keys(r[0]) : await csvHeader(fx, read),
@@ -161,7 +168,8 @@ export async function fixtureDetail(fx: FixtureNode, read: ReadFile): Promise<Fi
           : undefined;
   const files = fileList(fx);
   const data = await markStale(fx.data, 'fixture');
-  return { key, file: fx.file, version: fx.version, data, files, preview, usedBy: fx.usedBy };
+  const more = { usedBy: fx.usedBy, access, ...(fx.hidden && { hidden: fx.hidden }) };
+  return { key, file: fx.file, version: fx.version, data, files, preview, ...more };
 }
 
 export async function testCaseDetail(model: Model, key: string, scope: Scope, read: ReadFile) {
@@ -171,7 +179,7 @@ export async function testCaseDetail(model: Model, key: string, scope: Scope, re
     const fx = model.fixtures.get(ref)!;
     const { kind, account, row_key, title } = fx.data;
     let values: Record<string, string>[] | undefined = account ? [{ username: account.username }] : undefined;
-    if (kind === 'dataset') {
+    if (kind === 'dataset' && !fx.hidden) {
       const all = await datasetRows(fx, read);
       const col = row_key ?? Object.keys(all[0] ?? {})[0] ?? '';
       values = rows ? all.filter((r) => rows.includes(r[col] ?? '')) : all;
@@ -179,7 +187,11 @@ export async function testCaseDetail(model: Model, key: string, scope: Scope, re
     const { i18n } = await markStale(fx.data, 'fixture');
     const files = fileList(fx).map(({ pointer, ...f }) => f);
     const more = { ...(rows && { rows }), ...(values && { values }), ...(i18n && { i18n }) };
-    return { key: ref, title, kind, version: fx.version, ...more, ...(files.length && { files }) };
+    const secret = {
+      ...(account && { secret_ref: account.secret_ref }),
+      ...(fx.hidden && { hidden: fx.hidden }),
+    };
+    return { key: ref, title, kind, version: fx.version, ...more, ...secret, ...(files.length && { files }) };
   });
   const { file, version, priority, useCase } = t;
   const runs = listRuns(model, { ...scope, tcId: t.data.id }).map((v) => runSummary(v, model));

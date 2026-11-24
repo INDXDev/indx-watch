@@ -5,6 +5,7 @@ import {
   assignedTo,
   buildModel,
   canInvite,
+  canSee,
   computeStatus,
   customerModel,
   EMAIL,
@@ -13,6 +14,7 @@ import {
   ownedFeatures,
   ownedModel,
   roleOf,
+  sharedModel,
 } from '../src/index.js';
 import { SCOPE, SHOP, shop, storeRecords } from './fixtures.js';
 
@@ -134,5 +136,29 @@ describe('feature owners (docs/spec/concepts.md#feature-owners)', () => {
     for (const t of s.testCases) expect(t).toEqual(full.testCases.find((x) => x.key === t.key));
     expect(full.testCases.length).toBeGreaterThan(4);
     expect(ownedModel(model, []).testCases.size).toBe(0);
+  });
+});
+
+describe('sharing (docs/spec/security.md#sharing)', () => {
+  const kim = { id: 'Kim@shop.test', groups: ['QA'] };
+  it('canSee: leads always, no list is everyone, else an email or group entry', () => {
+    expect(canSee(undefined, kim, 'viewer')).toBe(true);
+    expect(canSee([], kim, 'lead')).toBe(true);
+    expect(canSee([], kim, 'tester')).toBe(false);
+    expect(canSee(['kim@shop.test'], kim, 'viewer')).toBe(true);
+    expect(canSee(['group:qa'], kim, 'customer')).toBe(true);
+    expect(canSee(['group:kim@shop.test', 'sam@shop.test'], kim, 'tester')).toBe(false);
+  });
+
+  it('sharedModel hides the data of fixtures not shared, keeps their version and the status', async () => {
+    const b = await shop();
+    b.fixtures.find((f) => f.data.key === 'FX-1')!.data.shared_with = ['sam@shop.test'];
+    const { model } = buildModel(b, storeRecords(join(SHOP, '../store')));
+    const m = sharedModel(model, kim, 'tester');
+    const fx = m.fixtures.get('FX-1')!;
+    expect(fx).toMatchObject({ hidden: true, dataFiles: [], version: model.fixtures.get('FX-1')!.version });
+    expect(fx.data.files).toBeUndefined();
+    expect(computeStatus(m, SCOPE)).toEqual(computeStatus(model, SCOPE));
+    expect(sharedModel(model, kim, 'lead')).toBe(model);
   });
 });

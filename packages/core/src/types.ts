@@ -19,6 +19,7 @@ import type {
   Project,
   Release,
   RunRecord,
+  SecretRecord,
   ShareRecord,
   TestCase,
   UseCase,
@@ -117,6 +118,8 @@ export interface FixtureNode {
   dataFiles: FixtureDataFile[];
   /** keys of test cases that reference it */
   usedBy: string[];
+  /** (v0.5) not shared with the viewer: only key, title, kind and version are left (sharedModel) */
+  hidden?: true;
 }
 
 export interface Model {
@@ -135,6 +138,8 @@ export interface Model {
   baselines: BaselineRecord[];
   /** report share link events (create, open, revoke), docs/spec/reports.md#share-links */
   shares: ShareRecord[];
+  /** (v0.5) secret set, delete and reveal events; only the server, holding the key, can tell which count */
+  secrets: SecretRecord[];
   /** bundle snapshots, newest first (by commit_time, then at, then id) */
   snapshots: BundleRecord[];
   /**

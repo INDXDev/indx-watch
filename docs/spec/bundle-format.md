@@ -87,7 +87,7 @@ Features, environments, releases and plans have no `status`, `approved_version` 
 
 Entity-specific fields sit between `tags` and `notes`. The exact order of every file type is the field order of its Zod schema in [`packages/bundle/src/schema/definitions.ts`](../../packages/bundle/src/schema/definitions.ts).
 
-**Secret references.** Anywhere a secret is needed, the file stores a reference string matching `^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$`, for example `env:SHOP_STAGING_PASSWORD`. See [security.md](security.md#secrets).
+**Secret references.** Anywhere a secret is needed, the file stores a reference string matching `^((env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+|iw:[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$`, for example `env:SHOP_STAGING_PASSWORD`, or *(v0.5)* `iw:staging-customer` for a secret kept by INDX Watch. See [security.md](security.md#secrets).
 
 ## `project.toml`
 
@@ -417,6 +417,12 @@ OLD5,0.05,2020-01-01,This coupon has expired
 | `seed` | `files` (one `.json`), optional `hook` (`seed` or `reset`, default `seed`) | Payload POSTed to the environment hook. |
 | `file` | `files` | Any files. |
 | `account` | `[account]`: `username`, `secret_ref`, optional `fields` (public key/values) | No data files. |
+
+*(v0.5)* Any fixture may have `shared_with`, a list of emails (or other actor IDs) and `group:<name>` entries: only they and leads see its data in the app. Without it the whole team does. It is not part of the fixture's version. See [sharing](security.md#sharing).
+
+```toml
+shared_with = ["group:qa"]
+```
 
 ```toml
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/fixture.json

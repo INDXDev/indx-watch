@@ -8,7 +8,14 @@ import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { formatTomlBody, generateSigningKey, type Problem, VERIFIED_VIA, type Via } from '@indx-watch/bundle';
+import {
+  formatTomlBody,
+  generateSecretsKey,
+  generateSigningKey,
+  type Problem,
+  VERIFIED_VIA,
+  type Via,
+} from '@indx-watch/bundle';
 import { findBundleDir } from '@indx-watch/bundle/node';
 import { type Model, reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
@@ -208,12 +215,19 @@ export const appCommands: Record<string, Spec> = {
   },
 
   keygen: {
-    description: 'Create a record-signing key pair (docs/spec/security.md#signed-records)',
+    description:
+      'Create a record-signing key pair, or with --secrets an IW_SECRETS_KEY (docs/spec/security.md)',
     args: {
       kid: S('Key ID (default: iw-<date>)'),
       via: S(`Verified via values it may sign: ${VERIFIED_VIA}`),
+      secrets: B('Create the key that seals iw: secrets on a server instead'),
     },
     async run(_ctx, a) {
+      if (a.secrets) {
+        const secret = generateSecretsKey();
+        const text = `Set IW_SECRETS_KEY (a secret; never commit it) on the server that keeps iw: secrets, e.g. \`wrangler secret put IW_SECRETS_KEY\`:\n\n${secret}`;
+        return { data: { secret }, text };
+      }
       const kid = str(a.kid) ?? `iw-${new Date().toISOString().slice(0, 10)}`;
       if (!/^[A-Za-z0-9._-]{1,64}$/.test(kid))
         fail('USAGE', '--kid: up to 64 letters, digits, ".", "_", "-"');

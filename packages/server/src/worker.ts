@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers entry used by `iw deploy`. Bindings: STORE (R2), DB (D1), ASSETS (static assets).
  * Vars: ACCESS_TEAM, ACCESS_AUD, STORE_PREFIX, SIGNING_KEYS, OIDC_REPOSITORIES, ROLES; secrets IW_SIGNING_KEY,
- * IW_ACCESS_POLICY, CLOUDFLARE_API_TOKEN. CONTRACT; implementation T-107.
+ * IW_SECRETS_KEY, IW_ACCESS_POLICY, CLOUDFLARE_API_TOKEN. CONTRACT; implementation T-107.
  * Definitions: the `file` records in workspace mode, else the latest bundle snapshot record
  * (docs/spec/sync.md#the-hosted-server-and-the-index);
  * records come from the D1 index, which catches up with the bucket in bounded steps.
@@ -42,6 +42,8 @@ export interface Env {
   PUBLIC?: string;
   /** signs every record this server writes (docs/spec/security.md#signed-records) */
   IW_SIGNING_KEY?: string;
+  /** seals and opens `iw:` secrets (docs/spec/security.md#secrets) */
+  IW_SECRETS_KEY?: string;
   /** JSON array of the [[signing_keys]] trusted for verification, pinned by `iw deploy`; never read from the bucket */
   SIGNING_KEYS?: string;
   /** JSON array of the GitHub repositories whose OIDC tokens get signatures, pinned by `iw deploy` */
@@ -201,7 +203,9 @@ async function openWorkspace(store: Store, records: AnyRecord[], view: View): Pr
 
 /** the vars an isolate's state depends on */
 const STATE_VARS =
-  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY SIGNING_KEYS OIDC_REPOSITORIES ROLES'.split(' ');
+  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY IW_SECRETS_KEY SIGNING_KEYS OIDC_REPOSITORIES ROLES'.split(
+    ' ',
+  );
 function setup(env: Env, outputs?: ToolOutputs): State {
   const key = STATE_VARS.map((k) => env[k as keyof Env]).join('|');
   const existing = states.get(env.STORE as object);
@@ -296,6 +300,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
     roles: identity && identity !== anon ? pinnedRoles(env) : undefined,
+    secretsKey: env.IW_SECRETS_KEY,
     accessPolicy: S.cloudflareAccessPolicy(env as unknown as Record<string, string | undefined>),
     objects,
     onLogObject: async (key) => void (await ingest((await store.readLog(key)).records, key)),

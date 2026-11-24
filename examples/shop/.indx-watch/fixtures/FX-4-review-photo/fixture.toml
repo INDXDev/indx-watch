@@ -6,6 +6,7 @@ title = "Review photo"
 status = "ready"
 kind = "file"
 files = ["review-photo.png"]
+shared_with = ["group:qa"]
 
 [i18n.ja]
 title = "レビュー用の写真"

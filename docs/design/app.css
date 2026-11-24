@@ -1851,3 +1851,12 @@ tr:last-child td {
   gap: 6px;
   align-items: center;
 }
+
+/* Test data tabs, sharing and secrets (docs/spec/web.md#sharing) */
+.tabs {
+  width: fit-content;
+  margin-bottom: var(--space-3);
+}
+.access-list li {
+  gap: var(--space-2);
+}

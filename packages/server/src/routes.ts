@@ -7,6 +7,7 @@ import {
   approvedBaseline,
   computeStatus,
   decide,
+  type FixtureNode,
   type Model,
   ownedFeatures,
   ownedModel,
@@ -18,9 +19,10 @@ import { checkRecord, ulidTime } from '@indx-watch/store';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
-import { changesOf, saveFixture, writeWorkspace } from './fixtures.js';
+import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
 import { renderReport, reportTexts } from './report.js';
+import { accessOf } from './secrets.js';
 import { checksError } from './tools.js';
 import { prepareUpload, type UploadInput } from './upload.js';
 import * as V from './views.js';
@@ -73,10 +75,16 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   get('/api/test-cases/:key', (m, c) =>
     V.testCaseDetail(m, tcOf(m, c.req.param('key')!).data.key, scopeOf(c, m), read),
   );
-  get('/api/fixtures', (m) => Promise.all([...m.fixtures.values()].map((f) => V.fixtureDetail(f, read))));
+  /** a fixture with who has access; a customer is not told, nor the names it is shared with (docs/spec/security.md#sharing) */
+  const fixture = async (f: FixtureNode, c: Context) => {
+    if ((await x.grant(c)).role !== 'customer')
+      return V.fixtureDetail(f, read, accessOf(f.data.shared_with, x.deps.roles));
+    return V.fixtureDetail(f.data.shared_with ? { ...f, data: { ...f.data, shared_with: [] } } : f, read);
+  };
+  get('/api/fixtures', (m, c) => Promise.all([...m.fixtures.values()].map((f) => fixture(f, c))));
   get('/api/fixtures/:key', (m, c) => {
     const key = c.req.param('key')!;
-    return V.fixtureDetail(m.fixtures.get(m.keyOf(key) ?? key) ?? fail(notFound(`fixture ${key}`)), read);
+    return fixture(m.fixtures.get(m.keyOf(key) ?? key) ?? fail(notFound(`fixture ${key}`)), c);
   });
   get('/api/plans', (m) => V.planViews(m));
   get('/api/snapshots', (m) => m.snapshots.map((r) => V.snapshotSummary(r, m)));
@@ -133,7 +141,9 @@ async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ct
       ...{ run: role !== 'viewer', review: lead || role === 'tester', approve: lead },
       edit: workspaceMode(m) && !!deps.bundleFiles && lead,
       data: (lead || role === 'tester') && !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle),
+      secrets: !!deps.secretsKey,
     },
+    ...(!customer && deps.roles && { team: deps.roles }),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);
@@ -164,6 +174,12 @@ async function blob(c: Context, { deps, uploads, grant, model, read }: Ctx) {
   const fx = [...m.fixtures.values()]
     .flatMap((f) => f.dataFiles)
     .find((x) => (x.pointer?.sha256 ?? x.sha256) === sha);
+  // the files of a fixture not shared with this identity are not served (docs/spec/security.md#sharing)
+  const all = [...(await model(null)).fixtures.values()];
+  const owner = all.find((f) => f.dataFiles.some((d) => (d.pointer?.sha256 ?? d.sha256) === sha));
+  const evidence = () => [...m.runs.values()].some((v) => v.record.evidence.some((e) => e.sha256 === sha));
+  if (!fx && owner && m.fixtures.get(owner.data.key)?.hidden && !uploads.has(sha) && !evidence())
+    throw notFound(`blob ${sha}`);
   // a customer gets only the evidence of runs they see, test data, or a blob uploaded here
   if (runs && !fx && !uploads.has(sha) && !runs.some((v) => v.record.evidence.some((e) => e.sha256 === sha)))
     throw notFound(`blob ${sha}`);
@@ -267,11 +283,13 @@ async function uploadBundle(c: Context, x: Ctx) {
     throw new HttpError(403, 'forbidden', 'this server cannot write');
   if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
   // a tester may add test data, not replace or change specs (docs/spec/security.md#roles)
-  const tester = (await x.grant(c)).role === 'tester';
+  const g = await x.grant(c);
+  const tester = g.role === 'tester';
   const base = await d.bundleFiles();
   const { next, result, blobs } = await prepareUpload(base, input);
   const specs = result.changes.some((ch) => ch.change !== 'unchanged' && !ch.path.startsWith('fixtures/'));
   if (tester && specs) throw new HttpError(403, 'forbidden', 'a tester uploads test data only');
+  guardSharing(base, next, g.who, g.role);
   if (input.dryRun || !result.ok) return c.json(result, input.dryRun || result.ok ? 200 : 422);
   for (const b of blobs) await d.putBlob(b, 'application/octet-stream');
   // workspace mode: the store is the source of truth, so an upload is a set of file records
@@ -480,7 +498,8 @@ async function checkLog(key: string, data: Uint8Array, project: string | undefin
     const r = checkRecord(raw);
     if ('error' in r) throw bad(`${key}: ${r.error}`);
     if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
-    if (r.record.kind === 'share') throw bad(`${r.record.id}: share records are written by the server only`);
+    if (r.record.kind === 'share' || r.record.kind === 'secret')
+      throw bad(`${r.record.id}: ${r.record.kind} records are written by the server only`);
     if (!lead && LEAD_KINDS.includes(r.record.kind))
       throw new HttpError(403, 'forbidden', `${r.record.id}: ${r.record.kind} records need the lead role`);
   }

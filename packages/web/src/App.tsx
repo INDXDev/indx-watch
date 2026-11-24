@@ -7,6 +7,7 @@ import { Activity, RunFocus } from './screens/Activity';
 import { Fixtures } from './screens/Fixtures';
 import { Home } from './screens/Home';
 import { Report } from './screens/Report';
+import { AccessOverview, Secrets } from './screens/Secrets';
 import { TestFocus, Tests } from './screens/Tests';
 import { Uploads } from './screens/Uploads';
 import { AccountMenu, CliPanel, IdentityDialog, ScopeMenu, startMine, THEMES, type Theme } from './shell';
@@ -117,7 +118,7 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
     [href.home(), t('nav.home'), ['home']],
     [href.tests(), t('nav.tests'), ['tests', 'testCase', 'runner']],
     [href.activity(), t('nav.activity'), ['activity', 'run', 'uploads']],
-    [href.fixtures(), t('nav.fixtures'), ['fixtures']],
+    [href.fixtures(), t('nav.fixtures'), ['fixtures', 'secrets', 'access']],
     [href.report(), t('nav.report'), ['report']],
   ];
   const ctx = useMemo(
@@ -222,6 +223,10 @@ function Screen({ route }: { route: Route }) {
       return <RunFocus id={route.id} filter={f} />;
     case 'fixtures':
       return <Fixtures selected={route.key} />;
+    case 'secrets':
+      return <Secrets selected={route.key} />;
+    case 'access':
+      return <AccessOverview who={route.query.who} />;
     case 'uploads':
       return <Uploads />;
     case 'report':

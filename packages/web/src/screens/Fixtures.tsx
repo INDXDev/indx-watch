@@ -7,7 +7,21 @@ import { useApp } from '../App';
 import { api, type FixtureDetail, type FixtureInput } from '../api';
 import { useI18n } from '../i18n';
 import { href } from '../router';
-import { Chip, Dialog, Focus, fmtBytes, Load, Meta, Section, THead, Tx, useApi, ViewSwitch } from '../ui';
+import { AccessList, DataTabs, SecretValue, ShareDialog, SharingChip } from '../share';
+import {
+  Chip,
+  Copy,
+  Dialog,
+  Focus,
+  fmtBytes,
+  Load,
+  Meta,
+  Section,
+  THead,
+  Tx,
+  useApi,
+  ViewSwitch,
+} from '../ui';
 import { base64 } from '../upload';
 
 const KINDS = ['file', 'dataset', 'seed', 'account'] as const;
@@ -22,6 +36,7 @@ export function Fixtures({ selected }: { selected?: string | undefined }) {
   const can = !!project.can.data;
   return (
     <>
+      {!selected && <DataTabs at="fixtures" />}
       <div className={`page-head${selected ? ' page-head-tight' : ''}`}>
         {selected ? (
           <p className="eyebrow">
@@ -75,6 +90,11 @@ export function Fixtures({ selected }: { selected?: string | undefined }) {
                       <Tx of={f.data} field="title" />
                     </a>
                     {f.data.status === 'draft' && <Chip tone="warn">{t('fx.draft')}</Chip>}
+                    {f.hidden ? (
+                      <Chip tone="warn">🔒 {t('sharing.notShared')}</Chip>
+                    ) : (
+                      f.data.shared_with && <SharingChip shared={f.data.shared_with} />
+                    )}
                     <Chip>{t(`fx.kind.${f.data.kind}` as 'fx.kind.file')}</Chip>
                     <span className="muted small">{f.usedBy.join(' ')}</span>
                   </li>
@@ -216,15 +236,21 @@ function FixturePanel({ fxKey, can, onChange }: { fxKey: string; can: boolean; o
         editing ? (
           <Editor f={f} done={done} />
         ) : (
-          <Detail f={f} onEdit={can ? () => setEditing(true) : undefined} />
+          <Detail
+            f={f}
+            onEdit={can && !f.hidden ? () => setEditing(true) : undefined}
+            onShared={() => done(true)}
+          />
         )
       }
     </Load>
   );
 }
 
-function Detail({ f, onEdit }: { f: FixtureDetail; onEdit?: (() => void) | undefined }) {
+function Detail(props: { f: FixtureDetail; onEdit?: (() => void) | undefined; onShared(): void }) {
+  const { f, onEdit } = props;
   const { t } = useI18n();
+  const [sharing, setSharing] = useState(false);
   const rows = f.preview?.rows ?? [];
   const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
   const image = f.files.find((x) => x.media_type?.startsWith('image/'));
@@ -240,14 +266,21 @@ function Detail({ f, onEdit }: { f: FixtureDetail; onEdit?: (() => void) | undef
           <span className="chips">
             {f.data.status === 'draft' && <Chip tone="warn">{t('fx.draft')}</Chip>}
             <Chip>{t(`fx.kind.${f.data.kind}` as 'fx.kind.file')}</Chip>
+            <SharingChip shared={f.data.shared_with} />
             {onEdit && (
-              <button type="button" className="btn btn-sm" onClick={onEdit}>
-                {t('fx.edit')}
-              </button>
+              <>
+                <button type="button" className="btn btn-sm" onClick={() => setSharing(true)}>
+                  {t('sharing.button')}
+                </button>
+                <button type="button" className="btn btn-sm" onClick={onEdit}>
+                  {t('fx.edit')}
+                </button>
+              </>
             )}
           </span>
         }
       >
+        {f.hidden && <p className="callout s-needs_review">🔒 {t('sharing.notSharedHint')}</p>}
         {f.data.notes && <p>{f.data.notes}</p>}
         <Meta
           items={[
@@ -272,15 +305,32 @@ function Detail({ f, onEdit }: { f: FixtureDetail; onEdit?: (() => void) | undef
         <Section title={t('fx.account')}>
           <Meta
             items={[
-              [t('fx.username'), <code key="u">{f.data.account.username}</code>],
-              [t('fx.secret'), <code key="s">{f.data.account.secret_ref}</code>],
+              [t('fx.username'), <Copy key="u" text={f.data.account.username} />],
+              [t('fx.secret'), <SecretValue key="s" secretRef={f.data.account.secret_ref} />],
               ...Object.entries(f.data.account.fields ?? {}).map(
                 ([k, v]) => [k, <code key={k}>{v}</code>] as [string, React.ReactNode],
               ),
             ]}
           />
-          <p className="muted small">{t('fx.secretHint')}</p>
+          {!f.data.account.secret_ref.startsWith('iw:') && (
+            <p className="muted small">{t('fx.secretHint')}</p>
+          )}
         </Section>
+      )}
+      {f.access?.length > 0 && (
+        <Section title={t('sharing.whoHasAccess')}>
+          <AccessList access={f.access} />
+        </Section>
+      )}
+      {/* mounted only while open, so a cancelled edit does not come back next time */}
+      {sharing && (
+        <ShareDialog
+          open
+          title={`${f.key} ${f.data.title}`}
+          shared={f.data.shared_with}
+          onClose={() => setSharing(false)}
+          onSave={(shared_with) => api.editFixture(f.key, { shared_with }).then(props.onShared)}
+        />
       )}
       {f.files.length > 0 && (
         <Section title={t('fx.files')}>

@@ -3,6 +3,8 @@
  * Types are imported from the server contract (type-only; no runtime code from the server package).
  */
 import type {
+  Access,
+  AccessOverview,
   BlobResult,
   FixtureDetail,
   FixtureInput,
@@ -13,6 +15,9 @@ import type {
   ReviewInput,
   RunDetail,
   RunSummary,
+  SecretInput,
+  SecretList,
+  SecretView,
   ShareCreated,
   ShareLink,
   SnapshotSummary,
@@ -25,6 +30,8 @@ import type {
 } from '@indx-watch/server';
 
 export type {
+  Access,
+  AccessOverview,
   BlobResult,
   FixtureDetail,
   FixtureInput,
@@ -32,6 +39,9 @@ export type {
   ProjectInfo,
   RunDetail,
   RunSummary,
+  SecretInput,
+  SecretList,
+  SecretView,
   ShareLink,
   SnapshotSummary,
   SpecTree,
@@ -158,6 +168,13 @@ export const api = {
   editFixture: (key: string, input: FixtureInput) =>
     send<FixtureSaved>('PATCH', `api/fixtures/${key}`, input),
   deleteFixture: (key: string) => send<FixtureSaved>('DELETE', `api/fixtures/${key}`),
+  secrets: () => call<SecretList>('api/secrets'),
+  saveSecret: (name: string, input: SecretInput) =>
+    send<SecretView>('PUT', `api/secrets/${encodeURIComponent(name)}`, input),
+  deleteSecret: (name: string) => send<unknown>('DELETE', `api/secrets/${encodeURIComponent(name)}`),
+  revealSecret: (name: string) =>
+    send<{ value: string }>('POST', `api/secrets/${encodeURIComponent(name)}/reveal`),
+  access: (who?: string) => call<AccessOverview>(`api/access${query({ who })}`),
   review: (id: string, input: ReviewInput) => post<unknown>(`api/runs/${id}/judgements`, input),
   approveBaseline: (id: string, sha256: string) => post<unknown>(`api/runs/${id}/baselines`, { sha256 }),
   uploadBlob: (file: Blob, name: string) =>

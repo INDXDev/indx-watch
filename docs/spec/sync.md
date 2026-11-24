@@ -70,7 +70,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 
 | Field | |
 |---|---|
-| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction`, `baseline` (*v0.2*), `share` (*v0.2*), `file` (*v0.2*, [workspace mode](#workspace-mode-v02)) |
+| `kind` | `run`, `judgement`, `waiver`, `deployment`, `bundle`, `retraction`, `baseline` (*v0.2*), `share` (*v0.2*), `file` (*v0.2*, [workspace mode](#workspace-mode-v02)), `secret` (*v0.5*) |
 | `id` | `{prefix}_{ULID}`, generated at creation (offline) |
 | `v` | `1` |
 | `project` | project machine ID |
@@ -122,6 +122,7 @@ Every record is a JSON object that starts with `kind` and `id`, followed by the 
 | `retraction` | `target` (record ID), `reason` | Hides a record recorded by mistake; nothing is deleted. |
 | `baseline` | *v0.2*: `test_case` (ID + key), `name` (screenshot evidence name), `automation_project` (the run's `automation.project`, if any), `sha256` (blob: the PNG), `run` (run it was taken from) | A person approved this screenshot as the [visual baseline](concepts.md#visual-baselines) for (test case, name, project). Only `human` actors count; the latest per key wins. Tools older than v0.2 skip it with a warning. |
 | `share` | `action` (`create`, `open`, `revoke`); `link` (the `create` record's ID, on `open` and `revoke`); on `create`: `token_sha256`, `expires_at`, `audience`, `locale`, `release`, `environment`, `plan`, `sha256` (blob: the frozen HTML report) | *v0.2*: a [report share link](reports.md#share-links) was created, opened or revoked. Written only by the hosted server; a retracted `create` record also ends its link. |
+| `secret` | `action` (`set`, `delete`, `reveal`), `name`; on `set` and `delete`: optional `title`, `username` (login ID), `notes`, `shared_with`, and `sealed` (base64url of IV and AES-256-GCM ciphertext) | *v0.5*: a [secret kept by INDX Watch](security.md#secrets) was changed, deleted or viewed. Written only by the server holding `IW_SECRETS_KEY`; a `set` or `delete` counts only if its seal opens, so nobody else can change a secret's value or sharing. Never retracted; the push secret scan skips `sealed` like `sig`. |
 | `file` | *v0.2*: `path` (bundle-relative), `entity` (the `id` inside the file, if any), `sha256` (blob: the file's bytes; absent when deleted), `deleted`, `bases` (unused, empty), `parents` (the `file` record IDs this version replaces) | One version of a definition file in [workspace mode](#workspace-mode-v02). |
 
 ## Merge rules

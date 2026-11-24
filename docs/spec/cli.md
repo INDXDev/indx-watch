@@ -417,6 +417,7 @@ Create an Ed25519 key pair for [signed records](security.md#signed-records). Pri
 |---|---|---|
 | `--kid <id>` | `iw-<date>` | Key ID (letters, digits, `.`, `_`, `-`; at most 64) |
 | `--via <list>` | all | Comma-separated verified `via` values the key may vouch for: `cloudflare-access`, `github-oidc`, `github`, `gitlab`, `circleci`, `buildkite` |
+| `--secrets` | | *(v0.5)* Instead, print a new `IW_SECRETS_KEY` for the server that keeps `iw:` secrets ([security](security.md#secrets)); `data`: `{ "secret": string }` |
 
 `data`: `{ "kid": string, "public_key": string, "via"?: string[], "secret": string, "toml": string }`
 
@@ -442,6 +443,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 | `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](security.md#signed-records)) |
+| `IW_SECRETS_KEY` | serve | *(v0.5)* Secret from `iw keygen --secrets`: seal and open `iw:` secrets ([security](security.md#secrets)) |
 | `IW_OIDC_SIGNER` | writes, reporter (GitHub Actions) | Hosted server URL: with `id-token: write` and no `IW_SIGNING_KEY` or `IW_ACTOR`, record `via = "github-oidc"` and sign through the server ([GitHub OIDC](security.md#github-oidc)) |
 | `IW_ACCESS_POLICY`, `CLOUDFLARE_API_TOKEN` | invite | The Access policy (`<account id>/<policy id>`) and an API token with *Access: Apps and Policies Write* ([customer UAT](security.md#customer-uat)) |
 | `CLOUDFLARE_API_BASE_URL` | invite | Replaces `https://api.cloudflare.com/client/v4` (an `https://` or loopback URL; tests use a fake API) |

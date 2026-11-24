@@ -5,6 +5,7 @@ import { useApp } from '../App';
 import { api, type RunSummary, type SpecTree, type TestCaseDetail } from '../api';
 import { useI18n } from '../i18n';
 import { href } from '../router';
+import { SecretValue } from '../share';
 import {
   Badge,
   Chip,
@@ -214,10 +215,17 @@ function DataCard({ fx, d }: { fx: TestCaseDetail['fixtures'][number]; d: TestCa
           <Tx of={d.data.steps[n - 1]} field="instruction" values={placeholderValues(d.fixtures)} />
         </p>
       ))}
+      {fx.hidden && <p className="muted small">🔒 {t('sharing.notSharedHint')}</p>}
       {values.map(([k, v]) => (
         <Copy key={k} label={k} text={v} />
       ))}
-      {fx.kind === 'account' && <p className="muted small">{t('runner.secretHint')}</p>}
+      {fx.secret_ref?.startsWith('iw:') ? (
+        <p className="copy">
+          <span className="copy-label">{t('fx.secret')}</span> <SecretValue secretRef={fx.secret_ref} />
+        </p>
+      ) : (
+        fx.kind === 'account' && <p className="muted small">{t('runner.secretHint')}</p>
+      )}
       {files.map((f) => (
         <a key={f.name} className="btn btn-sm" href={api.blobUrl(f.sha256)} download={f.name}>
           ⇩ {t('tc.download', { name: f.name })} <span className="muted">({fmtBytes(f.size)})</span>

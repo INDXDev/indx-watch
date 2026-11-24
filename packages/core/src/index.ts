@@ -14,10 +14,11 @@ export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases 
  */
 export { approvedBaseline, buildModel, buildVerifiedModel, verifyRecords } from './model.js';
 export { reportData } from './report.js';
-/** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles); ownedFeatures, ownedModel: feature owners. */
+/** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles); ownedFeatures, ownedModel: feature owners; canSee, sharedModel: sharing (docs/spec/security.md#sharing). */
 export {
   assignedTo,
   canInvite,
+  canSee,
   customerModel,
   EMAIL,
   inviteItems,
@@ -26,6 +27,7 @@ export {
   ownedModel,
   type Principal,
   roleOf,
+  sharedModel,
 } from './roles.js';
 /**
  * testCaseStatus(model, key, scope): latest relevant result of one test case in a scope.

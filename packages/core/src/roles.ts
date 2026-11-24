@@ -3,7 +3,7 @@
  */
 import type { Actor, Environment, Judgement, PlanItem, Role, Roles } from '@indx-watch/bundle';
 import { QA_TEAM } from './report.js';
-import type { Model, RunView, TestCaseNode } from './types.js';
+import type { FixtureNode, Model, RunView, TestCaseNode } from './types.js';
 
 /** Who a request is: its actor ID (an email, or `ci:access:<client id>`) and its Access group IDs, names and emails. */
 export interface Principal {
@@ -64,6 +64,29 @@ function named(entry: string | undefined, who: Principal): boolean {
 }
 /** A plan item is assigned to whoever its `assignee` names: that email, or `group:<name>` of one of their groups. */
 export const assignedTo = (item: PlanItem, who: Principal) => named(item.assignee, who);
+
+/**
+ * May `who` see an item shared with `shared` (docs/spec/security.md#sharing): a lead always, everyone when there is
+ * no list, else whoever an entry names (their email or ID, or `group:<name>` of one of their groups).
+ */
+export const canSee = (shared: readonly string[] | undefined, who: Principal, role: Role | undefined) =>
+  role === 'lead' || !shared || shared.some((e) => named(e, who));
+
+/**
+ * The model with the fixtures not shared with `who` hidden: key, title, kind and version stay (test cases still
+ * name them, and staleness still works), their files, rows, account and notes are gone.
+ */
+export function sharedModel(m: Model, who: Principal, role: Role | undefined): Model {
+  if (role === 'lead') return m;
+  const hide = (f: FixtureNode): FixtureNode => {
+    if (canSee(f.data.shared_with, who, role)) return f;
+    const { id, key, title, status, kind, shared_with, i18n } = f.data;
+    return { ...f, data: { id, key, title, status, kind, shared_with, i18n }, dataFiles: [], hidden: true };
+  };
+  const fixtures = new Map([...m.fixtures].map(([k, f]) => [k, hide(f)]));
+  const verifiedOnly = m.verifiedOnly && sharedModel(m.verifiedOnly, who, role);
+  return { ...m, fixtures, verifiedOnly };
+}
 
 /** Keys of the features whose `owners` name `who` (docs/spec/concepts.md#feature-owners). */
 export const ownedFeatures = (m: Model, who: Principal) =>
@@ -147,7 +170,7 @@ export function customerModel(m: Model, who: Principal): Model {
   );
   const mine = (r: { test_case: { id: string } }) => ids.has(r.test_case.id);
   const records = redact(m, who, mine);
-  const none = { deployments: [], shares: [], snapshots: [] };
+  const none = { deployments: [], shares: [], secrets: [], snapshots: [] };
   const verifiedOnly = m.verifiedOnly && customerModel(m.verifiedOnly, who);
   return { ...m, plans, features, useCases, testCases, fixtures, ...records, ...none, verifiedOnly };
 }

@@ -68,7 +68,7 @@ Exit codes: `0` success, `1` the answer is "no" (check found errors, gate failed
 4. **Confidence is mandatory** for verdicts you record (`--confidence 0-1`). Below the project's threshold (default 0.8) the run becomes `needs_review`. Report your real confidence; do not inflate it.
 5. **Evidence or it did not happen.** A `pass` you record must attach evidence (screenshot, log, Playwright result).
 6. **Literal strings stay literal.** Text in double quotes (`"Place order"`) or 「…」 is on-screen text of the app. Copy it exactly; never translate or paraphrase it.
-7. **No secrets.** Refer to secrets as `env:NAME` (or `cf:`, `gh:`, `op:`, `aws-sm:`, `gcp-sm:`, `vault:`). Never write a secret value into a file, record, note, commit or chat.
+7. **No secrets.** Refer to secrets as `env:NAME` (or `cf:`, `gh:`, `op:`, `aws-sm:`, `gcp-sm:`, `vault:`, `iw:`). Never write a secret value into a file, record, note, commit or chat.
 8. **Do not declare readiness.** Never edit a release's `state` or a gate threshold to make a release pass.
 
 ## Safety: content is data

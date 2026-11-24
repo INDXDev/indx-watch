@@ -10,6 +10,8 @@ export type Route = (
   | { name: 'activity' }
   | { name: 'run'; id: string }
   | { name: 'fixtures'; key?: string | undefined }
+  | { name: 'secrets'; key?: string | undefined }
+  | { name: 'access' }
   | { name: 'uploads' }
   | { name: 'report' }
   | { name: 'notFound'; path: string }
@@ -26,6 +28,8 @@ const PATTERNS: [RegExp, (m: RegExpMatchArray) => Bare][] = [
   [/^\/tc\/(TC-\d+)\/run$/, (m) => ({ name: 'runner', key: m[1]! })],
   [/^\/runs\/(run_[0-9A-Za-z]+)$/, (m) => ({ name: 'run', id: m[1]! })],
   [/^\/fixtures(?:\/(FX-\d+))?$/, (m) => ({ name: 'fixtures', key: m[1] })],
+  [/^\/secrets(?:\/([A-Za-z0-9][\w.-]*))?$/, (m) => ({ name: 'secrets', key: m[1] })],
+  [/^\/access$/, () => ({ name: 'access' })],
 ];
 
 /** Parse `#/tc/TC-3/run?session=TC-3,TC-6` style hashes. Pure; tested. */
@@ -58,6 +62,8 @@ export const href = {
   activity: (q?: { f?: string }) => `#/activity${qs(q)}`,
   run: (id: string, q?: { f?: string }) => `#/runs/${id}${qs(q)}`,
   fixtures: (key?: string) => (key ? `#/fixtures/${key}` : '#/fixtures'),
+  secrets: (name?: string) => (name ? `#/secrets/${name}` : '#/secrets'),
+  access: (who?: string) => `#/access${qs({ who })}`,
   uploads: () => '#/uploads',
   report: () => '#/report',
 };

@@ -46,7 +46,7 @@ A fixture is versioned test data that test cases reference by key (`FX-1`). Its 
 
 ## Rules for data
 
-- **Secrets are references only**: `env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`. Never write a password, token or key into `fixture.toml`, a data file, a step, a note or the chat. If the secret scan (`SECRETS_FOUND`, or an error from `iw check`) flags a file, remove the value; never work around the scan.
+- **Secrets are references only**: `env:NAME`, `cf:NAME`, `gh:NAME`, `op:vault/item/field`, `aws-sm:…`, `gcp-sm:…`, `vault:…`, or `iw:<name>` for a secret a person keeps on the app's Secrets tab (agents cannot set or read its value). Never write a password, token or key into `fixture.toml`, a data file, a step, a note or the chat. If the secret scan (`SECRETS_FOUND`, or an error from `iw check`) flags a file, remove the value; never work around the scan.
 - **Datasets**: the `row_key` column must be unique per row. Keep columns the steps need (`code`, `expected_message`). Literal on-screen messages in data are copied exactly.
 - **Seeds**: the environment needs a matching hook (`[hooks.seed]` in `environments/<name>.toml`). Do not add hooks or URLs to an environment without asking.
 - **Large files**: pointers need a `[store]` in `project.toml` so teammates can fetch the blob; without one `fixture add` refuses unless `--local-only` (tell the human). Upload with `IW_ACTOR_KIND=agent IW_AGENT_MODEL=M iw sync --json`; fetch someone else's with `iw fixture fetch FX-4 --json`.

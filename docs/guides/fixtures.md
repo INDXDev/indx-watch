@@ -109,6 +109,31 @@ secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
 - `iw check`, `iw fixture add`, `iw sync` and `iw export` run a secret scan over every file. A finding is an error; remove the value and use a reference.
 - Evidence can still capture secrets: the Playwright reporter skips traces and videos for test cases that use an account fixture.
 
+### Keeping passwords in INDX Watch
+
+*(v0.5)* A team without a secret store can keep passwords, API keys and logins on the app's **Test data → Secrets** tab. Give the server a key once (`iw keygen --secrets`, then set `IW_SECRETS_KEY` on the hosted Worker with `wrangler secret put IW_SECRETS_KEY`, or in the environment of `iw serve`), add a secret with a name, the login ID and the password, and point the account at it:
+
+```toml
+[account]
+username = "casey@shop.test"
+secret_ref = "iw:staging-customer"
+```
+
+The value is stored encrypted; the test case page and the Test data screen show the login ID and a **Show** button next to the password for everyone the secret is shared with, and every view is recorded in the secret's history. Details: [security → secrets](../spec/security.md#secrets).
+
+## Sharing
+
+*(v0.5)* Like files in a shared drive, test data and secrets are shared with the whole team unless you restrict them. **Share** on a fixture or a secret opens the dialog: *Everyone on the team*, or *Only the people and groups below* (emails and `group:<name>` of an Access group). Leads always have access. The detail shows **Who has access**, and leads see, on the **Access** tab, everything a given email can open and why.
+
+In the file, a restricted fixture lists who may see it:
+
+```toml
+# fixtures/FX-4-review-photo/fixture.toml
+shared_with = ["group:qa"]
+```
+
+Sharing is enforced on a hosted app with [roles](../spec/security.md#roles); without roles everyone is a lead. It controls what the app shows: the files are still in the repository and the store, so anything that must stay private belongs in a secret, whose value only the server can open ([security → sharing](../spec/security.md#sharing)).
+
 ## Versions and staleness
 
 A fixture's version (`fxv:…`) is a hash of its definition and its data files. Title, tags, notes and translations do not count.

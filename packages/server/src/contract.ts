@@ -58,6 +58,12 @@ export const ROUTES = {
   createShare:
     'POST /api/shares?release=&env=&plan=&audience=&locale=&evidence=none|embed&days= (v0.2, hosted)',
   shares: 'GET /api/shares',
+  secrets:
+    'GET /api/secrets (v0.5; → SecretList, only the secrets shared with you; docs/spec/security.md#secrets)',
+  saveSecret: 'PUT /api/secrets/:name (tester; SecretInput → SecretView)',
+  deleteSecret: 'DELETE /api/secrets/:name (tester)',
+  revealSecret: 'POST /api/secrets/:name/reveal (→ { value }; recorded)',
+  access: 'GET /api/access?who= (lead; → AccessOverview; docs/spec/security.md#sharing)',
   revokeShare: 'DELETE /api/shares/:id',
   openShare: 'GET /s/:token (no identity; the frozen HTML report of an active link, else 404)',
 } as const;
@@ -133,7 +139,11 @@ export interface ProjectInfo {
     edit?: boolean;
     /** (v0.5) create, edit and remove test data (POST /api/fixtures, PATCH and DELETE /api/fixtures/:key) */
     data?: boolean;
+    /** (v0.5) the server holds IW_SECRETS_KEY, so `iw:` secrets can be read (and, with `data`, written) */
+    secrets?: boolean;
   };
+  /** (v0.5) the role table, so the app can say who has access; not for customers (docs/spec/security.md#sharing) */
+  team?: import('@indx-watch/bundle').Roles;
   /** (v0.3) the role of this identity (docs/spec/security.md#roles); `lead` where no roles are configured */
   role?: import('@indx-watch/bundle').Role;
   /** newest bundle snapshot, when there is one */
@@ -248,6 +258,10 @@ export interface TestCaseDetail {
     /** the fixture's files, downloadable from GET /api/blobs/:sha256 (v0.4) */
     files?: { name: string; sha256: string; size: number; media_type?: string }[];
     i18n?: unknown;
+    /** (v0.5) an account's secret reference; an `iw:` one can be revealed (POST /api/secrets/:name/reveal) */
+    secret_ref?: string;
+    /** (v0.5) not shared with you: no values or files (docs/spec/security.md#sharing) */
+    hidden?: true;
   }[];
   status: TestCaseStatus;
   runs: RunSummary[];
@@ -262,6 +276,71 @@ export interface FixtureDetail {
   /** dataset rows (first 1,000; `total` counts all), or seed JSON text; account shows username + secret_ref only */
   preview?: { rows?: Record<string, string>[]; columns?: string[]; total?: number; text?: string };
   usedBy: string[];
+  /** (v0.5) who can see it and why (docs/spec/security.md#sharing) */
+  access: Access[];
+  /** (v0.5) not shared with you: only key, title and kind */
+  hidden?: true;
+}
+
+/**
+ * (v0.5) One line of "who has access": `everyone` (no roles configured: whoever opens the app), the role table's
+ * `lead` entries, the team (`tester`, `viewer` and `default` entries) when the item is not restricted, or an entry
+ * of its `shared_with`. `who` is an email, an ID or `group:<name>`.
+ */
+export interface Access {
+  who: string;
+  why: 'everyone' | 'lead' | 'team' | 'shared';
+  role?: import('@indx-watch/bundle').Role;
+}
+
+/** (v0.5) GET /api/secrets: a secret's metadata; the value only through POST /api/secrets/:name/reveal. */
+export interface SecretView {
+  name: string;
+  /** `iw:<name>`, for an account's or a hook's `secret_ref` */
+  ref: string;
+  title?: string;
+  username?: string;
+  notes?: string;
+  shared_with?: string[];
+  /** the last `set` */
+  at: string;
+  actor: Actor;
+  /** fixture keys and environment names whose secret references name it */
+  usedBy: string[];
+  access: Access[];
+  /** set, delete and reveal events, newest first (up to 50) */
+  history: { action: 'set' | 'delete' | 'reveal'; at: string; actor: Actor }[];
+}
+export interface SecretList {
+  /** false: the server has no IW_SECRETS_KEY */
+  available: boolean;
+  secrets: SecretView[];
+}
+/** (v0.5) PUT /api/secrets/:name body; `value` is required to create; `shared_with: null` shares with the team. */
+export interface SecretInput {
+  title?: string;
+  username?: string;
+  notes?: string;
+  value?: string;
+  shared_with?: string[] | null;
+}
+
+/** (v0.5) GET /api/access?who=: the people known to the project and, for one of them, what they can open. */
+export interface AccessOverview {
+  /** emails from the role table, sharing lists, feature owners and plan assignees */
+  people: string[];
+  groups: string[];
+  who?: string;
+  role?: import('@indx-watch/bundle').Role;
+  items?: {
+    type: 'fixture' | 'secret';
+    key: string;
+    title: string;
+    can: boolean;
+    why: Access['why'] | 'none';
+    /** without access: the `group:` entries that would give it to a member */
+    groups?: string[];
+  }[];
 }
 
 export interface RunDetail {
@@ -301,6 +380,8 @@ export interface FixtureInput {
   account?: { username: string; secret_ref: string; fields?: Record<string, string> };
   add?: { name: string; data: string }[];
   remove?: string[];
+  /** (v0.5) who may see it; null: the whole team (docs/spec/security.md#sharing) */
+  shared_with?: string[] | null;
 }
 /** Answer of the fixture writes: the fixture and the bundle paths written and removed. */
 export interface FixtureSaved {

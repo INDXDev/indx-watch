@@ -133,15 +133,19 @@ export const CommandData = {
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
   'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
   login: z.object({ url: z.string() }),
-  keygen: z.object({
-    kid: z.string(),
-    public_key: z.string(),
-    via: z.array(z.string()).optional(),
-    /** the IW_SIGNING_KEY value: store it as a secret, never in files */
-    secret: z.string(),
-    /** the [[signing_keys]] entry for project.toml */
-    toml: z.string(),
-  }),
+  keygen: z.union([
+    z.object({
+      kid: z.string(),
+      public_key: z.string(),
+      via: z.array(z.string()).optional(),
+      /** the IW_SIGNING_KEY value: store it as a secret, never in files */
+      secret: z.string(),
+      /** the [[signing_keys]] entry for project.toml */
+      toml: z.string(),
+    }),
+    /** (v0.5) `--secrets`: the IW_SECRETS_KEY value, a secret of the server only */
+    z.object({ secret: z.string() }),
+  ]),
   'fixture add': z.object({
     files: z.array(z.object({ name: z.string(), sha256: z.string(), pointer: z.boolean() })),
   }),
