@@ -105,31 +105,12 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
   // re-derive when the viewer's owned features change (e.g. after switching the local identity)
   const owns = info.owns?.join(' ') ?? '';
   useEffect(() => setScope((s) => ({ ...s, mine: startMine({ owns: owns ? [owns] : [] }) })), [owns]);
-  const [theme, setTheme] = useState<Theme>(() => (readStored('indx-watch.theme') as Theme) || 'auto');
   const [who, setWho] = useState(false);
   const [uploading, setUploading] = useState<{ picked: Picked[] | null } | null>(null);
-  const [problems, setProblems] = useState(false);
   const [original, setOriginal] = useState(false);
   const originalCtx = useMemo(() => ({ original, toggle: () => setOriginal((o) => !o) }), [original]);
-  useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'auto') delete el.dataset.theme;
-    else el.dataset.theme = theme;
-  }, [theme]);
-  const nextTheme = () => {
-    const n = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]!;
-    writeStored(n, 'indx-watch.theme');
-    setTheme(n);
-  };
   const upload = useCallback((p?: Picked[]) => setUploading({ picked: p ?? null }), []);
   const onFiles = useCallback((p: Picked[]) => setUploading({ picked: p }), []);
-  const nav: [string, string, Route['name'][]][] = [
-    [href.home(), t('nav.home'), ['home']],
-    [href.tests(), t('nav.tests'), ['tests', 'testCase', 'runner']],
-    [href.activity(), t('nav.activity'), ['activity', 'run', 'uploads']],
-    [href.fixtures(), t('nav.fixtures'), ['fixtures', 'secrets', 'access']],
-    [href.report(), t('nav.report'), ['report']],
-  ];
   const ctx = useMemo(
     () => ({ project: info, scope, setScope, upload, reload }),
     [info, scope, upload, reload],
@@ -140,33 +121,93 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
       <button type="button" className="skip" onClick={() => document.getElementById('main')?.focus()}>
         {t('nav.skip')}
       </button>
-      <header className="topbar">
-        <a className="brand" href={href.home()}>
-          <span className="logo" aria-hidden="true">
-            ✓
-          </span>
-          <span className="brand-name">INDX Watch</span>
-          <span className="project">{info.project.name}</span>
-        </a>
-        <nav className="nav" aria-label={t('nav.label')}>
-          {nav.map(([to, label, names]) => (
-            <a key={to} href={to} aria-current={names.includes(route.name) ? 'page' : undefined}>
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="prefs">
-          <ScopeMenu info={info} scope={scope} setScope={setScope} />
-          {info.can.upload && (
-            <button type="button" className="btn btn-ghost" onClick={() => upload()}>
-              <span aria-hidden="true">⇪</span> <span className="hide-sm">{t('upload.button')}</span>
-            </button>
-          )}
-          <CliPanel info={info} route={route} release={scope.release} />
-          <LanguageSwitch />
-          <AccountMenu info={info} theme={theme} onTheme={nextTheme} onIdentity={() => setWho(true)} />
-        </div>
-      </header>
+      <TopBar route={route} onIdentity={() => setWho(true)} />
+      <Notices info={info} />
+      <main id="main" className="page" tabIndex={-1}>
+        <OriginalContext.Provider value={originalCtx}>
+          <Screen route={route} />
+        </OriginalContext.Provider>
+      </main>
+      {dropHere && <DropOverlay onFiles={onFiles} />}
+      <UploadDialog
+        open={!!uploading}
+        picked={uploading?.picked ?? null}
+        hosted={info.mode === 'hosted'}
+        workspace={info.can.edit}
+        onClose={() => setUploading(null)}
+        onDone={reload}
+        onFiles={onFiles}
+      />
+      <IdentityDialog open={who} onClose={() => setWho(false)} onSaved={reload} />
+    </AppContext.Provider>
+  );
+}
+
+/** The chosen theme on the root element, and the next one in turn (remembered in this browser). */
+function useTheme(): [Theme, () => void] {
+  const [theme, setTheme] = useState<Theme>(() => (readStored('indx-watch.theme') as Theme) || 'auto');
+  useEffect(() => {
+    const el = document.documentElement;
+    if (theme === 'auto') delete el.dataset.theme;
+    else el.dataset.theme = theme;
+  }, [theme]);
+  const nextTheme = () => {
+    const n = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]!;
+    writeStored(n, 'indx-watch.theme');
+    setTheme(n);
+  };
+  return [theme, nextTheme];
+}
+
+/** Brand, the main navigation and the preferences (docs/spec/web.md#layout). */
+function TopBar({ route, onIdentity }: { route: Route; onIdentity(): void }) {
+  const { t } = useI18n();
+  const { project: info, scope, setScope, upload } = useApp();
+  const [theme, nextTheme] = useTheme();
+  const nav: [string, string, Route['name'][]][] = [
+    [href.home(), t('nav.home'), ['home']],
+    [href.tests(), t('nav.tests'), ['tests', 'testCase', 'runner']],
+    [href.activity(), t('nav.activity'), ['activity', 'run', 'uploads']],
+    [href.fixtures(), t('nav.fixtures'), ['fixtures', 'secrets', 'access']],
+    [href.report(), t('nav.report'), ['report']],
+  ];
+  return (
+    <header className="topbar">
+      <a className="brand" href={href.home()}>
+        <span className="logo" aria-hidden="true">
+          ✓
+        </span>
+        <span className="brand-name">INDX Watch</span>
+        <span className="project">{info.project.name}</span>
+      </a>
+      <nav className="nav" aria-label={t('nav.label')}>
+        {nav.map(([to, label, names]) => (
+          <a key={to} href={to} aria-current={names.includes(route.name) ? 'page' : undefined}>
+            {label}
+          </a>
+        ))}
+      </nav>
+      <div className="prefs">
+        <ScopeMenu info={info} scope={scope} setScope={setScope} />
+        {info.can.upload && (
+          <button type="button" className="btn btn-ghost" onClick={() => upload()}>
+            <span aria-hidden="true">⇪</span> <span className="hide-sm">{t('upload.button')}</span>
+          </button>
+        )}
+        <CliPanel info={info} route={route} release={scope.release} />
+        <LanguageSwitch />
+        <AccountMenu info={info} theme={theme} onTheme={nextTheme} onIdentity={onIdentity} />
+      </div>
+    </header>
+  );
+}
+
+/** The read-only notice and the bundle's problems (folded). */
+function Notices({ info }: { info: ProjectInfo }) {
+  const { t } = useI18n();
+  const [problems, setProblems] = useState(false);
+  return (
+    <>
       {info.readOnly && (
         <p className="problems" role="note">
           {t('readOnly.notice')} <code>npx indx-watch init</code>
@@ -193,23 +234,7 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
           )}
         </div>
       )}
-      <main id="main" className="page" tabIndex={-1}>
-        <OriginalContext.Provider value={originalCtx}>
-          <Screen route={route} />
-        </OriginalContext.Provider>
-      </main>
-      {dropHere && <DropOverlay onFiles={onFiles} />}
-      <UploadDialog
-        open={!!uploading}
-        picked={uploading?.picked ?? null}
-        hosted={info.mode === 'hosted'}
-        workspace={info.can.edit}
-        onClose={() => setUploading(null)}
-        onDone={reload}
-        onFiles={onFiles}
-      />
-      <IdentityDialog open={who} onClose={() => setWho(false)} onSaved={reload} />
-    </AppContext.Provider>
+    </>
   );
 }
 
