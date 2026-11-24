@@ -8,11 +8,14 @@ import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 export { decide, runFacts } from './decide.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
+/** insights(model, { release }): trends and progress (docs/spec/concepts.md#insights); notifyEvents, notifyState: what to tell Slack (docs/spec/integrations.md#notifications). */
+export * from './insights.js';
 /**
  * buildModel(bundle, records): unknown/invalid records are skipped and reported.
  * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
  */
 export { approvedBaseline, buildModel, buildVerifiedModel, byKey, verifyRecords } from './model.js';
+export * from './notify.js';
 export { reportData } from './report.js';
 /** roleOf, assignedTo, customerModel: roles and what a customer sees (docs/spec/security.md#roles); ownedFeatures, ownedModel: feature owners; canSee, sharedModel: sharing (docs/spec/security.md#sharing). */
 export {

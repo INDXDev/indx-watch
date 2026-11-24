@@ -253,6 +253,61 @@ export const CommandData = {
   }),
   reindex: z.object({ records: z.number(), definitions: z.number(), ms: z.number() }),
   migrate: z.object({ from: z.number(), to: z.number(), changed: z.array(z.string()) }),
+  /** (v0.5) T-523 */
+  notify: z.object({
+    sent: z.number(),
+    dryRun: z.boolean(),
+    baseline: z.boolean(),
+    since: z.string().nullable(),
+    messages: z.array(
+      z.object({
+        event: z.enum(['gate_changed', 'run_failed', 'run_needs_review', 'assigned', 'approval_waiting']),
+        text: z.string(),
+        url: z.string().optional(),
+      }),
+    ),
+  }),
+  /** (v0.5) T-524: the shape of insights() in packages/core */
+  insights: z.object({
+    release: z.string().nullable(),
+    releases: z.array(
+      z.object({
+        version: z.string(),
+        state: z.string(),
+        tests: z.number(),
+        passRate: z.number().nullable(),
+        coverage: z.number(),
+        flaky: z.number(),
+        gate: z.boolean(),
+      }),
+    ),
+    assignees: z.array(
+      z.object({
+        assignee: z.string().nullable(),
+        todo: z.number(),
+        review: z.number(),
+        blocked: z.number(),
+        done: z.number(),
+      }),
+    ),
+    features: z.array(
+      z.object({
+        key: z.string(),
+        title: z.string(),
+        tests: z.number(),
+        pass: z.number(),
+        fail: z.number(),
+        open: z.number(),
+      }),
+    ),
+    manual: z.object({
+      median: z.number().nullable(),
+      samples: z.number(),
+      byRelease: z.array(
+        z.object({ version: z.string(), median: z.number().nullable(), samples: z.number() }),
+      ),
+    }),
+  }),
   'skills install': AGENT_SETUP,
 } as const;
 export type CommandName = keyof typeof CommandData;

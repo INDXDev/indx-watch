@@ -251,6 +251,27 @@
       ],
       "additionalProperties": false
     },
+    "notify": {
+      "type": "object",
+      "properties": {
+        "slack_webhook": {
+          "type": "string",
+          "pattern": "^((env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+|iw:[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$"
+        },
+        "locale": {
+          "type": "string",
+          "enum": [
+            "en",
+            "ja"
+          ]
+        },
+        "app_url": {
+          "type": "string",
+          "pattern": "^https?:\\/\\/[^\\s]+$"
+        }
+      },
+      "additionalProperties": false
+    },
     "signing_keys": {
       "type": "array",
       "items": {

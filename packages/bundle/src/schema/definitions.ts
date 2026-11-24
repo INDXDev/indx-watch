@@ -121,6 +121,17 @@ export const HostingConfig = z.strictObject({
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
+/** (v0.5) Slack notifications: `slack_webhook` is a secret reference, never the URL (docs/spec/integrations.md#notifications) */
+export const NotifyConfig = z.strictObject({
+  slack_webhook: SecretRef.optional(),
+  locale: Locale.optional(),
+  app_url: z
+    .string()
+    .regex(/^https?:\/\/[^\s]+$/i)
+    .optional(),
+});
+export type NotifyConfig = z.infer<typeof NotifyConfig>;
+
 export const Project = z.strictObject({
   schema_version: z.number().int().positive(),
   id: idOf('prj'),
@@ -137,6 +148,8 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  /** (v0.5) where `iw notify` posts (docs/spec/integrations.md#notifications) */
+  notify: NotifyConfig.optional(),
   /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
   signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),

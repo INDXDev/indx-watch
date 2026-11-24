@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fakeBrowserProvider, fakeLlmClient } from '../src/index.js';
-import { browserProviderContract, llmClientContract } from './contract.js';
+import { fakeBrowserProvider, fakeLlmClient, fakeNotifier } from '../src/index.js';
+import { browserProviderContract, llmClientContract, notifierContract } from './contract.js';
 
 const shop = {
   'https://shop.test/': { title: 'Shop', tree: 'link "Cart" [e1]' },
@@ -12,6 +12,10 @@ browserProviderContract('fake', async () => ({
   baseUrl: 'https://shop.test',
 }));
 llmClientContract('fake', async () => fakeLlmClient());
+notifierContract('fake', async () => {
+  const notifier = fakeNotifier();
+  return { notifier, delivered: () => notifier.sent.flat().map((m) => m.text) };
+});
 
 describe('execution fakes', () => {
   it('fakeBrowserProvider records actions; fakeLlmClient judges by the expected text or a custom answer', async () => {

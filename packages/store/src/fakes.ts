@@ -8,6 +8,8 @@ import type {
   BrowserProvider,
   LlmClient,
   LlmJudgement,
+  Notification,
+  Notifier,
 } from './ports.js';
 
 type Page = Omit<BrowserObservation, 'url'>;
@@ -90,4 +92,10 @@ export function fakeAccessPolicy(emails = new Set<string>()): AccessPolicy & { e
     return true;
   };
   return { emails, allow: (e) => change(e, true), revoke: (e) => change(e, false) };
+}
+
+/** A notifier that keeps what it was given, one array per `send`. */
+export function fakeNotifier(): Notifier & { sent: Notification[][] } {
+  const sent: Notification[][] = [];
+  return { sent, send: async (m) => void (m.length && sent.push(m)) };
 }
