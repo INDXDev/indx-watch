@@ -385,6 +385,7 @@ function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean): void }
 
 /** Key, status chips and the title. */
 function DetailHead({ d }: { d: TestCaseDetail }) {
+  const { t } = useI18n();
   return (
     <header className="tc-head">
       <p className="chips">
@@ -392,7 +393,7 @@ function DetailHead({ d }: { d: TestCaseDetail }) {
         <Badge status={d.status.status} />
         <Priority p={d.priority} />
         <Chip>{d.data.mode}</Chip>
-        {d.data.status === 'draft' && <Chip tone="warn">{d.data.status}</Chip>}
+        {d.data.status === 'draft' && <Chip tone="warn">{t('tc.draft')}</Chip>}
       </p>
       <h1>
         <Tx of={d.data} field="title" mark />

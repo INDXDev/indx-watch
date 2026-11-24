@@ -41,9 +41,11 @@ export function RunView({ id }: { id: string }) {
 function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
   const { t, date } = useI18n();
   const rec = r.record;
-  const can = useApp().project.can;
+  const { can, identity } = useApp().project;
   const [canReview, canRun] = [can.review !== false, can.run !== false];
   const review = r.decision.verdict === 'needs_review' && canReview;
+  // your own review counts like anyone's (decision policy rule 1), so on your own run it changes your verdict
+  const own = rec.actor.kind === 'human' && rec.actor.id === identity.id;
   return (
     <>
       <div className="page-head">
@@ -68,13 +70,13 @@ function Detail({ r, reload }: { r: RunDetail; reload: () => void }) {
           {canRun && <a href={href.runner(r.testCase.key)}>{t('dash.action.run')}</a>}
         </div>
       )}
-      {review && <ReviewForm id={rec.id} onDone={reload} prominent />}
+      {review && <ReviewForm id={rec.id} onDone={reload} prominent own={own} />}
 
       <div className="split">
         <div className="stack">
           <Steps r={r} reload={reload} />
           <Judgements r={r} />
-          {!review && canReview && <ReviewForm id={rec.id} onDone={reload} />}
+          {!review && canReview && <ReviewForm id={rec.id} onDone={reload} own={own} />}
         </div>
         <div className="stack">
           <RunMeta r={r} />
@@ -300,7 +302,8 @@ function BaselineMark({ e, base }: { e: Shot; base: Base }) {
   );
 }
 
-function ReviewForm({ id, onDone, prominent }: { id: string; onDone: () => void; prominent?: boolean }) {
+function ReviewForm(props: { id: string; onDone: () => void; prominent?: boolean; own: boolean }) {
+  const { id, onDone, prominent, own } = props;
   const { t, locale } = useI18n();
   const [verdict, setVerdict] = useState<ReviewInput['verdict']>();
   const [reason, setReason] = useState('');
@@ -322,8 +325,8 @@ function ReviewForm({ id, onDone, prominent }: { id: string; onDone: () => void;
     }
   };
   return (
-    <Section title={t(prominent ? 'review.needed' : 'review.add')} id="review">
-      <p className="muted">{t('review.hint')}</p>
+    <Section title={t(prominent ? 'review.needed' : own ? 'review.own' : 'review.add')} id="review">
+      <p className="muted">{t(own ? 'review.ownHint' : 'review.hint')}</p>
       <Seg
         label={t('run.verdict')}
         value={verdict}

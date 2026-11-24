@@ -417,6 +417,15 @@ h1 .key {
   box-shadow: var(--shadow);
   min-width: 0;
 }
+/* Home and Tests of a project without test cases */
+.start {
+  display: grid;
+  gap: var(--space-3);
+}
+.start h2,
+.start p {
+  margin: 0;
+}
 .card-head {
   display: flex;
   align-items: center;

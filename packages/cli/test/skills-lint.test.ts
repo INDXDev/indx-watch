@@ -188,6 +188,8 @@ function lintSkills(dir: string, allowed = SOURCE): string[] {
       const file = join(f.parentPath, f.name);
       const rel = relative(skill, file).split(sep).join('/');
       const md = readFileSync(file, 'utf8');
+      if (rel.startsWith('references/') && ![')', '#'].some((end) => text.includes(`](${rel}${end}`)))
+        say(rel, 'is not linked from SKILL.md, so an agent never loads it');
       for (const p of commandProblems(md)) say(rel, p);
       for (const [k] of md.matchAll(/\b(?:(?:UC|TC|FX|FEAT|PLAN)-\d+|AC-\d+\.\d+)\b/g))
         if (!KEYS.has(k)) say(rel, `${k} is not in examples/shop`);
@@ -285,7 +287,13 @@ describe('skill lint', () => {
       'Then `iw fixture remove FX-1`, `npx indx-watch nope`, `npx --yes indx-watch nah` and `npx indx-watch@latest meh`.',
       'Later `iw guide TC-3` (*planned*, T-999).',
     ].join('\n');
-    expect(lintSkills(fixture(skill([], body), { 'references/more.md': 'Use `iw wat`.\n' }))).toEqual([
+    expect(
+      lintSkills(
+        fixture(skill([], `${body}\n[More](references/more.md)`), {
+          'references/more.md': 'Use `iw wat`.\n',
+        }),
+      ),
+    ).toEqual([
       'demo/SKILL.md: unknown command "iw frobnicate" (not in docs/spec/cli.md)',
       'demo/SKILL.md: unknown command "iw fixture remove" (not in docs/spec/cli.md)',
       'demo/SKILL.md: unknown command "iw nope" (not in docs/spec/cli.md)',
@@ -305,13 +313,14 @@ describe('skill lint', () => {
     );
   });
 
-  it('fails on a relative link that does not resolve inside the skills folder', () => {
+  it('fails on a relative link that does not resolve inside the skills folder, and on a reference SKILL.md does not link', () => {
     const body =
       '[ok](references/a.md#top), [web](https://x.test), [anchor](#x), [gone](references/b.md), [out](../../docs/x.md)\n';
-    const dir = fixture(skill([], body), { 'references/a.md': '# A\n' });
+    const dir = fixture(skill([], body), { 'references/a.md': '# A\n', 'references/c.md': '# C\n' });
     expect(lintSkills(dir)).toEqual([
       'demo/SKILL.md: link references/b.md does not resolve inside the skills folder',
       'demo/SKILL.md: link ../../docs/x.md does not resolve inside the skills folder',
+      'demo/references/c.md: is not linked from SKILL.md, so an agent never loads it',
     ]);
   });
 });

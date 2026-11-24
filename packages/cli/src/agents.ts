@@ -3,7 +3,7 @@
  * Claude Code and Codex from one source, the project MCP server and the marked AGENTS.md block.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import type { Problem } from '@indx-watch/bundle';
 import { parse, stringify } from 'smol-toml';
@@ -12,6 +12,9 @@ import { parse, stringify } from 'smol-toml';
 const PORTABLE = ['name', 'description', 'license', 'compatibility', 'metadata', 'allowed-tools'];
 const MCP = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
 const [START, END] = ['<!-- indx-watch:start -->', '<!-- indx-watch:end -->'];
+/** Skills of indx-watch 0.1 that are now references of the job skills; install removes the copies it wrote. */
+const RETIRED = ['write-test-cases', 'manage-fixtures', 'run-tests', 'triage-failure', 'release-report'];
+const HOMEPAGE = 'https://github.com/INDXDev/indx-watch';
 
 /** Top-level frontmatter entries as [key, lines]; indented and blank lines stay with the key above. */
 function frontmatter(text: string) {
@@ -66,7 +69,8 @@ function agentsBlock(skills: { name: string; description: string }[]) {
 
 /** Write the agent files under `root`; only files whose content changes are written (and listed). */
 export async function setupAgents(root: string, src: string, to: { claude: boolean; codex: boolean }) {
-  const out = { installed: [] as string[], files: [] as string[], warnings: [] as Problem[] };
+  const paths = (): string[] => [];
+  const out = { installed: paths(), files: paths(), removed: paths(), warnings: [] as Problem[] };
   const read = async (path: string) =>
     existsSync(join(root, path)) ? readFile(join(root, path), 'utf8') : undefined;
   const put = async (path: string, data: string | Buffer) => {
@@ -83,29 +87,45 @@ export async function setupAgents(root: string, src: string, to: { claude: boole
       message: `${path} was left unchanged: ${(e as Error).message.split('\n')[0]}`,
     });
 
-  const skills = [];
+  /** Files under `dir` as `/`-separated relative paths. */
+  const filesIn = async (dir: string) =>
+    (await readdir(dir, { recursive: true, withFileTypes: true }))
+      .filter((f) => f.isFile())
+      .map((f) => relative(dir, join(f.parentPath, f.name)).split('\\').join('/'));
+  const bases = (['.claude/skills', '.agents/skills'] as const).filter((_, i) => [to.claude, to.codex][i]);
+
+  const skills: { name: string; description: string }[] = [];
   for (const d of await readdir(src, { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
     const dir = join(src, d.name);
-    const files = (await readdir(dir, { recursive: true, withFileTypes: true })).filter((f) => f.isFile());
+    const files = await filesIn(dir);
     const fm = frontmatter(await readFile(join(dir, 'SKILL.md'), 'utf8'));
     skills.push({ name: d.name, description: fm.value('description') });
-    for (const [base, on] of [
-      ['.claude/skills', to.claude],
-      ['.agents/skills', to.codex],
-    ] as const) {
-      if (!on) continue;
+    for (const base of bases) {
       out.installed.push(`${base}/${d.name}`);
-      for (const f of files) {
-        const rel = relative(dir, join(f.parentPath, f.name)).split('\\').join('/');
+      for (const rel of files) {
         const data = await readFile(join(dir, rel));
         const codexSkill = base === '.agents/skills' && rel === 'SKILL.md';
         await put(`${base}/${d.name}/${rel}`, codexSkill ? portable(data.toString('utf8')) : data);
       }
-      if (base === '.agents/skills' && !files.some((f) => f.name === 'openai.yaml'))
+      if (base === '.agents/skills' && !files.includes('agents/openai.yaml'))
         await put(`${base}/${d.name}/agents/openai.yaml`, openaiYaml(d.name, fm.value));
     }
   }
+  // a retired skill folder goes only when INDX Watch wrote it: its name and homepage, and no files of its own
+  for (const base of bases)
+    for (const name of RETIRED.filter((n) => !skills.some((s) => s.name === n))) {
+      const fm = frontmatter((await read(`${base}/${name}/SKILL.md`)) ?? '');
+      if (fm.value('name') !== name || !fm.value('metadata').includes(HOMEPAGE)) continue;
+      const dir = join(root, base, name);
+      const own = (await filesIn(dir)).filter((f) => !['SKILL.md', 'agents/openai.yaml'].includes(f));
+      if (own.length) {
+        warn(`${base}/${name}`, new Error(`INDX Watch no longer ships it; move out ${own.join(', ')}`));
+        continue;
+      }
+      await rm(dir, { recursive: true });
+      out.removed.push(`${base}/${name}`);
+    }
 
   if (to.claude) {
     try {

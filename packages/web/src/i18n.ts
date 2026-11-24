@@ -12,10 +12,26 @@ export const LOCALES: readonly Locale[] = ['en', 'ja'];
 export const catalogs: Record<Locale, Record<string, string>> = { en, ja };
 const isLocale = (v: unknown): v is Locale => v === 'en' || v === 'ja';
 
-/** Translate a UI key; `{name}` placeholders are replaced from vars. Falls back to English, then the key. */
+/**
+ * Translate a UI key; `{name}` placeholders are replaced from vars, and ICU plurals
+ * (`{count, plural, one {# file} other {# files}}`, `#` = the number) pick a branch by the locale's plural rules.
+ * Falls back to English, then the key.
+ */
 export function t(locale: Locale, key: MsgKey, vars?: Vars): string {
   const s = catalogs[locale][key] ?? catalogs.en[key] ?? key;
-  return vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
+  if (!vars) return s;
+  const rules = new Intl.PluralRules(locale);
+  const plural = s.replace(
+    /\{(\w+), plural,((?:\s*[=\w]+\s*\{[^{}]*\})+)\s*\}/g,
+    (m, k: string, body: string) => {
+      if (!(k in vars)) return m;
+      const n = Number(vars[k]);
+      const forms = new Map([...body.matchAll(/([=\w]+)\s*\{([^{}]*)\}/g)].map((x) => [x[1]!, x[2]!]));
+      const form = forms.get(`=${n}`) ?? forms.get(rules.select(n)) ?? forms.get('other') ?? '';
+      return form.replaceAll('#', String(n));
+    },
+  );
+  return plural.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
 /** User choice (browser storage) → browser languages (Accept-Language) → project source locale. */

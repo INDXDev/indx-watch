@@ -24,7 +24,9 @@ type Props = { status: StatusResult; specs?: SpecTree | undefined; plans: PlanVi
 export function ReleaseDetails({ status, specs, plans }: Props) {
   const { locale } = useI18n();
   const { scope } = useApp();
-  const titles = new Map((specs ? allTestCases(specs) : []).map((tc) => [tc.key, txt(tc, 'title', locale)]));
+  const tcs = specs ? allTestCases(specs) : [];
+  const titles = new Map(tcs.map((tc) => [tc.key, txt(tc, 'title', locale)]));
+  const drafts = new Set(tcs.filter((tc) => tc.lifecycle === 'draft').map((tc) => tc.key));
   const plan = plans.find((p) => p.release === scope.release);
   return (
     <>
@@ -33,7 +35,7 @@ export function ReleaseDetails({ status, specs, plans }: Props) {
         <CountsPanel status={status} />
       </div>
       <UseCasesPanel status={status} specs={specs} />
-      {plan && <PlanPanel plan={plan} titles={titles} />}
+      {plan && <PlanPanel plan={plan} titles={titles} drafts={drafts} />}
     </>
   );
 }
@@ -178,7 +180,8 @@ function UseCaseRow({ u, node }: { u: StatusResult['useCases'][number]; node: un
   );
 }
 
-function PlanPanel({ plan, titles }: { plan: PlanView; titles: Map<string, string> }) {
+function PlanPanel(props: { plan: PlanView; titles: Map<string, string>; drafts: Set<string> }) {
+  const { plan, titles, drafts } = props;
   const { t, day, locale } = useI18n();
   const { project } = useApp();
   const me = project.identity.id;
@@ -205,7 +208,8 @@ function PlanPanel({ plan, titles }: { plan: PlanView; titles: Map<string, strin
                   <a className="key" href={href.testCase(it.test_case)}>
                     {it.test_case}
                   </a>{' '}
-                  {titles.get(it.test_case)}
+                  {titles.get(it.test_case)}{' '}
+                  {drafts.has(it.test_case) && <Chip tone="warn">{t('tc.draft')}</Chip>}
                 </td>
                 <td>
                   {it.assignee ?? '—'} {it.assignee === me && <Chip tone="accent">{t('plan.you')}</Chip>}

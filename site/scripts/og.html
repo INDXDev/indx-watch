@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  Source of public/og.png (1200×630). After changing it, render it again with Playwright, e.g.
+  npx playwright screenshot --viewport-size=1200,630 "file://$PWD/scripts/og.html" public/og.png
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>INDX Watch OG image</title>
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans JP", sans-serif;
+    background: radial-gradient(900px 500px at 100% 0%, #1d2a47, transparent 70%), #0e131c;
+    color: #e6e9ed;
+    display: grid; grid-template-columns: 1fr 380px; gap: 56px; padding: 72px 80px; box-sizing: border-box;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 700; }
+  .brand svg { width: 44px; height: 44px; }
+  h1 { margin: 56px 0 0; font-size: 64px; line-height: 1.05; letter-spacing: -0.03em; font-weight: 800; }
+  p { margin: 24px 0 0; font-size: 26px; color: #a3acb8; line-height: 1.4; }
+  .cmd { margin-top: 36px; display: inline-block; font: 24px ui-monospace, Menlo, monospace; padding: 12px 20px;
+    border: 1px solid #283244; border-radius: 10px; background: #161d29; }
+  .cmd span { color: #8b95a3; }
+  .card { align-self: center; background: #161d29; border: 1px solid #283244; border-radius: 18px; padding: 28px; }
+  .card h2 { margin: 0 0 6px; font-size: 22px; }
+  .bad { color: #ff8a80; font-weight: 700; font-size: 20px; margin-bottom: 18px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid #283244; font-size: 18px; color: #c9d0da; }
+  .dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; flex: none; }
+  .ok { background: #15301f; color: #6fd08c; } .no { background: #3d1a18; color: #ff8a80; }
+  .row b { margin-left: auto; font: 16px ui-monospace, Menlo, monospace; color: #a3acb8; font-weight: 400; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="brand">
+      <svg viewBox="0 0 16 16"><rect width="16" height="16" rx="3.5" fill="#2550c4"/><path d="M4 8.5l2.5 2.5L12 5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      INDX Watch
+    </div>
+    <h1>Test management that lives in your repo.</h1>
+    <p>Typed files in git. Results that sync. Readiness that is computed, for people and coding agents.</p>
+    <div class="cmd"><span>$</span> npx indx-watch init</div>
+  </div>
+  <div class="card">
+    <h2>v1.2.0 readiness</h2>
+    <div class="bad">✗ Not ready to ship</div>
+    <div class="row"><span class="dot ok">✓</span>P0 criteria have a test<b>6/6</b></div>
+    <div class="row"><span class="dot no">✗</span>P0 tests pass<b>5/6</b></div>
+    <div class="row"><span class="dot ok">✓</span>Waiting for review<b>0</b></div>
+    <div class="row"><span class="dot ok">✓</span>P0 passes have evidence<b>3/3</b></div>
+  </div>
+</body>
+</html>

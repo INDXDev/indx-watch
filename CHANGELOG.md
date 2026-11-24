@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- `iw init` and `iw skills install` install seven skills instead of twelve: the `indx-watch` overview and the six job skills. The five recipe skills of 0.1 (`write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`), whose triggers overlapped the job skills', are now reference files of the job skill they served (`iw-design`, `iw-data`, `iw-test`, `iw-triage`, `iw-status`), loaded on demand. Re-running `iw skills install` removes the recipe folders INDX Watch wrote (a folder with files you added stays, with a warning) and lists them in `data.removed`.
+
 ### Added
+
+- Web app first run: a project without test cases shows "No test cases yet" on Home and Tests with the two ways to start (ask your agent, `/iw-setup` or `$iw-setup`, or `npx indx-watch new uc …`) and a quickstart link; draft test cases carry a Draft chip wherever they are listed and a criterion with only drafts reads "No approved test"; Home counts ready tests like the gate ("7 of 8 tests pass · 2 drafts not counted until approved"); without an upload the fourth card shows the latest result; the bar has a language switch; on your own run the review form explains that your review changes your verdict; UI strings use ICU plurals ("1 feature").
 
 - `pnpm screenshots` regenerates the docs screenshots in `docs/images/` from the web app with `examples/shop` and its sample results; the guides use them instead of hand-made images.
 
