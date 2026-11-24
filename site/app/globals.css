@@ -1657,6 +1657,82 @@ button {
   }
 }
 
+/* 12a. Self-hosting flow (Vercel's "Develop. Preview. Ship." row) ---------------------------------- */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.flow-step {
+  position: relative;
+  padding: 16px 14px;
+}
+.flow-step:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  top: 16px;
+  right: -11px;
+  z-index: 1;
+  font-size: 13px;
+  color: var(--faint);
+}
+.flow-n {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 600 12px var(--font-mono);
+}
+.flow-step h3 {
+  margin-top: 10px;
+  font-size: 15px;
+}
+.flow-step p {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.flow-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 28px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.flow-code {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-muted);
+  font: 13px var(--font-mono);
+  overflow-x: auto;
+}
+.flow-code::before {
+  content: "$ ";
+  color: var(--faint);
+}
+@media (max-width: 1100px) {
+  .flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .flow-step:not(:last-child)::after {
+    content: none;
+  }
+}
+@media (max-width: 560px) {
+  .flow {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 12. Open source (Supabase's "Open source from day one") ----------------------------------------- */
 .oss {
   display: grid;

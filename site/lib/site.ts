@@ -17,6 +17,7 @@ export const DOCS = {
   playwright: docs('guides/playwright.md'),
   githubActions: docs('guides/github-actions.md'),
   selfHost: docs('guides/self-host-cloudflare.md'),
+  selfHostGithub: docs('guides/self-host-cloudflare-from-github.md'),
   selfHostNode: docs('guides/self-host-node.md'),
   s3: docs('guides/s3-sync.md'),
   concepts: docs('spec/concepts.md'),
