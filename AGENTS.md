@@ -39,6 +39,7 @@ schemas/             generated JSON Schemas (do not edit by hand)
 examples/shop        demo app + Playwright tests + .indx-watch bundle + sample store
 .indx-watch/         this repository's own QA (dogfooding)
 e2e/                 Playwright tests implementing .indx-watch/ test cases (tagged @TC-n)
+site/                landing page (Next.js static export); own pnpm workspace and lockfile, not in the npm package
 scripts/             docs links, line budget, report, purity and Worker build checks; docs screenshots
 docs/                Markdown docs; HTML only in docs/design/
 ```

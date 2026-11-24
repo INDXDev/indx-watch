@@ -44,7 +44,7 @@ flowchart TB
 | `cli` | `packages/cli` | `iw` commands ([cli.md](spec/cli.md)), JSON envelopes, MCP server (`iw mcp`), `iw deploy` (wrangler wrapper). Published as `indx-watch` with everything bundled. |
 | `playwright` | `packages/playwright` | Reporter ([integrations.md](spec/integrations.md#playwright-reporter)); exported as `indx-watch/playwright`. |
 
-Outside `packages/`: [`action.yml`](../action.yml) (composite action), [`skills/`](../skills) (agent skills), [`schemas/`](../schemas) (generated), [`examples/shop`](../examples/shop) (the one sample), [`.indx-watch/`](../.indx-watch) (this repo's own QA).
+Outside `packages/`: [`action.yml`](../action.yml) (composite action), [`skills/`](../skills) (agent skills), [`schemas/`](../schemas) (generated), [`examples/shop`](../examples/shop) (the one sample), [`.indx-watch/`](../.indx-watch) (this repo's own QA), [`site/`](../site) (the landing page: its own pnpm workspace and lockfile, not part of the npm package).
 
 ## Ports and adapters
 Interfaces live in [`packages/store/src/ports.ts`](../packages/store/src/ports.ts) (the reference; the table abridges it). Only adapter folders may import vendor SDKs. Biome `noRestrictedImports` enforces this for `core` and `bundle` (no `node:fs`, `aws4fetch` or `hono` outside `bundle/src/node/`); in the other packages review enforces it. `iw login` runs `cloudflared` from `packages/cli/src/commands/` as the one exception.

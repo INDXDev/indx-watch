@@ -1,0 +1,96 @@
+name: Site
+
+# Builds the landing page in site/ (its own pnpm workspace, not part of the npm package) and deploys it to
+# Cloudflare Workers static assets on pushes to main. Guide: site/README.md#deploy-to-cloudflare.
+# The deploy needs the `site` environment with secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# (optional variable SITE_URL); without the secrets it is skipped with a notice.
+on:
+  pull_request:
+    paths:
+      - site/**
+      - docs/images/**
+      - docs/design/screenshots/**
+      - .github/workflows/site.yml
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - docs/images/**
+      - docs/design/screenshots/**
+      - .github/workflows/site.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: site
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: site/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Smoke test
+        run: |
+          grep -q '<html lang="en"' out/index.html
+          grep -q '<html lang="ja"' out/ja/index.html
+          test -f out/sitemap.xml && test -f out/robots.txt && test -f out/og.png
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: site
+      url: ${{ vars.SITE_URL }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - name: Check the secrets
+        id: secrets
+        working-directory: .
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::Skipping the deploy: set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the 'site' environment"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: actions/checkout@v6
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: site/package.json
+      - if: steps.secrets.outputs.ok == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.secrets.outputs.ok == 'true'
+        run: pnpm build
+      - if: steps.secrets.outputs.ok == 'true'
+        name: Deploy
+        run: pnpm run deploy
