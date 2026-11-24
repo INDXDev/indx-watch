@@ -72,6 +72,11 @@ describe('store endpoints: objects and listing', () => {
       truncated: false,
     });
     expect((await a.fetch(req('/api/store/objects/..%2Fx'))).status).toBe(400);
+    // limits below 1 or with a fraction are clamped, not passed to the store
+    for (const limit of ['-1', '0', '0.5'])
+      expect(
+        (await get<StoreListResponse>(a, `/api/store/list?prefix=v1/log/&limit=${limit}`)).keys,
+      ).toHaveLength(1);
   });
 
   it('is absent without an object store', async () => {

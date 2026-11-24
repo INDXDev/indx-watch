@@ -30,7 +30,7 @@ export function registerStoreRoutes(app: Hono, x: Ctx) {
   app.put('/api/store/objects/*', (c) => putObject(c, x));
   app.post('/api/sign', (c) => signRecords(c, x));
   app.get('/api/store/list', async (c) => {
-    const limit = Math.min(Number(q(c, 'limit')) || 1000, 1000);
+    const limit = Math.max(1, Math.min(Math.trunc(Number(q(c, 'limit'))) || 1000, 1000));
     const [prefix, startAfter] = [c.req.query('prefix') ?? '', q(c, 'startAfter')];
     const r = await store().list({ prefix, startAfter, limit });
     const keys = r.keys.map(({ key, size, etag }) => ({ key, size, ...(etag && { etag }) }));
