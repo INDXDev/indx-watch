@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-24
+
 ### Fixed
 
 - A definition file that does not load (for example a TOML syntax error) no longer disappears silently: every command warns about it (text and `--json` `warnings`, also on error envelopes and MCP tools), and the readiness gate fails while it exists with a new first check `valid_definitions` in `evaluateGate()`, so `iw status --gate` can no longer flip to passed when a use case breaks.
@@ -101,6 +103,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw translate` keeps every `--set`, not only the last.
 - The remaining acceptance criteria are tested (T-117, #6).
 
-[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/INDXDev/indx-watch/releases/tag/v0.1.0

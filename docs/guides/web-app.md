@@ -70,8 +70,6 @@ Where the server has no verified identity (for example `iw serve` on a shared ma
 
 ![The Test data screen with FX-1 to FX-4](../images/test-data.png)
 
-> The Test data editor, sharing and secrets are in this repository but not yet in the npm release 0.1.1.
-
 ## Report
 
 **Report** previews the release report as customers or your team will see it: **Customer** (no emails, notes, CI links or environment details) or **Internal**, English or 日本語, the whole release or one plan. **Open HTML** gives a single self-contained file; **Download Markdown** gives the same content as text. On a hosted app behind Cloudflare Access you can also create an expiring share link ([reports](../spec/reports.md#share-links)).

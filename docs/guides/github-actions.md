@@ -196,4 +196,4 @@ This runs `indx-watch deployment add --env staging` for the current commit.
 
 ## Versions
 
-`INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.1`), or pin the action to an exact release tag.
+`INDXDev/indx-watch@v0` follows the latest v0 release. Pin the CLI separately with the `version` input (for example `version: 0.1.2`), or pin the action to an exact release tag.

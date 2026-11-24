@@ -116,7 +116,7 @@ secret_ref = "env:SHOP_CUSTOMER_PASSWORD"
 
 ### Keeping passwords in INDX Watch
 
-*(Not yet in npm 0.1.1.)* A team without a secret store can keep passwords, API keys and logins on the app's **Test data → Secrets** tab. Give the server a key once (`iw keygen --secrets`, then set `IW_SECRETS_KEY` on the hosted Worker with `wrangler secret put IW_SECRETS_KEY`, or in the environment of `iw serve`), add a secret with a name, the login ID and the password, and point the account at it:
+*(Since 0.1.2.)* A team without a secret store can keep passwords, API keys and logins on the app's **Test data → Secrets** tab. Give the server a key once (`iw keygen --secrets`, then set `IW_SECRETS_KEY` on the hosted Worker with `wrangler secret put IW_SECRETS_KEY`, or in the environment of `iw serve`), add a secret with a name, the login ID and the password, and point the account at it:
 
 ```toml
 [account]
@@ -128,7 +128,7 @@ The value is stored encrypted; the test case page and the Test data screen show 
 
 ## Sharing
 
-*(Not yet in npm 0.1.1.)* Like files in a shared drive, test data and secrets are shared with the whole team unless you restrict them. **Share** on a fixture or a secret opens the dialog: *Everyone on the team*, or *Only the people and groups below* (emails and `group:<name>` of an Access group). Leads always have access. The detail shows **Who has access**, and leads see, on the **Access** tab, everything a given email can open and why.
+*(Since 0.1.2.)* Like files in a shared drive, test data and secrets are shared with the whole team unless you restrict them. **Share** on a fixture or a secret opens the dialog: *Everyone on the team*, or *Only the people and groups below* (emails and `group:<name>` of an Access group). Leads always have access. The detail shows **Who has access**, and leads see, on the **Access** tab, everything a given email can open and why.
 
 In the file, a restricted fixture lists who may see it:
 

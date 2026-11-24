@@ -77,8 +77,6 @@ People who prefer the browser use **Test data** in the web app: create a table, 
 
 ![The Test data screen: FX-1 coupon codes, FX-2 catalog seed, FX-3 account and FX-4 review photo, with the test cases that use each](../images/test-data.png)
 
-> The Test data editor, its Share dialog and the Secrets tab are in this repository but not yet in the npm release 0.1.1 ([changelog](https://github.com/INDXDev/indx-watch/blob/main/CHANGELOG.md)).
-
 **Approves:** a person approves new fixtures (`iw approve FX-5`) and sets any secret. Details: [fixtures](./fixtures.md).
 
 ## 5. Run tests
