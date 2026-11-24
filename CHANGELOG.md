@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Customize without code (T-507): optional `.indx-watch/ui/` (`messages.<locale>.json` text overrides, `theme.toml` allowlisted tokens) and `[report]` title, logo and footer in `project.toml`; `iw check` rejects unknown keys, changed placeholders, markup and unsafe values, and warns about low contrast.
+- `iw patch create | apply | check [--to <version>]` (T-508): keep your own changes as patches against upstream at `v<pinned>`; changes to verdict, gate, status, signing, identity and the secret scan are refused; `iw deploy` deploys the patched build. `patches/` is not loaded, scanned, snapshotted or uploaded.
+- Patched servers say so (T-509): `/healthz`, `/api/project` (`server.patches`), MCP `serverInfo`, report footers, a note in the app and an additive `client` field on records they write.
+- Guides: Customize INDX Watch safely and Keep a fork up to date; `[tool] source = "github:<owner>/<repo>"` names a fork (T-510; `iw patch` uses it, `iw doctor` and `iw update` do not follow it yet).
+- Staying current with upstream: `iw doctor [--online]` reports every pinned part of a project (`[tool]`, the CLI, `package.json`, `.mcp.json`, skill copies, workflows, the hosted app) as `ok`, `outdated`, `unpinned` or `locally-edited` and changes nothing (T-503).
+- `iw update [--to] [--dry-run] [--deploy] [--workflow]` moves the package entry, skill copies, `.mcp.json`, workflow versions and `#:schema` URLs to one version, prints the install command and checks the bundle; `--workflow` writes a weekly workflow that opens an update pull request (T-504, T-505).
+- `project.toml` accepts `[tool] indx_watch = "x.y.z"`; `iw init` writes it, the GitHub Action runs that version when its `version` input is empty, and `iw deploy` pins `IW_VERSION` on the Worker; `.mcp.json` is written as `npx -y indx-watch@<version> mcp` and an unpinned entry is migrated (T-501, T-502).
+- `GET /healthz` answers `{ ok, version }` and `GET /api/project` has `server: { version, pinned?, outdated? }`; the web app tells leads when it runs an older version than the project pins, in English and Japanese (T-501, T-506).
+- `ReleaseSource` adapters for the npm registry and GitHub releases, a fake, and `releases.json` generated from this changelog and shipped in the package (T-503).
 - BDD style for test cases: `style = "bdd"` reads the preconditions and steps as a Given / When / Then scenario, `iw new tc --template bdd` is built in, and the test case page, the manual runner and the editor show the labels and a "How to run this scenario" guide in English and Japanese (前提 / もし / ならば / かつ). examples/shop's TC-4 uses it.
 
 ### Changed

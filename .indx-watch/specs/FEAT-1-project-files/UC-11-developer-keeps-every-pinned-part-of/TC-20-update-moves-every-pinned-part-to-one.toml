@@ -1,0 +1,53 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874HG9WX86WP98WFXC1C6ED"
+key = "TC-20"
+title = "Update moves every pinned part to one version"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.2"]
+priority = "P1"
+mode = "playwright"
+
+[[steps]]
+instruction = "Run \"iw update --dry-run\""
+expected = "It lists the changes and writes nothing"
+
+[steps.i18n.ja]
+instruction = "「iw update --dry-run」を実行する"
+expected = "変更内容が一覧され、何も書き込まれない"
+status = "machine"
+source_hash = "b0c304cdf162"
+
+[[steps]]
+instruction = "Run \"iw update\""
+expected = "The package entry, .mcp.json, skill copies, workflow versions and schema URLs are on one version, and the install command is printed"
+
+[steps.i18n.ja]
+instruction = "「iw update」を実行する"
+expected = "パッケージの記述・.mcp.json・スキルのコピー・ワークフローのバージョン・スキーマ URL が 1 つのバージョンになり、インストールのコマンドが表示される"
+status = "machine"
+source_hash = "27369049cc16"
+
+[[steps]]
+instruction = "Run \"iw update\" again"
+expected = "Nothing changes"
+
+[steps.i18n.ja]
+instruction = "もう一度「iw update」を実行する"
+expected = "何も変わらない"
+status = "machine"
+source_hash = "9ae29b50c013"
+
+[automation]
+files = ["e2e/update.spec.ts"]
+
+[i18n.ja]
+title = "update は固定された各部分を 1 つのバージョンにそろえる"
+status = "machine"
+source_hash = "fabfdae71db2"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:38Z

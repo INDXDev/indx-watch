@@ -30,7 +30,7 @@ async function shopWithTc4(
 describe('read routes: project and status', () => {
   it('GET /healthz and /api/project', async () => {
     const { app: a } = await app();
-    expect(await get(a, '/healthz')).toEqual({ ok: true });
+    expect(await get(a, '/healthz')).toMatchObject({ ok: true });
     const p = await get<ProjectInfo>(a, '/api/project');
     expect(p.project).toMatchObject({
       key: 'SHOP',

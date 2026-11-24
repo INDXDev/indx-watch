@@ -152,8 +152,12 @@ export interface ProjectInfo {
   role?: import('@indx-watch/bundle').Role;
   /** (v0.5) a public deploy: anonymous viewers only, every write refused (docs/spec/security.md#public-deploys) */
   readOnly?: true;
+  /** (v0.5) the running version, `patches` (8 hex digits of the patch-set hash, docs/spec/security.md#patched-servers) only on a patched build; leads also get the project's `[tool]` pin and whether this server is older (docs/spec/web.md#version-notice) */
+  server: { version: string; pinned?: string; outdated?: true; patches?: string };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+  /** (v0.5) `ui/` of the bundle: message overrides per locale and the theme as CSS (docs/spec/bundle-format.md#customizing-v05) */
+  ui?: { messages: Partial<Record<'en' | 'ja', Record<string, string>>>; css?: string };
 }
 
 /** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */

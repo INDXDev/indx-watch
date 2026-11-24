@@ -123,6 +123,26 @@ export type HostingConfig = z.infer<typeof HostingConfig>;
 
 /** (v0.5) The repository issues are opened in (docs/spec/bundle-format.md#projecttoml). */
 export const GithubConfig = z.strictObject({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/) });
+/** `[tool]` (v0.5): the INDX Watch version the project pins (docs/spec/bundle-format.md#projecttoml) and the fork whose releases to follow */
+export const Tool = z.strictObject({
+  indx_watch: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'an exact version such as 0.1.3')
+    .optional(),
+  source: z
+    .string()
+    .regex(/^github:[\w.-]+\/[\w.-]+$/)
+    .optional(),
+});
+export type Tool = z.infer<typeof Tool>;
+
+/** (v0.5) report branding; `logo` is a file in `ui/` (checked by `iw check`) */
+export const ReportBrand = z.strictObject({
+  title: z.string().min(1).max(120).optional(),
+  logo: z.string().min(1).optional(),
+  footer: z.string().max(500).optional(),
+});
+export type ReportBrand = z.infer<typeof ReportBrand>;
 
 export const Project = z.strictObject({
   schema_version: z.number().int().positive(),
@@ -144,6 +164,8 @@ export const Project = z.strictObject({
   /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
   signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
+  tool: Tool.optional(),
+  report: ReportBrand.optional(),
   notes: z.string().optional(),
   x: Extra.optional(),
 });

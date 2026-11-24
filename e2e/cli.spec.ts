@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { fixtureRows, iw, shopCopy, tempDir } from './helpers';
+import { fixtureRows, iw, ROOT, shopCopy, tempDir } from './helpers';
 
 test('init and create a use case and a test case', { tag: ['@TC-1'] }, async () => {
   const dir = tempDir();
@@ -195,7 +195,8 @@ test('one command sets up Claude Code and Codex', { tag: ['@TC-18'] }, async () 
     expect(r.code, r.stderr).toBe(0);
     for (const base of ['.claude/skills', '.agents/skills'])
       expect(existsSync(join(dir, base, 'iw-test/SKILL.md')), base).toBe(true);
-    const mcp = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
+    const { version } = JSON.parse(readFileSync(join(ROOT, 'packages/cli/package.json'), 'utf8'));
+    const mcp = { command: 'npx', args: ['-y', `indx-watch@${version}`, 'mcp'] }; // pinned (T-502)
     expect(JSON.parse(read('.mcp.json')).mcpServers['indx-watch']).toEqual(mcp);
     expect(read('.codex/config.toml')).toContain('[mcp_servers.indx-watch]');
     expect(read('AGENTS.md')).toMatch(

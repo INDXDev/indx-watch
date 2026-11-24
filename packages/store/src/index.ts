@@ -5,6 +5,7 @@ export { githubIssueSource } from './adapters/github-issues.js';
 export { githubOidcVerifier, oidcAudience, oidcSigner, usesGithubOidc } from './adapters/github-oidc.js';
 export { httpObjectStore } from './adapters/http.js';
 export { memoryIndex, memoryObjectStore } from './adapters/memory.js';
+export { fakeReleaseSource, githubReleaseSource, npmReleaseSource } from './adapters/releases.js';
 export { s3ObjectStore } from './adapters/s3.js';
 export { type AgentRunInput, type AgentStepResult, runAgent } from './agent.js';
 export { fakeAccessPolicy, fakeBrowserProvider, fakeIssueSource, fakeLlmClient } from './fakes.js';

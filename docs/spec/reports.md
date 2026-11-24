@@ -39,6 +39,7 @@ The HTML report is a single file with inline CSS, no JavaScript required, readab
 - The run log shows a CI link and, for pull requests, a `PR #n` link (internal audience only).
 - *(v0.2)* A run whose record claims a verified `via` without a valid signature shows "· unverified" after its actor ([signed records](./security.md#signed-records)). The appendix lists `ignore_unverified` with the other gate thresholds.
 - HTML reports carry a Content-Security-Policy `meta` tag; links are only rendered for `http(s)` and relative URLs; in Markdown, `&`, `<` and `>` in user-written text are escaped.
+- *(v0.5)* `[report]` in `project.toml` brands the report ([Customizing](./bundle-format.md#customizing-v05)): `title` replaces the project name in the heading and the HTML title, `footer` replaces the generated-by line, `logo` is embedded at the top of HTML reports as a data URI. A [patched server](./security.md#patched-servers) appends its build (`INDX Watch 0.1.3+p.ab12cd34 (patched)`) to the footer in every format; an unpatched one adds nothing.
 - When nothing is gated yet (the `has_gated_tests` check fails), the verdict is shown as a neutral "nothing to judge yet" state rather than a failure banner.
 
 ## Locale
@@ -71,6 +72,7 @@ For `examples/shop` with the sample results in `examples/shop/store/`, `IW_NOW=2
 - [x] `iw report --format html` works offline and produces one file with no external requests (checked by loading it in Playwright with network disabled).
 - [x] `--audience customer` output contains no email addresses and no `notes` text from the bundle (tested on `examples/shop`).
 - [x] The Markdown report for `examples/shop`, generated with the fixed `IW_NOW` and `IW_ACTOR`, matches the committed example byte-for-byte.
+- [ ] With `[report]` title, footer and logo set, the HTML report shows them and the Markdown report shows title and footer; a patched server's footer ends with `+p.<8 hex> (patched)` and an unpatched one is unchanged (report tests).
 - [x] The gate section of the report equals the `gate` object of `iw status --json` for the same scope.
 - [x] A share link serves its frozen snapshot without an identity, unchanged by later results; after its expiry or revocation it answers 404 (server and Worker tests).
 - [x] Creating, opening and revoking a share link each write a `share` record with the actor; only a person signed in through Cloudflare Access on the hosted app can create or revoke one (server test). With pinned signing keys, `create` and `revoke` records written straight to the bucket (unsigned, or with a self-asserted `via`) never count, and creating answers 503 when the server cannot sign (Worker test).

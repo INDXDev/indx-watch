@@ -48,6 +48,8 @@ export interface Env {
   SIGNING_KEYS?: string;
   /** JSON array of the GitHub repositories whose OIDC tokens get signatures, pinned by `iw deploy` */
   OIDC_REPOSITORIES?: string;
+  /** the version `iw deploy` ran with (/healthz, /api/project) */
+  IW_VERSION?: string;
   /** JSON of `[hosting.roles]`, pinned by `iw deploy`; never read from the bucket (docs/spec/security.md#roles) */
   ROLES?: string;
   /** secrets `<account id>/<policy id>` and an API token: the Access policy of invites (docs/spec/security.md#customer-uat) */
@@ -203,7 +205,7 @@ async function openWorkspace(store: Store, records: AnyRecord[], view: View): Pr
 
 /** the vars an isolate's state depends on */
 const STATE_VARS =
-  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY IW_SECRETS_KEY SIGNING_KEYS OIDC_REPOSITORIES ROLES'.split(
+  'STORE_PREFIX ACCESS_TEAM ACCESS_AUD PUBLIC IW_SIGNING_KEY IW_SECRETS_KEY SIGNING_KEYS OIDC_REPOSITORIES ROLES IW_VERSION'.split(
     ' ',
   );
 function setup(env: Env, outputs?: ToolOutputs): State {
@@ -311,6 +313,7 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     identity: identity ?? anon,
     roles: open ? { default: 'viewer' } : identity ? pinnedRoles(env) : undefined,
     readOnly: open,
+    ...(env.IW_VERSION && { version: env.IW_VERSION }),
     secretsKey: open ? undefined : env.IW_SECRETS_KEY,
     accessPolicy: S.cloudflareAccessPolicy(env as unknown as Record<string, string | undefined>),
     objects,

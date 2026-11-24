@@ -523,5 +523,8 @@
   "issue.opened": "Submit the issue on GitHub, then paste its URL here so this test case links to it. INDX Watch never writes to GitHub.",
   "issue.paste": "Paste the issue URL",
   "issue.save": "Save link",
-  "issue.cli": "Run this in your working copy:"
+  "issue.cli": "Run this in your working copy:",
+  "custom.patched": "This app runs a patched build of INDX Watch ({build}). Results it records carry the same marker.",
+  "update.drift": "This app runs {version}; the project pins {pinned}. Run",
+  "update.driftLocal": "This app runs {version}; the project pins {pinned}. Start it again with"
 }

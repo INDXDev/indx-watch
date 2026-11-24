@@ -21,7 +21,9 @@ const SKILLS = join(ROOT, 'skills');
 const names = readdirSync(SKILLS, { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
-const MCP = { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] };
+const { version: PKG_VERSION } = JSON.parse(readFileSync(join(ROOT, 'packages/cli/package.json'), 'utf8'));
+/** The project MCP server, pinned to this package's version (no [tool] in these projects). */
+const MCP = { command: 'npx', args: ['-y', `indx-watch@${PKG_VERSION}`, 'mcp'] };
 const read = (dir: string, path: string) => readFileSync(join(dir, path), 'utf8');
 
 /** Top-level keys of the YAML frontmatter (a blank line may follow the opening ---). */
@@ -169,7 +171,12 @@ describe('iw skills install', () => {
     const r = await setupAgents(dir, SKILLS, { claude: true, codex: true });
     expect(r.files, 'run pnpm iw skills install at the repository root').toEqual([]);
     for (const base of ['.claude/skills', '.agents/skills'])
-      expect(readdirSync(join(ROOT, base)).sort(), `stale folders in ${base}`).toEqual([...names].sort());
+      expect(
+        readdirSync(join(ROOT, base))
+          .filter((n) => !n.startsWith('.'))
+          .sort(),
+        `stale folders in ${base}`,
+      ).toEqual([...names].sort());
   });
 });
 
@@ -198,9 +205,41 @@ describe('iw init agent setup', () => {
     expect(iwJson(dir, 'skills install', ['skills', 'install']).json.data.files).toEqual([]);
     writeFileSync(join(dir, 'AGENTS.md'), `${agents.replace('## INDX Watch', 'stale')}\nMore rules.\n`);
     writeFileSync(join(dir, '.claude/skills/iw-test/SKILL.md'), 'old');
-    const again = iwJson(dir, 'skills install', ['skills', 'install']).json.data;
-    expect(again.files).toEqual(['.claude/skills/iw-test/SKILL.md', 'AGENTS.md']);
+    const again = iwJson(dir, 'skills install', ['skills', 'install']).json;
+    // a skill file changed by hand is left alone with a warning ...
+    expect(again.data.files).toEqual(['AGENTS.md']);
+    expect(again.data.skipped).toEqual(['.claude/skills/iw-test']);
+    expect(again.warnings.map((w: { message: string }) => w.message)).toEqual([
+      '.claude/skills/iw-test was left unchanged: edited locally (iw-test/SKILL.md); --force overwrites it',
+    ]);
+    expect(read(dir, '.claude/skills/iw-test/SKILL.md')).toBe('old');
     expect(read(dir, 'AGENTS.md')).toBe(`${agents}\nMore rules.\n`);
+    // ... unless --force
+    const forced = iwJson(dir, 'skills install', ['skills', 'install', '--force']).json.data;
+    expect(forced.files).toEqual(['.claude/skills/iw-test/SKILL.md']);
+    expect(read(dir, '.claude/skills/iw-test/SKILL.md')).not.toBe('old');
+  });
+
+  it('pins .mcp.json to [tool] indx_watch, else to the running version, and migrates an unpinned entry', () => {
+    const dir = existingRepo();
+    writeFileSync(
+      join(dir, '.mcp.json'),
+      JSON.stringify({ mcpServers: { 'indx-watch': { command: 'npx', args: ['-y', 'indx-watch', 'mcp'] } } }),
+    );
+    iwJson(dir, 'skills install', ['skills', 'install', '--claude']);
+    expect(JSON.parse(read(dir, '.mcp.json')).mcpServers['indx-watch']).toEqual(MCP);
+    iwJson(dir, 'init', ['init', '--no-agents']);
+    const project = join(dir, '.indx-watch/project.toml');
+    writeFileSync(
+      project,
+      readFileSync(project, 'utf8').replace(`indx_watch = "${PKG_VERSION}"`, 'indx_watch = "0.3.1"'),
+    );
+    iwJson(dir, 'skills install', ['skills', 'install', '--claude']);
+    expect(JSON.parse(read(dir, '.mcp.json')).mcpServers['indx-watch'].args).toEqual([
+      '-y',
+      'indx-watch@0.3.1',
+      'mcp',
+    ]);
   });
 
   it('init --no-agents writes no agent files; an unreadable .mcp.json is left alone with a warning', () => {

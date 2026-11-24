@@ -8,6 +8,7 @@ import {
   computeStatus,
   decide,
   type FixtureNode,
+  isOlderVersion,
   type Model,
   ownedFeatures,
   ownedModel,
@@ -15,6 +16,7 @@ import {
 } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
+import { patchesOf } from './build.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
@@ -109,6 +111,14 @@ function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role)
   };
 }
 
+/** The running version; for a lead also the pinned one and whether the server is older (no outbound call). */
+function serverInfo(version: string, role: B.Role | undefined, pinned: string | undefined) {
+  const patches = patchesOf();
+  const base = { version, ...(patches && { patches }) };
+  if (role !== 'lead' || !pinned) return base;
+  return { ...base, pinned, ...(isOlderVersion(version, pinned) && { outdated: true as const }) };
+}
+
 async function projectInfo(c: Context, x: Ctx) {
   const { deps, actor, grant, model } = x;
   // a customer's model has no environment guides or access methods (docs/spec/security.md#roles)
@@ -142,7 +152,9 @@ async function projectInfo(c: Context, x: Ctx) {
     can: abilities(x, m, who, role),
     ...(!customer && deps.roles && { team: deps.roles }),
     ...(deps.readOnly && { readOnly: true }),
+    server: serverInfo(x.version, role, m.project.tool?.indx_watch),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
+    ...(m.ui && { ui: { messages: m.ui.messages, css: B.themeCss(m.ui.theme) } }),
   };
   return c.json(info);
 }
