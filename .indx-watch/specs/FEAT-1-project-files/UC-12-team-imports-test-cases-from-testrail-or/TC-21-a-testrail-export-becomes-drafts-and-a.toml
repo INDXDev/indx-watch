@@ -1,0 +1,39 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874NMRJTPKGJQ11A9WEA1TK"
+key = "TC-21"
+title = "A TestRail export becomes drafts, and a second import changes nothing"
+status = "draft"
+origin = "ai"
+covers = ["AC-12.1", "AC-12.3"]
+mode = "manual"
+
+[[steps]]
+instruction = "Run \"iw import testrail cases.csv\" on a TestRail export with separated steps, then \"iw check\"."
+expected = "Draft use cases, criteria and test cases are created and the check reports no error."
+
+[steps.i18n.ja]
+instruction = "ステップが分かれた TestRail のエクスポートに「iw import testrail cases.csv」を実行し、続けて「iw check」を実行する。"
+expected = "下書きのユースケース・受け入れ基準・テストケースが作られ、チェックでエラーが出ない。"
+status = "machine"
+source_hash = "bf4983c789c3"
+
+[[steps]]
+instruction = "Run the same import again."
+expected = "Nothing is created and the output says how many cases were skipped."
+
+[steps.i18n.ja]
+instruction = "同じ取り込みをもう一度実行する。"
+expected = "何も作られず、いくつのケースを飛ばしたかが表示される。"
+status = "machine"
+source_hash = "95019f78d3ec"
+
+[i18n.ja]
+title = "TestRail のエクスポートが下書きになり、二度目の取り込みでは何も変わらない"
+status = "machine"
+source_hash = "acc148027ae0"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:54Z

@@ -1,0 +1,39 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874NKR0DVR5MJ4HEQYNM4RW"
+key = "TC-19"
+title = "A shared step shows in the test case that uses it, and its edit makes that test case stale"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1", "AC-11.2"]
+mode = "manual"
+
+[[steps]]
+instruction = "In a copy of examples/shop, run \"iw show TC-8 --json\"."
+expected = "The second step is \"Reload the page.\" and carries from = \"SS-1\"."
+
+[steps.i18n.ja]
+instruction = "examples/shop のコピーで「iw show TC-8 --json」を実行する。"
+expected = "2 番目のステップは「Reload the page.」で、from = \"SS-1\" が付いている。"
+status = "machine"
+source_hash = "6ad5515f93c1"
+
+[[steps]]
+instruction = "Edit the expected result in steps/SS-1-reload-signed-out.toml and run \"iw list tcs --json\"."
+expected = "The version of TC-8 differs from before; the version of every test case without SS-1 is the same."
+
+[steps.i18n.ja]
+instruction = "steps/SS-1-reload-signed-out.toml の期待結果を編集し、「iw list tcs --json」を実行する。"
+expected = "TC-8 のバージョンが以前と変わり、SS-1 を使わないテストケースのバージョンは同じまま。"
+status = "machine"
+source_hash = "45483b4e9489"
+
+[i18n.ja]
+title = "共有ステップは使うテストケースに表示され、編集するとそのテストケースが古い扱いになる"
+status = "machine"
+source_hash = "417b2ddb2abc"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:53Z
