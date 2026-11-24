@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/indx-watch.svg)](https://www.npmjs.com/package/indx-watch)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-![INDX Watch Home: release v1.2.0 "Not ready to ship: 1 of 8 checks fail", 7 of 10 tests pass, your queue and recent activity](docs/images/home.png)
+![INDX Watch Home: release v1.2.0 "Not ready to ship: 1 of 8 checks fail", 7 of 8 tests pass with 2 drafts not counted, your queue and recent activity](docs/images/home.png)
 
 ## Who it's for
 

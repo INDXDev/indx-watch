@@ -297,7 +297,7 @@ export const ja: Content = {
       },
       {
         q: 'どのくらい成熟していますか？',
-        a: 'まだ初期段階で、npm では v0.1 です。ファイル形式にはバージョンがあり（`schema_version = 1`）、変更は追加のみです。まずはライブデモか `npx indx-watch init demo --example` で試してみてください。',
+        a: 'まだ初期段階で、npm では v0.1 です。ファイル形式にはバージョンがあり（`schema_version = 1`）、変更は追加のみです。まずは閲覧専用のライブデモか `npx indx-watch init demo --example` で試してみてください。',
       },
     ],
   },

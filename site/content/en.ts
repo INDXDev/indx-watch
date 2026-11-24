@@ -298,7 +298,7 @@ export const en: Content = {
       },
       {
         q: 'How mature is it?',
-        a: 'Early: v0.1 on npm. The file format is versioned (`schema_version = 1`) and changes only additively. Try the live demo or `npx indx-watch init demo --example` first.',
+        a: 'Early: v0.1 on npm. The file format is versioned (`schema_version = 1`) and changes only additively. Browse the read-only live demo or `npx indx-watch init demo --example` first.',
       },
     ],
   },
