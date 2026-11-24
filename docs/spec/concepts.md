@@ -250,6 +250,17 @@ A test case may appear in a plan more than once only with different environments
 
 **Quarantine** is a view, not a state: the web app lists the test cases with a flake rate, worst first ([web](./web.md#quarantine)). Nothing is excluded from the gate; a flaky P0 test case that fails still blocks the release until it is fixed (or, for P1–P3, waived).
 
+## Insights
+
+*(v0.5)* `insights(model, { release })` in `packages/core` is the one function behind the web app's [Insights](./web.md#insights) view and [`iw insights`](./cli.md#iw-insights). It changes no verdict, status or gate check; it only reads what `computeStatus()` and `planItemStatus()` say and counts.
+
+1. **Releases** (one row per release, oldest first by `target_date`, then version): the scope is `{ release }` with every environment. `passRate` = `pass` ÷ (`pass` + `fail` + `needs_review` + `stale` + `blocked`) over the ready test cases, so a test case with no result yet does not lower it; it is `null` while no ready test case has a result. `coverage` is `computeStatus().coverage.ratio`. `flaky` is the number of ready test cases with a [flake rate](#flaky-tests) in that release, out of `tests` ready test cases. `gate` is `evaluateGate().passed`.
+2. **Assignees** (the plans of the chosen release, or every plan when none is chosen): per assignee the plan items by `planItemStatus()` (`todo`, `done`, `review`, `blocked`); items without an assignee are listed as `null`. People first, by item count, then `ci` and `agent:` assignees.
+3. **Features** (the chosen release): per feature the ready test cases by status, with `pass` counting `pass` and `waived`.
+4. **Manual run duration**: a run counts when it has `started_at`, no `automation`, is not `reported` as blocked or skipped, is not retracted and was written by a human actor. Duration is `ended_at − started_at` in seconds; negative or over 24 hours is ignored. `median` is the median of those runs (the mean of the two middle ones for an even count), overall and per release; `null` without a sample.
+
+The unit of every number is a test case in a release, never a run, so a test case that was re-run does not count twice.
+
 ## Impact analysis
 
 `impactedTestCases()` suggests which test cases a change touches, from the paths it changes (for example the files of a pull request). It is information only: it changes no verdict, status or gate check, and it runs nothing.

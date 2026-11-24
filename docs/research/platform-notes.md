@@ -7,7 +7,7 @@ description: "Dated facts about Cloudflare, S3, Playwright and agent tooling, wi
 
 Dated facts about the platforms and libraries INDX Watch depends on. Each fact has a source.
 
-Last verified: 2026-11-19
+Last verified: 2026-11-25
 
 ## How to use this file
 
@@ -253,6 +253,11 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 | `tsup` | 9.0.0 | 2026-10-14 | Bundler named in the architecture. 9.x needs Node `^22.18 \|\| ^24.11 \|\| >=26` |
 | `pnpm` | 12.21.0 | 2026-11-13 | Pin via `packageManager` |
 
+## Slack incoming webhooks
+
+- A webhook URL looks like `https://hooks.slack.com/services/T…/B…/…` and contains a secret; Slack searches for leaked ones and revokes them. (verified 2026-11-25, https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks)
+- Send an HTTP POST with `Content-type: application/json` and a body with at least `text`; links in mrkdwn text are `<https://example.com|label>`. Success is HTTP 200 with the body `ok`; failures are 400, 403 or 404 with a short error string such as `invalid_payload` or `no_active_hooks`. The page states no rate limit and no text length limit, so the adapter caps a post at 20 lines. (verified 2026-11-25, same page)
+
 ## Open items
 
 - **Node floor.** The docs say Node ≥ 20 (architecture: ≥ 20.19). Node 20 is EOL, and wrangler 4.165, tsup 9, vitest 5 and Playwright's own CI have all dropped it. Decide whether to raise the floor to `>=22.13`, or to keep 20 for the `iw` CLI only and pin older dev tools.
@@ -263,6 +268,7 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 
 ## Changelog
 
+- 2026-11-25: Added Slack incoming webhooks (T-523).
 - 2026-11-21: `node:sqlite` loading and the tsup `node:` prefix (T-210).
 - 2026-11-21: Added the Playwright Test Agents planner plan format (T-212).
 - 2026-11-21: Added GitLab CI, CircleCI and Buildkite variable semantics (T-208).

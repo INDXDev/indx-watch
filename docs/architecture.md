@@ -63,6 +63,7 @@ Interfaces live in [`packages/store/src/ports.ts`](https://github.com/INDXDev/in
 | `ContextProvider` | `build()`, `ci()` | `git`, `github` |
 | `OidcVerifier` | `verify(token, audience) → { repository, repository_id, actor, run_id }` | `github` (GitHub Actions JWKS via `jose`; a local JWKS in tests), used by the hosted server's `POST /api/sign` ([GitHub OIDC](./spec/security.md#github-oidc)) |
 | `AccessPolicy` | `allow(email) → boolean`, `revoke(email) → boolean` (true when the policy changed) (v0.3, [customer UAT](./spec/security.md#customer-uat)) | `cloudflare` (the Cloudflare API's reusable Access policy: `GET` then `PUT`), a fake in tests; used by `iw invite` and the hosted invite routes |
+| `Notifier` | `send(messages)` (v0.5, [notifications](./spec/integrations.md#notifications)) | `slack` (incoming webhook over `fetch`, any runtime), a fake in tests; used by `iw notify` |
 | `BrowserProvider` | `open(baseUrl) → session`: `observe()` (URL, title, accessibility tree with refs, screenshot), `act(action)`, `close()` | `playwright` (local Chromium) and `browser-run` (Cloudflare Browser Run over CDP), both Node (`@indx-watch/store/node`), Playwright imported at run time ([agents.md](./spec/agents.md#agent-execution-mode-v02)); fake |
 | `LlmClient` | `judge(rubric, observation) → { verdict, confidence, reason }`; optional `next(step, observation, history) → action` (agent mode) | `anthropic` (Node, `@indx-watch/store/llm`; gateway via `ANTHROPIC_BASE_URL`); fake |
 
