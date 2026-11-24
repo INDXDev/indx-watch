@@ -21,7 +21,17 @@ describe('/mcp', () => {
     const { app } = { app: createApp((await fakeDeps()).deps) };
     const { tools } = await mcpRequest(app.fetch, BASE, 'tools/list', {});
     const names = tools.map((t: { name: string }) => t.name);
-    expect(names).toEqual(['status', 'list', 'show', 'check', 'new', 'record_run', 'report', 'sync']);
+    expect(names).toEqual([
+      'status',
+      'list',
+      'show',
+      'check',
+      'new',
+      'record_run',
+      'report',
+      'sync',
+      'assign',
+    ]);
     expect(tools[0].annotations).toMatchObject({ readOnlyHint: true });
     expect(tools[0].outputSchema).toMatchObject({ type: 'object' });
     // without the output schemas (passed in by the CLI) there is no /mcp
@@ -35,6 +45,12 @@ describe('/mcp', () => {
     const r = await mcpCall(app.fetch, BASE, 'status', { release: 'v1.2.0' });
     const { model } = await f.deps.loadModel();
     expect(r.structuredContent).toEqual(statusData(model, { release: 'v1.2.0' }));
+    const split = await mcpCall(app.fetch, BASE, 'assign', {
+      plan: 'PLAN-1',
+      split: 'alex@shop.test,sam@shop.test',
+    });
+    expect(split.structuredContent).toMatchObject({ plan: 'PLAN-1', dry_run: true, unassigned: 0 });
+    expect(f.written).toEqual([]);
     const show = await mcpCall(app.fetch, BASE, 'show', { ref: 'TC-4' });
     expect(show.structuredContent).toMatchObject({
       key: 'TC-4',

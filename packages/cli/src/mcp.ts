@@ -58,6 +58,13 @@ export function createMcpServer(base: Ctx, dir?: string): McpServer {
         return !body ? r : format === 'md' ? toolText(body) : toolData(JSON.parse(body));
       },
       sync: () => call(dataCommands.sync!, {}),
+      assign: (i) =>
+        call(specCommands.assign!, {
+          plan: i.plan,
+          split: i.split,
+          'only-unassigned': i.only_unassigned,
+          'dry-run': true,
+        }),
     };
   });
 }

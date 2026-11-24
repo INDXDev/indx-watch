@@ -42,6 +42,8 @@ export const ROUTES = {
   deleteFixture: 'DELETE /api/fixtures/:key (lead; git mode; → FixtureSaved)',
   invite:
     'POST /api/plans/:key/invites (lead; InviteInput → InviteResult; docs/spec/security.md#customer-uat)',
+  assign:
+    'POST /api/plans/:key/assign (lead; tester: take, give back; AssignInput → AssignResult; docs/spec/security.md#customer-uat)',
   uninvite: 'DELETE /api/plans/:key/invites/:email?items= (lead; → InviteResult)',
   createRun: 'POST /api/runs',
   addJudgement: 'POST /api/runs/:id/judgements',
@@ -90,6 +92,9 @@ export interface PlanView {
     due?: string;
     status: 'todo' | 'done' | 'blocked' | 'review';
   }[];
+  /** (v0.5) items per assignee by status, and who runs the items (docs/spec/concepts.md#assignment-and-automation-mix) */
+  board?: import('@indx-watch/core').AssigneeBoard;
+  mix?: import('@indx-watch/core').AutomationMix;
 }
 
 export interface ReviewResult {
@@ -412,6 +417,28 @@ export interface InviteResult {
   reassigned: string[];
   revoked: boolean;
   access: 'added' | 'removed' | 'kept' | 'manual';
+}
+
+/**
+ * POST /api/plans/:key/assign body (v0.5, docs/spec/security.md#customer-uat): `items` to `to` (null: take the assignee
+ * off), or a `split` ("who:weight,…"); `dry_run` answers with the proposal and writes nothing.
+ */
+export interface AssignInput {
+  to?: string | null;
+  items?: string[];
+  split?: string;
+  only_unassigned?: boolean;
+  dry_run?: boolean;
+}
+/** Answer of the assign route: the items whose assignee changed (`assignee` is empty when taken off) and the saved plan version. */
+export interface AssignResult {
+  plan: string;
+  dry_run: boolean;
+  assignments: import('@indx-watch/core').Change[];
+  load: Record<string, number>;
+  unassigned: number;
+  file?: string;
+  record?: FileRecord;
 }
 
 /** POST /api/runs (manual runner). Actor comes from the server's IdentityProvider, never from the body. */

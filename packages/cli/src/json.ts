@@ -101,6 +101,10 @@ export const CommandData = {
     counts: z.record(z.string(), z.number()),
     /** with --mine (docs/spec/concepts.md#feature-owners) */
     mine: z.object({ actor: z.string(), features: z.array(z.string()) }).optional(),
+    /** who runs the plan items of the release: people, CI, agents (v0.5, docs/spec/concepts.md#assignment-and-automation-mix) */
+    automation: z
+      .object({ people: z.number(), ci: z.number(), agents: z.number(), total: z.number() })
+      .optional(),
   }),
   /** docs/spec/concepts.md#impact-analysis */
   impact: z.object({
@@ -132,6 +136,20 @@ export const CommandData = {
     ...{ email: z.string(), plan: z.string(), file: z.string(), items: z.array(z.string()) },
     reassigned: z.array(z.string()),
     ...{ revoked: z.boolean(), access: z.enum(['added', 'removed', 'kept', 'manual']) },
+  }),
+  /** docs/spec/cli.md#iw-assign */
+  assign: z.object({
+    ...{ plan: z.string(), file: z.string().optional(), dry_run: z.boolean() },
+    assignments: z.array(
+      z.object({
+        test_case: z.string(),
+        environment: z.string().optional(),
+        assignee: z.string(),
+        from: z.string().optional(),
+      }),
+    ),
+    load: z.record(z.string(), z.number()),
+    unassigned: z.number(),
   }),
   retract: z.object({ retraction: z.record(z.string(), z.unknown()) }),
   'deployment add': z.object({ deployment: z.record(z.string(), z.unknown()) }),
