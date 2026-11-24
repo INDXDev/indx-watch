@@ -311,6 +311,39 @@
         "additionalProperties": false
       }
     },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "indx_watch": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^github:[\\w.-]+\\/[\\w.-]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "logo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "footer": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    },
     "notes": {
       "type": "string"
     },

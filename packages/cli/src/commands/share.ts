@@ -13,8 +13,8 @@ import * as cx from '../context.js';
 import { type Args, B, type Ctx, fail, many, P, S, str } from '../util.js';
 import { logWarnings, openStore, snapshotOf } from './data.js';
 
-/** relative, no `..` or hidden segments, outside cache/ and runs/ */
-const SAFE_PATH = /^(?!(?:cache|runs)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
+/** relative, no `..` or hidden segments, outside cache/, runs/ and patches/ */
+const SAFE_PATH = /^(?!(?:cache|runs|patches)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
 const order = (r: iwb.BundleRecord) => `${r.commit_time ?? ''}|${r.at}|${r.id}`;
 
 /** Every bundle record in a store, newest first. */
