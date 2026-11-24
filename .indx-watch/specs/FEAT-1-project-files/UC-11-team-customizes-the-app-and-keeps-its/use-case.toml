@@ -1,0 +1,90 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874GVXH0MH97MQAN2M1NHET"
+key = "UC-11"
+title = "Team customizes the app and keeps its own changes safely"
+status = "draft"
+origin = "ai"
+actor = "Team lead"
+goal = "Change texts, colors and report branding with plain files, and keep patches that still apply after an update."
+priority = "P2"
+
+[[criteria]]
+id = "ac_01M874GVXH0MH97MQAN2M1NHEP"
+key = "AC-11.1"
+text = "A text or color set in the ui folder shows in the app and an unknown key or markup fails iw check."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:17Z
+
+[criteria.i18n.ja]
+text = "ui フォルダーに書いた文言や色がアプリに反映され、未知のキーやマークアップは iw check で失敗する。"
+status = "machine"
+source_hash = "6d43bd17fa58"
+
+[[criteria]]
+id = "ac_01M874GVXH0MH97MQAN2M1NHEQ"
+key = "AC-11.2"
+text = "A report shows the team's title, logo and footer."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:17Z
+
+[criteria.i18n.ja]
+text = "レポートにチーム独自のタイトル、ロゴ、フッターが表示される。"
+status = "machine"
+source_hash = "e1cf1f0190c9"
+
+[[criteria]]
+id = "ac_01M874GVXH0MH97MQAN2M1NHER"
+key = "AC-11.3"
+text = "A patch that touches verdict, gate or signing code is refused, and iw patch check names the files that no longer apply."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:17Z
+
+[criteria.i18n.ja]
+text = "判定・ゲート・署名のコードを変えるパッチは拒否され、iw patch check は適用できなくなったファイルを示す。"
+status = "machine"
+source_hash = "f22067b8f573"
+
+[[criteria]]
+id = "ac_01M874GVXH0MH97MQAN2M1NHES"
+key = "AC-11.4"
+text = "A server running a patched build says so in the app, the health check and the records it writes."
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:17Z
+
+[criteria.i18n.ja]
+text = "パッチ適用ビルドで動くサーバーは、アプリ、ヘルスチェック、書き込む記録でそのことを示す。"
+status = "machine"
+source_hash = "284d3a779557"
+
+[i18n.ja]
+title = "チームがアプリを自分たち向けに調整し、独自の変更を安全に保つ"
+actor = "チームリーダー"
+goal = "文言・色・レポートの見た目を普通のファイルで変え、更新後も適用できるパッチだけを残す。"
+status = "machine"
+source_hash = "c24d4036435a"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:17Z

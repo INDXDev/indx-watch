@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874H4BPHS68733DBRMDDS1V"
+key = "TC-22"
+title = "A patched server says it is patched"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.4"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "Deploy the patched build and open the app as a lead"
+expected = "A note under the top bar shows the version with +p and the patch hash"
+
+[steps.i18n.ja]
+instruction = "パッチ適用ビルドをデプロイし、リーダーとしてアプリを開く"
+expected = "トップバーの下に、+p とパッチのハッシュが付いたバージョンのお知らせが表示される"
+status = "machine"
+source_hash = "ed6b981a029f"
+
+[[steps]]
+instruction = "Open /healthz and record a run"
+expected = "The health check shows the same hash and the run record carries it"
+
+[steps.i18n.ja]
+instruction = "/healthz を開き、テストを 1 件記録する"
+expected = "ヘルスチェックに同じハッシュが表示され、実行記録にもそのハッシュが入る"
+status = "machine"
+source_hash = "a180e166091c"
+
+[i18n.ja]
+title = "パッチ適用済みのサーバーはそう表示する"
+status = "machine"
+source_hash = "373f8a20b662"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:26Z

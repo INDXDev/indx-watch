@@ -1,0 +1,30 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874H3AWQEKWE79YRR2YZCFP"
+key = "TC-20"
+title = "Reports show the team's own title, logo and footer"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.2"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "Set [report] title, footer and a logo in ui/ in project.toml, then run iw report --format html"
+expected = "The report heading, logo and footer are the team's"
+
+[steps.i18n.ja]
+instruction = "project.toml の [report] にタイトル・フッター、ui/ にロゴを設定し、iw report --format html を実行する"
+expected = "レポートの見出し、ロゴ、フッターがチームのものになっている"
+status = "machine"
+source_hash = "194afb5a8f21"
+
+[i18n.ja]
+title = "レポートにチーム独自のタイトル・ロゴ・フッターが表示される"
+status = "machine"
+source_hash = "fe1fdee7312b"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:25Z

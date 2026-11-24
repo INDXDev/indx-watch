@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874H2TN02TJTGXTJEDMPG5M"
+key = "TC-19"
+title = "Own texts and colors show in the app"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "Put {\"nav.tests\": \"Checks\"} in .indx-watch/ui/messages.en.json and an accent color in ui/theme.toml, then run iw serve and open the app"
+expected = "The Tests tab reads Checks and the accent color is the new one in light and dark"
+
+[steps.i18n.ja]
+instruction = "{\"nav.tests\": \"Checks\"} を .indx-watch/ui/messages.en.json に、アクセントカラーを ui/theme.toml に書き、iw serve を起動してアプリを開く"
+expected = "「テスト」タブが Checks と表示され、アクセントカラーがライトとダークの両方で新しい色になる"
+status = "machine"
+source_hash = "c075940e83ba"
+
+[[steps]]
+instruction = "Add an unknown key and a text with <b> to the file and run iw check"
+expected = "iw check fails and names both"
+
+[steps.i18n.ja]
+instruction = "ファイルに存在しないキーと <b> を含む文言を足して iw check を実行する"
+expected = "iw check が失敗し、両方を指摘する"
+status = "machine"
+source_hash = "5bb23f795705"
+
+[i18n.ja]
+title = "独自の文言と色がアプリに表示される"
+status = "machine"
+source_hash = "efa009cdb188"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:25Z

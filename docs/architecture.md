@@ -110,15 +110,15 @@ Counted as non-blank, non-comment lines of TypeScript/JavaScript/SQL in `src/` (
 
 | Package | Budget |
 |---|---|
-| bundle | 2,250 |
-| core | 1,210 |
+| bundle | 2,475 |
+| core | 1,225 |
 | store | 2,070 |
 | sync | 765 |
-| server | 3,270 |
-| web | 5,810 |
-| cli (incl. MCP, deploy) | 3,115 |
+| server | 3,295 |
+| web | 5,840 |
+| cli (incl. MCP, deploy) | 3,385 |
 | playwright | 460 |
-| **Total** | **18,950** |
+| **Total** | **19,515** |
 ## Dependencies
 Runtime dependencies of the published package. Each needs a reason; adding one needs a line here.
 
