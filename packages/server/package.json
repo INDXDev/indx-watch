@@ -9,7 +9,7 @@
     "./worker": "./src/worker.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.9",
+    "@hono/node-server": "^2.1.11",
     "@indx-watch/bundle": "workspace:*",
     "@indx-watch/core": "workspace:*",
     "@indx-watch/store": "workspace:*",
