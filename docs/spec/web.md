@@ -16,7 +16,7 @@ The web app is how testers, leads and customers use INDX Watch without a termina
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ ✓ INDX Watch / Shop   Home  Tests  Activity  Test data  Report   [v1.2.0 ▾]  │
-│                                                  [⇪ Upload] [>_ CLI] (A) ▾   │
+│                                       [⇪ Upload] [>_ CLI] [文A 日本語] (A) ▾ │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                 screen                                       │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -28,8 +28,9 @@ The web app is how testers, leads and customers use INDX Watch without a termina
 | Navigation | Home · Tests · Activity · Test data · Report. Below 720 px it becomes a bottom tab bar. |
 | Scope | One control: the release, with the environment as a second line in its menu. The default is the current release and all environments, like `iw status`. *(v0.4)* When you own at least one feature ([My features](#my-features)), the menu also has **My features / All features**, and the control's second line says "My features" while that is on. |
 | **Upload** | Opens the upload dialog ([Upload](#upload)). Hidden when the server cannot write. |
-| **CLI** | Opens the CLI panel ([CLI panel](#cli-panel)). |
-| Avatar menu | Shows who you are and how that was verified, a "Not you?" link where allowed ([Identity](#identity)), language, theme, and the sync state. Language and theme live here, not in the bar. |
+| **CLI** | Opens the CLI panel ([CLI panel](#cli-panel)). Below 600 px it shows only `>_`. |
+| Language switch | One button named after the other language in that language ("日本語" in English, "English" in Japanese) switches the UI and content language at once. The choice is kept in the browser (`localStorage`, `indx-watch.locale`). Below 600 px it shows only its icon. |
+| Avatar menu | Shows who you are and how that was verified, a "Not you?" link where allowed ([Identity](#identity)), the language as a list, the theme (auto, light, dark), and the sync state. |
 
 Problems from `iw check` appear as one quiet line under the bar ("3 problems in the test files"), which expands on click. They never push the screen down by more than one line.
 
@@ -61,20 +62,22 @@ The Tests filter has a third option, **Flaky** (`#/tests?f=flaky`). It replaces 
 
 Home is calm. It has four blocks, in this order:
 
-1. **Verdict hero.** The release name and title, and one sentence: "Ready to ship", "Not ready: 2 of 8 checks fail" or "Nothing to gate yet". A progress bar shows passing tests out of tests in scope. It has one primary button and one secondary:
+1. **Verdict hero.** The release name and title, and one sentence: "Ready to ship", "Not ready: 2 of 8 checks fail" or "Nothing to gate yet". A progress bar shows passing tests out of the `ready` tests in scope, the ones `counts` and the gate count; drafts are named apart ("7 of 8 tests pass · 2 drafts not counted until approved"). It has one primary button and one secondary:
    - The primary button is **Start testing (n left)**. It opens the Focus runner over the open items: assigned to you first, then unassigned, then the rest.
    - The secondary button is **Share report**.
 2. **Four summary cards.** Each card links to the screen that explains it:
-   - Passing (`6 / 9`)
+   - Passing (`7 / 8`, `ready` test cases only)
    - Needs attention (fail + needs review + blocked)
    - Criteria covered (`8 / 9`)
-   - Last upload (who, when)
-3. **Your queue.** Open plan items assigned to you, then unassigned open items, then everything else. At most 5 rows, with "See all" for the rest. Each row shows status, key, title in the chosen language, and Run, Review or Inspect.
+   - Last upload (who, when); without an upload, **Latest result** (who, when), since results also arrive through sync and CI
+3. **Your queue.** Open plan items assigned to you, then unassigned open items, then everything else. At most 5 rows, with "See all" for the rest. Each row shows status, key, title in the chosen language, a **Draft** chip for a draft test case, and Run, Review or Inspect.
 4. **Recent activity.** The last 5 runs, reviews and uploads, each with an avatar, name, verb and time ("Alex passed TC-3 · 5 min ago").
 
 Gate checks, counts by status and the use case table move to **Release details**, a disclosure at the bottom of Home. Their content does not change ([concepts](concepts.md#readiness-gate)).
 
-**Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases shows `iw new` examples and a "Write test cases with your agent" link to [agents.md](agents.md).
+**Drafts.** A draft test case ([states](concepts.md#test-case-use-case-fixture)) carries a **Draft** chip wherever it is listed: Home's queue, the Tests tree and Flaky list, the plan in Release details, a customer's Home and the test case page. A criterion whose only test cases are drafts reads **No approved test** (the `uncovered` status).
+
+**Empty states.** A hosted app with no snapshot yet shows a full-page drop zone instead of an error. It reads "Drop your `.indx-watch` folder here", with the matching CLI command next to it (`npx indx-watch push`). A project with no test cases (as `iw init` leaves it) shows, on Home under the verdict and on Tests, **No test cases yet** with the two ways to start: ask your coding agent ("Set up testing for this repo", or `/iw-setup` in Claude Code and `$iw-setup` in Codex), or run `npx indx-watch new uc …` and `new tc …` from the terminal, each ready to copy, and a link to the [quickstart](../guides/quickstart.md). Home then has no progress bar, Start testing or Share report.
 
 ### Customer view
 
@@ -83,6 +86,10 @@ Gate checks, counts by status and the use case table move to **Release details**
 ### Visual baselines
 
 *(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
+
+### Reviews
+
+The run viewer ends with a review form: **This run needs a person's decision** on a `needs_review` run, else **Add a review**. A review appends a `judgement` and never edits the run. Under the [decision policy](concepts.md#decision-policy) (rule 1) the latest human judgement decides, whoever wrote it, so on your own run the form reads **Change your verdict** and says that your review counts like anyone else's and that a second opinion needs a teammate.
 
 ### List and Focus
 
@@ -260,7 +267,7 @@ You can upload definitions in three ways:
 
 ## Languages
 
-- **UI strings** come from `messages/{en,ja}.json` ([i18n](i18n.md#ui-locales)).
+- **UI strings** come from `messages/{en,ja}.json` ([i18n](i18n.md#ui-locales)). Counted nouns use ICU plurals (`{count, plural, one {# file} other {# files}}`), picked with the locale's plural rules.
 - **Content** (titles, steps, criteria, fixture names, environment guides, release and plan titles) is resolved with `localize()` everywhere it is shown, including list rows, Home and the CLI panel's titles. Raw `title` fields are never rendered directly.
 - When an item's title uses a `machine` translation, a "Machine translation" switch sits next to the title (once per item, not on every field). Pressing it shows the original text of every content field on the page until it is pressed again. A stale translation shows the source text with a "Translation outdated" badge.
 - The language the tester read is recorded on runs (`locale`) and on reviews (`judgement.locale`).
@@ -268,6 +275,8 @@ You can upload definitions in three ways:
 ## Acceptance criteria
 
 - [x] Home shows the verdict hero, four summary cards, your queue and recent activity. The gate checks are inside Release details (e2e `@TC-12`).
+- [x] With examples/shop, Home says "7 of 8 tests pass · 2 drafts not counted until approved", TC-9 and TC-10 carry a Draft chip in the queue and the Tests tree, and AC-5.1 reads "No approved test"; a project fresh from `iw init` shows "No test cases yet" with `/iw-setup` on Home and Tests (e2e `@TC-12`).
+- [x] The bar's language switch turns the app Japanese and back, and the choice survives a reload (e2e `@TC-12`).
 - [x] In Focus, `→` moves to the next test case and `←` moves back, and "List" returns to `#/tests` (e2e `@TC-12`). Swipes use the same navigation and are not tested automatically.
 - [x] After saving a result in the Focus runner, the next test of the session opens (e2e `@TC-12`).
 - [x] With an `iw_tester` cookie on a local server without `--identity-header`, a manual run's actor is `{ via: "browser" }` with the cookie's id. Without that allowance (behind `--identity-header` or Access) the cookie is ignored (server test, e2e `@TC-13`).

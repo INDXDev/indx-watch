@@ -125,7 +125,7 @@ export function CliPanel({
       label={t('cli.title')}
       button={
         <>
-          <span aria-hidden="true">{'>_'}</span> CLI
+          <span aria-hidden="true">{'>_'}</span> <span className="hide-sm">CLI</span>
         </>
       }
       className="btn btn-ghost"
@@ -140,6 +140,24 @@ export function CliPanel({
         </div>
       )}
     </Popover>
+  );
+}
+
+/** The bar's one-click language switch: shows the other language by its own name (docs/spec/web.md#layout). */
+export function LanguageSwitch() {
+  const { t, locale, setLocale } = useI18n();
+  const [other, name] = locale === 'ja' ? (['en', 'English'] as const) : (['ja', '日本語'] as const);
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost"
+      lang={other}
+      title={t('prefs.switchTo', { language: name })}
+      aria-label={t('prefs.switchTo', { language: name })}
+      onClick={() => setLocale(other)}
+    >
+      <span aria-hidden="true">文A</span> <span className="hide-sm">{name}</span>
+    </button>
   );
 }
 

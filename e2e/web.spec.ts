@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { serve, shopCopy } from './helpers';
+import { iw, serve, shopCopy, tempDir } from './helpers';
 
 // docs/spec/web.md: Home, List and Focus, Focus runner sessions, the CLI panel, bilingual content
 test('step through tests and run a session', { tag: ['@TC-12'] }, async ({ page, context }) => {
@@ -216,3 +216,48 @@ function records(dir: string) {
     .filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(join(root, f), 'utf8')));
 }
+
+// docs/spec/web.md#home: drafts named apart, the bar's language switch, and the empty project
+test('first run: drafts, language switch and an empty project', { tag: ['@TC-12'] }, async ({ page }) => {
+  const shop = await serve(shopCopy());
+  try {
+    await test.step('1. Home counts ready tests and labels drafts', async () => {
+      await page.goto(shop.url);
+      await expect(page.getByText('7 of 8 tests pass · 2 drafts not counted until approved')).toBeVisible();
+      const draft = page.locator('.queue-item', { hasText: 'TC-9' });
+      await expect(draft.getByText('Draft', { exact: true })).toBeVisible();
+    });
+    await test.step('2. the Tests tree labels drafts and their criterion', async () => {
+      await page.goto(`${shop.url}#/tests`);
+      await expect(page.getByText('3 features · 5 use cases · 9 acceptance criteria')).toBeVisible();
+      await expect(page.locator('.tc-chip', { hasText: 'TC-9' }).getByText('Draft')).toBeVisible();
+      const ac = page.locator('.tree-ac', { hasText: 'AC-5.1' });
+      await expect(ac.getByText('No approved test')).toBeVisible();
+    });
+    await test.step('3. the language switch turns the app Japanese and back, across a reload', async () => {
+      await page.getByRole('button', { name: 'Switch the language to 日本語' }).click();
+      await expect(page.getByRole('heading', { name: 'テスト', exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'テスト', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: '表示言語をEnglishに切り替える' }).click();
+      await expect(page.getByRole('heading', { name: 'Tests', exact: true })).toBeVisible();
+    });
+  } finally {
+    shop.stop();
+  }
+  const dir = tempDir();
+  iw(['init', '--no-agents'], { cwd: dir });
+  const empty = await serve(dir);
+  try {
+    await test.step('4. a project fresh from iw init shows how to start', async () => {
+      await page.goto(empty.url);
+      await expect(page.getByRole('heading', { name: 'No test cases yet' })).toBeVisible();
+      await expect(page.getByText('/iw-setup')).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Share report' })).toBeHidden();
+      await page.goto(`${empty.url}#/tests`);
+      await expect(page.getByRole('heading', { name: 'No test cases yet' })).toBeVisible();
+    });
+  } finally {
+    empty.stop();
+  }
+});

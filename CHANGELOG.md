@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Web app first run: a project without test cases shows "No test cases yet" on Home and Tests with the two ways to start (ask your agent, `/iw-setup` or `$iw-setup`, or `npx indx-watch new uc …`) and a quickstart link; draft test cases carry a Draft chip wherever they are listed and a criterion with only drafts reads "No approved test"; Home counts ready tests like the gate ("7 of 8 tests pass · 2 drafts not counted until approved"); without an upload the fourth card shows the latest result; the bar has a language switch; on your own run the review form explains that your review changes your verdict; UI strings use ICU plurals ("1 feature").
+
 - `pnpm screenshots` regenerates the docs screenshots in `docs/images/` from the web app with `examples/shop` and its sample results; the guides use them instead of hand-made images.
 
 - Sharing test data and secrets like a shared drive: fixtures and secrets are shared with the whole team or only with listed emails and `group:` names (`shared_with`; leads always have access). The Test data screen gains a Share dialog, "Who has access" per item, a Secrets tab and, for leads, an Access tab that shows everything one email can open and why. On the hosted app with roles, people see only the data shared with them (T-411).

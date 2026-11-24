@@ -8,6 +8,7 @@ import { api, type SpecTree } from '../api';
 import { useI18n } from '../i18n';
 import { href, navigate } from '../router';
 import { Badge, Chip, Focus, Icon, Load, Priority, Seg, Tx, txt, useApi, ViewSwitch } from '../ui';
+import { GetStarted } from './Home';
 import { SessionBar } from './runner/sections';
 import { TestCaseView } from './TestCase';
 
@@ -122,6 +123,13 @@ function Tree({ tree, filter }: { tree: SpecTree; filter: Filter }) {
   const first = testOrder(tree, filter)[0];
   const ucs = tree.features.flatMap((f) => f.useCases);
   const features = visibleFeatures(tree, filter, q.trim().toLowerCase(), locale);
+  if (!allTestCases(tree).length && !ucs.length)
+    return (
+      <>
+        <h1>{t('specs.title')}</h1>
+        <GetStarted />
+      </>
+    );
   return (
     <>
       <div className="page-head">
@@ -189,6 +197,7 @@ function Quarantine({ tree, needle }: { tree: SpecTree; needle: string }) {
             <span className="key">{x.key}</span> <Tx of={x} field="title" />
           </a>
           <span className="queue-actions">
+            {x.lifecycle === 'draft' && <Chip tone="warn">{t('tc.draft')}</Chip>}
             <strong>{Math.round(x.flaky!.rate * 100)}%</strong>
             <span className="muted">{t('specs.flakes', x.flaky)}</span>
           </span>
@@ -260,6 +269,7 @@ function CriterionNode({ c, filter }: { c: UseCase['criteria'][number]; filter: 
           <a key={x.key} className={`tc-chip s-${x.status}`} href={href.testCase(x.key, query(filter))}>
             <Icon status={x.status} />
             <span className="key">{x.key}</span> <Tx of={x} field="title" /> <Chip>{x.mode}</Chip>
+            {x.lifecycle === 'draft' && <Chip tone="warn">{t('tc.draft')}</Chip>}
             <span className="sr">{t(`status.${x.status}`)}</span>
           </a>
         ))}

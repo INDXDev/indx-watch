@@ -9,7 +9,7 @@ describe('messages', () => {
   });
 
   it('every message is non-empty and uses the same placeholders in both locales', () => {
-    const vars = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    const vars = (s: string) => [...s.matchAll(/\{(\w+)(?:\}|, plural,)/g)].map((m) => m[1]).sort();
     for (const [k, v] of Object.entries(en)) {
       const other = (ja as Record<string, string>)[k]!;
       expect(v.trim(), k).not.toBe('');
@@ -51,6 +51,15 @@ describe('t()', () => {
   it('fills placeholders and keeps unknown ones', () => {
     expect(t('en', 'runner.progress', { done: 1, total: 2 })).toBe('1 of 2 steps recorded');
     expect(t('ja', 'runner.progress', { done: 1 })).toBe('{total} 手順中 1 手順を記録済み');
+  });
+  it('picks ICU plural forms by the locale and fills # with the number', () => {
+    const summary = (features: number) => t('en', 'specs.summary', { features, useCases: 0, criteria: 1 });
+    expect(summary(1)).toBe('1 feature · 0 use cases · 1 acceptance criterion');
+    expect(summary(3)).toBe('3 features · 0 use cases · 1 acceptance criterion');
+    expect(t('ja', 'specs.summary', { features: 1, useCases: 0, criteria: 1 })).toBe(
+      '機能 1 · ユースケース 0 · 完了条件 1',
+    );
+    expect(t('en', 'specs.summary')).toContain('{features, plural,');
   });
   it('falls back to the key for unknown keys', () => {
     expect(t('en', 'no.such.key' as never)).toBe('no.such.key');
