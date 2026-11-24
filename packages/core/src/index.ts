@@ -8,6 +8,16 @@ import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 export { decide, runFacts } from './decide.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
+/** issueUrl, repoOfRemote, parseIssueUrl: prefilled GitHub issues (docs/spec/integrations.md#github-issues). */
+export {
+  FAILURE_TEMPLATE,
+  ISSUE_URL_MAX,
+  type IssueInput,
+  type IssueLink,
+  issueUrl,
+  parseIssueUrl,
+  repoOfRemote,
+} from './issue.js';
 /**
  * buildModel(bundle, records): unknown/invalid records are skipped and reported.
  * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
