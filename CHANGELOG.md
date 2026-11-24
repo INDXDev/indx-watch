@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /api/report` and `POST /api/shares` refuse an unknown `evidence` value with 400; before, any value but `links` passed the share-link check and was rendered as evidence links, which a share link cannot serve.
+- `PATCH /api/fixtures/<FX>` answers 400 when `table.rows` is not a list of lists, instead of 500.
+- `GET /api/store/list` clamps `limit` to a whole number from 1 to 1000; zero, negative and fractional limits reached the object store.
+- `iw --dir x <unknown command> --json` names the unknown command in its error envelope, not the value of `--dir`.
+- The Test data page shows an error and re-enables its forms when a picked file cannot be read; the test case editor disables Save while it saves, so a double click no longer sends two edits.
+
 ## [0.1.2] - 2026-11-24
 
 ### Fixed
