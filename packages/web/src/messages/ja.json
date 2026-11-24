@@ -29,6 +29,7 @@
   "prefs.theme.auto": "配色: 自動",
   "prefs.theme.light": "配色: ライト",
   "prefs.theme.dark": "配色: ダーク",
+  "readOnly.notice": "これは読み取り専用のデモです。テストを実行するには INDX Watch をインストールしてください:",
   "problems.title": "仕様ファイルに {count} 件の問題があります",
   "footer.you": "ログイン中:",
   "footer.local": "ローカルモード",

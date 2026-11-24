@@ -157,6 +157,11 @@ function Shell({ info, reload }: { info: ProjectInfo; reload(): void }) {
           <AccountMenu info={info} theme={theme} onTheme={nextTheme} onIdentity={() => setWho(true)} />
         </div>
       </header>
+      {info.readOnly && (
+        <p className="problems" role="note">
+          {t('readOnly.notice')} <code>npx indx-watch init</code>
+        </p>
+      )}
       {info.problems.length > 0 && (
         <div className="problems" role="status">
           <button

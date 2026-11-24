@@ -29,6 +29,7 @@
   "prefs.theme.auto": "Theme: auto",
   "prefs.theme.light": "Theme: light",
   "prefs.theme.dark": "Theme: dark",
+  "readOnly.notice": "This is a read-only demo. Install INDX Watch to run tests:",
   "problems.title": "{count} problem(s) in the spec files",
   "footer.you": "Signed in as",
   "footer.local": "Local mode",
