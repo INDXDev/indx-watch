@@ -259,6 +259,7 @@ function Steps({ d }: { d: TestCaseDetail }) {
               <p className="instruction">
                 <Kw on={bdd} k="when" />
                 <Tx of={s} field="instruction" values={values} />
+                {s.from && <Chip>{t('ss.from', { key: s.from })}</Chip>}
               </p>
               <p className="expected">
                 <span className={bdd ? 'label gwt' : 'label'}>{t(bdd ? 'bdd.then' : 'tc.expected')}</span>{' '}

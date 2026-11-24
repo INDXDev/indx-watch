@@ -148,6 +148,20 @@ describe('workspace mode: local editing', () => {
     expect(a.written).toEqual([]);
   });
 
+  it('refuses a steps edit of a test case that uses shared steps; a title edit still saves with the use kept', async () => {
+    const a = await local(true);
+    const tc8 = (body: unknown) => req('/api/test-cases/TC-8', { method: 'PATCH', json: body });
+    const detail = (await (await a.app.fetch(req('/api/test-cases/TC-8'))).json()) as TestCaseDetail;
+    expect(detail.data.steps[1]).toMatchObject({ from: 'SS-1', fromFirst: true });
+    const steps = detail.data.steps.map(({ instruction, expected }) => ({ instruction, expected }));
+    const refused = await a.app.fetch(tc8({ steps }));
+    expect(refused.status).toBe(400);
+    expect(await refused.text()).toContain('shared steps');
+    expect((await a.app.fetch(tc8({ title: 'Wrong password is not accepted' }))).status).toBe(201);
+    const file = [...a.wrote.keys()].find((p) => p.includes('TC-8'))!;
+    expect(dec.decode(a.wrote.get(file)!)).toContain('use = "SS-1"');
+  });
+
   it('refuses edits in git mode', async () => {
     const a = await local(false);
     expect((await a.app.fetch(patch(EDIT))).status).toBe(409);

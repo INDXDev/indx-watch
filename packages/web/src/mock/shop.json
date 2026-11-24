@@ -589,7 +589,9 @@
               "status": "machine",
               "source_hash": "a033d251ac7d"
             }
-          }
+          },
+          "from": "SS-1",
+          "fromFirst": true
         }
       ],
       "judges": [
