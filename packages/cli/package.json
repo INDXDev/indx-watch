@@ -46,8 +46,8 @@
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node scripts/copy-assets.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.11.0",
-    "@hono/node-server": "^2.1.9",
+    "@anthropic-ai/sdk": "^1.12.0",
+    "@hono/node-server": "^2.1.11",
     "@modelcontextprotocol/server": "^2.4.0",
     "aws4fetch": "^1.0.20",
     "citty": "^0.2.2",
