@@ -1,0 +1,38 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M8742CZY44KX27F3YHJACY0Q"
+key = "TC-19"
+title = "init --github writes the workflows once"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1"]
+mode = "manual"
+
+[[steps]]
+instruction = "In an empty directory run npx indx-watch init app --github --no-agents"
+expected = "The two workflows exist under app/.github/workflows and two secret names are printed"
+
+[steps.i18n.ja]
+instruction = "空のディレクトリで npx indx-watch init app --github --no-agents を実行する"
+expected = "app/.github/workflows に 2 つのワークフローができ、シークレット名が 2 つ表示される"
+status = "machine"
+source_hash = "000ffdd0c8d7"
+
+[[steps]]
+instruction = "Edit indx-watch.yml and run the command again"
+expected = "Nothing is rewritten and the edit is still there"
+
+[steps.i18n.ja]
+instruction = "indx-watch.yml を編集してもう一度実行する"
+expected = "何も書き換えられず、編集がそのまま残る"
+status = "machine"
+source_hash = "7b1d5ba78a05"
+
+[i18n.ja]
+title = "init --github はワークフローを一度だけ書く"
+status = "machine"
+source_hash = "5139456ed7c2"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:51:23Z

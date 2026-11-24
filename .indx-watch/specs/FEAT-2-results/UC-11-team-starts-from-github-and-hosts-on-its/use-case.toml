@@ -1,0 +1,53 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M87426G7QDCHSRSBQXE35ZB9"
+key = "UC-11"
+title = "Team starts from GitHub and hosts on its own Cloudflare account"
+status = "draft"
+origin = "ai"
+actor = "Developer"
+goal = "Set up CI, PR comments and a deployed app from one command"
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M87426G7QDCHSRSBQXE35ZB7"
+key = "AC-11.1"
+text = "iw init --github writes the check and deploy workflows once and never overwrites them"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:51:17Z
+
+[criteria.i18n.ja]
+text = "iw init --github はチェックとデプロイのワークフローを一度だけ書き、上書きしない"
+status = "machine"
+source_hash = "78877435d636"
+
+[[criteria]]
+id = "ac_01M87426G7QDCHSRSBQXE35ZB8"
+key = "AC-11.2"
+text = "A pull request comment lists the test cases it adds, changes or removes"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:51:17Z
+
+[criteria.i18n.ja]
+text = "プルリクエストのコメントに、追加・変更・削除されたテストケースが並ぶ"
+status = "machine"
+source_hash = "4715dccb5acd"
+
+[i18n.ja]
+title = "チームは GitHub から始め、自分の Cloudflare アカウントで運用する"
+actor = "開発者"
+goal = "1 つのコマンドで CI・PR コメント・デプロイ済みアプリを整える"
+status = "machine"
+source_hash = "fe577415f02b"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:51:17Z

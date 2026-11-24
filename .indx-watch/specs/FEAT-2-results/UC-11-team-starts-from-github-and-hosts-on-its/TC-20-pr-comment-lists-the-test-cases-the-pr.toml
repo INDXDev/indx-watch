@@ -1,0 +1,38 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M8742DFW6ECK06Z9E85W8CG4"
+key = "TC-20"
+title = "PR comment lists the test cases the PR changes"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.2"]
+mode = "manual"
+
+[[steps]]
+instruction = "Open a pull request that edits one step of a test case"
+expected = "The comment has Test cases changed in this PR with the test case under Changed (steps)"
+
+[steps.i18n.ja]
+instruction = "テストケースの手順を 1 つ変更するプルリクエストを開く"
+expected = "コメントの「Test cases changed in this PR」で、そのテストケースが Changed（steps）にある"
+status = "machine"
+source_hash = "e0feb6afcd16"
+
+[[steps]]
+instruction = "Push a commit that removes that test case"
+expected = "The comment lists it under Removed"
+
+[steps.i18n.ja]
+instruction = "そのテストケースを削除するコミットをプッシュする"
+expected = "コメントの Removed に載る"
+status = "machine"
+source_hash = "b47a24597755"
+
+[i18n.ja]
+title = "PR コメントにその PR で変わったテストケースが並ぶ"
+status = "machine"
+source_hash = "36da33ea9fd9"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:51:24Z
