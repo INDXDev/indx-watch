@@ -146,6 +146,8 @@ export interface ProjectInfo {
   team?: import('@indx-watch/bundle').Roles;
   /** (v0.3) the role of this identity (docs/spec/security.md#roles); `lead` where no roles are configured */
   role?: import('@indx-watch/bundle').Role;
+  /** (v0.5) a public deploy: anonymous viewers only, every write refused (docs/spec/security.md#public-deploys) */
+  readOnly?: true;
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
 }

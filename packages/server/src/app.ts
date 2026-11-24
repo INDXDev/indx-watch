@@ -50,7 +50,12 @@ export interface ServerDeps extends AppDeps {
   secretsKey?: string;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
+  /** a public deploy: every request but GET, HEAD and `/mcp` answers 403 (docs/spec/security.md#public-deploys) */
+  readOnly?: boolean;
 }
+
+/** The answer to a write on a public deploy. */
+export const READ_ONLY = 'This is a read-only demo. Install INDX Watch to run tests: npx indx-watch init';
 
 /** The browser-declared tester from the `iw_tester` cookie, if valid. Pure; tested. */
 export function declaredTester(cookie: string | null | undefined): B.Actor | undefined {
@@ -165,6 +170,9 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   app.use('*', async (c, next) => {
     const refused = crossSite(c.req.raw);
     if (refused) throw new HttpError(403, 'forbidden', refused);
+    // /mcp posts JSON-RPC for reads too: its write tools check the `viewer` role
+    if (x.deps.readOnly && !['GET', 'HEAD'].includes(c.req.method) && c.req.path !== '/mcp')
+      throw new HttpError(403, 'read-only', READ_ONLY);
     // without Access: /healthz, /api/sign (GitHub OIDC token instead) and share links (docs/spec/security.md)
     if (deps.mode === 'hosted' && !/^\/(healthz|api\/sign|s\/[^/]+)$/.test(c.req.path)) {
       const { role } = await x.grant(c);

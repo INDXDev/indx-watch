@@ -264,7 +264,9 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
   const objects = r2ObjectStore(env.STORE, env.STORE_PREFIX);
   const [store, index] = [S.createResultStore(objects), d1Index(env.DB)];
   const access = env.ACCESS_TEAM && env.ACCESS_AUD ? { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD } : null;
-  const identity = env.PUBLIC === 'true' ? anon : access && accessIdentity(access);
+  // a public deploy is read-only: anonymous viewers, no secrets (docs/spec/security.md#public-deploys)
+  const open = env.PUBLIC === 'true';
+  const identity = open ? anon : access && accessIdentity(access);
   const ingested = { at: 0 };
   const pinned = pinnedKeys(env);
   const { trust } = pinned;
@@ -299,15 +301,15 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
     putBlob: (data, type) => sha256Hex(data).then((sha) => store.putBlob(sha, data, type).then(() => sha)),
     getBlob: (sha) => store.getBlob(sha),
     identity: identity ?? anon,
-    roles: identity && identity !== anon ? pinnedRoles(env) : undefined,
-    secretsKey: env.IW_SECRETS_KEY,
+    roles: open ? { default: 'viewer' } : identity ? pinnedRoles(env) : undefined,
+    readOnly: open,
+    secretsKey: open ? undefined : env.IW_SECRETS_KEY,
     accessPolicy: S.cloudflareAccessPolicy(env as unknown as Record<string, string | undefined>),
     objects,
     onLogObject: async (key) => void (await ingest((await store.readLog(key)).records, key)),
     syncInfo: () => ({ configured: true, store: objects.url, lastSyncAt: new Date(ingested.at).toJSON() }),
     assets: (request) => env.ASSETS.fetch(request),
     readFile: async (path) => view.files.get(path) ?? null,
-    declaredIdentity: env.PUBLIC === 'true',
     records: () => index.records(),
     bundleFiles: async () => {
       await loadModel().catch(() => undefined); // opens the newest snapshot; none yet → empty

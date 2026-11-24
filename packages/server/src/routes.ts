@@ -144,6 +144,7 @@ async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ct
       secrets: !!deps.secretsKey,
     },
     ...(!customer && deps.roles && { team: deps.roles }),
+    ...(deps.readOnly && { readOnly: true }),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
   };
   return c.json(info);

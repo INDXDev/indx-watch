@@ -393,7 +393,7 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 |---|---|
 | `--dry-run` | Print the resources and the exact `wrangler` commands, change nothing |
 | `--name <worker>` | Overrides `[hosting].name` |
-| `--public` | Allow deploying without Cloudflare Access (not recommended) |
+| `--public` | Allow deploying without Cloudflare Access: a read-only demo, *(v0.5)* anonymous visitors can only read ([public deploys](security.md#public-deploys)) |
 
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
 

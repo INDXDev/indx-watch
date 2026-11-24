@@ -135,7 +135,9 @@ export function SecretValue({ secretRef }: { secretRef: string }) {
   const { t } = useI18n();
   const [value, setValue] = useState<string>();
   const [error, setError] = useState('');
-  if (!secretRef.startsWith('iw:')) return <code>{secretRef}</code>;
+  const { project } = useApp();
+  // without IW_SECRETS_KEY (and on a read-only demo) there is no value to show
+  if (!secretRef.startsWith('iw:') || !project.can.secrets) return <code>{secretRef}</code>;
   const name = secretRef.slice(3);
   const show = () =>
     api.revealSecret(name).then(
