@@ -1,0 +1,43 @@
+# Written by `iw init --github` (docs/guides/github-actions.md). Edit freely; `iw init --github` never overwrites it.
+name: indx-watch
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # the PR comment
+  checks: write # the check run
+
+jobs:
+  indx-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+      # Runs of this job belong to the release the project is working on.
+      - name: Read the current release
+        run: echo "IW_RELEASE=$(sed -n 's/^current_release *= *"\(.*\)"/\1/p' .indx-watch/project.toml)" >> "$GITHUB_ENV"
+      - name: Check the test definitions
+        run: npx --yes indx-watch check
+      - name: Install browsers
+        if: ${{ hashFiles('playwright.config.*') != '' }}
+        run: npx playwright install --with-deps chromium
+      - name: Playwright tests (the reporter records runs, see docs/guides/playwright.md)
+        if: ${{ hashFiles('playwright.config.*') != '' }}
+        run: npx playwright test
+        env:
+          IW_CHECK_RUN_ID: ${{ job.check_run_id }}
+      - name: INDX Watch summary, PR comment and check run
+        uses: INDXDev/indx-watch@v0
+        if: ${{ !cancelled() }}
+        with:
+          comment: true
+          check: true

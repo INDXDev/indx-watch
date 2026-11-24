@@ -65,6 +65,7 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 | `--locale <en\|ja>` | `en` | Source locale |
 | `--example` | | Copy the `examples/shop` bundle instead of an empty one |
 | `--no-agents` | | Skip the agent setup below |
+| `--github` | | *(v0.5)* Also write the GitHub files below. Works in an existing project too: only the GitHub files are written, and `init` then exits 0 instead of 1 |
 
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
@@ -74,7 +75,17 @@ The text output ends with next steps that run as printed: with agents, open Clau
 
 When `dir` already has `.indx-watch/project.toml`, `init` changes nothing and exits 1 (`CONFLICT`) with "Already set up. To refresh the agent files: npx indx-watch skills install".
 
-`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] } }` (`agents` is the `iw skills install` data)
+**`--github`** *(v0.5)* writes, relative to the git root (or `dir`), only the files that are missing and never overwrites one:
+
+| File | What it does |
+|---|---|
+| `.github/workflows/indx-watch.yml` | On pull requests and pushes to `main`: `iw check`, Playwright with the reporter (skipped without a `playwright.config.*`), then the [Action](./integrations.md#github-action) with `comment` and `check` (including [the test cases the PR changes](./integrations.md#github-action)); the release is read from `project.toml` |
+| `.github/workflows/indx-watch-deploy.yml` | On pushes to `main` that touch `.indx-watch/`, `package.json` or the lockfile, and by hand: `iw deploy` when `project.toml` has `[hosting]`, else a notice |
+| `.github/ISSUE_TEMPLATE/indx-watch-*.yml` | The issue forms of GitHub Issues (written by `githubTemplates()`; none until that workstream lands) |
+
+The text output lists the files written and kept and names the repository secrets the deploy workflow reads (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`), never a value. Run it again to see `skipped` and no `secrets`.
+
+`data`: `{ "dir": string, "files": string[], "agents"?: { "installed": string[], "files": string[], "removed": string[] }, "github"?: { "root": string, "written": string[], "skipped": string[], "secrets": string[] } }` (`agents` is the `iw skills install` data; `github` only with `--github`, paths relative to `root`)
 
 ### `iw check`
 
@@ -180,6 +191,12 @@ Suggest the test cases a change touches, from the changed files and each test ca
 | `--base <ref>` | Use `git diff --name-only <ref>...HEAD` (the changes since the branch left `<ref>`), e.g. `--base origin/main` |
 
 `data`: `{ "base": string | null, "changed": string[], "testCases": { "key", "id", "title", "status", "priority", "reasons": { "kind": "automation" \| "definition" \| "fixture", "file": string, "pattern"?: string }[] }[] }`
+
+### `iw diff`
+
+*(v0.5)* List the use cases, criteria and test cases added, changed or removed since a commit, from the [bundle diff](./concepts.md#bundle-diff) of the bundle at `--base` and the bundle in the working tree. `--base <ref>` is required (exit 2); a ref that is not a commit is `EXTERNAL_TOOL` (exit 4). When `HEAD` has a merge base with `<ref>`, that is the commit compared (what a pull request changed); else `<ref>` itself, as in a shallow clone. A base commit without a bundle makes everything added. The human output is the Markdown section "Test cases changed in this PR" with at most 20 lines (the rest is "…and n more"), which the [GitHub Action](./integrations.md#github-action) puts in its PR comment.
+
+`data`: `{ "base": string, "added": Entry[], "changed": Entry[], "removed": Entry[] }` with `Entry = { "kind": "uc" | "ac" | "tc", "key": string, "title": string, "what"?: ("title" | "steps" | "criteria" | "data" | "details")[] }` (`what` only in `changed`).
 
 ### `iw show <ref>`
 
@@ -479,4 +496,6 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
 - [x] No command prompts when stdin is not a TTY.
 - [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.
+- [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
+- [ ] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.
