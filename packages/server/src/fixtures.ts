@@ -105,6 +105,7 @@ async function writeTable(t: Target, table: NonNullable<FixtureInput['table']>, 
   const { columns, rows, row_key } = table;
   if (!Array.isArray(columns) || !columns.length || columns.some((c) => !String(c).trim()))
     throw bad('table: every column needs a name');
+  if (!Array.isArray(rows) || rows.some((r) => !Array.isArray(r))) throw bad('table: rows must be lists');
   const name = [...t.files].find((n) => /\.(csv|json)$/i.test(n)) ?? `${B.slugify(title) || 'data'}.csv`;
   const objects = rows.map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ''])));
   const text = name.endsWith('.json') ? `${JSON.stringify(objects, null, 2)}\n` : toCsv(columns, rows);

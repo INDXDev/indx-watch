@@ -125,6 +125,8 @@ describe('POST, PATCH and DELETE /api/fixtures', () => {
     expect(used.status).toBe(400);
     const bad = { add: [{ name: '../x.pdf', data: b64(PDF) }] };
     expect((await e.app.fetch(send('PATCH', '/api/fixtures/FX-2', bad))).status).toBe(400);
+    const rows = { table: { columns: ['k'], rows: null } };
+    expect((await e.app.fetch(send('PATCH', '/api/fixtures/FX-1', rows))).status).toBe(400);
     const secret = { kind: 'account', title: 'Demo', account: { username: 'u', secret_ref: 'hunter2' } };
     expect((await e.app.fetch(send('POST', '/api/fixtures', secret))).status).toBe(400);
     e.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
