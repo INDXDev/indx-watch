@@ -47,6 +47,26 @@ async function copyExample(ctx: Ctx, fs: iwb.BundleFs, dir: string, target: stri
   return { data: { dir, files }, text };
 }
 
+/** The plan of `iw invite`, once the email and the project's roles allow invites. */
+function invitePlan(p: cx.Project, email: string, ref: string) {
+  if (!EMAIL.test(email)) fail('USAGE', `${email} is not an email address`);
+  if (!canInvite(p.bundle.project.data.hosting?.roles))
+    fail('INVALID_CONFIG', 'Invites need [hosting.roles] with no default (docs/spec/security.md#roles)');
+  const key = ref.toUpperCase();
+  return p.bundle.plans.find((x) => x.data.key.toUpperCase() === key) ?? fail('NOT_FOUND', `No plan ${ref}`);
+}
+
+/** Allow or revoke the email in the Cloudflare Access policy: `manual` without one, `kept` while another item names it. */
+async function setAccess(ctx: Ctx, x: { email: string; revoke: boolean; kept: boolean; file: string }) {
+  const policy = cloudflareAccessPolicy(ctx.env);
+  if (!policy) return 'manual';
+  if (x.kept) return 'kept';
+  await (x.revoke ? policy.revoke(x.email) : policy.allow(x.email)).catch((e: Error) =>
+    fail('EXTERNAL_TOOL', `${x.file} was written; ${e.message}`),
+  );
+  return x.revoke ? 'removed' : 'added';
+}
+
 /** How the user ran iw, for the commands we print: `iw`, else `npx indx-watch`. */
 const binOf = () => (/(^|[/\\])iw(\.js)?$/.test(process.argv[1] ?? '') ? 'iw' : 'npx indx-watch');
 
@@ -283,25 +303,14 @@ export const specCommands: Record<string, Spec> = {
       await cx.humanOnly(ctx, 'invite customers');
       const p = await cx.openProject(ctx, a);
       const [email, revoke] = [str(a.email)!, !!a.revoke];
-      if (!EMAIL.test(email)) fail('USAGE', `${email} is not an email address`);
-      if (!canInvite(p.bundle.project.data.hosting?.roles))
-        fail('INVALID_CONFIG', 'Invites need [hosting.roles] with no default (docs/spec/security.md#roles)');
-      const key = str(a.plan)!.toUpperCase();
-      const plan =
-        p.bundle.plans.find((x) => x.data.key.toUpperCase() === key) ??
-        fail('NOT_FOUND', `No plan ${a.plan}`);
+      const plan = invitePlan(p, email, str(a.plan)!);
       const r = inviteItems(plan.data.items ?? [], email, csv(a.items), revoke);
       if (r.missing.length) fail('NOT_FOUND', `Not in ${plan.data.key}: ${r.missing.join(', ')}`);
       if (r.changed.length)
         await iwb.writeDefinition(p.fs, plan.file, 'plan', { ...plan.data, items: r.items });
       const others = [...p.bundle.plans.filter((x) => x !== plan).map((x) => x.data), { items: r.items }];
-      const policy = cloudflareAccessPolicy(ctx.env);
       const kept = revoke && isAssignee(others, email);
-      const access = !policy ? 'manual' : kept ? 'kept' : revoke ? 'removed' : 'added';
-      if (policy && !kept)
-        await (revoke ? policy.revoke(email) : policy.allow(email)).catch((e: Error) =>
-          fail('EXTERNAL_TOOL', `${plan.file} was written; ${e.message}`),
-        );
+      const access = await setAccess(ctx, { email, revoke, kept, file: plan.file });
       const [items, reassigned] = [r.changed, r.reassigned];
       const data = {
         email,
@@ -310,7 +319,8 @@ export const specCommands: Record<string, Spec> = {
         ...{ items, reassigned, revoked: revoke, access },
       };
       const message = `Set IW_ACCESS_POLICY and CLOUDFLARE_API_TOKEN, or ${revoke ? 'remove' : 'add'} ${email} in the Access policy yourself`;
-      const warnings = policy ? [] : [{ severity: 'warning' as const, code: 'access-manual', message }];
+      const warnings =
+        access === 'manual' ? [{ severity: 'warning' as const, code: 'access-manual', message }] : [];
       const verb = revoke ? `Removed ${email} from` : `Invited ${email} to`;
       const moved = reassigned.length ? `; reassigned ${reassigned.join(', ')}` : '';
       const text = `${verb} ${plan.data.key} (${items.join(', ') || 'no item changed'}${moved}); Access policy: ${access}`;

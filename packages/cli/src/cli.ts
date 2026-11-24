@@ -72,27 +72,33 @@ export const problemLine = (p: unknown) => {
 /** Warnings without repeats (a command may open the project twice). */
 export const unique = (ws: Problem[]) => [...new Map(ws.map((w) => [JSON.stringify(w), w])).values()];
 
+const write = (s: string) => process.stdout.write(s.endsWith('\n') ? s : `${s}\n`);
+const err = (s: string) => process.stderr.write(`${s}\n`);
+
+/** The --json envelope of a result or an error. */
+function envelope(name: string, r: Out | CliError, warnings: Problem[]) {
+  if (!(r instanceof CliError)) return { ok: true, command: name, data: r.data, warnings };
+  const { code, message, details, data } = r;
+  const more = warnings.length ? { warnings } : {};
+  return { ok: false, command: name, error: { code, message, details }, data, ...more };
+}
+
+/** Text output: the result (or an error's text) on stdout; warnings, the error and its details on stderr. */
+function printText(r: Out | CliError, warnings: Problem[]) {
+  const failed = r instanceof CliError;
+  if (!failed || r.text) write(r.text ?? JSON.stringify(r.data, null, 2));
+  for (const w of warnings) err(`warning: ${problemLine(w)}`);
+  if (!failed) return;
+  err(`error: ${r.message}`);
+  if (!r.text) for (const d of r.details ?? []) err(`  ${problemLine(d)}`);
+}
+
 /** Print the result: one JSON envelope with --json, text otherwise; set the exit code. `notes`: ctx.notes. */
 export function emit(name: string, json: boolean, r: Out | CliError, notes: Problem[] = []): void {
-  const write = (s: string) => process.stdout.write(s.endsWith('\n') ? s : `${s}\n`);
-  const err = (s: string) => process.stderr.write(`${s}\n`);
   const warnings = unique([...((r instanceof CliError ? [] : r.warnings) ?? []), ...notes]);
-  if (r instanceof CliError) {
-    const { code, message, details, data } = r;
-    const more = warnings.length ? { warnings } : {};
-    if (json)
-      write(JSON.stringify({ ok: false, command: name, error: { code, message, details }, data, ...more }));
-    else if (r.text) write(r.text);
-    if (!json) for (const w of warnings) err(`warning: ${problemLine(w)}`);
-    if (!json) err(`error: ${message}`);
-    if (!json && !r.text) for (const d of details ?? []) err(`  ${problemLine(d)}`);
-    process.exitCode = EXIT_CODES[code];
-    return;
-  }
-  if (json) write(JSON.stringify({ ok: true, command: name, data: r.data, warnings }));
-  else write(r.text ?? JSON.stringify(r.data, null, 2));
-  if (!json) for (const w of warnings) err(`warning: ${problemLine(w)}`);
-  process.exitCode = 0;
+  if (json) write(JSON.stringify(envelope(name, r, warnings)));
+  else printText(r, warnings);
+  process.exitCode = r instanceof CliError ? EXIT_CODES[r.code] : 0;
 }
 
 export function makeCtx(env = process.env as Ctx['env'], cwd = process.cwd()): Ctx {
@@ -123,8 +129,8 @@ function leaf(name: string, spec: Spec, ctx: Ctx): CommandDef {
   });
 }
 
-/** Run `iw` with argv; sets process.exitCode. */
-export async function main(commands: Record<string, Spec>, argv: string[], version: string): Promise<void> {
+/** The root command: one leaf per spec, specs named "group sub" under their group. */
+function commandTree(commands: Record<string, Spec>, version: string) {
   const ctx = makeCtx();
   const tree: Record<string, CommandDef> = {};
   const groups: Record<string, Record<string, CommandDef>> = {};
@@ -136,18 +142,25 @@ export async function main(commands: Record<string, Spec>, argv: string[], versi
   for (const [head, subs] of Object.entries(groups))
     tree[head] = defineCommand({ meta: { name: head, description: GROUPS[head] }, subCommands: subs });
   const description = 'INDX Watch: file-first, agent-native test management';
-  const root = defineCommand({ meta: { name: 'iw', version, description }, subCommands: tree });
+  return { root: defineCommand({ meta: { name: 'iw', version, description }, subCommands: tree }), groups };
+}
+
+/** Usage of the command the words name (the root when none). */
+async function printHelp(root: CommandDef, words: string[]) {
+  let cmd: CommandDef = root;
+  for (const w of words) cmd = (cmd.subCommands as Record<string, CommandDef> | undefined)?.[w] ?? cmd;
+  // leaf names are full ("fixture add"), so the root is the parent of every command: "iw fixture add"
+  const usage = await renderUsage(cmd, cmd === root ? undefined : root);
+  const color = process.stdout.isTTY && !process.env.NO_COLOR;
+  process.stdout.write(`${color ? usage : stripVTControlCharacters(usage)}\n`);
+}
+
+/** Run `iw` with argv; sets process.exitCode. */
+export async function main(commands: Record<string, Spec>, argv: string[], version: string): Promise<void> {
+  const { root, groups } = commandTree(commands, version);
   if (argv[0] === '--version' || argv[0] === '-v') return void console.log(version);
   const words = argv.filter((t) => !t.startsWith('-'));
-  if (!words.length || argv.includes('--help') || argv.includes('-h')) {
-    let cmd: CommandDef = root;
-    for (const w of words) cmd = (cmd.subCommands as Record<string, CommandDef> | undefined)?.[w] ?? cmd;
-    // leaf names are full ("fixture add"), so the root is the parent of every command: "iw fixture add"
-    const usage = await renderUsage(cmd, cmd === root ? undefined : root);
-    const color = process.stdout.isTTY && !process.env.NO_COLOR;
-    process.stdout.write(`${color ? usage : stripVTControlCharacters(usage)}\n`);
-    return;
-  }
+  if (!words.length || argv.includes('--help') || argv.includes('-h')) return printHelp(root, words);
   const name = groups[words[0]!] ? words.slice(0, 2).join(' ') : words[0]!;
   await runCommand(root, { rawArgs: argv }).catch((e) => emit(name, argv.includes('--json'), toError(e)));
 }
