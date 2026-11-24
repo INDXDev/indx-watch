@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M8742DFW6ECK06Z9E85W8CG4"
-key = "TC-20"
+key = "TC-31"
 title = "PR comment lists the test cases the PR changes"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.2"]
+covers = ["AC-14.2"]
 mode = "manual"
 
 [[steps]]

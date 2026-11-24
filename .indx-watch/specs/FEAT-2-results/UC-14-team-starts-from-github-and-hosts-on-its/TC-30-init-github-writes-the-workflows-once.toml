@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M8742CZY44KX27F3YHJACY0Q"
-key = "TC-19"
+key = "TC-30"
 title = "init --github writes the workflows once"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1"]
+covers = ["AC-14.1"]
 mode = "manual"
 
 [[steps]]
