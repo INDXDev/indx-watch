@@ -5,17 +5,27 @@ export const DEMO_URL = 'https://indx-watch-demo.i-248.workers.dev';
 
 export const GITHUB_URL = 'https://github.com/INDXDev/indx-watch';
 export const NPM_URL = 'https://www.npmjs.com/package/indx-watch';
-const docs = (path: string) => `${GITHUB_URL}/blob/main/docs/${path}`;
+const blob = (path: string) => `${GITHUB_URL}/blob/main/${path}`;
+const docs = (path: string) => blob(`docs/${path}`);
 export const DOCS = {
   home: docs('README.md'),
   quickstart: docs('guides/quickstart.md'),
+  journey: docs('guides/journey.md'),
   agents: docs('guides/testing-with-agents.md'),
+  webApp: docs('guides/web-app.md'),
+  fixtures: docs('guides/fixtures.md'),
   playwright: docs('guides/playwright.md'),
+  githubActions: docs('guides/github-actions.md'),
   selfHost: docs('guides/self-host-cloudflare.md'),
+  selfHostNode: docs('guides/self-host-node.md'),
   s3: docs('guides/s3-sync.md'),
   concepts: docs('spec/concepts.md'),
+  reports: docs('spec/reports.md'),
   landscape: docs('research/landscape.md'),
-  license: `${GITHUB_URL}/blob/main/LICENSE`,
+  sampleReport: blob('examples/shop/reports/v1.2.0.md'),
+  changelog: blob('CHANGELOG.md'),
+  security: blob('SECURITY.md'),
+  license: blob('LICENSE'),
 };
 
 /**

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
-/** The install command with a copy button. Without JavaScript the command is still selectable text. */
+/** A command with a copy button. Without JavaScript the command is still selectable text. */
 export function CopyCommand({ command, copy, copied }: { command: string; copy: string; copied: string }) {
   const [done, setDone] = useState(false);
+  const id = useId();
   async function onCopy() {
     try {
       await navigator.clipboard.writeText(command);
     } catch {
-      const range = document.createRange();
-      const node = document.getElementById('install-command');
+      const node = document.getElementById(id);
       if (!node) return;
+      const range = document.createRange();
       range.selectNodeContents(node);
       const selection = window.getSelection();
       selection?.removeAllRanges();
@@ -26,8 +27,8 @@ export function CopyCommand({ command, copy, copied }: { command: string; copy: 
       <span className="prompt" aria-hidden="true">
         $
       </span>
-      <code id="install-command">{command}</code>
-      <button type="button" onClick={onCopy} aria-label={`${copy}: ${command}`}>
+      <code id={id}>{command}</code>
+      <button type="button" onClick={onCopy} aria-label={`${copy}: ${command}`} title={done ? copied : copy}>
         {done ? (
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M3 8.5l3 3L13 4.5" />
@@ -38,7 +39,6 @@ export function CopyCommand({ command, copy, copied }: { command: string; copy: 
             <path d="M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5" />
           </svg>
         )}
-        <span>{done ? copied : copy}</span>
       </button>
       <span className="visually-hidden" aria-live="polite">
         {done ? copied : ''}

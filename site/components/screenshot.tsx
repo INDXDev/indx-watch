@@ -19,44 +19,19 @@ export function imageSize(name: string): { width: number; height: number } | nul
   }
 }
 
-export function hasImage(name: string): boolean {
-  return imageSize(name) !== null;
-}
-
-/** A screenshot in a browser frame, cropped to the top of the page. Renders nothing if the file is missing. */
-export function Screenshot({
-  name,
-  alt,
-  priority = false,
-  className,
-}: {
-  name: string;
-  alt: string;
-  priority?: boolean;
-  className?: string;
-}) {
+/** A screenshot in a browser frame, cropped to its top. Renders nothing if the file is missing. */
+export function Screenshot({ name, alt }: { name: string; alt: string }) {
   const size = imageSize(name);
   if (!size) return null;
-  const phone = size.width < 600;
   return (
-    <div className={`shot ${phone ? 'shot-phone' : ''} ${className ?? ''}`}>
-      {!phone && (
-        <div className="shot-bar" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </div>
-      )}
-      <div className="shot-view">
-        <img
-          src={`/images/${name}`}
-          alt={alt}
-          width={size.width}
-          height={size.height}
-          loading={priority ? 'eager' : 'lazy'}
-          fetchPriority={priority ? 'high' : 'auto'}
-          decoding="async"
-        />
+    <div className="frame">
+      <div className="frame-bar" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className="frame-view">
+        <img src={`/images/${name}`} alt={alt} width={size.width} height={size.height} loading="lazy" decoding="async" />
       </div>
     </div>
   );

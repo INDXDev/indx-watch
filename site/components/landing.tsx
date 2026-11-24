@@ -1,45 +1,34 @@
 /**
- * The landing page, in either language: site chrome around the sections in components/landing/. All words
- * come from the Content object (content/en.ts, content/ja.ts).
+ * The landing page, in either language. Section order and the reference each section follows:
+ * site/DESIGN.md. All words come from the Content object (content/en.ts, content/ja.ts).
  */
 import type { Content } from '@/content/types';
-import { Agents, Roles } from './landing/agents';
 import { SiteFooter, SiteHeader } from './landing/chrome';
-import { Cta, Hero, Problem } from './landing/hero';
-import { How } from './landing/how';
-import { Compare, Dx, Faq, Gallery, SelfHost } from './landing/product';
+import { Features } from './landing/features';
+import { Hero } from './landing/hero';
+import { Roles } from './landing/roles';
+import { Agents, Closing, Compare, Faq, OpenSource, Start, Strengths, Why, WorksWith } from './landing/sections';
+import { RoleProvider } from './role';
 
-/** The whole landing page for the language of `t`. */
 export function Landing({ t }: { t: Content }) {
   return (
-    <>
+    <RoleProvider>
       <SiteHeader t={t} />
-
       <main id="main">
         <Hero t={t} />
-
-        <Problem t={t} />
-
-        <How t={t} />
-
+        <WorksWith t={t} />
+        <Features t={t} />
         <Roles t={t} />
-
+        <Why t={t} />
         <Agents t={t} />
-
-        <Dx t={t} />
-
-        <Gallery t={t} />
-
+        <Strengths t={t} />
+        <OpenSource t={t} />
         <Compare t={t} />
-
-        <SelfHost t={t} />
-
+        <Start t={t} />
         <Faq t={t} />
-
-        <Cta t={t} />
+        <Closing t={t} />
       </main>
-
       <SiteFooter t={t} />
-    </>
+    </RoleProvider>
   );
 }
