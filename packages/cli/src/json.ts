@@ -80,6 +80,24 @@ const AGENT_SETUP = z.object({ installed: PATHS, files: PATHS, removed: PATHS })
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
 /** `data` shape per command. */
+/** (v0.5) PatchData: the patches, the files each touches, which are refused or do not apply, and the build */
+const PATCH = z.object({
+  action: z.enum(['create', 'apply', 'check']),
+  base: z.string(),
+  to: z.string().nullable(),
+  patches: z.array(
+    z.object({
+      file: z.string(),
+      files: z.array(z.string()),
+      refused: z.array(z.string()),
+      applies: z.boolean().nullable(),
+    }),
+  ),
+  conflicts: z.array(z.string()),
+  patch_hash: z.string().nullable(),
+  dist: z.string().nullable(),
+});
+
 export const CommandData = {
   init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
   check: z.object({
@@ -251,6 +269,10 @@ export const CommandData = {
     commands: z.array(z.string()),
     url: z.string().nullable(),
   }),
+  /** iw patch create | apply | check */
+  'patch create': PATCH,
+  'patch apply': PATCH,
+  'patch check': PATCH,
   reindex: z.object({ records: z.number(), definitions: z.number(), ms: z.number() }),
   migrate: z.object({ from: z.number(), to: z.number(), changed: z.array(z.string()) }),
   'skills install': AGENT_SETUP,
