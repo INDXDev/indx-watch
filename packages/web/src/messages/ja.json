@@ -552,7 +552,7 @@
   "insights.runs": "件数",
   "insights.dur.s": "{s}秒",
   "insights.dur.ms": "{m}分{s}秒",
-  "insights.flakyTitle": "リリースごとの不安定なテストケース"
+  "insights.flakyTitle": "リリースごとの不安定なテストケース",
   "ss.from": "{key} から",
   "ss.editNote": "共有ステップから来ているステップがあります。ステップは作業コピーの共有ステップのファイル（steps/SS-n-….toml）で編集してください。タイトルと優先度はここで保存できます。",
   "assign.board": "担当の状況",

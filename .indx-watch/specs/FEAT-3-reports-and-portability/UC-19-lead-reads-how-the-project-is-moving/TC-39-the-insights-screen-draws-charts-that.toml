@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874DB3043ZQ08YHZTSJCJ5H"
-key = "TC-20"
+key = "TC-39"
 title = "The Insights screen draws charts that come with their numbers"
 status = "draft"
 origin = "ai"
-covers = ["AC-12.1", "AC-12.2"]
+covers = ["AC-19.1", "AC-19.2"]
 priority = "P2"
 mode = "manual"
 

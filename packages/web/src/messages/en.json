@@ -552,7 +552,7 @@
   "insights.runs": "Runs",
   "insights.dur.s": "{s} s",
   "insights.dur.ms": "{m} min {s} s",
-  "insights.flakyTitle": "Flaky test cases by release"
+  "insights.flakyTitle": "Flaky test cases by release",
   "ss.from": "from {key}",
   "ss.editNote": "Some steps come from a shared step. Edit the steps in the shared step file (steps/SS-n-….toml) in a working copy; the title and priority can still be saved here.",
   "assign.board": "Who has what",

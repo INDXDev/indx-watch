@@ -1,7 +1,7 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
 
 id = "uc_01M874D367G745BR8B71WA3FSQ"
-key = "UC-11"
+key = "UC-18"
 title = "Team hears about changes in Slack"
 status = "draft"
 origin = "ai"
@@ -11,7 +11,7 @@ priority = "P2"
 
 [[criteria]]
 id = "ac_01M874D367G745BR8B71WA3FSM"
-key = "AC-11.1"
+key = "AC-18.1"
 text = "iw notify posts one Slack message for what changed since the last run and nothing for an unchanged project"
 status = "draft"
 origin = "ai"
@@ -27,7 +27,7 @@ source_hash = "23b56100194c"
 
 [[criteria]]
 id = "ac_01M874D367G745BR8B71WA3FSN"
-key = "AC-11.2"
+key = "AC-18.2"
 text = "The first run only saves a baseline and sends nothing"
 status = "draft"
 origin = "ai"
@@ -43,7 +43,7 @@ source_hash = "2b573b897776"
 
 [[criteria]]
 id = "ac_01M874D367G745BR8B71WA3FSP"
-key = "AC-11.3"
+key = "AC-18.3"
 text = "The webhook is read from an env: reference and never printed"
 status = "draft"
 origin = "ai"

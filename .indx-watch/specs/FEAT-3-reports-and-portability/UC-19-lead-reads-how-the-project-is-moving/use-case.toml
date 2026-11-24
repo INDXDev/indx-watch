@@ -1,7 +1,7 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
 
 id = "uc_01M874D3QTF15P17C1RFECE82C"
-key = "UC-12"
+key = "UC-19"
 title = "Lead reads how the project is moving"
 status = "draft"
 origin = "ai"
@@ -11,7 +11,7 @@ priority = "P2"
 
 [[criteria]]
 id = "ac_01M874D3QTF15P17C1RFECE82A"
-key = "AC-12.1"
+key = "AC-19.1"
 text = "The Insights screen shows each chart with its numbers as a table"
 status = "draft"
 origin = "ai"
@@ -27,7 +27,7 @@ source_hash = "e7ac80d4aa1c"
 
 [[criteria]]
 id = "ac_01M874D3QTF15P17C1RFECE82B"
-key = "AC-12.2"
+key = "AC-19.2"
 text = "iw insights --json has the same numbers as the screen"
 status = "draft"
 origin = "ai"

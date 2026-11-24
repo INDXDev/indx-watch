@@ -834,6 +834,8 @@ tr:last-child td {
 .ins-numbers summary {
   cursor: pointer;
   color: var(--text-muted);
+}
+
 /* ---------- assignee board ---------- */
 .board {
   list-style: none;

@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874DAKFWGDEZP6X6XW6QG0J"
-key = "TC-19"
+key = "TC-38"
 title = "iw notify reports changes once and starts with a baseline"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1", "AC-11.2", "AC-11.3"]
+covers = ["AC-18.1", "AC-18.2", "AC-18.3"]
 priority = "P2"
 mode = "manual"
 
