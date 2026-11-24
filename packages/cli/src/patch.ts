@@ -38,7 +38,14 @@ export interface PatchData {
   dist: string | null;
 }
 
-const filesOf = (patch: string) => [...patch.matchAll(/^diff --git a\/(\S+) b\/\S+$/gm)].map((m) => m[1]!);
+/** Every path a patch names: both sides of each `diff --git` header, renames, copies and the `---`/`+++` lines. */
+const filesOf = (patch: string) => {
+  const found = new Set<string>();
+  for (const m of patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)) (found.add(m[1]!), found.add(m[2]!));
+  for (const m of patch.matchAll(/^(?:rename|copy) (?:from|to) (\S+)$/gm)) found.add(m[1]!);
+  for (const m of patch.matchAll(/^(?:---|\+\+\+) [ab]\/(\S+)$/gm)) found.add(m[1]!);
+  return [...found];
+};
 const refusedOf = (files: string[]) => files.filter((f) => REFUSED.some((re) => re.test(f)));
 const names = async (dir: string) =>
   (await readdir(join(dir, 'patches')).catch(() => [])).filter((f) => f.endsWith('.patch')).sort();
@@ -162,12 +169,12 @@ export async function createPatch(o: PatchOptions, name: string): Promise<PatchD
     return data(s, 'create', {});
   }
   await s.git(ws, 'add', '-A');
-  const files = (await s.git(ws, 'diff', '--cached', '--name-only')).split('\n').filter(Boolean);
+  const files = (await s.git(ws, 'diff', '--cached', '--no-renames', '--name-only')).split('\n').filter(Boolean);
   refuse([{ file: name, files, refused: refusedOf(files), applies: null }]);
   const n = Math.max(0, ...(await names(s.dir)).map((f) => Number.parseInt(f, 10) || 0)) + 1;
   const file = `${String(n).padStart(4, '0')}-${name}.patch`;
   await mkdir(join(s.dir, 'patches'), { recursive: true });
-  await writeFile(join(s.dir, 'patches', file), await s.git(ws, 'diff', '--cached', '--binary'));
+  await writeFile(join(s.dir, 'patches', file), await s.git(ws, 'diff', '--cached', '--no-renames', '--binary'));
   await writeFile(join(s.dir, 'patches', 'patches.toml'), canonicalBody({ base: s.base }));
   await s.git(ws, '-c', 'user.name=iw', '-c', 'user.email=iw@localhost', 'commit', '--quiet', '-m', name);
   const set = await patchSetHash(s.dir);

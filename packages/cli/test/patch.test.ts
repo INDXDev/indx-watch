@@ -148,3 +148,33 @@ echo '<html></html>' > "$2/packages/cli/dist/web/index.html"`,
     expect(await patchedDist(join(shop(), '.indx-watch'))).toBeNull();
   });
 });
+
+describe('iw update with patches', () => {
+  it('refuses with CONFLICT and writes nothing when a patch no longer applies', () => {
+    const p = project();
+    makePatch(p);
+    const before = readFileSync(join(p.dir, '.indx-watch/project.toml'), 'utf8');
+    const r = iwJson(p.dir, 'update', ['update', '--to', '0.2.0'], { env: p.env });
+    expect(r.code).toBe(1);
+    expect(r.json.error.code).toBe('CONFLICT');
+    expect(readFileSync(join(p.dir, '.indx-watch/project.toml'), 'utf8')).toBe(before);
+  });
+});
+
+describe('refused areas', () => {
+  it('sees a rename onto a refused file in a hand-written patch', () => {
+    const p = project();
+    makePatch(p);
+    const rename = [
+      'diff --git a/README.md b/packages/core/src/decide.ts',
+      'similarity index 100%',
+      'rename from README.md',
+      'rename to packages/core/src/decide.ts',
+      '',
+    ].join('\n');
+    writeFileSync(join(p.dir, '.indx-watch/patches/0002-evil.patch'), rename);
+    const r = iwJson(p.dir, 'patch check', ['patch', 'check'], { env: p.env });
+    expect(r.code).toBe(2);
+    expect(r.json.error.message).toContain('packages/core/src/decide.ts');
+  });
+});
