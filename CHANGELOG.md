@@ -18,25 +18,24 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Docs: a restructured README (who it's for, screenshots, quickstart, key terms, status and versioning); new guides [From zero to "can we ship?"](docs/guides/journey.md) (the whole path by role) and [Using the web app](docs/guides/web-app.md); the docs are also published as a Mintlify site from the same Markdown files ([ADR 0014](docs/adr/0014-docs-site.md)), and `pnpm check:docs` also checks links to this repository on GitHub and the docs-site link rules.
 - `iw init` and `iw skills install` install seven skills instead of twelve: the `indx-watch` overview and the six job skills. The five recipe skills of 0.1 (`write-test-cases`, `manage-fixtures`, `run-tests`, `triage-failure`, `release-report`), whose triggers overlapped the job skills', are now reference files of the job skill they served (`iw-design`, `iw-data`, `iw-test`, `iw-triage`, `iw-status`), loaded on demand. Re-running `iw skills install` removes the recipe folders INDX Watch wrote (a folder with files you added stays, with a warning) and lists them in `data.removed`.
 - `iw init` ends with agent-first next steps that run as printed (`npx indx-watch serve --open`, or ask Claude Code or Codex to "Set up testing for this repo"); `iw init --example` also pulls the sample results so `iw status` and `iw serve` show them at once.
 
 ### Added
 
 - Web app first run: a project without test cases shows "No test cases yet" on Home and Tests with the two ways to start (ask your agent, `/iw-setup` or `$iw-setup`, or `npx indx-watch new uc …`) and a quickstart link; draft test cases carry a Draft chip wherever they are listed and a criterion with only drafts reads "No approved test"; Home counts ready tests like the gate ("7 of 8 tests pass · 2 drafts not counted until approved"); without an upload the fourth card shows the latest result; the bar has a language switch; on your own run the review form explains that your review changes your verdict; UI strings use ICU plurals ("1 feature").
-
 - `pnpm screenshots` regenerates the docs screenshots in `docs/images/` from the web app with `examples/shop` and its sample results; the guides use them instead of hand-made images.
-
 - Test data in the web app for the whole team: any dropped file (PDF, image, CSV, …) becomes a draft fixture without writing TOML, and the Test data screen creates, edits (table rows, seed JSON, account, files) and deletes fixtures. Writes go through the upload path in git mode and as `file` records in workspace mode (uploads included), so edits on the hosted app reach every working copy with `iw sync`; testers may edit test data (T-410).
 - Sharing test data and secrets like a shared drive: fixtures and secrets are shared with the whole team or only with listed emails and `group:` names (`shared_with`; leads always have access). The Test data screen gains a Share dialog, "Who has access" per item, a Secrets tab and, for leads, an Access tab that shows everything one email can open and why. On the hosted app with roles, people see only the data shared with them (T-411).
 - Secrets kept by INDX Watch: `iw:<name>` references to a login ID and a value sealed with AES-256-GCM under the server's `IW_SECRETS_KEY` (`iw keygen --secrets`), stored as `secret` records; the value is shown only to people it is shared with, next to an account's login ID on the Test data screen and the test case page, and every view is recorded (T-411).
 
-### Release audit
+### Security
 
-<!-- Filled in by the release audit. -->
-
-- Docs: a restructured README (who it's for, screenshots, quickstart, key terms, status and versioning); new guides [From zero to "can we ship?"](docs/guides/journey.md) (the whole path by role) and [Using the web app](docs/guides/web-app.md); the docs are also published as a Mintlify site from the same Markdown files ([ADR 0014](docs/adr/0014-docs-site.md)), and `pnpm check:docs` also checks links to this repository on GitHub and the docs-site link rules.
-- …
+- `iw deploy --public` deploys are read-only: every visitor is an anonymous `viewer`, every write (bundle, store objects, blobs, runs, reviews, waivers, fixtures, secrets, share links, MCP write tools) answers 403 `read-only`, `[hosting.roles]`, the `iw_tester` cookie and `IW_SECRETS_KEY` are ignored, and the web app shows a read-only notice. Before, every visitor of a public deploy had the `lead` role.
+- Secrets: an opened `secret` record is remembered by its content, not its ID, so a body swapped in the bucket under the same ID no longer counts without the key; revealing a value answers with `Cache-Control: no-store`.
+- Release workflow: install and `pnpm verify` run without write tokens; publishing only downloads the packed tarball; the floating `v0` tag follows each 0.x release so `uses: INDXDev/indx-watch@v0` resolves. Dependabot watches GitHub Actions and npm; CI checkouts do not keep credentials.
+- The public demo resets weekly and on each deploy from `examples/shop`.
 
 ## [0.1.1] - 2026-11-23
 
