@@ -1,6 +1,6 @@
 /** The test case page (docs/spec/web.md#test-case-page): what it tests, before you start, steps and result. */
 
-import { type FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { useApp } from '../App';
 import { api, type RunSummary, type SpecTree, type TestCaseDetail } from '../api';
 import { useI18n } from '../i18n';
@@ -26,6 +26,7 @@ import {
 import { placeholderValues, sentences, startUrl, stepsUsing } from './guide';
 import { InlineRun } from './Runner';
 import { useEnv } from './runner/useRun';
+import { EditForm } from './testcase/EditForm';
 
 /** The runner opened in place: the session it belongs to, and how to close it. */
 export type InPlaceRun = { session?: string[] | undefined; close(): void };
@@ -296,90 +297,6 @@ function Result({ d }: { d: TestCaseDetail }) {
       )}
       <MoreDetails d={d} />
     </section>
-  );
-}
-
-type StepDraft = { instruction: string; expected: string; k: number };
-let nextStep = 0;
-const draftsOf = (d: TestCaseDetail): StepDraft[] =>
-  d.data.steps.map(({ instruction, expected }) => ({ instruction, expected, k: nextStep++ }));
-const plain = (steps: StepDraft[]) => steps.map(({ instruction, expected }) => ({ instruction, expected }));
-
-/** Workspace mode: edit the title, priority and steps; saves only what changed (docs/spec/web.md#editing-in-workspace-mode). */
-function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean): void }) {
-  const { t } = useI18n();
-  const [title, setTitle] = useState(d.data.title);
-  const [priority, setPriority] = useState(d.data.priority ?? '');
-  const [steps, setSteps] = useState(() => draftsOf(d));
-  const [error, setError] = useState('');
-  const set = (k: number, field: 'instruction' | 'expected', v: string) =>
-    setSteps(steps.map((s) => (s.k === k ? { ...s, [field]: v } : s)));
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    const changed = JSON.stringify(plain(steps)) !== JSON.stringify(plain(draftsOf(d)));
-    const input = {
-      ...(title !== d.data.title && { title }),
-      ...(priority !== (d.data.priority ?? '') && { priority: priority || null }),
-      ...(changed && { steps: plain(steps) }),
-    };
-    await api.editTestCase(d.key, input).then(
-      () => done(true),
-      (x: Error) => setError(x.message),
-    );
-  };
-  return (
-    <form className="tc-focus stack" onSubmit={save}>
-      <label className="field">
-        <span>{t('tc.titleField')}</span>
-        <input value={title} required onChange={(e) => setTitle(e.target.value)} />
-      </label>
-      <label className="field">
-        <span>{t('common.priority')}</span>
-        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-          {['', 'P0', 'P1', 'P2', 'P3'].map((p) => (
-            <option key={p} value={p}>
-              {p || '—'}
-            </option>
-          ))}
-        </select>
-      </label>
-      <ol className="steps">
-        {steps.map((s) => (
-          <li key={s.k} className="step stack-sm">
-            {(['instruction', 'expected'] as const).map((f) => (
-              <label key={f} className="field">
-                <span>{t(f === 'expected' ? 'tc.expected' : 'tc.instruction')}</span>
-                <textarea value={s[f]} required onChange={(e) => set(s.k, f, e.target.value)} />
-              </label>
-            ))}
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
-              disabled={steps.length === 1}
-              onClick={() => setSteps(steps.filter((x) => x.k !== s.k))}
-            >
-              {t('tc.removeStep')}
-            </button>
-          </li>
-        ))}
-      </ol>
-      <button
-        type="button"
-        className="btn btn-sm"
-        onClick={() => setSteps([...steps, { instruction: '', expected: '', k: nextStep++ }])}
-      >
-        {t('tc.addStep')}
-      </button>
-      {error && <p className="callout s-fail">{error}</p>}
-      <p className="chips">
-        <button type="submit" className="btn btn-primary">
-          {t('tc.save')}
-        </button>
-        <button type="button" className="btn" onClick={() => done(false)}>
-          {t('common.cancel')}
-        </button>
-      </p>
-    </form>
   );
 }
 

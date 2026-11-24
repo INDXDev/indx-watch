@@ -9,7 +9,7 @@ import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { ShareCreated, ShareLink } from './contract.js';
 import { bad, canShare, fail, HttpError, iso, notFound } from './http.js';
-import { HTML_REPORT, reportFor } from './routes.js';
+import { HTML_REPORT, reportFor } from './reports.js';
 
 const DAY = 86_400_000;
 /** recorded as the actor of `open`: share links carry no identity */

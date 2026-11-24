@@ -100,6 +100,17 @@ function mergeValue(o: unknown, a: unknown, b: unknown, c: { conflict: boolean }
   return Object.fromEntries([...keys].map((k) => [k, mergeValue(base[k], a[k], b[k], c)]));
 }
 
+/** Field-level merge of two changed sides into `path`; a side that is not TOML conflicts (keeping `a`). */
+async function mergeFields(base: Side | undefined, a: Side, b: Side, path: string) {
+  const [o, x, y] = [tomlOf(base) ?? {}, tomlOf(a), tomlOf(b)];
+  if (!x || !y) return { side: { ...a, path }, conflict: true };
+  const c = { conflict: false };
+  const merged = mergeValue(o, x, y, c) as Record<string, unknown>;
+  const type = fileTypeOf(path);
+  const text = type && type in FILE_TYPES ? formatToml(type as FileType, merged) : canonicalBody(merged);
+  return { side: { path, data: enc.encode(text), sha: await sha256Hex(text) }, conflict: c.conflict };
+}
+
 /** Three-way merge of two sides against their base; `conflict` when a field (or a non-TOML file) differs on both. */
 async function merge3(base: Side | undefined, a: Side, b: Side) {
   const path = a.path === b.path || base?.path !== a.path ? a.path : b.path;
@@ -108,16 +119,8 @@ async function merge3(base: Side | undefined, a: Side, b: Side) {
   const moved = a.path !== b.path && base?.path !== a.path && base?.path !== b.path;
   if (a.sha === b.sha || s0 === b.sha || !b.data) return { ...pick(a), conflict: moved && !!b.data };
   if (s0 === a.sha || !a.data) return { ...pick(b), conflict: moved && !!a.data };
-  const [o, x, y] = [tomlOf(base) ?? {}, tomlOf(a), tomlOf(b)];
-  if (!x || !y) return { side: { ...a, path }, conflict: true };
-  const c = { conflict: false };
-  const merged = mergeValue(o, x, y, c) as Record<string, unknown>;
-  const type = fileTypeOf(path);
-  const text = type && type in FILE_TYPES ? formatToml(type as FileType, merged) : canonicalBody(merged);
-  return {
-    side: { path, data: enc.encode(text), sha: await sha256Hex(text) },
-    conflict: c.conflict || moved,
-  };
+  const m = await mergeFields(base, a, b, path);
+  return { side: m.side, conflict: m.conflict || moved };
 }
 
 /** `<stem>.conflict-<sha8>.<ext>` next to the file. */
@@ -182,8 +185,9 @@ export interface ApplyOptions {
   now?: () => number;
 }
 
-/** A new version of entity `e`: the working-tree file `l`, or a delete without it. */
-async function publish(o: ApplyOptions, e: string, path: string, l: Side | undefined, parents: string[]) {
+/** A new version of entity `e` at `path` after `parents`: the working-tree file `l`, or a delete without it. */
+async function publish(o: ApplyOptions, v: { e: string; path: string; l?: Side; parents: string[] }) {
+  const { e, path, l, parents } = v;
   const [at, entity] = [isoSeconds(o.now?.() ?? Date.now()), e.startsWith('path:') ? undefined : e];
   const env = { kind: 'file', id: newId('rec'), v: 1, project: o.project, at, actor: o.actor, source: 'cli' };
   const rec = FileRecord.parse({
@@ -200,14 +204,12 @@ async function publish(o: ApplyOptions, e: string, path: string, l: Side | undef
   return signed;
 }
 
+type BaseEntry = WorkspaceBase[string];
+/** One apply: its options, result and the sync state being rewritten. */
+type Run = { o: ApplyOptions; res: WorkspaceResult; base: WorkspaceBase; broken: Set<string> };
+
 /** Write the current content of an entity (and its conflict files) over the working-tree file `l`. */
-async function writeCurrent(
-  o: ApplyOptions,
-  res: WorkspaceResult,
-  r: Resolved,
-  l?: Side,
-  old: string[] = [],
-) {
+async function writeCurrent({ o, res }: Run, r: Resolved, l?: Side, old: string[] = []) {
   const remove = (path: string) => o.fs.remove(path).then(() => void res.removed.push(path));
   if (!r.data && l) await remove(l.path);
   if (r.data && (!l || l.sha !== r.sha || l.path !== r.path)) {
@@ -227,6 +229,33 @@ const missing = async (fs: BundleFs, paths: string[]) =>
 const aiDraft = (l?: Side) =>
   tomlOf(l)?.origin === 'ai' && [undefined, 'draft'].includes(tomlOf(l)?.status as string);
 
+/** Whether the working tree changed entity since the last apply (or its conflict files went), unless it already holds the current content. */
+async function changed(fs: BundleFs, L: Side | undefined, B: BaseEntry | undefined, R: Resolved | undefined) {
+  const gone = R && B?.conflicts?.length && eq(B.heads, R.heads) ? await missing(fs, B.conflicts) : false;
+  const adopted = R && (L?.sha ?? null) === R.sha && (!L || L.path === R.path) && !gone;
+  return !adopted && (gone || (L?.sha ?? null) !== (B?.sha256 ?? null) || (!!L && !!B && L.path !== B.path));
+}
+
+/** Publish the working-tree change of entity `e` (unless held), write its current content back and update its base. */
+async function applyEntity(run: Run, e: string, L: Side | undefined, vs: FileRecord[]) {
+  const { o, res, base, broken } = run;
+  const B = base[e];
+  let R = vs.length ? await resolveEntity(vs, o.read) : undefined;
+  // a TOML file that does not parse (mid-edit) is held: neither a delete of its entity nor overwritten
+  const was = L ? undefined : (B?.path ?? R?.path);
+  if (was && broken.has(was)) return void res.held.push(was);
+  if (await changed(o.fs, L, B, R)) {
+    const path = L?.path ?? B?.path ?? R!.path;
+    if (o.actor.kind === 'agent' && !aiDraft(L)) return void res.held.push(path);
+    const rec = await publish(o, { e, path, l: L, parents: B?.heads ?? [] });
+    res.published.push(path);
+    R = await resolveEntity([...vs, rec], async (sha) => (sha === L?.sha ? L.data : o.read(sha)));
+  }
+  if (!R) return void delete base[e];
+  const conflicts = await writeCurrent(run, R, L, B?.conflicts);
+  base[e] = { heads: R.heads, sha256: R.sha, path: R.path, ...(conflicts.length && { conflicts }) };
+}
+
 /** Publish changed working-tree files as versions, then write the current content back (docs/spec/sync.md#workspace-mode-v02). */
 export async function applyWorkspace(o: ApplyOptions) {
   const res: WorkspaceResult = { published: [], written: [], removed: [], conflicts: [], held: [] };
@@ -235,29 +264,8 @@ export async function applyWorkspace(o: ApplyOptions) {
     await localFiles(o.fs),
     { ...o.base },
   ];
-  for (const e of new Set([...versions.keys(), ...local.keys(), ...Object.keys(base)])) {
-    const [L, B, vs] = [local.get(e), base[e], versions.get(e) ?? []];
-    let R = vs.length ? await resolveEntity(vs, o.read) : undefined;
-    // a TOML file that does not parse (mid-edit) is held: neither a delete of its entity nor overwritten
-    const was = L ? undefined : (B?.path ?? R?.path);
-    if (was && broken.has(was) && res.held.push(was)) continue;
-    const gone = R && B?.conflicts?.length && eq(B.heads, R.heads) ? await missing(o.fs, B.conflicts) : false;
-    const adopted = R && (L?.sha ?? null) === R.sha && (!L || L.path === R.path) && !gone;
-    if (!adopted && (gone || (L?.sha ?? null) !== (B?.sha256 ?? null) || (L && B && L.path !== B.path))) {
-      const path = L?.path ?? B?.path ?? R!.path;
-      if (o.actor.kind === 'agent' && !aiDraft(L)) {
-        res.held.push(path);
-        continue;
-      }
-      const rec = await publish(o, e, path, L, B?.heads ?? []);
-      res.published.push(path);
-      R = await resolveEntity([...vs, rec], async (sha) => (sha === L?.sha ? L.data : o.read(sha)));
-    }
-    if (!R) delete base[e];
-    else {
-      const conflicts = await writeCurrent(o, res, R, L, B?.conflicts);
-      base[e] = { heads: R.heads, sha256: R.sha, path: R.path, ...(conflicts.length && { conflicts }) };
-    }
-  }
+  const run: Run = { o, res, base, broken };
+  for (const e of new Set([...versions.keys(), ...local.keys(), ...Object.keys(base)]))
+    await applyEntity(run, e, local.get(e), versions.get(e) ?? []);
   return { result: res, base };
 }

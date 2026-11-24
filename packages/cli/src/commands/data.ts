@@ -141,6 +141,14 @@ async function importPlan(fs: iwb.BundleFs, replica: LocalReplica, x: Archive) {
   return { changes, conflicts, fresh };
 }
 
+/** Write an import: the bundle files, the blobs, then the records that use them. */
+async function applyImport(fs: iwb.BundleFs, replica: LocalReplica, x: Archive, fresh: iwb.AnyRecord[]) {
+  for (const f of x.bundleFiles) await fs.write(f.path, f.data);
+  if (!(await fs.read('.gitignore'))) await fs.write('.gitignore', 'cache/\nruns/\n');
+  for (const b of x.blobs) await replica.putBlob(b.data); // blobs before the records that use them
+  for (const r of fresh) await replica.putRecord(r);
+}
+
 const fixtureOf = (p: cx.Project, ref: string) =>
   p.bundle.fixtures.find((f) => f.data.key === ref.replace(/^[A-Z0-9]+:/, '') || f.data.id === ref) ??
   fail('NOT_FOUND', `Fixture ${ref} not found`);
@@ -360,12 +368,7 @@ export const dataCommands: Record<string, Spec> = {
       const data = { archive, manifest: manifestOf(x.manifest), dryRun: !!a['dry-run'], changes };
       if (conflicts.length)
         fail('CONFLICT', `${conflicts.length} files differ from the archive`, conflicts, data);
-      if (!a['dry-run']) {
-        for (const f of x.bundleFiles) await fs.write(f.path, f.data);
-        if (!(await fs.read('.gitignore'))) await fs.write('.gitignore', 'cache/\nruns/\n');
-        for (const b of x.blobs) await replica.putBlob(b.data); // blobs before the records that use them
-        for (const r of fresh) await replica.putRecord(r);
-      }
+      if (!a['dry-run']) await applyImport(fs, replica, x, fresh);
       return { data, text: changes.join('\n') };
     },
   },

@@ -84,6 +84,15 @@ describe('versions', () => {
     expect([ok('/cart'), ok('/'), ok('//evil.example/x'), ok('cart')]).toEqual([true, true, false, false]);
   });
 
+  it('changes when a step or a covered criterion changes', async () => {
+    const v = await testCaseVersion(tc, ac);
+    const step = { ...tc, steps: [{ ...tc.steps[0]!, expected: 'Something else.' }, tc.steps[1]!] };
+    expect(await testCaseVersion(step, ac)).not.toBe(v);
+    expect(await testCaseVersion(tc, new Map([['AC-2.1', 'Reworded.']]))).not.toBe(v);
+  });
+});
+
+describe('versions of the shop bundle', () => {
   it('keeps the versions of the shop test cases (sample results stay current)', async () => {
     const { bundle } = await loadBundle(memFs());
     expect(Object.fromEntries(bundle!.testCases.map((t) => [t.data.key, t.version]))).toEqual({
@@ -98,13 +107,6 @@ describe('versions', () => {
       'TC-9': 'tcv:657f1b81c898',
       'TC-10': 'tcv:762f027791d5',
     });
-  });
-
-  it('changes when a step or a covered criterion changes', async () => {
-    const v = await testCaseVersion(tc, ac);
-    const step = { ...tc, steps: [{ ...tc.steps[0]!, expected: 'Something else.' }, tc.steps[1]!] };
-    expect(await testCaseVersion(step, ac)).not.toBe(v);
-    expect(await testCaseVersion(tc, new Map([['AC-2.1', 'Reworded.']]))).not.toBe(v);
   });
 
   it('a CRLF checkout (git autocrlf) gives the same versions and values', async () => {
@@ -183,23 +185,24 @@ describe('records', () => {
   });
 });
 
+/** A retraction record to carry through an archive. */
+const RETRACTION = {
+  kind: 'retraction',
+  id: 'rec_01JF7Z3K0W8N2Q4R6S8T0V2X4Z',
+  v: 1,
+  project: 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y00',
+  at: '2026-11-19T04:13:40Z',
+  actor: { kind: 'human', id: 'a@shop.test', via: 'git' },
+  source: 'cli',
+  target: 'run_01JF7Z3K0W8N2Q4R6S8T0V2X4Y',
+  reason: 'wrong release',
+};
+
 describe('archive', () => {
   it('round-trips with identical manifest hashes and bytes', async () => {
     const bundleFiles = [...shopFiles()].map(([path, data]) => ({ path, data }));
     const blob = new Uint8Array([1, 2, 3]);
-    const records = [
-      {
-        kind: 'retraction',
-        id: 'rec_01JF7Z3K0W8N2Q4R6S8T0V2X4Z',
-        v: 1,
-        project: 'prj_01JF3Q8M5X2V7K9D4R6T1W0Y00',
-        at: '2026-11-19T04:13:40Z',
-        actor: { kind: 'human', id: 'a@shop.test', via: 'git' },
-        source: 'cli',
-        target: 'run_01JF7Z3K0W8N2Q4R6S8T0V2X4Y',
-        reason: 'wrong release',
-      },
-    ];
+    const records = [RETRACTION];
     const now = new Date('2026-11-19T00:00:00Z');
     const a = await createArchive({
       project: 'SHOP',
@@ -250,7 +253,7 @@ describe('archive', () => {
   });
 });
 
-describe('write', () => {
+describe('slugify', () => {
   it('slugify', () => {
     expect(slugify('Valid coupon reduces the total')).toBe('valid-coupon-reduces-the-total');
     expect(slugify('v1.2.0 regression')).toBe('v1-2-0-regression');
@@ -259,70 +262,70 @@ describe('write', () => {
     );
     expect(slugify('期限切れ')).toBe('untitled');
   });
+});
 
+const NOW = new Date('2026-11-19T05:00:00Z');
+type Create = Parameters<typeof createDefinition>[2];
+
+/** createDefinition over the bundle as the files stand now, at NOW (callers reload between writes). */
+const create = async (fs: ReturnType<typeof memFs>, input: Omit<Create, 'now'>) =>
+  createDefinition(fs, (await loadBundle(fs)).bundle!, { ...input, now: NOW });
+
+/** UC-6 under FEAT-3, ready, with one criterion. */
+const resetUseCase = (fs: ReturnType<typeof memFs>) =>
+  create(fs, {
+    kind: 'use-case',
+    parent: 'FEAT-3',
+    fields: { title: 'Customer resets the password', criteria: ['A reset email is sent'] },
+    ready: true,
+  });
+
+describe('write', () => {
   it('creates use cases, criteria and test cases that pass check', async () => {
     const fs = memFs();
-    let { bundle } = await loadBundle(fs);
-    const now = new Date('2026-11-19T05:00:00Z');
-    const uc = await createDefinition(fs, bundle!, {
-      kind: 'use-case',
-      parent: 'FEAT-3',
-      fields: { title: 'Customer resets the password', criteria: ['A reset email is sent'] },
-      ready: true,
-      now,
-    });
+    const uc = await resetUseCase(fs);
     expect(parseToml(fs.text(uc.file)!).priority).toBe('P1'); // gated by default
     expect(uc).toMatchObject({
       key: 'UC-6',
       file: 'specs/FEAT-3-account/UC-6-customer-resets-the-password/use-case.toml',
     });
-    ({ bundle } = await loadBundle(fs));
-    const ac = await createDefinition(fs, bundle!, {
+    const ai = { origin: 'ai', ai: { model: 'm' } } as const;
+    const ac = await create(fs, {
       kind: 'criterion',
       parent: 'UC-6',
       fields: { text: 'The link expires after an hour' },
-      origin: 'ai',
-      ai: { model: 'm' },
-      now,
+      ...ai,
     });
     expect(ac.key).toBe('AC-6.2');
-    ({ bundle } = await loadBundle(fs));
-    const tc = await createDefinition(fs, bundle!, {
+    const tc = await create(fs, {
       kind: 'test-case',
       parent: 'UC-6',
       fields: { title: 'Reset mail' },
       origin: 'ai',
       ai: { model: 'claude-opus-5-5', skill: 'write-test-cases' },
       knownKeys: ['TC-12'],
-      now,
     });
     expect(tc).toMatchObject({
       key: 'TC-13',
       file: 'specs/FEAT-3-account/UC-6-customer-resets-the-password/TC-13-reset-mail.toml',
     });
-    const data = parseToml(fs.text(tc.file)!);
-    expect(data).toMatchObject({
+    expect(parseToml(fs.text(tc.file)!)).toMatchObject({
       status: 'draft',
       origin: 'ai',
       covers: ['AC-6.1', 'AC-6.2'],
       ai: { model: 'claude-opus-5-5', created_at: '2026-11-19T05:00:00Z' },
     });
-    ({ bundle } = await loadBundle(fs));
-    await createDefinition(fs, bundle!, {
+    const steps = [{ instruction: 'a', expected: 'b' }];
+    await create(fs, {
       kind: 'test-case',
       parent: 'UC-6',
       template: 'web',
-      fields: { title: 'From template', steps: [{ instruction: 'a', expected: 'b' }] },
+      fields: { title: 'From template', steps },
       ready: true,
-      now,
     });
-    ({ bundle } = await loadBundle(fs));
     // an AI use case's criteria are drafts with their own [ai] table, like `iw new ac`
-    const aiUc = await createDefinition(fs, bundle!, {
-      kind: 'use-case',
-      fields: { title: 'Customer changes the email', criteria: ['A confirmation is sent'] },
-      ...{ origin: 'ai', ai: { model: 'm' }, now },
-    });
+    const fields = { title: 'Customer changes the email', criteria: ['A confirmation is sent'] };
+    const aiUc = await create(fs, { kind: 'use-case', fields, ...ai });
     expect(parseToml(fs.text(aiUc.file)!).criteria).toEqual([
       expect.objectContaining({
         status: 'draft',
@@ -332,23 +335,19 @@ describe('write', () => {
     ]);
     const r = await checkBundle(fs);
     expect(r.problems.filter((p) => p.severity === 'error')).toEqual([]);
-    await expect(
-      createDefinition(fs, bundle!, {
-        kind: 'test-case',
-        parent: 'UC-6',
-        fields: { title: 'x' },
-        origin: 'ai',
-        ai: { model: 'm' },
-        ready: true,
-      }),
-    ).rejects.toThrow(/draft/);
-    await expect(
-      createDefinition(fs, bundle!, {
-        kind: 'test-case',
-        parent: 'UC-6',
-        fields: { title: 'x', mode: 'robot' },
-      }),
-    ).rejects.toThrow(/Invalid/);
+  });
+});
+
+describe('write refusals', () => {
+  it('refuses a ready AI test case and an unknown mode', async () => {
+    const fs = memFs();
+    await resetUseCase(fs);
+    const { bundle } = await loadBundle(fs);
+    const tc = { kind: 'test-case', parent: 'UC-6' } as const;
+    const ready = { ...tc, fields: { title: 'x' }, origin: 'ai', ai: { model: 'm' }, ready: true } as const;
+    await expect(createDefinition(fs, bundle!, ready)).rejects.toThrow(/draft/);
+    const robot = { ...tc, fields: { title: 'x', mode: 'robot' } };
+    await expect(createDefinition(fs, bundle!, robot)).rejects.toThrow(/Invalid/);
   });
 });
 

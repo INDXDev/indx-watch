@@ -88,48 +88,54 @@ const GITHUB = /^https:\/\/github\.com\/INDXDev\/indx-watch\/(blob|tree)\/main\/
 const SITE = /^docs[/\\](?!design[/\\])/;
 /** Targets under docs/ that the docs site does not serve (README files, docs/.mintignore). */
 const OFF_SITE = /[/\\](README\.md|design[/\\].*\.(html|css)|0000-template\.md)$/;
-const problems = [];
 
+/** Rules for links on pages of the docs site; undefined when they hold. */
+function siteProblem(file, target, dest) {
+  // Mintlify serves `page.md` as raw Markdown; it rewrites only ./ and ../ links.
+  if (/^[^./#]/.test(target)) return 'start the link with ./ (docs site)';
+  const offSite = !relative(join(root, 'docs'), dest).match(/^[^.]/) || OFF_SITE.test(dest);
+  if (!file.endsWith('README.md') && offSite) return 'not on the docs site: use the GitHub URL';
+}
+
+/** `s` with its % escapes decoded, or undefined when one is malformed. */
+function decoded(s) {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return undefined;
+  }
+}
+
+/** What is wrong with the link `target` in `file`, or undefined when it resolves (or is external). */
+function problemOf(file, target) {
+  // Links to this repository on GitHub (used where a page is also published outside the
+  // repository, e.g. docs/ on Mintlify) are checked against the working tree.
+  const gh = target.match(GITHUB);
+  if (!gh && (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//'))) return undefined;
+  const [pathPart, hash] = (gh ? gh[2] : target).split('#');
+  const path = decoded(pathPart);
+  if (path === undefined || (hash && decoded(hash) === undefined)) return 'malformed link (bad % escape)';
+  const dest = gh ? resolve(root, path) : path ? resolve(dirname(file), path) : file;
+  const site = gh || !SITE.test(relative(root, file)) ? undefined : siteProblem(file, target, dest);
+  return site ?? destProblem(dest, gh, hash);
+}
+
+/** What is wrong with the link destination: a missing file, /blob/ vs /tree/ or a missing anchor. */
+function destProblem(dest, gh, hash) {
+  if (!existsSync(dest)) return 'missing file';
+  if (gh && (gh[1] === 'tree') !== statSync(dest).isDirectory())
+    return `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path`;
+  if (hash && dest.endsWith('.md') && statSync(dest).isFile() && !anchors(dest).has(decoded(hash)))
+    return 'missing anchor';
+}
+
+const problems = [];
 for (const file of walk(root).filter((f) => !IGNORE.has(relative(root, f).split('\\').join('/')))) {
-  const lines = stripFences(readFileSync(file, 'utf8'));
-  lines.forEach((raw, i) => {
-    const line = raw.replace(/`[^`]*`/g, '');
-    for (const m of line.matchAll(LINK)) {
+  stripFences(readFileSync(file, 'utf8')).forEach((raw, i) => {
+    for (const m of raw.replace(/`[^`]*`/g, '').matchAll(LINK)) {
       const target = m[1] ?? m[2];
-      // Links to this repository on GitHub (used where a page is also published outside the
-      // repository, e.g. docs/ on Mintlify) are checked against the working tree.
-      const gh = target.match(GITHUB);
-      if (!gh && (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//'))) continue;
-      const [pathPart, hash] = (gh ? gh[2] : target).split('#');
-      const path = decodeURIComponent(pathPart);
-      const dest = gh ? resolve(root, path) : path ? resolve(dirname(file), path) : file;
-      const where = `${relative(root, file)}:${i + 1}`;
-      if (!gh && SITE.test(relative(root, file)) && /^[^./#]/.test(target)) {
-        // Mintlify serves `page.md` as raw Markdown; it rewrites only ./ and ../ links.
-        problems.push({ where, target, problem: 'start the link with ./ (docs site)' });
-      } else if (
-        !gh &&
-        SITE.test(relative(root, file)) &&
-        !file.endsWith('README.md') &&
-        (!relative(join(root, 'docs'), dest).match(/^[^.]/) || OFF_SITE.test(dest))
-      ) {
-        problems.push({ where, target, problem: 'not on the docs site: use the GitHub URL' });
-      } else if (!existsSync(dest)) {
-        problems.push({ where, target, problem: 'missing file' });
-      } else if (gh && (gh[1] === 'tree') !== statSync(dest).isDirectory()) {
-        problems.push({
-          where,
-          target,
-          problem: `use /${gh[1] === 'tree' ? 'blob' : 'tree'}/ for this path`,
-        });
-      } else if (
-        hash &&
-        dest.endsWith('.md') &&
-        statSync(dest).isFile() &&
-        !anchors(dest).has(decodeURIComponent(hash))
-      ) {
-        problems.push({ where, target, problem: 'missing anchor' });
-      }
+      const problem = problemOf(file, target);
+      if (problem) problems.push({ where: `${relative(root, file)}:${i + 1}`, target, problem });
     }
   });
 }

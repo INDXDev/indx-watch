@@ -1,6 +1,6 @@
 /**
- * The API routes of createApp (docs/architecture.md#http-api), in three groups: reads, writes (bundle upload,
- * manual runs, reviews, blob uploads) and the store endpoints (docs/spec/sync.md#store-http-endpoints).
+ * The API routes of createApp (docs/architecture.md#http-api), in two groups: reads and writes (bundle upload, manual
+ * runs, reviews, blob uploads). Reports: reports.ts; store endpoints: store-routes.ts.
  */
 import * as B from '@indx-watch/bundle';
 import {
@@ -11,17 +11,14 @@ import {
   type Model,
   ownedFeatures,
   ownedModel,
-  reportData,
   runFacts,
-  type Scope,
 } from '@indx-watch/core';
-import { checkRecord, ulidTime } from '@indx-watch/store';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
-import { bad, errorResponse, fail, HttpError, iso, MAX_BLOB_BYTES, notFound, sniff } from './http.js';
-import { renderReport, reportTexts } from './report.js';
+import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
+import { report } from './reports.js';
 import { accessOf } from './secrets.js';
 import { checksError } from './tools.js';
 import { prepareUpload, type UploadInput } from './upload.js';
@@ -29,34 +26,11 @@ import * as V from './views.js';
 import { editTestCase, invite, workspaceMode } from './workspace.js';
 
 const VERDICTS = ['pass', 'fail', 'blocked', 'skipped'];
-/** A non-empty query parameter. */
-const q = (c: Context, k: string) => c.req.query(k) || undefined;
-/** Scope from `?release=` and `?env=`. */
-const scopeOf = (c: Context, m: Model, r = m.project.current_release): Scope =>
-  Object.assign({ release: q(c, 'release') ?? r, environment: q(c, 'env') });
 /** A test case by key or ID, else 404. */
 const tcOf = (m: Model, k: string) => m.testCases.get(m.keyOf(k) ?? k) ?? fail(notFound(`test case ${k}`));
 /** A run by ID, else 404. */
 const runOf = (m: Model, id: string) => m.runs.get(id) ?? fail(notFound(`run ${id}`));
-/** The JSON request body, else 400. */
-const readJson = <T>(c: Context) => c.req.json<T>().catch(() => fail(bad('request body must be JSON')));
-
-/** The raw request body, refused with 413 over MAX_BLOB_BYTES. */
-async function readBody(c: Context) {
-  const big = () => new HttpError(413, 'too-large', 'over 25 MB');
-  if (Number(c.req.header('content-length') ?? 0) > MAX_BLOB_BYTES) throw big();
-  // count while reading: a chunked body has no Content-Length
-  const [reader, chunks] = [c.req.raw.body?.getReader(), [] as Uint8Array<ArrayBuffer>[]];
-  for (let r = await reader?.read(), n = 0; r && !r.done; r = await reader!.read()) {
-    n += r.value.byteLength;
-    if (n > MAX_BLOB_BYTES) await reader!.cancel().then(() => fail(big()));
-    chunks.push(r.value);
-  }
-  return new Uint8Array(await new Blob(chunks).arrayBuffer());
-}
-
 const CSP_BLOB = "default-src 'none'; sandbox";
-const CSP_REPORT = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'";
 /** raster images are shown inline; everything else (SVG and HTML included) is downloaded */
 const INLINE_MEDIA = /^image\/(png|jpeg|gif|webp|avif)$/;
 
@@ -104,14 +78,28 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
   app.get('/api/report', (c) => report(c, x));
 }
 
-async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ctx) {
+/** What the web app offers this role (docs/spec/security.md#roles). */
+function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role) {
+  const [lead, writer] = [role === 'lead', role === 'lead' || role === 'tester'];
+  const files = !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle);
+  return {
+    ...{ declare: !!deps.declaredIdentity, upload: writer && files, share: sharer(who) && lead },
+    ...{ run: role !== 'viewer', review: writer, approve: lead },
+    edit: workspaceMode(m) && !!deps.bundleFiles && lead,
+    data: writer && files,
+    secrets: !!deps.secretsKey,
+  };
+}
+
+async function projectInfo(c: Context, x: Ctx) {
+  const { deps, actor, grant, model } = x;
   // a customer's model has no environment guides or access methods (docs/spec/security.md#roles)
   const [{ problems }, m, { role, who: principal }] = [
     await deps.loadModel(),
     await model(c),
     await grant(c),
   ];
-  const [lead, customer] = [role === 'lead', role === 'customer'];
+  const customer = role === 'customer';
   const { key, name, source_locale, locales, default_environment, current_release } = m.project;
   const env = async (e: Model['environments'][number]) => {
     const { name, title, base_url, guide, i18n } = await V.markStale(e, 'environment');
@@ -131,18 +119,7 @@ async function projectInfo(c: Context, { deps, actor, sharer, grant, model }: Ct
     owns: ownedFeatures(m, principal),
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone: customer ? null : clone },
-    can: {
-      ...{
-        declare: !!deps.declaredIdentity,
-        upload:
-          (lead || role === 'tester') && !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle),
-        share: sharer(who) && lead,
-      },
-      ...{ run: role !== 'viewer', review: lead || role === 'tester', approve: lead },
-      edit: workspaceMode(m) && !!deps.bundleFiles && lead,
-      data: (lead || role === 'tester') && !!deps.bundleFiles && (workspaceMode(m) || !!deps.publishBundle),
-      secrets: !!deps.secretsKey,
-    },
+    can: abilities(x, m, who, role),
     ...(!customer && deps.roles && { team: deps.roles }),
     ...(deps.readOnly && { readOnly: true }),
     snapshot: customer || !m.snapshots[0] ? undefined : V.snapshotSummary(m.snapshots[0], m),
@@ -192,56 +169,6 @@ async function blob(c: Context, { deps, uploads, grant, model, read }: Ctx) {
   const headers = new Headers({ 'Content-Type': type, 'Content-Security-Policy': CSP_BLOB });
   if (!INLINE_MEDIA.test(type)) headers.set('Content-Disposition', `attachment; filename="${name}"`);
   return new Response(data as Uint8Array<ArrayBuffer>, { headers });
-}
-
-/** Validated `?format=&audience=&locale=&evidence=` of a report (`format` fixed for share links). */
-function reportOptions(c: Context, m: Model, fixed?: 'html', customer = false) {
-  const format = fixed ?? q(c, 'format') ?? 'md';
-  // a customer's reports are always customer reports (docs/spec/security.md#roles)
-  const audience = customer ? 'customer' : (q(c, 'audience') ?? (fixed ? 'customer' : 'internal'));
-  const locale = q(c, 'locale') ?? m.project.source_locale;
-  if (format !== 'md' && format !== 'html') throw bad('format must be md or html');
-  if (audience !== 'internal' && audience !== 'customer') throw bad('audience: internal or customer');
-  if (locale !== 'en' && locale !== 'ja') throw bad('locale must be en or ja');
-  const evidence =
-    q(c, 'evidence') ?? (audience === 'customer' ? 'none' : format === 'html' ? 'embed' : 'links');
-  if (fixed && evidence === 'links') throw bad('share links embed evidence or leave it out');
-  return { format, audience, locale, evidence: evidence as 'none' } as const;
-}
-
-type ReportOf = { scope: Scope; audience: 'internal' | 'customer'; locale: B.Locale; plan?: string };
-/** Report data with its texts (also the MCP `report` tool). */
-export async function reportOf({ deps }: Ctx, m: Model, a: B.Actor, o: ReportOf) {
-  const [commit, cursor] = [(await deps.context?.build())?.commit, [...m.runs.keys()].sort().at(-1)];
-  const by = { audience: o.audience, generatedBy: a.name ?? a.id, now: deps.now?.() ?? new Date() };
-  const extra = { ...(o.plan && { plan: o.plan }), ...(commit && { commit }), ...(cursor && { cursor }) };
-  return Object.assign(reportData(m, o.scope, { ...by, ...extra }), {
-    texts: await reportTexts(m, o.locale),
-  });
-}
-
-/** The report a request asks for, rendered (GET /api/report; POST /api/shares fixes `html`). */
-export async function reportFor(c: Context, x: Ctx, fixed?: 'html') {
-  const [m, a, plan, { role }] = [await x.model(c), await x.actor(c), q(c, 'plan'), await x.grant(c)];
-  const { format, audience, locale, evidence } = reportOptions(c, m, fixed, role === 'customer');
-  const p = plan ? (m.plans.find((x) => x.key === plan) ?? fail(notFound(`plan ${plan}`))) : undefined;
-  const scope = scopeOf(c, m, p?.release ?? m.project.current_release);
-  const data = await reportOf(x, m, a, { scope, audience, locale, plan });
-  const text = await renderReport(data, { format, locale, evidence, getBlob: x.deps.getBlob });
-  return { m, format, audience, locale, plan, scope, text };
-}
-
-export const HTML_REPORT = {
-  'Content-Type': 'text/html; charset=utf-8',
-  'Content-Security-Policy': CSP_REPORT,
-};
-async function report(c: Context, x: Ctx) {
-  const { format, text } = await reportFor(c, x);
-  return c.body(
-    text,
-    200,
-    format === 'md' ? { 'Content-Type': 'text/markdown; charset=utf-8' } : HTML_REPORT,
-  );
 }
 
 // ---------- writes ----------
@@ -294,12 +221,15 @@ async function uploadBundle(c: Context, x: Ctx) {
   if (input.dryRun || !result.ok) return c.json(result, input.dryRun || result.ok ? 200 : 422);
   for (const b of blobs) await d.putBlob(b, 'application/octet-stream');
   // workspace mode: the store is the source of truth, so an upload is a set of file records
-  if (workspace) return c.json({ ...result, ...(await writeWorkspace(c, x, m!, base, next)) }, 201);
-  const { changed, removed } = changesOf(base, next);
-  const message = typeof input.message === 'string' ? input.message.trim().slice(0, 500) : '';
-  const info = { actor: who, changed, removed, ...(message && { message }) };
-  const snapshot = await d.publishBundle!(next, info);
+  if (workspace) return c.json({ ...result, ...(await writeWorkspace(c, x, { m: m!, base, next })) }, 201);
+  const snapshot = await d.publishBundle!(next, uploadInfo(who, input.message, changesOf(base, next)));
   return c.json({ ...result, ...(snapshot && { snapshot }) }, 201);
+}
+
+/** What publishBundle records of an upload: who, the changed and removed paths and a short message. */
+function uploadInfo(actor: B.Actor, message: unknown, changes: ReturnType<typeof changesOf>) {
+  const text = typeof message === 'string' ? message.trim().slice(0, 500) : '';
+  return { actor, ...changes, ...(text && { message: text }) };
 }
 
 /** The note of a manual run, after checking its verdict, note and environment. */
@@ -430,105 +360,4 @@ async function uploadBlob(c: Context, { deps, uploads }: Ctx) {
   const name = (c.req.header('x-filename') ?? '').replace(/[^\w.-]+/g, '_').slice(-120);
   uploads.set(sha256, { name: name || 'file', type });
   return c.json({ sha256, size: data.byteLength, media_type: type }, 201);
-}
-
-// ---------- /api/store/* ----------
-
-const MANIFEST = 'indx-watch-store.json';
-const LOG_KEY = /^v1\/log\/[0-9A-HJKMNP-TV-Z]{26}\.json$/;
-const BLOB_KEY = /^v1\/blobs\/sha256\/([0-9a-f]{2})\/\1[0-9a-f]{62}$/;
-const storeKey = (c: Context) => decodeURIComponent(c.req.path.slice('/api/store/objects/'.length));
-const parsed = (d: Uint8Array | null) => new Response(d as BodyInit).json().catch(() => undefined);
-const objects = (x: Ctx) => x.deps.objects ?? fail(notFound('store endpoint'));
-
-/** Register the store endpoints; they answer 404 when deps.objects is not set. */
-export function registerStoreRoutes(app: Hono, x: Ctx) {
-  const store = () => objects(x);
-  app.on(['GET', 'HEAD'], '/api/store/objects/*', async (c) => {
-    if (c.req.method === 'HEAD') {
-      const h = await store().head(storeKey(c));
-      const headers = h ? { 'Content-Length': `${h.size}`, ...(h.etag && { ETag: h.etag }) } : {};
-      return c.body(null, h ? 200 : 404, headers);
-    }
-    const data = (await store().get(storeKey(c))) ?? fail(notFound(storeKey(c)));
-    return c.body(data as Uint8Array<ArrayBuffer>, 200, { 'Content-Type': 'application/octet-stream' });
-  });
-  app.put('/api/store/objects/*', (c) => putObject(c, x));
-  app.post('/api/sign', (c) => signRecords(c, x));
-  app.get('/api/store/list', async (c) => {
-    const limit = Math.min(Number(q(c, 'limit')) || 1000, 1000);
-    const [prefix, startAfter] = [c.req.query('prefix') ?? '', q(c, 'startAfter')];
-    const r = await store().list({ prefix, startAfter, limit });
-    const keys = r.keys.map(({ key, size, etag }) => ({ key, size, ...(etag && { etag }) }));
-    return c.json({ keys, truncated: r.truncated });
-  });
-}
-
-/** GitHub OIDC exchange (docs/spec/security.md#github-oidc): signs the records for the token; stores nothing. */
-async function signRecords(c: Context, x: Ctx) {
-  const exchange = x.deps.signForGithub ?? fail(notFound('GitHub OIDC signing'));
-  const auth = /^Bearer (\S+)$/i.exec(c.req.header('authorization') ?? '')?.[1];
-  const token = auth ?? fail(new HttpError(401, 'unauthorized', 'missing GitHub OIDC token'));
-  const raw = (await readJson<{ records?: unknown }>(c)).records;
-  if (!Array.isArray(raw) || !raw.length || raw.length > 1000) throw bad('records: 1 to 1000 records');
-  const records = raw.map((r) => {
-    const checked = checkRecord(r);
-    return 'error' in checked ? fail(bad(checked.error)) : checked.record;
-  });
-  const project = (await storeProject(x, true)) ?? fail(notFound('project'));
-  return c.json({ records: await exchange(token, records, project) });
-}
-
-/** project of the served model (none before the first snapshot), else of the store manifest */
-async function storeProject(x: Ctx, manifest: boolean) {
-  const id = (await x.model(null).catch(() => undefined))?.project.id;
-  const m = !id && manifest && B.StoreManifest.safeParse(await parsed(await objects(x).get(MANIFEST)));
-  return id ?? (m ? m.data?.project : undefined);
-}
-
-/** Records only a lead may write through the store endpoint (docs/spec/security.md#roles). */
-const LEAD_KINDS = ['waiver', 'baseline', 'bundle'];
-/** Refuse a log object that is far from now, malformed, holds records of another project or beyond the role. */
-async function checkLog(key: string, data: Uint8Array, project: string | undefined, lead: boolean) {
-  // the earliest log key wins a merge, so a writer may not pick one far from now (docs/spec/sync.md#merge-rules)
-  if (Math.abs(ulidTime(key.slice(7, 33)) - Date.now()) > 3600_000)
-    throw bad(`${key}: not within an hour of now`);
-  const log = B.LogObject.safeParse(await parsed(data));
-  if (!log.success) throw bad(`${key} is not a log object`);
-  for (const raw of log.data.records) {
-    const r = checkRecord(raw);
-    if ('error' in r) throw bad(`${key}: ${r.error}`);
-    if (project && r.record.project !== project) throw bad(`${r.record.id} belongs to another project`);
-    if (r.record.kind === 'share' || r.record.kind === 'secret')
-      throw bad(`${r.record.id}: ${r.record.kind} records are written by the server only`);
-    if (!lead && LEAD_KINDS.includes(r.record.kind))
-      throw new HttpError(403, 'forbidden', `${r.record.id}: ${r.record.kind} records need the lead role`);
-  }
-}
-
-/** Refuse anything but the manifest, valid log objects and matching blobs. */
-async function checkObject(x: Ctx, key: string, data: Uint8Array, lead: boolean) {
-  if (BLOB_KEY.test(key)) {
-    if (!key.endsWith(`/${await B.sha256Hex(data)}`)) throw bad('blob does not match its key');
-    return;
-  }
-  const project = await storeProject(x, key !== MANIFEST);
-  if (LOG_KEY.test(key)) return checkLog(key, data, project, lead);
-  if (key !== MANIFEST) throw bad(`${key}: only the manifest, log objects and blobs can be written`);
-  const m = B.StoreManifest.safeParse(await parsed(data));
-  if (!m.success) throw bad(`${key} is not a store manifest`);
-  if (project && m.data.project !== project) throw bad(`this store belongs to ${project}`);
-}
-
-/** Create-only writes of the manifest, valid log objects and matching blobs (docs/spec/sync.md#store-layout). */
-async function putObject(c: Context, x: Ctx) {
-  const [key, data] = [storeKey(c), await readBody(c)];
-  const store = objects(x);
-  const exists = () => errorResponse(new HttpError(412, 'conflict', `${key} exists`));
-  if (await store.head(key)) return exists();
-  await checkObject(x, key, data, (await x.grant(c)).role === 'lead');
-  const opts = { ifNoneMatch: true, contentType: c.req.header('content-type') };
-  if (!(await store.put(key, data, opts))) return exists();
-  if (key.startsWith('v1/log/')) await x.deps.onLogObject?.(key);
-  return c.body(null, 201);
 }

@@ -4,7 +4,7 @@
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import type { Problem } from '@indx-watch/bundle';
 import { parse, stringify } from 'smol-toml';
 
@@ -57,8 +57,9 @@ function openaiYaml(name: string, value: (key: string) => string) {
   return `interface:\n  display_name: ${JSON.stringify(title)}\n  short_description: ${JSON.stringify(shortDescription)}\npolicy:\n  allow_implicit_invocation: ${value('disable-model-invocation') !== 'true'}\n`;
 }
 
+type Skill = { name: string; description: string };
 /** The AGENTS.md block: one line per skill with how to call it and when to use it. */
-function agentsBlock(skills: { name: string; description: string }[]) {
+function agentsBlock(skills: Skill[]) {
   const lines = skills.map(
     (s) => `- \`${s.name}\` (\`/${s.name}\` or \`$${s.name}\`): ${whenToUse(s.description)}`,
   );
@@ -67,8 +68,14 @@ function agentsBlock(skills: { name: string; description: string }[]) {
   return [START, '## INDX Watch', '', intro, '', ...lines, END].join('\n');
 }
 
-/** Write the agent files under `root`; only files whose content changes are written (and listed). */
-export async function setupAgents(root: string, src: string, to: { claude: boolean; codex: boolean }) {
+/** Files under `dir` as `/`-separated relative paths. */
+const filesIn = async (dir: string) =>
+  (await readdir(dir, { recursive: true, withFileTypes: true }))
+    .filter((f) => f.isFile())
+    .map((f) => relative(dir, join(f.parentPath, f.name)).split('\\').join('/'));
+
+/** What one setupAgents call writes into `root`, and what it reports. */
+function writer(root: string) {
   const paths = (): string[] => [];
   const out = { installed: paths(), files: paths(), removed: paths(), warnings: [] as Problem[] };
   const read = async (path: string) =>
@@ -86,85 +93,105 @@ export async function setupAgents(root: string, src: string, to: { claude: boole
       code: 'agent-config',
       message: `${path} was left unchanged: ${(e as Error).message.split('\n')[0]}`,
     });
+  return { root, out, read, put, warn };
+}
+type Writer = ReturnType<typeof writer>;
 
-  /** Files under `dir` as `/`-separated relative paths. */
-  const filesIn = async (dir: string) =>
-    (await readdir(dir, { recursive: true, withFileTypes: true }))
-      .filter((f) => f.isFile())
-      .map((f) => relative(dir, join(f.parentPath, f.name)).split('\\').join('/'));
-  const bases = (['.claude/skills', '.agents/skills'] as const).filter((_, i) => [to.claude, to.codex][i]);
+/** Copy one skill folder to `base`; Codex gets a portable SKILL.md and an openai.yaml. */
+async function copySkill(w: Writer, base: string, dir: string, value: (key: string) => string) {
+  const [to, codex, files] = [`${base}/${basename(dir)}`, base === '.agents/skills', await filesIn(dir)];
+  w.out.installed.push(to);
+  for (const rel of files) {
+    const data = await readFile(join(dir, rel));
+    await w.put(`${to}/${rel}`, codex && rel === 'SKILL.md' ? portable(data.toString('utf8')) : data);
+  }
+  if (codex && !files.includes('agents/openai.yaml'))
+    await w.put(`${to}/agents/openai.yaml`, openaiYaml(basename(dir), value));
+}
 
-  const skills: { name: string; description: string }[] = [];
+/** Copy each skill folder of `src` under every base; the skills, for the AGENTS.md block. */
+async function installSkills(w: Writer, src: string, bases: string[]) {
+  const skills: Skill[] = [];
   for (const d of await readdir(src, { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
     const dir = join(src, d.name);
-    const files = await filesIn(dir);
     const fm = frontmatter(await readFile(join(dir, 'SKILL.md'), 'utf8'));
     skills.push({ name: d.name, description: fm.value('description') });
-    for (const base of bases) {
-      out.installed.push(`${base}/${d.name}`);
-      for (const rel of files) {
-        const data = await readFile(join(dir, rel));
-        const codexSkill = base === '.agents/skills' && rel === 'SKILL.md';
-        await put(`${base}/${d.name}/${rel}`, codexSkill ? portable(data.toString('utf8')) : data);
-      }
-      if (base === '.agents/skills' && !files.includes('agents/openai.yaml'))
-        await put(`${base}/${d.name}/agents/openai.yaml`, openaiYaml(d.name, fm.value));
-    }
+    for (const base of bases) await copySkill(w, base, dir, fm.value);
   }
-  // a retired skill folder goes only when INDX Watch wrote it: its name and homepage, and no files of its own
+  return skills;
+}
+
+/** A retired skill folder goes only when INDX Watch wrote it: its name and homepage, and no files of its own. */
+async function removeRetired(w: Writer, bases: string[], skills: Skill[]) {
   for (const base of bases)
     for (const name of RETIRED.filter((n) => !skills.some((s) => s.name === n))) {
-      const fm = frontmatter((await read(`${base}/${name}/SKILL.md`)) ?? '');
+      const fm = frontmatter((await w.read(`${base}/${name}/SKILL.md`)) ?? '');
       if (fm.value('name') !== name || !fm.value('metadata').includes(HOMEPAGE)) continue;
-      const dir = join(root, base, name);
+      const dir = join(w.root, base, name);
       const own = (await filesIn(dir)).filter((f) => !['SKILL.md', 'agents/openai.yaml'].includes(f));
       if (own.length) {
-        warn(`${base}/${name}`, new Error(`INDX Watch no longer ships it; move out ${own.join(', ')}`));
+        w.warn(`${base}/${name}`, new Error(`INDX Watch no longer ships it; move out ${own.join(', ')}`));
         continue;
       }
       await rm(dir, { recursive: true });
-      out.removed.push(`${base}/${name}`);
+      w.out.removed.push(`${base}/${name}`);
     }
+}
 
-  if (to.claude) {
-    try {
-      const mcp = JSON.parse((await read('.mcp.json')) ?? '{}');
-      if (JSON.stringify(mcp.mcpServers?.['indx-watch']) !== JSON.stringify(MCP)) {
-        mcp.mcpServers = { ...mcp.mcpServers, 'indx-watch': MCP };
-        await put('.mcp.json', `${JSON.stringify(mcp, null, 2)}\n`);
-      }
-    } catch (e) {
-      warn('.mcp.json', e);
+/** Claude Code: the server in .mcp.json, and CLAUDE.md importing AGENTS.md when there is a CLAUDE.md. */
+async function setupClaude(w: Writer) {
+  try {
+    const mcp = JSON.parse((await w.read('.mcp.json')) ?? '{}');
+    if (JSON.stringify(mcp.mcpServers?.['indx-watch']) !== JSON.stringify(MCP)) {
+      mcp.mcpServers = { ...mcp.mcpServers, 'indx-watch': MCP };
+      await w.put('.mcp.json', `${JSON.stringify(mcp, null, 2)}\n`);
     }
-    const claude = await read('CLAUDE.md');
-    if (claude !== undefined && !/^@AGENTS\.md\s*$/m.test(claude))
-      await put('CLAUDE.md', append(claude, '@AGENTS.md\n'));
+  } catch (e) {
+    w.warn('.mcp.json', e);
   }
-  if (to.codex) {
-    // not a bundle file, so not formatToml(): append the one table smol-toml writes and keep the rest as is
-    const path = '.codex/config.toml';
-    try {
-      const old = (await read(path)) ?? '';
-      const cfg = parse(old) as { mcp_servers?: Record<string, unknown> };
-      if (!cfg.mcp_servers?.['indx-watch']) {
-        const next = append(old, stringify({ mcp_servers: { 'indx-watch': MCP } }));
-        parse(next);
-        await put(path, next);
-      }
-    } catch (e) {
-      warn(path, e);
-    }
-  }
+  const claude = await w.read('CLAUDE.md');
+  if (claude !== undefined && !/^@AGENTS\.md\s*$/m.test(claude))
+    await w.put('CLAUDE.md', append(claude, '@AGENTS.md\n'));
+}
 
-  const agents = (await read('AGENTS.md')) ?? '';
+/** Codex: the server in .codex/config.toml. */
+async function setupCodex(w: Writer) {
+  // not a bundle file, so not formatToml(): append the one table smol-toml writes and keep the rest as is
+  const path = '.codex/config.toml';
+  try {
+    const old = (await w.read(path)) ?? '';
+    const cfg = parse(old) as { mcp_servers?: Record<string, unknown> };
+    if (cfg.mcp_servers?.['indx-watch']) return;
+    const next = append(old, stringify({ mcp_servers: { 'indx-watch': MCP } }));
+    parse(next);
+    await w.put(path, next);
+  } catch (e) {
+    w.warn(path, e);
+  }
+}
+
+/** Replace the marked block of AGENTS.md, or append it. */
+async function writeAgentsMd(w: Writer, skills: Skill[]) {
+  const agents = (await w.read('AGENTS.md')) ?? '';
   const [i, j] = [agents.indexOf(START), agents.indexOf(END, agents.indexOf(START))];
   const block = agentsBlock(skills);
-  await put(
+  await w.put(
     'AGENTS.md',
     i >= 0 && j > i
       ? agents.slice(0, i) + block + agents.slice(j + END.length)
       : append(agents, `${block}\n`),
   );
-  return out;
+}
+
+/** Write the agent files under `root`; only files whose content changes are written (and listed). */
+export async function setupAgents(root: string, src: string, to: { claude: boolean; codex: boolean }) {
+  const w = writer(root);
+  const bases = (['.claude/skills', '.agents/skills'] as const).filter((_, i) => [to.claude, to.codex][i]);
+  const skills = await installSkills(w, src, bases);
+  await removeRetired(w, bases, skills);
+  if (to.claude) await setupClaude(w);
+  if (to.codex) await setupCodex(w);
+  await writeAgentsMd(w, skills);
+  return w.out;
 }
