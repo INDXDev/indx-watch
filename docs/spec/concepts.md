@@ -262,6 +262,20 @@ Changed paths are relative to the repository root with `/` separators, as `git d
 
 Each suggestion carries every reason that applies (`kind`, the changed `file`, and for `automation` the matching entry as `pattern`). Suggestions are ordered by priority (P0 first), then key. Drafts are included; their definition `status` tells them apart.
 
+## Bundle diff
+
+`bundleDiff(base, head)` says what a change did to the definitions: which use cases (UC), acceptance criteria (AC) and test cases (TC) were added, changed or removed between two loaded bundles, for example the bundle at a pull request's base commit and at its head. It is information only (like [impact analysis](#impact-analysis)): it changes no verdict, status or gate check.
+
+Items match by `id`, so renumbering a key is a change, not a removal plus an addition. A changed item lists what differs:
+
+| Item | `what` |
+|---|---|
+| Test case | `title`; `steps` (the steps, in order); `criteria` (the covered criteria, or the text of one of them); `data` (the fixture references, or the version of a referenced fixture); `details` (anything else, such as mode, priority or preconditions) |
+| Use case | `title`; `details` (actor, goal, priority, status, links …) |
+| Criterion | `title` (its text) |
+
+Translations and field order count only when they change the stored value. Results are ordered use cases, criteria, test cases, each by key. Runs are not part of a bundle diff.
+
 ## Feature owners
 
 *(v0.4)* A feature's optional `owners` ([bundle format](./bundle-format.md#specsfeatfeaturetoml)) name the people who look after its tests: emails (or other actor IDs) and `group:<name>` entries. "My features" for a person are the features whose owners name their actor ID or, where groups are known (the hosted app with [roles](./security.md#roles)), `group:<name>` of one of their groups, without case, exactly like a plan item's assignee (one matcher in `packages/core/src/roles.ts`).
