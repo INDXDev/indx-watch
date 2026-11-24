@@ -134,6 +134,41 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 
 **Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](./cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](./concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
 
+## GitHub issues
+
+*(v0.5)* GitHub issues and INDX Watch meet in three places, and INDX Watch never writes to GitHub: no token with write access, no comment, no closing. A person opens a page and submits it; the app shows the links back.
+
+| Direction | What happens |
+|---|---|
+| Issue → use case | `iw import github-issue <n \| URL>` reads one issue through the `IssueSource` port ([architecture](../architecture.md#ports-and-adapters): a GitHub REST adapter with `GITHUB_TOKEN` or none for public repositories, and a fake; `--from` takes the file of `gh issue view <n> --json title,body,labels,url`). One issue is one **draft** use case (`origin = "import"`) whose `links` hold the issue URL; every task-list item (`- [ ] …`) is a draft acceptance criterion. Importing the same issue again changes nothing and names the use case. An issue without a task list is not imported: `/iw-design` reads it and proposes cases. |
+| Failure → issue | `iw issue <run \| TC-n \| AC-n.m \| UC-n>` and the **Open as GitHub issue** button on the run viewer and the test case page build a **prefilled new-issue URL** with the pure function `issueUrl()` in core. Opening it is the person's act; they read it and press Submit. |
+| Issue → app | The issue URL goes into `links` of the test case (or use case) with `iw issue … --link <url>` or the button's "Paste the issue URL" step. The test case page, the run viewer and the use case show **Related issue #42**. A run is immutable, so a run shows the links of its test case. |
+
+### Issue forms
+
+`iw init --github` and `/iw-setup` write two [issue forms](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema) into `.github/ISSUE_TEMPLATE/`, only when missing (`githubTemplates()` in `packages/cli/src/github.ts`). The field `id`s are fixed:
+
+| File | Field ids | Used by |
+|---|---|---|
+| `indx-watch-test-request.yml` | `actor`, `goal`, `priority` (P0–P3), `criteria` (a task list) | `iw import github-issue`: a use case with its criteria. The import reads the rendered form by its labels (Actor, Goal, Priority, Acceptance criteria) and any other issue by its task list |
+| `indx-watch-test-failure.yml` | `keys`, `steps`, `expected`, `actual`, `run`, `commit`, `environment` | `iw issue` and the button |
+
+### The prefilled URL
+
+`https://github.com/<owner>/<name>/issues/new?template=indx-watch-test-failure.yml&title=…&keys=…&steps=…&expected=…&actual=…&run=…&commit=…&environment=…`. GitHub fills a form field from the query parameter named like its `id` ([platform notes](../research/platform-notes.md#github-issues)). Only the form's text fields are used (no dropdown), so every value fills; `keys` carries the keys followed by the priority (`TC-3, P1`). Where the repository has no such form, GitHub opens its plain new-issue page and the text is not filled in: run `iw init --github`.
+
+| Field | Comes from |
+|---|---|
+| `title` | `<key>: <title>` of the test case (or criterion, use case) |
+| `keys` | the key, plus the test cases that cover a criterion or use case, and the priority |
+| `steps` | the test case's steps, numbered |
+| `expected` | the expected result of the first failing step (else the last step; for a criterion its text) |
+| `actual` | the failing steps' notes, the run note and the judgements that did not pass (their `reason`) |
+| `run` | a link to the run page when the app is hosted (`[store]` is an `https://` app), else the CI job URL, else the run ID |
+| `commit`, `environment` | the run's `build.commit` and `environment` |
+
+Rules the builder keeps, so an issue is safe to open: (1) **Length.** The URL stays under 6,000 characters, far below the point where GitHub answers 414. `actual`, then `expected`, then `steps` are halved until it fits and, if need be, left out; the keys, run, commit and environment always stay. The command lists what it shortened. (2) **Secrets.** Each field passes the [secret scan](./security.md#secrets); a field that looks like a secret is left out (and named in a warning), never shortened. (3) **Fixtures.** Usernames, `secret_ref`s and field values of the test case's `account` fixtures are replaced by `[redacted]`; values of `iw:` secrets are never read. (4) **Repository.** `[github] repo = "owner/name"` in [`project.toml`](./bundle-format.md#projecttoml), else the `origin` remote of the working copy (`iw serve` and the CLI; a Worker needs `[github]`). Without a repository the button is hidden and the CLI says how to set it. (5) **Roles.** Customers do not get the button, and agents cannot `--open` a page.
+
 ## Acceptance criteria
 
 - [x] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
@@ -144,3 +179,7 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 - [x] The "Suggested test cases" section for a change to `examples/shop/tests/coupon.spec.ts` lists TC-3 and TC-4 (`iw impact` human output, CLI test).
 - [x] On this repository's pull requests (`comment: true` in CI), the PR comment carries that section (seen on PR #29).
 - [x] With only GitLab CI, CircleCI or Buildkite variables set, `build`, `ci`, `actor` and `automation.group` come from the table above (store and reporter unit tests with fake environments).
+- [x] `iw issue TC-3` on the shop with a failed run prints a new-issue URL for the failure form with the title, keys, steps, expected, actual (the failing step's note), commit and environment; the URL is under 6,000 characters however long the notes are, and a note that looks like a secret or an account fixture's username never appears in it (core and CLI tests).
+- [x] `iw issue TC-3 --link https://github.com/shop-co/shop/issues/42` stores the URL once in the test case's `links`; `iw check` passes (CLI test).
+- [x] `iw import github-issue 42 --from issue.json --feature FEAT-2` creates one draft use case with `origin = "import"`, the issue URL in `links` and one draft criterion per task-list item; importing it again creates nothing and names the use case (CLI test). The REST adapter and the fake pass one contract test (store test).
+- [x] The Open as GitHub issue button opens the prefilled page, and "Paste the issue URL" shows Related issue #42 on the test case page (e2e `@TC-19`).

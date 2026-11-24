@@ -35,6 +35,8 @@ export const ROUTES = {
   plan: 'GET /api/plans/:key',
   runs: 'GET /api/runs?tc=&release=&env=&limit=',
   run: 'GET /api/runs/:id',
+  issue:
+    'GET /api/issue?ref= (a run ID, TC-n, AC-n.m or UC-n → IssueResult: the prefilled GitHub issue; docs/spec/integrations.md#github-issues)',
   editTestCase:
     'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record? }; docs/spec/web.md#editing-in-workspace-mode)',
   createFixture: 'POST /api/fixtures (lead; FixtureInput → FixtureSaved; docs/spec/web.md#test-data)',
@@ -125,6 +127,8 @@ export interface ProjectInfo {
   /** (v0.4) keys of the features this identity owns; the web app starts in "My features" when not empty */
   owns?: string[];
   mode: 'local' | 'hosted';
+  /** (v0.5) where "Open as GitHub issue" goes: `[github] repo`, else the git remote; absent: the button is hidden */
+  github?: { repo: string };
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
   /** problems from loading the bundle (shown as a banner) */
   problems: { severity: string; message: string; file?: string }[];
@@ -367,6 +371,8 @@ export interface TestCaseEdit {
   title?: string;
   priority?: string | null;
   steps?: { instruction: string; expected: string }[];
+  /** (v0.5) issue URLs of this test case; `null` removes them */
+  links?: string[] | null;
 }
 
 /**

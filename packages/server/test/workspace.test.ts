@@ -139,6 +139,15 @@ describe('workspace mode: local editing', () => {
     expect(await sha256Hex(a.wrote.get(TC3)!)).toBe(record.sha256);
   });
 
+  it('stores issue links on the test case, de-duplicated, and refuses anything but http(s) URLs', async () => {
+    const a = await local(true);
+    const url = 'https://github.com/shop-co/shop/issues/42';
+    expect((await a.app.fetch(patch({ links: [url, url] }))).status).toBe(201);
+    expect(parseToml(dec.decode(a.wrote.get(TC3)!)).links).toEqual([url]);
+    expect((await a.app.fetch(patch({ links: ['javascript:alert(1)'] }))).status).toBe(400);
+    expect((await a.app.fetch(patch({ links: null }))).status).toBe(201);
+  });
+
   it('refuses edits while the test case has a conflict file', async () => {
     const a = await local(true);
     a.files.set(TC3.replace('.toml', '.conflict-1a2b3c4d.toml'), a.files.get(TC3)!);

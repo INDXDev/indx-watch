@@ -21,6 +21,13 @@ function applyEdit(data: Record<string, unknown>, input: TestCaseEdit) {
     out.priority = B.Priority.safeParse(input.priority).success
       ? input.priority
       : fail(bad('priority: P0–P3'));
+  if (input.links === null) delete out.links;
+  else if (input.links !== undefined) {
+    const links = [...new Set(input.links)];
+    if (!links.every((l) => typeof l === 'string' && /^https?:\/\/[^\s]+$/i.test(l)))
+      throw bad('links: http(s) URLs');
+    out.links = links;
+  }
   if (input.steps !== undefined) {
     if (!Array.isArray(input.steps) || !input.steps.length) throw bad('steps: at least one step');
     const old = (data.steps ?? []) as Record<string, unknown>[];

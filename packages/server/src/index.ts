@@ -13,6 +13,7 @@ export {
   type ServerDeps,
 } from './app.js';
 export * from './contract.js';
+export { type IssueOptions, type IssueResult, issueFor } from './issue.js';
 export { claimsMismatch, githubOidcSigning, pinnedRepositories } from './oidc.js';
 export { type ReportTexts, renderReport, reportTexts } from './report.js';
 export * from './tools.js';

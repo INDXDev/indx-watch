@@ -49,6 +49,8 @@ export interface ServerDeps extends AppDeps {
   removeFile?(path: string): Promise<void>;
   /** IW_SECRETS_KEY: without it `iw:` secrets cannot be read or written (docs/spec/security.md#secrets) */
   secretsKey?: string;
+  /** `owner/name` of the working copy's GitHub remote: the fallback of `[github] repo` for "Open as GitHub issue" (Node) */
+  githubRepo?: string;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
   /** a public deploy: every request but GET, HEAD and `/mcp` answers 403 (docs/spec/security.md#public-deploys) */

@@ -18,6 +18,7 @@ import type { Ctx } from './app.js';
 import type { BaselineInput, ManualRunInput, ProjectInfo, ReviewInput, RunDetail } from './contract.js';
 import { changesOf, guardSharing, saveFixture, writeWorkspace } from './fixtures.js';
 import { bad, fail, HttpError, iso, notFound, q, readBody, readJson, scopeOf, sniff } from './http.js';
+import { type IssueResult, issueFor } from './issue.js';
 import { report } from './reports.js';
 import { accessOf } from './secrets.js';
 import { checksError } from './tools.js';
@@ -74,6 +75,23 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
     return c.json(runs.map((v) => V.runSummary(v, m)));
   });
   get('/api/runs/:id', (m, c) => runDetail(m, c.req.param('id')!));
+  app.get('/api/issue', async (c) => {
+    if ((await x.grant(c)).role === 'customer')
+      throw new HttpError(403, 'forbidden', 'customers cannot open issues');
+    const m = await model(c);
+    const repo = m.project.github?.repo ?? x.deps.githubRepo;
+    const hosted = x.deps.mode === 'hosted' ? new URL(c.req.url).origin : undefined;
+    try {
+      return c.json(issueFor(m, q(c, 'ref') ?? '', { repo, appUrl: hosted }) satisfies IssueResult);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      throw code === 'NOT_FOUND'
+        ? notFound(String((e as Error).message))
+        : code === 'INVALID_CONFIG'
+          ? new HttpError(409, 'conflict', (e as Error).message)
+          : e;
+    }
+  });
   app.get('/api/blobs/:sha', (c) => blob(c, x));
   app.get('/api/report', (c) => report(c, x));
 }
@@ -111,11 +129,13 @@ async function projectInfo(c: Context, x: Ctx) {
   };
   const clone = deps.mode === 'hosted' ? new URL(c.req.url).origin : (deps.syncInfo?.().store ?? null);
   const who = await actor(c);
+  const github = m.project.github?.repo ?? deps.githubRepo;
   const info: ProjectInfo = {
     project: { key, name, source_locale, locales, default_environment, current_release },
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
     ...{ identity: who, mode: deps.mode, problems: customer ? [] : problems, role },
+    ...(github && !customer && { github: { repo: github } }),
     owns: ownedFeatures(m, principal),
     sync: deps.syncInfo?.() ?? { configured: false },
     share: { clone: customer ? null : clone },

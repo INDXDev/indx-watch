@@ -92,6 +92,10 @@ Gate checks, counts by status and the use case table move to **Release details**
 
 *(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](./concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
 
+### Open as GitHub issue
+
+*(v0.5)* The run viewer and the [test case page](#test-case-page) show **Open as GitHub issue** when `GET /api/project` has `github.repo` (`[github] repo`, else the working copy's remote; never for customers). It fetches `GET /api/issue?ref=<run or TC>` and opens the prefilled new-issue page in a new tab, so a person reads the text and submits it; the app sends nothing. Beside it, **Paste the issue URL** takes the URL of the issue they created and stores it in the test case's `links`: through `PATCH /api/test-cases/:key` in workspace mode; in git mode the app shows the command `iw issue TC-n --link <url>` to run instead. Linked issues show as **Related issue #42** (a link to GitHub) on the test case page, the run viewer (the test case's links) and the use case. Only http(s) links are rendered.
+
 ### Reviews
 
 The run viewer ends with a review form: **This run needs a person's decision** on a `needs_review` run, else **Add a review**. A review appends a `judgement` and never edits the run. Under the [decision policy](./concepts.md#decision-policy) (rule 1) the latest human judgement decides, whoever wrote it, so on your own run the form reads **Change your verdict** and says that your review counts like anyone else's and that a second opinion needs a teammate.
@@ -307,6 +311,7 @@ You can upload definitions in three ways:
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
+- [x] With `[github] repo` set, the run viewer and the test case page show Open as GitHub issue, which opens the prefilled form page; pasting the issue URL shows Related issue #42 (e2e `@TC-19`). Without a repository the button is hidden.
 - [x] TC-4 in examples/shop (`style = "bdd"`) shows the Scenario (BDD) chip, the How to run this scenario guide and Given / When / Then labels, and 前提 / もし / ならば after switching to Japanese; TC-3 (no `style`) shows Preconditions, Steps and Expected (checked by hand with Playwright screenshots against `iw serve`).
 - [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test, web unit tests and e2e `@TC-17`).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).

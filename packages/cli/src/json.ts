@@ -79,6 +79,29 @@ const PATHS = z.array(z.string());
 const AGENT_SETUP = z.object({ installed: PATHS, files: PATHS, removed: PATHS });
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
+/** `iw issue`: the prefilled issue; `link` when --link stored the issue URL (docs/spec/cli.md#iw-issue-ref) */
+export const IssueData = z.object({
+  ref: z.string(),
+  /** the run the issue text comes from (a test case ref uses its latest run) */
+  run: z.string().nullable(),
+  repo: z.string().nullable(),
+  url: z.string().nullable(),
+  title: z.string().optional(),
+  keys: z.array(z.string()).optional(),
+  trimmed: z.array(z.string()).optional(),
+  secrets: z.array(z.string()).optional(),
+  link: z
+    .object({ file: z.string(), key: z.string(), links: z.array(z.string()), added: z.boolean() })
+    .nullable(),
+});
+/** `iw import github-issue`: `created` is null and `existing` the use case key when the issue was imported before */
+export const ImportIssueData = z.object({
+  issue: z.string(),
+  created: z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() }).nullable(),
+  existing: z.string().nullable(),
+  criteria: z.number(),
+});
+
 /** `data` shape per command. */
 export const CommandData = {
   init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
@@ -243,7 +266,9 @@ export const CommandData = {
       uc: z.string(),
       created: z.array(z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() })),
     }),
+    ImportIssueData,
   ]),
+  issue: IssueData,
   deploy: z.object({
     resources: z.array(
       z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() }),
