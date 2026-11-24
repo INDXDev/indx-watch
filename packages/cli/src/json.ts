@@ -77,11 +77,27 @@ const Gate = z.object({
 /** `iw skills install` and the agent setup of `iw init`: skill folders, the files this run changed and the retired skill folders it removed. */
 const PATHS = z.array(z.string());
 const AGENT_SETUP = z.object({ installed: PATHS, files: PATHS, removed: PATHS });
+/** `iw init --github` (docs/spec/cli.md#iw-init): paths are relative to the repository root. */
+export const InitGithubData = z.object({
+  ...{ root: z.string(), written: PATHS, skipped: PATHS },
+  secrets: PATHS,
+});
+export type InitGithubData = z.infer<typeof InitGithubData>;
+const DIFF_ITEMS = z.array(
+  z.object({
+    kind: z.enum(['uc', 'ac', 'tc']),
+    ...{ key: z.string(), title: z.string() },
+    what: z.array(z.enum(['title', 'steps', 'criteria', 'data', 'details'])).optional(),
+  }),
+);
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
 /** `data` shape per command. */
 export const CommandData = {
-  init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
+  init: z.object({
+    ...{ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() },
+    github: InitGithubData.optional(),
+  }),
   check: z.object({
     files: z.number(),
     errors: z.number(),
@@ -112,6 +128,8 @@ export const CommandData = {
       }),
     ),
   }),
+  /** docs/spec/concepts.md#bundle-diff */
+  diff: z.object({ base: z.string(), added: DIFF_ITEMS, changed: DIFF_ITEMS, removed: DIFF_ITEMS }),
   show: z.record(z.string(), z.unknown()),
   list: z.object({ items: z.array(z.record(z.string(), z.unknown())) }),
   record: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),
