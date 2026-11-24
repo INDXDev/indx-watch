@@ -251,6 +251,16 @@
       ],
       "additionalProperties": false
     },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "indx_watch": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+        }
+      },
+      "additionalProperties": false
+    },
     "signing_keys": {
       "type": "array",
       "items": {

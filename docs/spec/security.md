@@ -167,7 +167,7 @@ The server enforces this table in one middleware before any route (Node and Work
 
 ## Hosted app
 
-- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz`, `POST /api/sign` (which requires a GitHub OIDC token instead, [GitHub OIDC](#github-oidc)) and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
+- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` (which answers `{ "ok": true, "version": "…" }` to anyone, *(v0.5)* so the running version is not secret; `GET /api/project` repeats it, and the project's pin only to leads), `POST /api/sign` (which requires a GitHub OIDC token instead, [GitHub OIDC](#github-oidc)) and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
 - The MCP endpoint `/mcp` is one of those routes: it resolves the identity exactly like `/api`, and its writes record that identity with `kind = "agent"` ([agents.md](./agents.md#mcp-server)). It has no `approve`, `review` or `waive` tool, and `new` only writes AI drafts, at paths inside the bundle.
 - `iw deploy` prints the Access setup steps and refuses to deploy publicly unless `--public` is passed; a public deploy is read-only ([below](#public-deploys)).
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.

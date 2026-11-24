@@ -121,6 +121,15 @@ export const HostingConfig = z.strictObject({
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
+/** `[tool]`: the INDX Watch version the project pins (docs/spec/bundle-format.md#projecttoml). */
+export const ToolConfig = z.strictObject({
+  indx_watch: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'an exact version such as 0.1.3')
+    .optional(),
+});
+export type ToolConfig = z.infer<typeof ToolConfig>;
+
 export const Project = z.strictObject({
   schema_version: z.number().int().positive(),
   id: idOf('prj'),
@@ -137,6 +146,7 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  tool: ToolConfig.optional(),
   /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
   signing_keys: z.array(SigningKey).optional(),
   glossary: z.array(z.strictObject({ term: z.string(), definition: z.string() })).optional(),
