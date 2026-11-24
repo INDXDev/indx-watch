@@ -1,13 +1,15 @@
+/** processIdentity, processContext and the signer on a dev machine and in CI; accessIdentity on the Worker. */
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateSigningKey, verifyRecord } from '@indx-watch/bundle';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { usesGithubOidc } from '../src/adapters/github-oidc.js';
 import { processContext, processIdentity, processSigner } from '../src/node/index.js';
 import { accessIdentity } from '../src/workers/index.js';
+import { BUILDKITE, CIRCLECI, GITLAB, SHA } from './helpers/ci-env.js';
 import { runRecord } from './helpers/records.js';
 
 let dir: string;
@@ -93,38 +95,37 @@ describe('processContext', () => {
     expect(await ctx.ci()).toBeUndefined();
     expect(await processContext({ env: isolated(), cwd: dir }).build()).toEqual({});
   });
+});
 
+const MERGE_SHA = 'ffffffffffffffffffffffffffffffffffffffff';
+const RUNS = 'https://github.com/INDXDev/indx-watch/actions/runs/1';
+
+/** GitHub Actions variables of a pull_request run of PR 12, with its event file at `event`. */
+const githubPr = (event: string) => ({
+  GITHUB_ACTIONS: 'true',
+  GITHUB_EVENT_NAME: 'pull_request',
+  GITHUB_EVENT_PATH: event,
+  GITHUB_SHA: MERGE_SHA,
+  GITHUB_REF: 'refs/pull/12/merge',
+  GITHUB_HEAD_REF: 'coupon-fix',
+  GITHUB_SERVER_URL: 'https://github.com',
+  GITHUB_REPOSITORY: 'INDXDev/indx-watch',
+  GITHUB_RUN_ID: '1',
+  GITHUB_RUN_ATTEMPT: '2',
+  GITHUB_JOB: 'e2e',
+  GITHUB_WORKFLOW: 'CI',
+});
+
+describe('processContext on GitHub pull requests', () => {
   it('uses the PR head SHA and number from GITHUB_EVENT_PATH on pull_request', async () => {
     const event = join(dir, 'event.json');
-    await writeFile(
-      event,
-      JSON.stringify({
-        pull_request: { number: 12, head: { sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678' } },
-      }),
-    );
-    const env = {
-      GITHUB_ACTIONS: 'true',
-      GITHUB_EVENT_NAME: 'pull_request',
-      GITHUB_EVENT_PATH: event,
-      GITHUB_SHA: 'ffffffffffffffffffffffffffffffffffffffff',
-      GITHUB_REF: 'refs/pull/12/merge',
-      GITHUB_HEAD_REF: 'coupon-fix',
-      GITHUB_SERVER_URL: 'https://github.com',
-      GITHUB_REPOSITORY: 'INDXDev/indx-watch',
-      GITHUB_RUN_ID: '1',
-      GITHUB_RUN_ATTEMPT: '2',
-      GITHUB_JOB: 'e2e',
-      GITHUB_WORKFLOW: 'CI',
-    };
+    await writeFile(event, JSON.stringify({ pull_request: { number: 12, head: { sha: SHA } } }));
+    const env = githubPr(event);
     const ctx = processContext({ env });
-    expect(await ctx.build()).toEqual({
-      commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
-      ref: 'refs/heads/coupon-fix',
-      dirty: false,
-    });
+    expect(await ctx.build()).toEqual({ commit: SHA, ref: 'refs/heads/coupon-fix', dirty: false });
     expect(await ctx.ci()).toEqual({
       provider: 'github',
-      url: 'https://github.com/INDXDev/indx-watch/actions/runs/1/attempts/2',
+      url: `${RUNS}/attempts/2`,
       run_id: '1',
       run_attempt: 2,
       job: 'e2e',
@@ -135,124 +136,43 @@ describe('processContext', () => {
     });
     // with `IW_CHECK_RUN_ID: ${{ job.check_run_id }}` the link opens the job; a non-number is ignored
     const job = (id: string) => processContext({ env: { ...env, IW_CHECK_RUN_ID: id } }).ci();
-    expect((await job('135996031339'))?.url).toBe(
-      'https://github.com/INDXDev/indx-watch/actions/runs/1/job/135996031339',
-    );
-    expect((await job('x'))?.url).toBe('https://github.com/INDXDev/indx-watch/actions/runs/1/attempts/2');
-    const push = processContext({
-      env: {
-        ...env,
-        GITHUB_EVENT_NAME: 'push',
-        GITHUB_EVENT_PATH: join(dir, 'missing.json'),
-        GITHUB_HEAD_REF: '',
-      },
-    });
-    expect(await push.build()).toEqual({
-      commit: 'ffffffffffffffffffffffffffffffffffffffff',
-      ref: 'refs/pull/12/merge',
-      dirty: false,
-    });
+    expect((await job('135996031339'))?.url).toBe(`${RUNS}/job/135996031339`);
+    expect((await job('x'))?.url).toBe(`${RUNS}/attempts/2`);
+  });
+
+  it('falls back to GITHUB_SHA and GITHUB_REF on push and without a readable event', async () => {
+    const event = join(dir, 'event.json');
+    const env = githubPr(event);
+    const missing = {
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_EVENT_PATH: join(dir, 'missing.json'),
+      GITHUB_HEAD_REF: '',
+    };
+    const push = processContext({ env: { ...env, ...missing } });
+    expect(await push.build()).toEqual({ commit: MERGE_SHA, ref: 'refs/pull/12/merge', dirty: false });
     // an empty or invalid event file (act, local GITHUB_ACTIONS=true runs) is treated as no event
     for (const text of ['', '{not json', 'null']) {
       await writeFile(event, text);
       const ctx = processContext({ env: { ...env, GITHUB_HEAD_REF: '' } });
-      expect((await ctx.build()).commit).toBe('ffffffffffffffffffffffffffffffffffffffff');
+      expect((await ctx.build()).commit).toBe(MERGE_SHA);
       expect((await ctx.ci())?.pr).toBeUndefined();
     }
   });
 });
 
 describe('GitLab CI, CircleCI and Buildkite', () => {
-  const sha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
-  const cases = [
-    {
-      env: {
-        GITLAB_CI: 'true',
-        CI_COMMIT_SHA: sha,
-        CI_COMMIT_REF_NAME: 'coupon-fix',
-        GITLAB_USER_LOGIN: 'alex',
-        CI_MERGE_REQUEST_IID: '12',
-        CI_JOB_URL: 'https://gitlab.com/shop/web/-/jobs/7',
-        CI_PIPELINE_ID: '1001',
-        CI_JOB_NAME: 'e2e',
-        CI_PIPELINE_SOURCE: 'merge_request_event',
-        CI_PROJECT_PATH: 'shop/web',
-        GITLAB_USER_NAME: 'Alex Kim',
-        CI_JOB_RETRY_COUNT: '0',
-      },
-      ref: 'refs/heads/coupon-fix',
-      actor: { kind: 'ci', id: 'gitlab:alex', name: 'Alex Kim', via: 'gitlab' },
-      ci: {
-        provider: 'gitlab',
-        url: 'https://gitlab.com/shop/web/-/jobs/7',
-        run_id: '1001',
-        run_attempt: 1,
-        job: 'e2e',
-        event: 'merge_request_event',
-        repository: 'shop/web',
-        pr: 12,
-      },
+  it.each([GITLAB, CIRCLECI, BUILDKITE])(
+    'detects $ci.provider from its standard variables',
+    async ({ env, ref, actor, ci }) => {
+      expect(await processIdentity({ env }).current()).toEqual(actor);
+      const ctx = processContext({ env });
+      expect(await ctx.build()).toEqual({ commit: SHA, ref, dirty: false });
+      expect(await ctx.ci()).toEqual(ci);
     },
-    {
-      env: {
-        CIRCLECI: 'true',
-        CIRCLE_SHA1: sha,
-        CIRCLE_BRANCH: 'main',
-        CIRCLE_TAG: 'v1.4.0',
-        CIRCLE_USERNAME: 'sam',
-        CIRCLE_PULL_REQUEST: 'https://github.com/shop/web/pull/34',
-        CIRCLE_BUILD_URL: 'https://circleci.com/gh/shop/web/88',
-        CIRCLE_WORKFLOW_ID: 'wf-1',
-        CIRCLE_JOB: 'e2e',
-      },
-      ref: 'refs/tags/v1.4.0',
-      actor: { kind: 'ci', id: 'circleci:sam', name: 'sam', via: 'circleci' },
-      ci: {
-        provider: 'circleci',
-        url: 'https://circleci.com/gh/shop/web/88',
-        run_id: 'wf-1',
-        job: 'e2e',
-        pr: 34,
-      },
-    },
-    {
-      env: {
-        BUILDKITE: 'true',
-        BUILDKITE_COMMIT: 'HEAD', // not a SHA: IW_COMMIT, else the checkout
-        IW_COMMIT: sha,
-        BUILDKITE_BRANCH: 'main',
-        BUILDKITE_BUILD_CREATOR: 'Kim Lee',
-        BUILDKITE_BUILD_CREATOR_EMAIL: 'kim@shop.test',
-        BUILDKITE_RETRY_COUNT: '2',
-        BUILDKITE_PULL_REQUEST: 'false',
-        BUILDKITE_BUILD_URL: 'https://buildkite.com/shop/web/builds/5',
-        BUILDKITE_BUILD_ID: 'b-5',
-        BUILDKITE_LABEL: ':playwright: e2e',
-        BUILDKITE_PIPELINE_SLUG: 'web',
-        BUILDKITE_SOURCE: 'webhook',
-      },
-      ref: 'refs/heads/main',
-      actor: { kind: 'ci', id: 'buildkite:kim@shop.test', name: 'Kim Lee', via: 'buildkite' },
-      ci: {
-        provider: 'buildkite',
-        url: 'https://buildkite.com/shop/web/builds/5',
-        run_id: 'b-5',
-        run_attempt: 3,
-        job: ':playwright: e2e',
-        workflow: 'web',
-        event: 'webhook',
-      },
-    },
-  ];
-  it.each(cases)('detects $ci.provider from its standard variables', async ({ env, ref, actor, ci }) => {
-    expect(await processIdentity({ env }).current()).toEqual(actor);
-    const ctx = processContext({ env });
-    expect(await ctx.build()).toEqual({ commit: sha, ref, dirty: false });
-    expect(await ctx.ci()).toEqual(ci);
-  });
+  );
 
   it('prefers IW_ACTOR and GitHub Actions, and falls back to git without a user', async () => {
-    const env = cases[0]!.env;
+    const env = GITLAB.env;
     expect((await processIdentity({ env: { ...env, IW_ACTOR: 'qa@shop.test' } }).current()).via).toBe('env');
     const both = { ...env, GITHUB_ACTIONS: 'true', GITHUB_ACTOR: 'octocat', GITHUB_RUN_ID: '1' };
     expect((await processIdentity({ env: both }).current()).via).toBe('github');
@@ -262,77 +182,86 @@ describe('GitLab CI, CircleCI and Buildkite', () => {
   });
 
   it('takes the first provider in table order, ignores a non-numeric PR and falls back to the checkout commit', async () => {
-    const env = { ...cases[1]!.env, ...cases[2]!.env, CIRCLE_PULL_REQUEST: 'none', IW_COMMIT: undefined };
+    const env = { ...CIRCLECI.env, ...BUILDKITE.env, CIRCLE_PULL_REQUEST: 'none', IW_COMMIT: undefined };
     const ci = await processContext({ env }).ci();
     expect(ci).toMatchObject({ provider: 'circleci', run_id: 'wf-1' });
     expect(ci?.pr).toBeUndefined();
-    const bk = { ...isolated(), ...cases[2]!.env, IW_COMMIT: undefined };
+    const bk = { ...isolated(), ...BUILDKITE.env, IW_COMMIT: undefined };
     expect((await processContext({ env: bk, cwd: repo }).build()).commit).toBe(git('rev-parse', 'HEAD'));
   });
 });
 
+/**
+ * Stubs fetch so the team `shop` serves the JWKS of a fresh key, and returns a signer for Access JWTs (aud
+ * `aud-tag`) and a request carrying one.
+ */
+async function stubAccessCerts() {
+  const { publicKey, privateKey } = await generateKeyPair('RS256');
+  const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
+  const real = globalThis.fetch;
+  const fetchSpy = vi.fn(async (input: Request | string | URL) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (url === 'https://shop.cloudflareaccess.com/cdn-cgi/access/certs')
+      return Response.json({ keys: [jwk] });
+    return real(input);
+  });
+  vi.stubGlobal('fetch', fetchSpy);
+  const sign = (
+    claims: Record<string, unknown>,
+    aud = 'aud-tag',
+    iss = 'https://shop.cloudflareaccess.com',
+  ) =>
+    new SignJWT(claims)
+      .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+      .setIssuer(iss)
+      .setAudience(aud)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+  const req = async (token?: string) =>
+    new Request(
+      'https://watch.shop.test/api/runs',
+      token ? { headers: { 'Cf-Access-Jwt-Assertion': token } } : {},
+    );
+  return { sign, req };
+}
+
 describe('accessIdentity', () => {
-  it('verifies the Access JWT against the team JWKS, issuer and aud', async () => {
-    const { publicKey, privateKey } = await generateKeyPair('RS256');
-    const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
-    const real = globalThis.fetch;
-    const fetchSpy = vi.fn(async (input: Request | string | URL) => {
-      const url = String(input instanceof Request ? input.url : input);
-      if (url === 'https://shop.cloudflareaccess.com/cdn-cgi/access/certs')
-        return Response.json({ keys: [jwk] });
-      return real(input);
+  afterEach(() => vi.unstubAllGlobals());
+  const unauthorized = { code: 'unauthorized' };
+
+  it('verifies the Access JWT against the team JWKS: a person by email, a service token by common name', async () => {
+    const { sign, req } = await stubAccessCerts();
+    const id = accessIdentity({ team: 'shop', aud: 'aud-tag' });
+    expect(await id.current(await req(await sign({ email: 'alex@shop.test', sub: 'u1' })))).toEqual({
+      kind: 'human',
+      id: 'alex@shop.test',
+      via: 'cloudflare-access',
     });
-    vi.stubGlobal('fetch', fetchSpy);
-    try {
-      const sign = (
-        claims: Record<string, unknown>,
-        aud = 'aud-tag',
-        iss = 'https://shop.cloudflareaccess.com',
-      ) =>
-        new SignJWT(claims)
-          .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
-          .setIssuer(iss)
-          .setAudience(aud)
-          .setIssuedAt()
-          .setExpirationTime('5m')
-          .sign(privateKey);
-      const id = accessIdentity({ team: 'shop', aud: 'aud-tag' });
-      const req = async (token?: string) =>
-        new Request(
-          'https://watch.shop.test/api/runs',
-          token ? { headers: { 'Cf-Access-Jwt-Assertion': token } } : {},
-        );
-      expect(await id.current(await req(await sign({ email: 'alex@shop.test', sub: 'u1' })))).toEqual({
-        kind: 'human',
-        id: 'alex@shop.test',
-        via: 'cloudflare-access',
-      });
-      expect(await id.current(await req(await sign({ sub: '', common_name: 'abc.access' })))).toEqual({
-        kind: 'ci',
-        id: 'ci:access:abc.access',
-        via: 'cloudflare-access',
-      });
-      await expect(id.current(await req())).rejects.toMatchObject({ code: 'unauthorized' });
-      await expect(id.current(await req(await sign({ email: 'a@b.c' }, 'other-aud')))).rejects.toMatchObject({
-        code: 'unauthorized',
-      });
-      await expect(
-        id.current(await req(await sign({ email: 'a@b.c' }, 'aud-tag', 'https://evil.cloudflareaccess.com'))),
-      ).rejects.toMatchObject({
-        code: 'unauthorized',
-      });
-      const other = await generateKeyPair('RS256');
-      const forged = await new SignJWT({ email: 'a@b.c' })
-        .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
-        .setIssuer('https://shop.cloudflareaccess.com')
-        .setAudience('aud-tag')
-        .setExpirationTime('5m')
-        .sign(other.privateKey);
-      await expect(id.current(await req(forged))).rejects.toMatchObject({ code: 'unauthorized' });
-      await expect(id.current()).rejects.toMatchObject({ code: 'unauthorized' });
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    expect(await id.current(await req(await sign({ sub: '', common_name: 'abc.access' })))).toEqual({
+      kind: 'ci',
+      id: 'ci:access:abc.access',
+      via: 'cloudflare-access',
+    });
+  });
+
+  it('rejects no token, another aud or issuer, a key outside the JWKS and no request', async () => {
+    const { sign, req } = await stubAccessCerts();
+    const id = accessIdentity({ team: 'shop', aud: 'aud-tag' });
+    await expect(id.current(await req())).rejects.toMatchObject(unauthorized);
+    const otherAud = await sign({ email: 'a@b.c' }, 'other-aud');
+    await expect(id.current(await req(otherAud))).rejects.toMatchObject(unauthorized);
+    const otherIss = await sign({ email: 'a@b.c' }, 'aud-tag', 'https://evil.cloudflareaccess.com');
+    await expect(id.current(await req(otherIss))).rejects.toMatchObject(unauthorized);
+    const other = await generateKeyPair('RS256');
+    const forged = await new SignJWT({ email: 'a@b.c' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+      .setIssuer('https://shop.cloudflareaccess.com')
+      .setAudience('aud-tag')
+      .setExpirationTime('5m')
+      .sign(other.privateKey);
+    await expect(id.current(await req(forged))).rejects.toMatchObject(unauthorized);
+    await expect(id.current()).rejects.toMatchObject(unauthorized);
   });
 });
 

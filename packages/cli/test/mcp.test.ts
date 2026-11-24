@@ -37,7 +37,7 @@ async function connect(dir: string, env: Record<string, string> = {}) {
   };
 }
 
-describe('iw mcp', () => {
+describe('iw mcp server', () => {
   it('names the package version and reports definition files that do not load', async () => {
     const dir = shop();
     const file = join(dir, '.indx-watch/specs/FEAT-3-account/UC-4-customer-signs-in/use-case.toml');
@@ -77,7 +77,9 @@ describe('iw mcp', () => {
     });
     expect(tools.some((t: { name: string }) => /approve|review|waive/.test(t.name))).toBe(false);
   });
+});
 
+describe('iw mcp read tools', () => {
   it('status returns the same data as iw status --json', async () => {
     const dir = shop();
     const { call } = await connect(dir);
@@ -90,6 +92,14 @@ describe('iw mcp', () => {
     expect(mine.structuredContent.mine.features).toEqual(['FEAT-2']);
   });
 
+  it('report json returns report data', async () => {
+    const { call } = await connect(shop());
+    const r = await call('report', { format: 'json' });
+    expect(r.structuredContent.project.key).toBe('SHOP');
+  });
+});
+
+describe('iw mcp record_run', () => {
   it('record_run as an agent with confidence 0.6 yields needs_review', async () => {
     const dir = shop();
     const { call } = await connect(dir);
@@ -119,7 +129,9 @@ describe('iw mcp', () => {
     const guided = await call('record_run', { test_case: 'TC-6', verdict: 'pass', confidence: 1 });
     expect(guided.structuredContent).toMatchObject({ verdict: 'needs_review', rule: 10 });
   });
+});
 
+describe('iw mcp new', () => {
   it('new writes AI drafts; show, list, check and errors', async () => {
     const dir = shop();
     const { call } = await connect(dir);
@@ -159,12 +171,6 @@ describe('iw mcp', () => {
       model: 'm',
     });
     expect(JSON.parse(dup.content[0].text).code).toBe('CONFLICT');
-  });
-
-  it('report json returns report data', async () => {
-    const { call } = await connect(shop());
-    const r = await call('report', { format: 'json' });
-    expect(r.structuredContent.project.key).toBe('SHOP');
   });
 });
 
