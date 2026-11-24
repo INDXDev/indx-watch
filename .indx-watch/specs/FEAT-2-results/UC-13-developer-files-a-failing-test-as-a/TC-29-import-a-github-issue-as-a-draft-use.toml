@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874B6SH54VS8KE2BG4PHZJ2"
-key = "TC-21"
+key = "TC-29"
 title = "Import a GitHub issue as a draft use case"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.3"]
+covers = ["AC-13.3"]
 mode = "manual"
 
 [[steps]]

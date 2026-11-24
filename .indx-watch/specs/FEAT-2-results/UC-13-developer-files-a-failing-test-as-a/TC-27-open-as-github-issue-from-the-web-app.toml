@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874B5SF44GFA61YQ0YZTQ9T"
-key = "TC-19"
+key = "TC-27"
 title = "Open as GitHub issue from the web app"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1", "AC-11.2"]
+covers = ["AC-13.1", "AC-13.2"]
 priority = "P2"
 mode = "playwright"
 

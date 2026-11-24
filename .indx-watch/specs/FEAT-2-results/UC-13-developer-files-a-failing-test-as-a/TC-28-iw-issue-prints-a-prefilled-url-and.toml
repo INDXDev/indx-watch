@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874B69J0TWNSEJP7VK6NP64"
-key = "TC-20"
+key = "TC-28"
 title = "iw issue prints a prefilled URL and links the issue"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1", "AC-11.2"]
+covers = ["AC-13.1", "AC-13.2"]
 mode = "manual"
 
 [[steps]]

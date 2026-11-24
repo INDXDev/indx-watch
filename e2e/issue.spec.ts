@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { iw, serve, shopCopy } from './helpers';
 
 // docs/spec/web.md#open-as-github-issue, docs/spec/integrations.md#github-issues
-test('open a test case as a prefilled GitHub issue and link it back', { tag: ['@TC-19'] }, async ({
+test('open a test case as a prefilled GitHub issue and link it back', { tag: ['@TC-27'] }, async ({
   page,
 }) => {
   const dir = shopCopy();
