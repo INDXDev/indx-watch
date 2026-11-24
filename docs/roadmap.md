@@ -135,6 +135,56 @@ Six skills, one per job. The user talks in plain words. The skill runs `iw` or t
 
 Order: T-400, T-401 and T-403 first; then T-402, T-404 and T-405–T-407 in parallel; then T-408 and T-409.
 
+## v0.5 — GitHub, teams and staying current
+
+Goal: a team keeps its tests in git, runs INDX Watch on its own Cloudflare account and works from GitHub: issues become use cases, failures become prefilled issues, pull requests show which test cases changed. Leads split a plan between people and agents and see who has what. Teams reuse steps, import from TestRail and testomat.io, get Slack notifications and an Insights view. Every pinned part of INDX Watch (npm, `.mcp.json`, the Action, the Worker, skill copies) is visible and updated with one command, and teams may customize the app without losing upstream updates. The "*(v0.5)*" labels in the specs belong to this milestone. Every new field and section is optional and additive within `schema_version = 1`.
+
+### Shared names
+
+Fixed before the work started, so the workstreams code against the same names.
+
+| What | Name |
+|---|---|
+| Ports (`packages/store/src/ports.ts`) | `IssueSource` (T-519), `Notifier` (T-523), `ReleaseSource` (T-503) |
+| Test case field | `links = ["https://github.com/…/issues/42"]` (T-520; use cases already have `links`) |
+| `project.toml` tables | `[tool] indx_watch`, `source` (T-501, T-510); `[github] repo = "owner/name"` (T-518); `[notify] slack_webhook = "env:SLACK_WEBHOOK_URL"`, `locale`, `app_url` (T-523); `[report] title`, `logo`, `footer` (T-507) |
+| Bundle folders | `steps/SS-n-<slug>.toml` shared steps, referenced by a step `use = "SS-n"` (T-521); `ui/messages.<locale>.json`, `ui/theme.toml` (T-507); `patches/*.patch`, `patches/patches.toml` (T-508, excluded from snapshots) |
+| Core functions (`packages/core`) | `splitAssignments()` (T-515), `assigneeBoard()` (T-514), `automationMix()` (T-516), `insights()` (T-524), `bundleDiff()` (T-513), `issueUrl()` (T-518) |
+| CLI JSON shapes (`packages/cli/src/json.ts`) | `AssignData`, `IssueData`, `ImportIssueData`, `ImportCasesData`, `NotifyData`, `InsightsData`, `DoctorData`, `UpdateData`, `PatchData`, `InitGithubData` |
+| Issue templates (`.github/ISSUE_TEMPLATE/`) | `indx-watch-test-request.yml` (ids `actor`, `goal`, `priority`, `criteria`); `indx-watch-test-failure.yml` (ids `keys`, `steps`, `expected`, `actual`, `run`, `commit`, `environment`); written by `githubTemplates()` exported from `packages/cli/src/github.ts` |
+| Message key prefixes (en/ja) | `assign.*`, `issue.*`, `ss.*`, `insights.*`, `update.*`, `custom.*` |
+
+### Tasks
+
+| ID | Task | Acceptance criteria | Status |
+|---|---|---|---|
+| T-501 | Versions are visible: `/healthz` returns `{ ok, version }`, `GET /api/project` gets `server: { version, patches? }`, `project.toml` `[tool] indx_watch` | Server tests for both routes; `iw check` accepts `[tool]` | ⏳ |
+| T-502 | One pin for everything: `.mcp.json` as `npx -y indx-watch@<pinned> mcp` (migrating an unpinned entry), the Action uses `[tool]` when `version` is empty, `iw deploy` pins the Worker's version, installed skill copies record the package version | Tests on a temp copy of the shop; `action.yml` reads `[tool]` | ⏳ |
+| T-503 | `iw doctor [--json]`: read-only, offline-first report of each pinned part (`ok`, `outdated`, `unpinned`, `locally-edited`); latest version through `ReleaseSource` (npm registry, GitHub releases, fake); `releases.json` shipped in the package | Adapter contract tests against the fake; CLI JSON test | ⏳ |
+| T-504 | `iw update [--to] [--dry-run] [--deploy] [--json]` in the documented order; idempotent; refuses while a patch fails to apply | A second run changes nothing; test on a temp copy of the shop | ⏳ |
+| T-505 | `iw update --workflow` writes a weekly update-PR workflow; documented in [github-actions.md](./guides/github-actions.md) | Generated YAML test | ⏳ |
+| T-506 | Version drift notice for leads in the web app (no outbound call) | e2e tagged `@TC-n`; en and ja strings | ⏳ |
+| T-507 | Extension points without code: `ui/messages.<locale>.json` (known keys, plain text), `ui/theme.toml` (allowlisted tokens), `[report]` title, logo and footer, served through `/api/project` | `iw check` rejects unknown keys and markup; server test on Node and the Worker path | ⏳ |
+| T-508 | `iw patch create | apply | check [--to]`: unified diffs against the upstream source at `v<pinned>`; refused areas (decide, gate, status, signing, identity, secret scan) rejected | Tests with a local git fixture; clear errors without git or pnpm | ⏳ |
+| T-509 | Patched builds are visible: patch-set sha256 in `/healthz`, `/api/project`, MCP `serverInfo`, report footers and an additive `client` field on records | Server and report tests | ⏳ |
+| T-510 | Fork guide and workflow; `[tool] source = "github:<owner>/<repo>"` makes `ReleaseSource` follow a fork | `pnpm check:docs` | ⏳ |
+| T-511 | Guide "Self-host on Cloudflare from GitHub" with a Mermaid flow diagram, linked from the docs index, quickstart and journey; the landing page's self-hosting section in en and ja | `pnpm check:docs`; site build | ⏳ |
+| T-512 | `iw init --github` writes the check and deploy workflows and the issue templates, only what is missing; prints secret names; `--json`; offered by `/iw-setup` | Idempotence test on a temp copy of the shop | ⏳ |
+| T-513 | Test case diff in the Action's PR comment: added, changed (steps, criteria, data) and removed TCs, UCs and ACs between base and head, from one pure function | Core unit test; report test | ⏳ |
+| T-514 | Assignee board on the plan screen, bulk assign, Unassigned only, Take and give back (lead assigns anyone; tester takes or returns their own), written like customer invites | Server role tests; e2e tagged `@TC-n` | ⏳ |
+| T-515 | `iw assign --split` (weighted, deterministic, owners first, priorities spread) and `--to … --items …`; one pure `splitAssignments()` used by CLI, API, board and MCP; agents only `--dry-run` | Core determinism tests; CLI JSON test | ⏳ |
+| T-516 | Automation mix (people, CI, agents) per plan and release on the plan screen, in `iw status --json` (additive) and in the report | Core and report tests | ⏳ |
+| T-517 | GitHub Issue Forms `indx-watch-test-request.yml` and `indx-watch-test-failure.yml` with stable field ids; prefill verified in [platform notes](./research/platform-notes.md) | YAML test | ⏳ |
+| T-518 | `iw issue <key|run> [--open] [--json]` and the Open as GitHub issue button: prefilled, length-capped, secret-scanned new-issue URL from a pure builder; repo from `[github]` or the git remote | Core URL tests (length, secrets, fixtures); e2e tagged `@TC-n` | ⏳ |
+| T-519 | `iw import github-issue <n|URL> [--from file.json]` through `IssueSource`: one draft use case with task-list ACs and the issue link; re-import changes nothing | Adapter contract tests; CLI test with `--from` | ⏳ |
+| T-520 | Issue links on test cases and runs, stored through the normal write paths and shown as Related issue #n | Schema, server and web tests | ⏳ |
+| T-521 | Shared steps `steps/SS-n-<slug>.toml`, expanded at load; the version includes expanded steps; `iw check` validates references and cycles; "from SS-1" marker; `iw new ss` | Bundle tests (stale on edit, cycles); ADR for the new folder | ⏳ |
+| T-522 | `iw import testrail <cases.csv>` and `iw import testomatio <dir|file>` producing draft use cases, criteria and test cases that pass `iw check` | CLI tests over small hand-written inputs in `packages/cli/test/` | ⏳ |
+| T-523 | Slack notifications through `Notifier`; `[notify]` in `project.toml`; `iw notify [--since] [--dry-run] [--json]` for CI and cron | Adapter contract tests; CLI JSON test | ⏳ |
+| T-524 | Insights: pass rate and coverage trend by release, progress by assignee and feature, median manual run duration, flaky trend; pure functions in core, SVG/CSS charts with text equivalents; `iw insights --json` | Core tests; web screenshots en/ja, light/dark | ⏳ |
+
+Order: the scaffold (this section and the ports) first; then W6 (T-501–T-506), W7 (T-507–T-510), W3 (T-517–T-520), W1 (T-511–T-513), W2 (T-514–T-516), W4 (T-521–T-522) and W5 (T-523–T-524) in parallel, merged in that order as stacked pull requests.
+
 ## v1.0 — stable format
 
 - Freeze `schema_version = 1` (or migrate to 2 with `iw migrate`), publish JSON Schemas to the Schema Store, semantic versioning of CLI JSON output.

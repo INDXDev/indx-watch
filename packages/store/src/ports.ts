@@ -215,3 +215,37 @@ export interface OidcVerifier {
   /** Verify signature (issuer JWKS), issuer, audience and expiry. Throws StoreError('unauthorized'). */
   verify(token: string, audience: string): Promise<GithubOidcClaims>;
 }
+
+// ---------- v0.5 integration ports (docs/spec/integrations.md) ----------
+/** A GitHub issue as `gh issue view <n> --json title,body,labels,url` prints it (T-519). */
+export interface IssueData {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+  url: string;
+}
+export interface IssueSource {
+  /** Read one issue of `repo` ("owner/name"). Throws StoreError('not_found') when it does not exist. */
+  get(repo: string, number: number): Promise<IssueData>;
+}
+
+/** One notification message (T-523); `text` is plain text in the project's main locale. */
+export interface Notification {
+  event: 'gate_changed' | 'run_failed' | 'run_needs_review' | 'assigned' | 'approval_waiting';
+  text: string;
+  url?: string | undefined;
+}
+export interface Notifier {
+  send(messages: Notification[]): Promise<void>;
+}
+
+/** A published INDX Watch version (T-503). */
+export interface ReleaseInfo {
+  version: string;
+  url?: string | undefined;
+}
+export interface ReleaseSource {
+  /** The newest published version, or undefined when offline or unknown. */
+  latest(): Promise<ReleaseInfo | undefined>;
+}
