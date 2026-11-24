@@ -8,6 +8,7 @@ import {
   computeStatus,
   decide,
   type FixtureNode,
+  insights,
   type Model,
   ownedFeatures,
   ownedModel,
@@ -45,6 +46,12 @@ export function registerReadRoutes(app: Hono, x: Ctx) {
     q(c, 'mine') === '1' ? ownedModel(m, ownedFeatures(m, (await x.grant(c)).who)) : m;
   app.get('/api/project', (c) => projectInfo(c, x));
   get('/api/status', async (m, c) => computeStatus(await mine(m, c), scopeOf(c, m)));
+  // trends over the whole project: not for a customer, whose model is cut to their plan items
+  get('/api/insights', async (m, c) => {
+    if ((await x.grant(c)).role === 'customer')
+      throw new HttpError(403, 'forbidden', 'insights are for the team');
+    return insights(m, { release: q(c, 'release') ?? m.project.current_release });
+  });
   get('/api/specs', async (m, c) => V.specTree(await mine(m, c), scopeOf(c, m)));
   get('/api/test-cases/:key', (m, c) =>
     V.testCaseDetail(m, tcOf(m, c.req.param('key')!).data.key, scopeOf(c, m), read),

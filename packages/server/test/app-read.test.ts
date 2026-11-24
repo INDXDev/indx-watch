@@ -3,6 +3,7 @@ import { buildVerifiedModel } from '@indx-watch/core';
 import { describe, expect, it } from 'vitest';
 import type {
   FixtureDetail,
+  Insights,
   PlanView,
   ProjectInfo,
   RunDetail,
@@ -57,6 +58,19 @@ describe('read routes: project and status', () => {
     });
     const other = await get<StatusResult>(a, '/api/status?env=production');
     expect(other.testCases.every((t) => t.status === 'untested')).toBe(true);
+  });
+});
+
+describe('read routes: insights (docs/spec/concepts.md#insights)', () => {
+  it('GET /api/insights has the releases, assignees of the current release and its features', async () => {
+    const { app: a } = await app();
+    const i = await get<Insights>(a, '/api/insights');
+    expect(i.release).toBe(RELEASE);
+    expect(i.releases.map((r) => r.version)).toEqual([RELEASE]);
+    expect(i.releases[0]!.passRate).toBeGreaterThan(0);
+    expect(i.assignees.map((x) => x.assignee)).toContain('ci');
+    expect(i.features.map((f) => f.key)).toEqual(['FEAT-1', 'FEAT-2', 'FEAT-3']);
+    expect((await get<Insights>(a, '/api/insights?release=v0.0.0')).assignees).toEqual([]);
   });
 });
 
