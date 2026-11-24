@@ -6,6 +6,8 @@ import type { PlanItemStatus, Scope, StatusResult } from './types.js';
 
 /** decide(judgements, policy, ctx): the decision policy (docs/spec/concepts.md#decision-policy). */
 export { decide, runFacts } from './decide.js';
+/** bundleDiff(base, head): added, changed and removed use cases, criteria and test cases (docs/spec/concepts.md#bundle-diff). */
+export { type BundleDiff, bundleDiff, type DiffEntry, type DiffKind, type DiffPart } from './diff.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
 /** issueUrl, repoOfRemote, parseIssueUrl: prefilled GitHub issues (docs/spec/integrations.md#github-issues). */

@@ -28,6 +28,7 @@ copy('schemas', 'schemas');
 copy('skills', 'skills');
 copy('examples/shop/.indx-watch', 'dist/example-bundle');
 copy('examples/shop/store', 'dist/example-store');
+copy('packages/cli/github', 'dist/github'); // workflows of `iw init --github`
 copy('LICENSE', 'LICENSE');
 copy('packages/cli/templates', 'dist/templates');
 // the releases `iw doctor` and `iw update` know about, from the changelog

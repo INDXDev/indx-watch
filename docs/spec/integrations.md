@@ -134,6 +134,12 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 
 **Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](./cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](./concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
 
+**Test cases changed in this PR.** *(v0.5)* Between the gate line and the suggested test cases, the comment and the check-run summary carry "Test cases changed in this PR": the output of [`iw diff`](./cli.md#iw-diff) for the pull request's base commit (`github.event.pull_request.base.sha`, fetched with `git fetch --depth=1`) against the checked-out bundle. It lists the use cases, criteria and test cases added, changed (steps, covered criteria, data) and removed, in at most 20 lines, or says that none changed ([bundle diff](./concepts.md#bundle-diff)). When the base cannot be fetched, or the `version` input pins a CLI without `iw diff`, the section is left out with a warning.
+
+### Workflows written by `iw init --github`
+
+`iw init --github` writes the workflows the [GitHub-first guide](../guides/self-host-cloudflare-from-github.md) uses, only when they are missing: `indx-watch.yml` (pull requests and `main`: `iw check`, Playwright with the reporter, this action with `comment` and `check`) and `indx-watch-deploy.yml` (`iw deploy` on pushes to `main` that change `.indx-watch/` or the dependencies; repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`). They are plain files in the repository: edit them, `iw init --github` leaves them alone. The sources are `packages/cli/github/*.yml`, shipped in the package.
+
 ## GitHub issues
 
 *(v0.5)* GitHub issues and INDX Watch meet in three places, and INDX Watch never writes to GitHub: no token with write access, no comment, no closing. A person opens a page and submits it; the app shows the links back.
@@ -171,6 +177,7 @@ Rules the builder keeps, so an issue is safe to open: (1) **Length.** The URL st
 
 ## Acceptance criteria
 
+- [ ] On a pull request that changes one step of TC-3, the PR comment lists TC-3 under "Changed" (workflow run on a test repository; `iw diff` is covered by a CLI test).
 - [x] In `examples/shop`, `npx playwright test` with the reporter writes one run per tagged TC × project with `test_case.version`, `fixtures[].version`, `build.commit` and `actor` filled, and evidence blobs for screenshots.
 - [x] A test tagged `@TC-999` (unknown) produces a warning; with `strict: true` the Playwright run fails.
 - [x] A test that fails once and passes on retry yields an `assert` judgement `pass` with `flaky: true`.

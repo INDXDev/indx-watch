@@ -60,7 +60,7 @@ Before step 1, say in one line that `iw init` also adds the agent files (`AGENTS
    ```
 
 5. **Reporter** (if accepted; skip if the config already names `indx-watch/playwright`): add `['indx-watch/playwright']` after the existing reporters in `playwright.config.ts` and `indx-watch` as a dev dependency with the project's package manager. Details: [references/wiring.md](references/wiring.md).
-6. **Workflow** (if accepted): `.github/workflows/indx-watch.yml` from [references/wiring.md](references/wiring.md), with the release just chosen. Secrets only as `${{ secrets.NAME }}`; tell the person which ones to add.
+6. **Workflow** (if accepted): run `iw init --github`. It writes only what is missing: `.github/workflows/indx-watch.yml` (check, Playwright with the reporter, PR comment and check run), `.github/workflows/indx-watch-deploy.yml` (`iw deploy` to the person's own Cloudflare account on merge) and the GitHub issue templates, and prints the secret names (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Tell the person which to add and point to [self-host-cloudflare-from-github](https://github.com/INDXDev/indx-watch/blob/main/docs/guides/self-host-cloudflare-from-github.md). Offer the deploy workflow only when they want to host the app; keep an existing `indx-watch.yml` and, if it differs, show the diff and ask. Release-specific edits (`IW_RELEASE`) are not needed: the workflow reads `current_release`. Without Playwright or for other CI, use [references/wiring.md](references/wiring.md).
 7. **Issue forms** (if accepted; offer them next to the workflow): `.github/ISSUE_TEMPLATE/indx-watch-test-request.yml` and `indx-watch-test-failure.yml` (`iw init --github` writes them and the workflows, only what is missing). They let a failed test open a prefilled GitHub issue (`iw issue`) and a test request become a use case (`iw import github-issue`); set `[github] repo = "owner/name"` in `project.toml` if the git remote is not the issue tracker.
 8. **Check.** `iw fmt --json`, then `iw check --json`. `ai-not-approved` warnings are expected; fix every error and check again.
 
@@ -78,7 +78,7 @@ Stop after `iw check`. Say what the person decides and give one line for the app
 
 Also: review the diff and commit it, add any CI secrets you named, and approve the `indx-watch` MCP server the first time Claude Code or Codex asks.
 
-**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only untouched `iw init` placeholders), the agent files of `iw init` / `iw skills install` (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`), `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml` and the issue forms in `.github/ISSUE_TEMPLATE/`. Nothing else.
+**Writes:** `.indx-watch/` (project settings, environment, release, features; deletes only untouched `iw init` placeholders), the agent files of `iw init` / `iw skills install` (`AGENTS.md`, `CLAUDE.md`, `.mcp.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`), `playwright.config.*`, `package.json` (dev dependency), optionally `.github/workflows/indx-watch.yml`, `.github/workflows/indx-watch-deploy.yml` and the issue templates (`iw init --github`). Nothing else.
 
 ## Rules
 

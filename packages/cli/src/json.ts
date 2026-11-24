@@ -81,6 +81,19 @@ const AGENT_SETUP = z.object({
   /** (v0.5) skill folders left alone because a person edited them */
   skipped: PATHS.optional(),
 });
+/** `iw init --github` (docs/spec/cli.md#iw-init): paths are relative to the repository root. */
+export const InitGithubData = z.object({
+  ...{ root: z.string(), written: PATHS, skipped: PATHS },
+  secrets: PATHS,
+});
+export type InitGithubData = z.infer<typeof InitGithubData>;
+const DIFF_ITEMS = z.array(
+  z.object({
+    kind: z.enum(['uc', 'ac', 'tc']),
+    ...{ key: z.string(), title: z.string() },
+    what: z.array(z.enum(['title', 'steps', 'criteria', 'data', 'details'])).optional(),
+  }),
+);
 const REASON = { file: z.string(), pattern: z.string().optional() };
 
 /** `iw issue`: the prefilled issue; `link` when --link stored the issue URL (docs/spec/cli.md#iw-issue-ref) */
@@ -126,7 +139,10 @@ const PATCH = z.object({
 });
 
 export const CommandData = {
-  init: z.object({ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() }),
+  init: z.object({
+    ...{ dir: z.string(), files: z.array(z.string()), agents: AGENT_SETUP.optional() },
+    github: InitGithubData.optional(),
+  }),
   check: z.object({
     files: z.number(),
     errors: z.number(),
@@ -157,6 +173,8 @@ export const CommandData = {
       }),
     ),
   }),
+  /** docs/spec/concepts.md#bundle-diff */
+  diff: z.object({ base: z.string(), added: DIFF_ITEMS, changed: DIFF_ITEMS, removed: DIFF_ITEMS }),
   show: z.record(z.string(), z.unknown()),
   list: z.object({ items: z.array(z.record(z.string(), z.unknown())) }),
   record: z.object({ run: z.record(z.string(), z.unknown()), verdict: z.string(), rule: z.number() }),

@@ -16,6 +16,7 @@ These are the pages we copy. They change over time, so look again before a large
 | [Supabase](https://supabase.com) | Product grid of cards with an icon, a key phrase in ink, a checklist and a visual; the "Open source from day one" block with a GitHub button | Features, open source |
 | [Stripe](https://stripe.com) | Large cards with a product visual inside; two-tone headings | Features, strengths |
 | [Sentry](https://sentry.io) | "Get started in minutes": numbered steps with the command in each | Get started |
+| [Vercel](https://vercel.com) deploy flow | A numbered row (develop, preview, ship) showing what happens from git push to production | Self-hosting |
 | [Resend](https://resend.com) | The announcement chip above the headline | Hero |
 
 ## Page order
@@ -31,8 +32,9 @@ The order is the argument: show the product, say what it does, show it is for yo
 7. **Why now**: two-tone statement, then before/after rows.
 8. **Agents** (dark band): conversations, the six skills, what only people do.
 9. **Strengths**: bento with GitHub as the large card.
-10. **Open source**: license, no cloud, where to host.
-11. **Compare**, 12. **Get started**, 13. **FAQ**, 14. **Closing**, 15. **Footer**.
+10. **Self-hosting**: the seven-step flow from branch to the team testing in the app (the same steps as the diagram in `docs/guides/self-host-cloudflare-from-github.md`), the one command `init --github`, a link to the guide. It is an ordered list, so it reads in order without CSS.
+11. **Open source**: license, no cloud, where to host.
+12. **Compare**, 13. **Get started**, 14. **FAQ**, 15. **Closing**, 16. **Footer**.
 
 ## Roles
 

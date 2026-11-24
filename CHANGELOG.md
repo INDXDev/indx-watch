@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw import github-issue <number | URL> [--from <file.json>] [--feature F]` (T-519): one GitHub issue becomes one draft use case with its task list as draft criteria and the issue URL in `links`; a re-import changes nothing. An `IssueSource` GitHub REST adapter (token optional) and a fake.
 - GitHub issue forms `indx-watch-test-request.yml` and `indx-watch-test-failure.yml` (T-517, `githubTemplates()`), offered by `/iw-setup`.
 - Optional `links` on test cases (http(s) only) and `[github] repo` in `project.toml`; test cases and the run viewer show Related issue #42 (T-520). The `iw-triage` skill uses `iw issue`, and `iw-design` reads GitHub issues.
+- `iw init --github` (T-512): writes `.github/workflows/indx-watch.yml` (check, Playwright with the reporter, PR comment and check run) and `indx-watch-deploy.yml` (`iw deploy` on merge) and the issue forms, only when missing, and prints the repository secret names; works in an existing project too; `--json` adds `github`.
+- `iw diff --base <ref>` and `bundleDiff()` (T-513): the use cases, criteria and test cases added, changed and removed since a commit; the GitHub Action's PR comment and check run start with "Test cases changed in this PR".
+- Guide "Self-host on Cloudflare from GitHub" and a self-hosting section on the landing page, in English and Japanese (T-511).
 
 ### Changed
 

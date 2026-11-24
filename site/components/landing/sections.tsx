@@ -192,6 +192,37 @@ export function Strengths({ t }: { t: Content }) {
   );
 }
 
+export function SelfHost({ t }: { t: Content }) {
+  const h = t.selfHost;
+  return (
+    <section className="section" aria-labelledby="self-host">
+      <div className="wrap">
+        <SectionHead id="self-host" kicker={h.kicker} title={h.title} lead={h.lead} layout="split" />
+        <ol className="flow">
+          {h.steps.map((s, i) => (
+            <li key={s.title} className="card flow-step">
+              <span className="flow-n" aria-hidden="true">
+                {i + 1}
+              </span>
+              <h3>{s.title}</h3>
+              <p>
+                <Rich text={s.body} />
+              </p>
+            </li>
+          ))}
+        </ol>
+        <div className="flow-foot">
+          <pre className="flow-code">
+            <code>{h.code}</code>
+          </pre>
+          <p>{h.note}</p>
+          <TextLink href={h.guide.href}>{h.guide.label}</TextLink>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function OpenSource({ t }: { t: Content }) {
   const o = t.openSource;
   return (

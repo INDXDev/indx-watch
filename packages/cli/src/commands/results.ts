@@ -1,10 +1,11 @@
-/** Commands that read status or append records: status, impact, show, list, record, run, review, judge, baseline approve, waive, retract, deployment add. */
+/** Commands that read status or append records: status, impact, diff, show, list, record, run, review, judge, baseline approve, waive, retract, deployment add. */
 import { relative } from 'node:path';
-import { newId } from '@indx-watch/bundle';
+import { type Bundle, loadBundle, newId } from '@indx-watch/bundle';
 import * as core from '@indx-watch/core';
 import { listItems, showEntity, statusData } from '@indx-watch/server';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
+import { gitFs } from '../github.js';
 import { type Args, B, type Ctx, csv, fail, git, iso, P, pick, S, str } from '../util.js';
 import { pngShots } from '../visual.js';
 
@@ -96,6 +97,38 @@ export const resultCommands: Record<string, Spec> = {
         ...testCases.map((t) => `- **${t.key}** ${t.title} (${t.priority}, ${t.status}): ${why(t)}`),
       ].join('\n');
       return { data: { base: base ?? null, changed, testCases }, text };
+    },
+  },
+
+  diff: {
+    description: 'List the use cases, criteria and test cases added, changed or removed since a git ref',
+    args: { base: S('Git ref or commit to compare with (the merge base with HEAD when there is one)') },
+    async run(ctx, a) {
+      const p = await cx.openProject(ctx, a);
+      const ref = str(a.base) ?? fail('USAGE', 'Pass --base <ref>');
+      const sha =
+        git(p.root, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`) ??
+        fail('EXTERNAL_TOOL', `${ref} is not a commit in ${p.root}`);
+      const from = git(p.root, 'merge-base', sha, 'HEAD') ?? sha;
+      const prefix = relative(p.root, p.dir).replaceAll('\\', '/');
+      const { bundle: base } = await loadBundle(gitFs(p.root, from, prefix));
+      const diff = core.bundleDiff(base ?? emptyOf(p.bundle), p.bundle);
+      const line = (e: core.DiffEntry) =>
+        `- **${e.key}** ${e.title.length > 60 ? `${e.title.slice(0, 59)}…` : e.title}${e.what ? ` (${e.what.map((w) => (e.kind === 'ac' ? 'text' : w)).join(', ')})` : ''}`;
+      const shown = (title: string, l: core.DiffEntry[]) =>
+        l.length ? [`**${title}**`, ...l.map(line)] : [];
+      const lines = [
+        ...shown('Added', diff.added),
+        ...shown('Changed', diff.changed),
+        ...shown('Removed', diff.removed),
+      ];
+      const more = lines.length > 20 ? [`- …and ${lines.length - 20} more (\`iw diff --base ${ref}\`)`] : [];
+      const total = diff.added.length + diff.changed.length + diff.removed.length;
+      const text = [
+        '### Test cases changed in this PR\n',
+        total ? lines.slice(0, 20).concat(more).join('\n') : 'No use case, criterion or test case changed.',
+      ].join('\n');
+      return { data: { base: sha, ...diff }, text };
     },
   },
 
@@ -248,3 +281,13 @@ export const resultCommands: Record<string, Spec> = {
     },
   },
 };
+
+/** What `iw diff` compares with when the base commit has no bundle: nothing, so every item is added. */
+const emptyOf = (b: Bundle): Bundle => ({
+  ...b,
+  features: [],
+  useCases: [],
+  testCases: [],
+  fixtures: [],
+  plans: [],
+});

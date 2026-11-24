@@ -88,6 +88,10 @@ The action keeps **one comment per pull request** (per bundle and release) and e
 
 Both also list **suggested test cases**: the test cases whose `[automation].files`, definition or fixtures the pull request changes, so reviewers know what to run or record ([`iw impact`](../spec/cli.md#iw-impact)). Run the same locally with `npx indx-watch impact --base origin/main`.
 
+`npx indx-watch init --github` writes a complete workflow like this one for you, and a deploy workflow ([Self-host on Cloudflare from GitHub](./self-host-cloudflare-from-github.md)).
+
+On pull requests the comment also has a short "Test cases changed in this PR" section: the use cases, criteria and test cases the PR added, changed (steps, covered criteria, data) or removed, from [`iw diff`](../spec/cli.md#iw-diff). Run the same locally with `npx indx-watch diff --base origin/main`.
+
 ## Choosing when to gate
 
 `gate: true` turns "not ready" into a red job. Common setups:
