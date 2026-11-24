@@ -196,6 +196,16 @@ A plan item's scope is (`plan.release`, `item.environment` ?? `plan.environment`
 
 A test case may appear in a plan more than once only with different environments (`iw check`). *(v0.3)* On the hosted app, a person with the `customer` role sees only the plan items assigned to them, by email or Access group ([roles](./security.md#roles)).
 
+#### Assignment and automation mix
+
+*(v0.5)* Three pure functions in `packages/core` answer every question about who has what; the CLI, the server API, the web app and the MCP tool call them and never recompute.
+
+- `splitAssignments(model, planKey, weights, { onlyUnassigned })` proposes an assignee for each plan item. Weights are whole numbers per assignee (`alex@shop.test:2,sam@shop.test:1,agent:claude:1`); an assignee's quota is its share of the items, rounded by largest remainder (ties go to the earlier entry). The result is deterministic: the same plan and weights always give the same split. Rules, in order: (1) a feature's `owners` ([feature owners](#feature-owners)) get the items of their own features first, until their quota is full; (2) the other items are handed out most important first (P0, then P1 …, then plan order), each to the assignee with room left who holds the fewest items of that priority for their weight, so no one person holds all the P0s; (3) with `onlyUnassigned`, items that already have an assignee keep it and count toward that assignee's quota. An assignee that is not in the weights is never added or removed.
+- `assigneeBoard(model, planKey)` counts a plan's items per assignee by [plan item status](#plan-item-computed) (`todo`, `done`, `blocked`, `review`), plus the unassigned items, ordered by item count (most first), then name.
+- `automationMix(model, plans)` counts plan items by who runs them: **CI** when the item's assignee is `ci` or its test case `mode` is `playwright`; **agents** when the assignee is `agent:<name>` or the mode is `agent`; otherwise **people** (`manual` and `hybrid` modes, and any assigned person or group). It returns `{ people, ci, agents, total }` (whole items; a test case in a plan twice counts twice).
+
+Who may change an assignee (hosted app; without [roles](./security.md#roles) and on `iw serve` everyone is a `lead`): a lead assigns anyone; a tester may **take** an item that has no assignee for themselves, or **give back** an item assigned to them; viewers and customers never. Agents only propose (`iw assign --dry-run`, the MCP tool `assign`); writing needs a person. A test case still appears in a plan more than once only with different environments, and one plan item has one assignee.
+
 ### Release
 
 `planning` → `testing` → `ready` → `released`, set in `releases/<version>.toml` by a person. The [gate](#readiness-gate) tells them whether `ready` is justified; it never sets the state itself.
