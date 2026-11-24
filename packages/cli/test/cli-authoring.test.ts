@@ -1,5 +1,5 @@
 /** Authoring commands on a temp copy of examples/shop: init, check, fmt, new, approve, translate. */
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseToml } from '@indx-watch/bundle';
@@ -13,10 +13,12 @@ describe('commands: init, check and fmt', () => {
     iwJson(dir, 'init', ['init', '--example']);
     expect(read(dir, 'project.toml')).toContain('key = "SHOP"');
     expect(read(dir, '.gitignore')).toBe('cache/\nruns/\n'); // written, not copied: npm drops .gitignore
-    expect(existsSync(join(dir, '.indx-watch/cache'))).toBe(false);
+    // nothing of the source's cache/ is copied; only init's pull of the sample results writes its sync state
+    expect(readdirSync(join(dir, '.indx-watch/cache')).sort()).toEqual(['sync', 'writer-id']);
     // the sample store is seeded, so the fixture blob is there and check is clean
     expect(iw(dir, ['check', '--strict']).code).toBe(0);
-    expect(iwJson(dir, 'sync', ['sync']).json.data.pulled.records).toBeGreaterThan(0);
+    expect(iwJson(dir, 'status', ['status']).json.data.counts.fail).toBe(1); // init pulled the sample results
+    expect(iwJson(dir, 'sync', ['sync']).json.data.pulled.records).toBe(0);
     expect(iwJson(dir, 'init', ['init']).json.error.code).toBe('CONFLICT');
   });
 

@@ -19,8 +19,11 @@ export interface Project {
   replica: LocalReplica;
 }
 
-/** Find, load and validate the bundle (exit 3 when missing or when project.toml is invalid). */
-export async function openProject(ctx: Ctx, a: Args): Promise<Project> {
+/**
+ * Find, load and validate the bundle (exit 3 when missing or when project.toml is invalid). A definition file that
+ * does not load becomes a warning of the command (`iw check` reports it itself) and fails the gate.
+ */
+export async function openProject(ctx: Ctx, a: Args, notes = true): Promise<Project> {
   const dir = findBundleDir(ctx.cwd, { ...ctx.env, IW_DIR: str(a.dir) ?? ctx.env.IW_DIR }) ?? '';
   if (!existsSync(join(dir, 'project.toml')))
     fail('NO_BUNDLE', 'No .indx-watch/ with a project.toml here or above; run `iw init` or pass --dir');
@@ -29,6 +32,8 @@ export async function openProject(ctx: Ctx, a: Args): Promise<Project> {
   const newer = problems.some((p) => p.code === 'unsupported-schema-version');
   const message = problems.map((p) => `${p.file}: ${p.message}`).join('; ');
   if (!bundle) fail(newer ? 'UNSUPPORTED_SCHEMA' : 'INVALID_CONFIG', message, problems);
+  const errors = problems.filter((p) => p.severity === 'error');
+  if (notes) ctx.notes?.push(...errors.map((p) => ({ ...p, severity: 'warning' as const })));
   const root = git(dir, 'rev-parse', '--show-toplevel') ?? dirname(dir);
   return { dir, root, fs, bundle: bundle!, replica: openReplica(dir) };
 }
@@ -76,11 +81,17 @@ export async function append<K extends AnyRecord['kind']>(ctx: Ctx, p: Project, 
 
 export { resolveKey, resolveRun } from '@indx-watch/server';
 
+/** The text of --from <file|->: NOT_FOUND (exit 2) when the file is missing. */
+export const readFrom = (ctx: Ctx, from: string) =>
+  from === '-'
+    ? ctx.stdin()
+    : readFile(resolve(ctx.cwd, from), 'utf8').catch(() => fail('NOT_FOUND', `--from: ${from} not found`));
+
 /** Field values from --from <file|-> (JSON or TOML), or the MCP input. */
 export async function fromInput(ctx: Ctx, a: Args): Promise<Record<string, unknown>> {
   const from = str(a.from);
   if (ctx.input || !from) return ctx.input ?? {};
-  const text = from === '-' ? await ctx.stdin() : await readFile(resolve(ctx.cwd, from), 'utf8');
+  const text = await readFrom(ctx, from);
   let v: unknown;
   try {
     v = text.trim().startsWith('{') ? JSON.parse(text) : parseToml(text);

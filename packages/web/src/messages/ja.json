@@ -49,6 +49,7 @@
   "status.todo": "未着手",
   "status.done": "完了",
   "status.review": "要確認",
+  "gate.valid_definitions": "すべての定義ファイルがエラーなく読み込める",
   "gate.p0_coverage": "P0 の完了条件すべてにテストがある",
   "gate.p0_all_pass": "P0 のテストがすべて合格",
   "gate.p1_pass_rate": "P1 のテストが合格（または許容済み）",

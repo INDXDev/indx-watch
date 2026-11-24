@@ -21,6 +21,8 @@ export interface Ctx {
   env: Env;
   /** structured input from the MCP server instead of --from */
   input?: Record<string, unknown>;
+  /** warnings found on the way (definition files that do not load), added to every command's output */
+  notes?: Problem[];
   log(line: string): void;
   stdin(): Promise<string>;
 }

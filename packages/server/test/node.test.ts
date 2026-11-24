@@ -277,6 +277,11 @@ describe('startNodeServer: write, host and port guards', () => {
     expect(err).toMatchObject({ code: 'CONFLICT', message: expect.stringMatching(/already in use.*--port/) });
     expect(Date.now() - t0).toBeLessThan(2000);
   });
+
+  it('rejects a port out of range instead of hanging (serve() throws inside the try that stops the watcher)', async () => {
+    const err = await startNodeServer({ dir, port: 70000, sync: false, webRoot: web }).catch((e) => e);
+    expect(err).toBeInstanceOf(RangeError);
+  });
 });
 
 describe('requestIdentity', () => {

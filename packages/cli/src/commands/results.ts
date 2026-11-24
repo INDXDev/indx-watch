@@ -21,7 +21,9 @@ function statusText(s: ReturnType<typeof statusData>, release?: string, env?: st
     ...s.gate.checks.map(
       (c) => `  ${c.passed ? 'ok  ' : 'FAIL'} ${c.key}: ${c.actual} (expected ${c.expected})`,
     ),
-    `Coverage: ${s.coverage.covered}/${s.coverage.total} ACs (${Math.round(s.coverage.ratio * 100)}%)`,
+    s.coverage.total
+      ? `Coverage: ${s.coverage.covered}/${s.coverage.total} ACs (${Math.round(s.coverage.ratio * 100)}%)`
+      : 'Coverage: no ready acceptance criteria yet (drafts do not count)',
     ...s.useCases.flatMap((u) => [
       `${u.key} ${u.priority} ${u.status.padEnd(12)} ${u.title}`,
       ...u.criteria.map((c) => `  ${c.key} ${c.status.padEnd(12)} ${c.testCases.join(' ')}`),
@@ -134,6 +136,7 @@ export const resultCommands: Record<string, Spec> = {
         x.key ?? x.id ?? x.name ?? x.version,
         x.result ?? x.verdict ?? x.status ?? x.state,
         x.title ?? x.testCase,
+        ...(x.result !== undefined && x.status === 'draft' ? ['(draft)'] : []),
       ];
       return { data: { items }, text: items.map((x) => label(x).join('  ')).join('\n') || '(none)' };
     },

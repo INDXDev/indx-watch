@@ -49,6 +49,7 @@
   "status.todo": "To do",
   "status.done": "Done",
   "status.review": "To review",
+  "gate.valid_definitions": "Every definition file loads without errors",
   "gate.p0_coverage": "Every P0 criterion has a test",
   "gate.p0_all_pass": "Every P0 test passes",
   "gate.p1_pass_rate": "P1 tests pass (or are waived)",

@@ -333,6 +333,10 @@ function gateFrom(model: Model, scope: Scope, table: Table): GateResult {
     atMost({ key: 'allow_stale', den: p01, bad: stale, max: 0, enabled: !g.allow_stale }),
     all('require_evidence', p0Pass, proven, g.require_evidence),
   ];
+  // a definition file that does not load is missing from the model: never ready while one does not
+  const bad = model.invalidFiles ?? [];
+  const loads = { key: 'valid_definitions', passed: false, actual: `${bad.length}`, expected: '≤ 0' };
+  if (bad.length) checks.unshift(check({ ...loads, items: bad }));
   return { passed: checks.every((c) => c.passed), checks };
 }
 
