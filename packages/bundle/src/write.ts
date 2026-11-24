@@ -5,6 +5,7 @@ import { type KeyKind, newId, nextCriterionKey, nextKey, parseRef } from './ids.
 import { zodProblems } from './load.js';
 import type { IdPrefix } from './schema/common.js';
 import { FILE_TYPES, type FileType } from './schema/definitions.js';
+import { collapseSteps } from './steps.js';
 import { formatToml, schemaRefOf } from './toml.js';
 import type { Bundle, BundleFs, Loaded } from './types.js';
 import { useCaseVersion } from './versions.js';
@@ -59,6 +60,7 @@ const KINDS = {
   feature: ['feature', 'fea', 'feature', 'specs/{k}-{s}/feature.toml', 'key'],
   'use-case': ['use-case', 'uc', 'useCase', '{d}/{k}-{s}/use-case.toml', 'key'],
   'test-case': ['test-case', 'tc', 'testCase', '{d}/{k}-{s}.toml', 'key'],
+  'shared-step': ['shared-step', 'ss', 'sharedStep', 'steps/{k}-{s}.toml', 'key'],
   fixture: ['fixture', 'fx', 'fixture', 'fixtures/{k}-{s}/fixture.toml', 'key'],
   environment: ['environment', 'env', null, 'environments/{k}.toml', 'name'],
   release: ['release', 'rel', null, 'releases/{k}.toml', 'version'],
@@ -92,9 +94,10 @@ function context(fs: BundleFs, bundle: Bundle, input: CreateInput) {
   if (origin === 'ai' && input.ready)
     fail('INVALID_INPUT', 'AI-written items start as draft; humans approve');
   if (origin === 'ai' && !input.ai?.model) fail('INVALID_INPUT', 'origin "ai" needs the model ID');
-  const { features, useCases, testCases, fixtures, plans } = bundle;
-  const items = [...features, ...useCases, ...testCases, ...fixtures, ...plans].map((x) => x.data);
-  const keys = [...items, ...useCases.flatMap((u) => u.data.criteria)].map((x) => x.key);
+  const { features, useCases, testCases, sharedSteps, fixtures, plans } = bundle;
+  const items = [...features, ...useCases, ...testCases, ...sharedSteps, ...fixtures, ...plans];
+  const keyed = items.map((x) => x.data);
+  const keys = [...keyed, ...useCases.flatMap((u) => u.data.criteria)].map((x) => x.key);
   keys.push(...(input.knownKeys ?? []));
   // only `iw approve` (a human) records an approval: AI-written input never arrives approved
   const life = origin === 'human' ? {} : { origin, ...(origin === 'ai' && { approved_by: undefined }) };
@@ -153,6 +156,8 @@ export async function createDefinition(
   const base = baseFields(c, kind);
   const named = c.given('name') ?? c.given('version') ?? (kind === 'release' ? c.title : slugify(c.title));
   const key = c.given('key') ?? (keyKind ? nextKey(keyKind, c.keys) : named);
+  if (kind === 'shared-step' && !(base.steps as unknown[] | undefined)?.length)
+    base.steps = [PLACEHOLDER_STEP];
   const dir =
     kind === 'use-case' ? placeUseCase(c, base, key) : kind === 'test-case' ? placeTestCase(c, base) : '';
   const file = path.replace('{d}', dir).replace('{k}', key).replace('{s}', slugify(c.title));
@@ -204,8 +209,11 @@ export async function approveDefinition(
   // features, environments, releases and plans have no status or version: approval records the reviewer
   const named = (d: Record<string, unknown>) =>
     match({ id: d.id as string, key: String(d.key ?? d.name ?? d.version) });
-  const { features, environments, releases, plans } = bundle;
-  const other = { feature: features, environment: environments, release: releases, plan: plans };
+  const { features, environments, releases, plans, sharedSteps } = bundle;
+  const other = {
+    ...{ feature: features, environment: environments, release: releases, plan: plans },
+    'shared-step': sharedSteps,
+  };
   for (const [type, xs] of Object.entries(other) as [FileType, Loaded<Record<string, unknown>>[]][]) {
     const x = xs.find((x) => named(x.data));
     if (!x) continue;
@@ -228,7 +236,9 @@ export async function writeDefinition(
   type: FileType,
   data: Record<string, unknown>,
 ): Promise<void> {
-  const res = FILE_TYPES[type].safeParse(data);
+  // loaded steps carry the steps of shared steps: the file keeps the `use` they came from
+  const steps = type === 'test-case' && Array.isArray(data.steps) ? collapseSteps(data.steps) : data.steps;
+  const res = FILE_TYPES[type].safeParse(steps ? { ...data, steps } : data);
   if (!res.success) {
     const details = zodProblems(path, FILE_TYPES[type], res.error);
     const message = `Invalid ${type}: ${details.map((d) => `${d.path} ${d.message}`).join('; ')}`;

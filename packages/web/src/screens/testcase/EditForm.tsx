@@ -49,7 +49,11 @@ export function EditForm({ d, done }: { d: TestCaseDetail; done(saved: boolean):
           ))}
         </select>
       </label>
-      <StepsField steps={steps} setSteps={setSteps} bdd={isBdd(d)} />
+      {d.data.steps.some((s) => s.from) ? (
+        <p className="callout">{t('ss.editNote')}</p>
+      ) : (
+        <StepsField steps={steps} setSteps={setSteps} bdd={isBdd(d)} />
+      )}
       {error && <p className="callout s-fail">{error}</p>}
       <p className="chips">
         <button type="submit" className="btn btn-primary" disabled={busy}>

@@ -261,14 +261,14 @@ export const specCommands: Record<string, Spec> = {
   },
 
   new: {
-    description: 'Create a definition: feature, uc, ac, tc, fixture, env, release, plan',
+    description: 'Create a definition: feature, uc, ac, tc, ss, fixture, env, release, plan',
     repeat: ['ac', 'step'],
     args: {
-      entity: P('feature | uc | ac | tc | fixture | env | release | plan'),
+      entity: P('feature | uc | ac | tc | ss | fixture | env | release | plan'),
       title: S('Title (required)'),
       ...{ feature: S('Parent feature of a uc'), actor: S('Use case actor'), goal: S('Use case goal') },
       ac: S('Acceptance criterion of a new uc (repeatable)'),
-      step: S('"<instruction> => <expected>" (repeatable)'),
+      step: S('"<instruction> => <expected>" (repeatable; a tc or ss)'),
       ...{ uc: S('Parent use case of an ac or tc'), text: S('Criterion text') },
       covers: S('AC keys, comma-separated (default: all ACs of --uc)'),
       ...{ mode: S('manual | playwright | agent | hybrid'), priority: S('P0-P3') },

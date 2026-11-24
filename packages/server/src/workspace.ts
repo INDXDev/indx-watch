@@ -32,6 +32,9 @@ function applyEdit(data: Record<string, unknown>, input: TestCaseEdit) {
   if (input.steps !== undefined) {
     if (!Array.isArray(input.steps) || !input.steps.length) throw bad('steps: at least one step');
     const old = (data.steps ?? []) as Record<string, unknown>[];
+    // the steps shown are expanded, so they cannot be mapped back onto a file that uses shared steps
+    if (old.some((s) => s.use))
+      throw bad('steps: this test case uses shared steps; edit them in steps/SS-n-….toml');
     out.steps = input.steps.map((s, i) => ({
       ...old[i],
       instruction: text(s?.instruction, `step ${i + 1}: instruction`),

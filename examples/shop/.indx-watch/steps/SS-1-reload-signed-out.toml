@@ -1,0 +1,22 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/shared-step.json
+
+id = "ss_01JF3Q8M5X2V7K9D4R6T1W0Y71"
+key = "SS-1"
+title = "Reload and stay signed out"
+
+[[steps]]
+instruction = "Reload the page."
+expected = "The header still shows \"Sign in\"."
+checks = ["The header still shows \"Sign in\"."]
+
+[steps.i18n.ja]
+instruction = "ページを再読み込みする。"
+expected = "ヘッダーには「Sign in」が表示されたまま。"
+checks = ["ヘッダーには「Sign in」が表示されたまま。"]
+status = "machine"
+source_hash = "a033d251ac7d"
+
+[i18n.ja]
+title = "再読み込みしてもサインアウトのまま"
+status = "machine"
+source_hash = "ecbdf6f2d0b5"

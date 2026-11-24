@@ -25,7 +25,7 @@ const VersionTable = z.strictObject({
   mode: TestCase.shape.mode,
   preconditions: TestCase.shape.preconditions,
   fixtures: z.array(FixtureRef.omit({ use: true, note: true, i18n: true })).optional(),
-  steps: z.array(Step.omit({ i18n: true, checks: true })),
+  steps: z.array(Step.omit({ i18n: true, checks: true, from: true, fromFirst: true })),
   judges: TestCase.shape.judges,
   decision_policy: TestCase.shape.decision_policy,
 });
@@ -41,7 +41,7 @@ export async function testCaseVersion(
   const table: Record<string, unknown> = Object.fromEntries(TEST_CASE_VERSION_FIELDS.map((k) => [k, tc[k]]));
   table.criteria = tc.covers.flatMap((k) => criterionText.get(k) ?? []);
   // guidance fields are not part of the version
-  table.steps = tc.steps.map(({ i18n: _, checks: _c, ...s }) => s);
+  table.steps = tc.steps.map(({ i18n: _, checks: _c, from: _f, fromFirst: _ff, ...s }) => s);
   table.fixtures = tc.fixtures?.map(({ use: _, note: _n, i18n: _i, ...f }) => f);
   return `tcv:${await shortHash(formatBody(VersionTable, table, true))}`;
 }
@@ -74,6 +74,7 @@ export const TRANSLATABLE_FIELDS = {
   criterion: ['text'],
   'test-case': ['title', 'preconditions', 'purpose', 'start_note'],
   step: ['instruction', 'expected', 'checks'],
+  'shared-step': ['title'],
   'fixture-use': ['note'],
   fixture: ['title'],
   environment: ['title', 'guide'],

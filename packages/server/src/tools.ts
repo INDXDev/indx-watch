@@ -26,7 +26,7 @@ export const TOOL_INPUTS = {
   show: z.object({ ref: z.string() }),
   check: z.object({}),
   new: z.object({
-    kind: z.enum(['feature', 'uc', 'ac', 'tc', 'fixture', 'env', 'release', 'plan']),
+    kind: z.enum(['feature', 'uc', 'ac', 'tc', 'ss', 'fixture', 'env', 'release', 'plan']),
     fields: z
       .record(z.string(), z.unknown())
       .describe('Fields as in the TOML file: title, steps, covers, text …'),
@@ -63,6 +63,7 @@ export type ToolName = keyof typeof TOOL_INPUTS;
 /** `iw new` and `new` kinds → definition kinds */
 export const NEW_KINDS: Record<string, B.NewKind> = {
   ...{ feature: 'feature', uc: 'use-case', ac: 'criterion', tc: 'test-case', fixture: 'fixture' },
+  ss: 'shared-step',
   ...{ env: 'environment', release: 'release', plan: 'plan' },
 };
 const ABOUT: Record<ToolName, [string, object]> = {

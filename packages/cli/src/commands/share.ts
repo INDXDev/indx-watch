@@ -67,10 +67,18 @@ function owners(b: iwb.Bundle): Owner[] {
       o.targets.push({ ref: x.data.key, prefix: `criteria.${c.key}.`, source: c, kind: 'criterion' });
     out.push(o);
   }
+  for (const x of b.sharedSteps) {
+    const o = one(x.data.key, x, 'shared-step');
+    x.data.steps.forEach((s, i) => {
+      if (!s.use) o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
+    });
+    out.push(o);
+  }
   for (const x of b.testCases) {
     const o = one(x.data.key, x, 'test-case');
     x.data.steps.forEach((s, i) => {
-      o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
+      // steps of a shared step are translated in its own file
+      if (!s.from) o.targets.push({ ref: x.data.key, prefix: `steps.${i + 1}.`, source: s, kind: 'step' });
     });
     x.data.fixtures?.forEach((f, i) => {
       o.targets.push({ ref: x.data.key, prefix: `fixtures.${i + 1}.`, source: f, kind: 'fixture-use' });

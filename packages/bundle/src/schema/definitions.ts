@@ -284,7 +284,7 @@ export type JudgeKind = z.infer<typeof JudgeKind>;
 
 const text = z.string().optional();
 const onePath = z.string().regex(/^\/(?!\/)/);
-export const Step = z.strictObject({
+const stepFields = {
   instruction: z.string().min(1),
   expected: z.string().min(1),
   /** yes/no observations that make up `expected` (guidance: not part of the version) */
@@ -296,8 +296,33 @@ export const Step = z.strictObject({
       translation({ instruction: text, expected: text, checks: z.array(z.string()).optional() }),
     )
     .optional(),
+};
+/** A step as the rest of the app sees it; `from` and `fromFirst` exist only in memory (a step expanded from a shared step). */
+export const Step = z.strictObject({
+  ...stepFields,
+  from: keyOf('sharedStep').optional(),
+  fromFirst: z.boolean().optional(),
 });
 export type Step = z.infer<typeof Step>;
+
+/** (v0.5) A step in a file: a full step, or `use = "SS-n"` for the steps of a shared step (docs/spec/bundle-format.md#shared-steps). */
+export const FileStep = z
+  .strictObject({
+    use: keyOf('sharedStep').optional(),
+    instruction: stepFields.instruction.optional(),
+    expected: stepFields.expected.optional(),
+    checks: stepFields.checks,
+    evidence: stepFields.evidence,
+    i18n: stepFields.i18n,
+  })
+  .refine(
+    (s) =>
+      s.use
+        ? !(s.instruction || s.expected || s.checks || s.evidence || s.i18n)
+        : s.instruction && s.expected,
+    { message: 'a step is either use = "SS-n" alone, or has instruction and expected' },
+  );
+export type FileStep = z.infer<typeof FileStep>;
 
 export const FixtureRef = z.strictObject({
   ref: keyOf('fixture'),
@@ -347,6 +372,10 @@ export const TestCase = z.strictObject({
 });
 export type TestCase = z.infer<typeof TestCase>;
 
+/** The test case file: its steps may be `use = "SS-n"` references (the loader expands them into `TestCase.steps`). */
+export const TestCaseFile = TestCase.extend({ steps: z.array(FileStep).min(1) });
+export type TestCaseFile = z.infer<typeof TestCaseFile>;
+
 /**
  * Fields whose canonical form defines the test case version (docs/spec/concepts.md#versions-and-staleness).
  * steps[].i18n is excluded; the text of each covered criterion is included.
@@ -360,6 +389,18 @@ export const TEST_CASE_VERSION_FIELDS = [
   'judges',
   'decision_policy',
 ] as const;
+
+// ---------- steps/<SS>-<slug>.toml ----------
+export const SharedStep = z.strictObject({
+  id: idOf('ss'),
+  key: keyOf('sharedStep'),
+  title: z.string().min(1),
+  ...authored,
+  steps: z.array(FileStep).min(1),
+  i18n: z.partialRecord(Locale, translation({ title: z.string().optional() })).optional(),
+  ...tail,
+});
+export type SharedStep = z.infer<typeof SharedStep>;
 
 // ---------- fixtures/<FX>/fixture.toml ----------
 export const FixtureKind = z.enum(['dataset', 'seed', 'file', 'account']);
@@ -440,7 +481,8 @@ export const FILE_TYPES = {
   release: Release,
   feature: Feature,
   'use-case': UseCase,
-  'test-case': TestCase,
+  'test-case': TestCaseFile,
+  'shared-step': SharedStep,
   fixture: Fixture,
   'blob-pointer': BlobPointer,
   plan: Plan,

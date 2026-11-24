@@ -1,0 +1,39 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874NM7K9K3PS143BWPM1CTV"
+key = "TC-35"
+title = "Check rejects an unknown shared step and a loop"
+status = "draft"
+origin = "ai"
+covers = ["AC-16.3"]
+mode = "manual"
+
+[[steps]]
+instruction = "Change a step of TC-8 to use = \"SS-9\" and run \"iw check\"."
+expected = "The check fails with unresolved-ref on that test case."
+
+[steps.i18n.ja]
+instruction = "TC-8 のステップを use = \"SS-9\" に変え、「iw check」を実行する。"
+expected = "そのテストケースに unresolved-ref が出て、チェックが失敗する。"
+status = "machine"
+source_hash = "056cbdb0a2b0"
+
+[[steps]]
+instruction = "Make SS-1 use SS-2 and SS-2 use SS-1 and run \"iw check\"."
+expected = "The check fails with shared-step-cycle on both files and on TC-8."
+
+[steps.i18n.ja]
+instruction = "SS-1 が SS-2 を、SS-2 が SS-1 を使うようにして「iw check」を実行する。"
+expected = "両方のファイルと TC-8 に shared-step-cycle が出て、チェックが失敗する。"
+status = "machine"
+source_hash = "e5b06a463467"
+
+[i18n.ja]
+title = "check は存在しない共有ステップと循環を拒否する"
+status = "machine"
+source_hash = "4d6439bfcbe1"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:53Z

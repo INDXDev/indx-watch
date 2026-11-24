@@ -91,7 +91,7 @@ The text output lists the files written and kept and names the repository secret
 
 ### `iw check`
 
-Validate the whole bundle: schemas, canonical formatting, references (`covers`, fixture refs, plan items), duplicate keys and IDs, AI approval rule, secret scan, unknown files.
+Validate the whole bundle: schemas, canonical formatting, references (`covers`, fixture refs, plan items, *(v0.5)* shared steps: an unknown `use` is `unresolved-ref`, a loop `shared-step-cycle`), duplicate keys and IDs, AI approval rule, secret scan, unknown files.
 
 | Flag | |
 |---|---|
@@ -114,7 +114,7 @@ Rewrite files in canonical form. Equivalent to the formatting part of `check --f
 
 When the actor is an agent, every kind is created with `origin = "ai"` and an `[ai]` table, and `uc`, `ac`, `tc` and `fixture` as drafts: `--origin human|import` and `--ready` are rejected, and the model comes from `--model` or `IW_AGENT_MODEL` (otherwise exit 2). An `origin = "ai"` item never starts approved: `approved_by` from `--from` is dropped (only `iw approve` writes it). A new use case defaults to priority `P1`.
 
-Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `fixture`, `env`, `release`, `plan`.
+Create a definition file with a fresh ID and the next free key. Kinds: `feature`, `uc`, `ac`, `tc`, `ss` (*(v0.5)* a [shared step](./bundle-format.md#shared-steps) in `steps/`, key `SS-n`, with `--title` and `--step`; without a step one placeholder step is written), `fixture`, `env`, `release`, `plan`.
 
 | Flag | Applies to | |
 |---|---|---|
@@ -122,7 +122,7 @@ Create a definition file with a fresh ID and the next free key. Kinds: `feature`
 | `--feature <FEAT>` | `uc` | Parent feature (default: the only feature, or `FEAT-1`) |
 | `--actor <text>`, `--goal <text>` | `uc` | Default: "User" and the title |
 | `--ac <text>` | `uc` | Repeatable; at least one acceptance criterion is required |
-| `--step "<instruction> => <expected>"` | `tc` | Repeatable; without it (and without `--template`/`--from`) one placeholder step is written and the file stays `draft` |
+| `--step "<instruction> => <expected>"` | `tc`, `ss` | Repeatable; without it (and without `--template`/`--from`) one placeholder step is written and the file stays `draft` |
 | `--uc <UC>` | `ac`, `tc` | Parent use case (`ac` appends a criterion) |
 | `--text <text>` | `ac` | Criterion text |
 | `--covers <AC,...>` | `tc` | Default: all ACs of `--uc` |
@@ -368,7 +368,7 @@ Read and write content translations ([i18n](./i18n.md#content-translations)) wit
 | `iw translate TC-3 --locale ja --set title="有効なクーポンで合計が下がる" --set steps.1.expected="…"` | Write those fields into `[i18n.ja]` (or into `[steps.i18n.ja]` / `[criteria.i18n.ja]`) and stamp the current `source_hash` |
 | `iw translate --missing --locale ja` | List the entities whose translation for `ja` is missing or stale (all kinds) |
 
-Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`, `start_note`, `guide`, `steps.<n>.instruction`, `steps.<n>.expected`, `steps.<n>.checks.<m>` (one per check), `fixtures.<n>.note` (all 1-based), `criteria.<AC-key>.text`. A write of `checks` must leave every check of the step translated. Only a field with source text can be translated (a path to an absent field is a usage error), and a write drops translations of fields the source no longer has. With `--from <file.json|->`, it reads `{ "<path>": "<text>" }` instead of `--set`. New translations are written with `status = "machine"`; `--reviewed` writes `status = "reviewed"`, and agents may not pass it, because a person reviews. A write refreshes `source_hash` for the whole table, so the fields not passed must already be current. Otherwise it fails and lists them. `iw check` warns when a translation drops a literal from the source, or when a translated `checks` does not have one item per source check.
+Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`, `start_note`, `guide`, `steps.<n>.instruction`, `steps.<n>.expected`, `steps.<n>.checks.<m>` (one per check), `fixtures.<n>.note` (all 1-based), `criteria.<AC-key>.text`. *(v0.5)* `iw translate SS-n` works on a shared step (`title`, `steps.<n>.…`); a test case that uses one lists and writes only its own steps (the steps from the shared step keep their numbers but are translated in its file). A write of `checks` must leave every check of the step translated. Only a field with source text can be translated (a path to an absent field is a usage error), and a write drops translations of fields the source no longer has. With `--from <file.json|->`, it reads `{ "<path>": "<text>" }` instead of `--set`. New translations are written with `status = "machine"`; `--reviewed` writes `status = "reviewed"`, and agents may not pass it, because a person reviews. A write refreshes `source_hash` for the whole table, so the fields not passed must already be current. Otherwise it fails and lists them. `iw check` warns when a translation drops a literal from the source, or when a translated `checks` does not have one item per source check.
 
 `data` (list): `{ "ref": string | null, "locale": string, "fields": { "ref": string, "path": string, "source": string, "text"?: string, "state": "missing" | "machine" | "reviewed" | "stale" }[] }`. `data` (write): `{ "ref", "locale", "file", "status", "written": string[] }`.
 
@@ -438,6 +438,43 @@ Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planne
 
 `data`: `{ "plan": string, "uc": string, "created": { "kind", "id", "key", "file" }[] }`
 
+### `iw import testrail <cases.csv>`
+
+*(v0.5)* Turn a TestRail case export (CSV) into drafts: one use case per section, one acceptance criterion and one test case per case. Nothing counts until a person runs `iw approve` ([states](./concepts.md#test-case-use-case-fixture)): every item is `origin = "import"` and `status = "draft"` (criteria too). The columns are read by their header, case-insensitively ([export format](../research/platform-notes.md#testrail-and-testomatio-exports)); other columns are ignored.
+
+| TestRail column | INDX Watch |
+|---|---|
+| `Section Hierarchy` (else `Section`) | one use case per distinct value, titled by its last part (`Checkout > Payment` → "Payment"); no section → "Imported from TestRail". It goes under `--feature` (default: the only feature, else `FEAT-1`), as with `iw new uc`. `notes` names the source |
+| `Priority` | the use case gets the highest of its cases (`Critical` P0, `High` P1, `Medium` P2, `Low` P3; none → P1). A test case may not be lower than its use case, so test cases carry no priority of their own |
+| `Title` | the criterion text and the test case `title`; the criterion is the one the test case `covers` |
+| `Preconditions` | `preconditions` |
+| `Steps (Step)` / `Steps (Separated)` / `Steps` and `Steps (Expected Result)` / `Expected Result` | one step per row. A case row with a title starts a case; the rows under it with an empty title add steps (separated steps). With a single `Steps` and `Expected Result` cell the case has one step |
+| `ID` (`C123`) | `x.import = { source = "testrail", id = "C123" }` on the test case. Without an `ID` column the id is the section path and title |
+
+The test cases are `mode = "manual"`. A step without an expected result gets "Describe the expected result." and a `import-no-expected` warning; a case with no steps is skipped with `import-no-steps`. A file with no importable case is `INVALID_INPUT` (exit 2), as is a file without a `Title` column. **Importing again changes nothing**: a case whose `x.import` id is already in the bundle is skipped and counted in `skipped`. Keys are the next free ones, as with `iw new`. When the actor is an agent the items are written as AI drafts (`origin = "ai"`, `--model` or `IW_AGENT_MODEL` required) instead, because agents never write `origin = "import"`.
+
+| Flag | |
+|---|---|
+| `--feature <FEAT>` | Parent feature of the new use cases |
+| `--model <id>`, `--skill <name>` | Agents only: the AI marker (`skill` default `import-testrail`) |
+
+`--dry-run`, `--merge` and `--uc` apply to other imports (exit 2). `data`: `{ "source": "testrail", "files": string[], "created": { "kind", "id", "key", "file" }[], "skipped": number }`.
+
+### `iw import testomatio <dir|file.md>`
+
+*(v0.5)* Turn testomat.io [classical Markdown](../research/platform-notes.md#testrail-and-testomatio-exports) (the files its export and `check-tests` write, `*.md` in a folder, or one file) into the same drafts as `iw import testrail`: one use case per suite, one criterion and one test case per test.
+
+| testomat.io | INDX Watch |
+|---|---|
+| `<!-- suite … -->` and the `# Title` after it | a use case (a leading `# Title` with no block is a suite too) |
+| `<!-- test … -->` and the `# Title` (or `##`) after it | a criterion and a test case with that title; the text under the heading is ignored |
+| `## Steps` list: a top-level item, with `*Expected*: …` lines under it | one step each; several `Expected` lines are joined, one per line |
+| `priority:` (`critical` P0, `high` and `important` P1, `normal` P2, `low` P3) | the use case's priority, as for TestRail |
+| `tags:` | `tags` of the test case (lower case, other characters become `-`) |
+| `id: @T…` | `x.import = { source = "testomatio", id = "@T…" }`, so a second import skips it |
+| `<!-- example -->` tables | ignored |
+
+`import-no-expected`, `import-no-steps`, repeat imports, agents and flags work as for `iw import testrail`; `files` lists the Markdown files read. `data`: `{ "source": "testomatio", "files": string[], "created": …, "skipped": number }`.
 ### `iw import github-issue <number | URL>`
 
 *(v0.5)* Import one GitHub issue as one **draft** use case ([GitHub issues](./integrations.md#github-issues)): `origin = "import"` (an agent writes `origin = "ai"` with `--model`), the issue title as `title`, `links = [<issue URL>]`, and one draft criterion per task-list item (`- [ ] …`, ticked or not). A rendered [test request form](./integrations.md#issue-forms) also sets `actor`, `goal` and `priority`; otherwise the actor is `User`, the goal the title and the priority the label `P0`–`P3` or `P2`. A number needs the repository (`[github] repo` or the `origin` remote). The issue is read through the `IssueSource` port: the REST adapter (`GITHUB_TOKEN` when set; none for public repositories), or `--from`. An issue with no task list is `INVALID_INPUT` (exit 2) and points to `/iw-design`. The same issue again changes nothing: `created` is `null` and `existing` names the use case.
@@ -609,4 +646,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
 - [ ] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.
+- [x] `iw import testrail` on a small export with separated steps creates a draft use case per section and a draft criterion and test case per case, `iw check` reports 0 errors, and a second import creates nothing and reports `skipped` (CLI test).
+- [x] `iw import testomatio` on a folder of classical Markdown creates the same drafts from suites and tests, joins several `Expected` lines and warns about a step without one (CLI test).
+- [x] `iw new ss --title "Sign in" --step "Open Sign in => The form opens"` creates `steps/SS-n-sign-in.toml`; a test case step `use = "SS-n"` is expanded by `iw show`, an unknown or looping one fails `iw check`, and editing the shared step changes the version of every test case that uses it (bundle tests).
 - [x] *(v0.5, T-515, T-516)* `iw assign --plan PLAN-1 --split alex@shop.test:2,sam@shop.test:1,agent:claude:1` on a copy of the shop assigns 3, 2 and 2 items deterministically (alex first his own features), `--dry-run` writes nothing and works for agents, writing as an agent exits 2, and `iw status --json` has `automation` (`packages/cli/test/cli-assign.test.ts`, `packages/core/test/assign.test.ts`).

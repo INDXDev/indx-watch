@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Shared steps (T-521): `steps/SS-n-<slug>.toml` holds steps that test cases reuse with a step `use = "SS-n"`. They are expanded when the bundle loads, and editing one makes results of every test case that uses it stale. `iw check` reports unknown references and cycles, `iw new ss` and `iw translate SS-n` work on them, and the web app marks such steps "from SS-1" (ADR 0015).
+- `iw import testrail <cases.csv>` and `iw import testomatio <dir|file.md>` (T-522): turn TestRail CSV exports and testomat.io classical Markdown into draft use cases, criteria and test cases that pass `iw check`; importing again skips what was already imported.
 - Assignee board on the plan screen (T-514): one row per assignee with a status bar, Unassigned only, bulk Assign / Unassign, Take and Give back, and a Split dialog with preview; writes in workspace mode (lead assigns anyone, tester takes or gives back their own).
 - `iw assign --plan PLAN-n --split who:weight,… [--only-unassigned] [--dry-run]` and `--to <who> --items TC-n,…` (T-515): a deterministic weighted split that gives feature owners their own features first and spreads high priorities; also `POST /api/plans/:key/assign` and the read-only MCP tool `assign`; agents may only use `--dry-run`.
 - Automation mix (T-516): how many plan items are run by people, CI and agents, on the plan screen, as `data.automation` in `iw status --json` (additive) and as a Run by line in reports.

@@ -9,6 +9,7 @@ export * from './schema/definitions.js';
 export * from './schema/records.js';
 export * from './seal.js';
 export * from './sign.js';
+export * from './steps.js';
 export * from './toml.js';
 export type * from './types.js';
 export * from './ui.js';

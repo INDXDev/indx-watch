@@ -261,6 +261,16 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 | `tsup` | 9.0.0 | 2026-10-14 | Bundler named in the architecture. 9.x needs Node `^22.18 \|\| ^24.11 \|\| >=26` |
 | `pnpm` | 12.21.0 | 2026-11-13 | Pin via `packageManager` |
 
+## TestRail and testomat.io exports
+
+Used by `iw import testrail` and `iw import testomatio` (T-522, [cli.md](../spec/cli.md#iw-import-testrail-casescsv)).
+
+- TestRail exports cases to CSV or Excel from a dialog in which you choose the sections and the columns (any built-in or custom case field). The article links a sample `reference.csv`. (verified 2026-11-25, https://support.testrail.com/hc/en-us/articles/15144643126932-Export-test-cases , https://www.testrail.com/blog/csv-excel-test-case-testrail-import/)
+- TestRail's CSV import has two templates: Test Case (Text), with the steps in one cell, and Test Case (Steps), where a case with several steps spans several rows (a row per step, the case fields only on the first). (verified 2026-11-25, https://support.testrail.com/hc/en-us/articles/7101779988372 , https://support.testrail.com/hc/en-us/articles/7771173371796-Migration-CSV-Excel)
+- **The exact export header names were not readable.** The support pages answered 403 to a fetch and no search result lists them. The importer therefore matches headers case-insensitively and by alias: `Title`; `Section Hierarchy` or `Section`; `Priority`; `Preconditions`; `ID` or `Case ID`; `Steps (Step)`, `Steps (Separated)` or `Steps`; `Steps (Expected Result)` or `Expected Result`. The priority names `Critical`, `High`, `Medium`, `Low` and the `C<number>` case IDs are TestRail's defaults from memory. (unverified: check a real export before relying on a header name; the tests use a hand-written file in this layout)
+- testomat.io's classical Markdown format has one `<!-- suite … -->` block (`id: @S` + 8 characters, optional `emoji`, `tags`, `assignee`) followed by a `# Suite title`, then per test a `<!-- test … -->` block (`id: @T` + 8 characters, `type`, `priority`, `tags`, `labels`; one `key: value` per line, lines without a colon are ignored) followed by `# Test title` (a `##` title also works), a description, and `## Steps` with a nested Markdown list: each top-level item is an action and the nested `*Expected*` item is its verifiable result. `priority` is one of `low`, `normal`, `important`, `high`, `critical`. Parameters are a Markdown table after `<!-- example -->`. (verified 2026-11-25, https://docs.testomat.io/project/import-export/export-tests/classical-tests-markdown-format/)
+- The same page shows the block both as `<!-- suite … -->` and as `<!-- suiteid: … -->` in one rendering, and its examples lost their line breaks when read as text. The importer accepts `suite` or `test` followed by `key: value` lines, on the same line or the following ones. (verified 2026-11-25, same page; unverified against a real export)
+
 ## Open items
 
 - **Node floor.** The docs say Node ≥ 20 (architecture: ≥ 20.19). Node 20 is EOL, and wrangler 4.165, tsup 9, vitest 5 and Playwright's own CI have all dropped it. Decide whether to raise the floor to `>=22.13`, or to keep 20 for the `iw` CLI only and pin older dev tools.
@@ -271,6 +281,7 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 
 ## Changelog
 
+- 2026-11-25: Added the TestRail CSV and testomat.io classical Markdown export formats (T-522).
 - 2026-11-25: Added GitHub issue forms, new-issue URL prefill and the issue REST endpoint (T-517).
 - 2026-11-21: `node:sqlite` loading and the tsup `node:` prefix (T-210).
 - 2026-11-21: Added the Playwright Test Agents planner plan format (T-212).

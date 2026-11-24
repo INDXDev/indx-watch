@@ -1,0 +1,73 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874NCKVXGQ6B9V71F2XTPD9"
+key = "UC-16"
+title = "Developer reuses steps across test cases"
+status = "draft"
+origin = "ai"
+actor = "Developer"
+goal = "Write a step once in a shared step and use it in several test cases"
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M874NCKVXGQ6B9V71F2XTPD6"
+key = "AC-16.1"
+text = "A test case step use = \"SS-n\" shows the steps of that shared step in place, marked as coming from it"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "テストケースのステップに use = \"SS-n\" と書くと、その共有ステップのステップがその位置に、共有ステップから来たと分かる印つきで表示される"
+status = "machine"
+source_hash = "8d9b622fa42b"
+
+[[criteria]]
+id = "ac_01M874NCKVXGQ6B9V71F2XTPD7"
+key = "AC-16.2"
+text = "Editing a shared step makes the results of every test case that uses it stale"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "共有ステップを編集すると、それを使うすべてのテストケースの結果が古い扱いになる"
+status = "machine"
+source_hash = "4d193f65ac30"
+
+[[criteria]]
+id = "ac_01M874NCKVXGQ6B9V71F2XTPD8"
+key = "AC-16.3"
+text = "iw check names a use of a shared step that does not exist and shared steps that use each other in a loop"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "iw check は、存在しない共有ステップの参照と、共有ステップどうしの循環を示す"
+status = "machine"
+source_hash = "124bec049a78"
+
+[i18n.ja]
+title = "開発者がステップを複数のテストケースで使い回す"
+actor = "開発者"
+goal = "ステップを共有ステップに一度だけ書き、複数のテストケースで使う"
+status = "machine"
+source_hash = "2227e99c25fe"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z

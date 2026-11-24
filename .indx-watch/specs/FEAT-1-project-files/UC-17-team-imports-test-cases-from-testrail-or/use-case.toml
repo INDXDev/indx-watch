@@ -1,0 +1,73 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874ND479V63BTKQV9RAJPDB"
+key = "UC-17"
+title = "Team imports test cases from TestRail or testomat.io"
+status = "draft"
+origin = "ai"
+actor = "Team lead"
+goal = "Bring existing test cases over as drafts that a person approves"
+priority = "P1"
+
+[[criteria]]
+id = "ac_01M874ND479V63BTKQV9RAJPD8"
+key = "AC-17.1"
+text = "A TestRail CSV export becomes draft use cases, criteria and test cases that pass iw check"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "TestRail の CSV エクスポートが、iw check を通る下書きのユースケース・受け入れ基準・テストケースになる"
+status = "machine"
+source_hash = "390c9ea9e43b"
+
+[[criteria]]
+id = "ac_01M874ND479V63BTKQV9RAJPD9"
+key = "AC-17.2"
+text = "A testomat.io classical Markdown export becomes draft use cases, criteria and test cases that pass iw check"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "testomat.io の classical Markdown エクスポートが、iw check を通る下書きのユースケース・受け入れ基準・テストケースになる"
+status = "machine"
+source_hash = "b0addbedcff0"
+
+[[criteria]]
+id = "ac_01M874ND479V63BTKQV9RAJPDA"
+key = "AC-17.3"
+text = "Importing the same export again creates nothing new"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z
+
+[criteria.i18n.ja]
+text = "同じエクスポートをもう一度取り込んでも、何も新しく作られない"
+status = "machine"
+source_hash = "f724d19c54bd"
+
+[i18n.ja]
+title = "チームが TestRail や testomat.io からテストケースを取り込む"
+actor = "チームリーダー"
+goal = "既存のテストケースを下書きとして取り込み、人が承認する"
+status = "machine"
+source_hash = "f5f41b1760d0"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T16:01:46Z

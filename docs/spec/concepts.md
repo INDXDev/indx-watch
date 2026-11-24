@@ -68,7 +68,7 @@ Every entity has two identifiers.
 | Purpose | Identity. Never changes. References in result records use it. | Conversation, file names, Playwright tags, reports. |
 | Created | Offline, by whoever creates the file. ULIDs do not collide. | By `iw new`: next free number in the bundle. |
 
-Prefixes: `prj env rel fea uc ac tc fx pln run jdg dep wvr rec`. Runs have no human key; commands accept a run ID or any unique prefix of at least 8 characters after `run_`.
+Prefixes: `prj env rel fea uc ac tc ss fx pln run jdg dep wvr rec` (`ss`: *(v0.5)* [shared steps](./bundle-format.md#shared-steps), key `SS-n`). Runs have no human key; commands accept a run ID or any unique prefix of at least 8 characters after `run_`.
 
 **Key rules**
 
@@ -212,7 +212,7 @@ Who may change an assignee (hosted app; without [roles](./security.md#roles) and
 
 ## Versions and staleness
 
-- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, `links`, guidance and translations do not.
+- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables; *(v0.5)* with each `use = "SS-n"` replaced by the steps of that [shared step](./bundle-format.md#shared-steps), so editing a shared step makes results of every test case that uses it stale), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, `links`, guidance and translations do not.
 - **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`). Text data files (`.csv`, `.json`, `.txt`, `.md`, `.toml`, `.yaml`, …) are hashed with CRLF read as LF, so a Windows checkout gives the same version.
 - A run records the test case version and the version of every fixture it used.
 - A result is **stale** when its test case version differs from the current one, or any fixture version it used differs from the current version of that fixture.
@@ -334,7 +334,7 @@ These are enforced by `iw check` and unit tests:
 3. An `origin = "ai"` item is `ready` only with `approved_by` and an `approved_version` equal to its current version (an acceptance criterion: only with `approved_by`). An `origin = "ai"` feature, environment, release or plan without `approved_by` is a warning. Every `origin = "ai"` item has an `[ai]` table.
 4. Keys are unique per kind; deprecated items and retired ACs keep their keys; `iw new` also avoids keys seen in results.
 5. No secret values appear in the bundle.
-6. Every reference resolves: `covers` → ready or draft ACs; fixture refs → fixtures; plan items → test cases; `project.default_environment`, `plan.environment`, item environments → environments; `project.current_release`, `plan.release` → releases; `release.plan` → a plan; `environment.accounts` → `account` fixtures; a `seed` fixture used with `apply = "before_run"` → an environment hook of that name.
+6. Every reference resolves: `covers` → ready or draft ACs; fixture refs → fixtures; plan items → test cases; `project.default_environment`, `plan.environment`, item environments → environments; `project.current_release`, `plan.release` → releases; `release.plan` → a plan; `environment.accounts` → `account` fixtures; a `seed` fixture used with `apply = "before_run"` → an environment hook of that name; *(v0.5)* a step `use = "SS-n"` → a shared step, and shared steps do not use each other in a loop.
 7. A test case's own priority is not lower than its effective priority.
 8. Within a plan, (test case, environment) is unique.
 
