@@ -5,6 +5,8 @@
 import type {
   Access,
   AccessOverview,
+  AssignInput,
+  AssignResult,
   BlobResult,
   FixtureDetail,
   FixtureInput,
@@ -18,6 +20,7 @@ import type {
   SecretInput,
   SecretList,
   SecretView,
+  PlanView as ServerPlan,
   ShareCreated,
   ShareLink,
   SnapshotSummary,
@@ -32,6 +35,7 @@ import type {
 export type {
   Access,
   AccessOverview,
+  AssignResult,
   BlobResult,
   FixtureDetail,
   FixtureInput,
@@ -69,6 +73,9 @@ export interface PlanView {
     due?: string;
     status?: PlanItemStatus;
   }[];
+  /** items per assignee, and who runs them (docs/spec/concepts.md#assignment-and-automation-mix) */
+  board?: ServerPlan['board'];
+  mix?: ServerPlan['mix'];
 }
 export type ReportQuery = Scope & {
   plan?: string | undefined;
@@ -154,6 +161,7 @@ export const api = {
   fixture: (key: string) => call<FixtureDetail>(`api/fixtures/${key}`),
   plans: () => call<PlanView[]>('api/plans'),
   plan: (key: string) => call<PlanView>(`api/plans/${key}`),
+  assign: (key: string, input: AssignInput) => post<AssignResult>(`api/plans/${key}/assign`, input),
   runs: (p: Scope & { tc?: string; limit?: number }) =>
     call<RunSummary[]>(`api/runs${query({ ...scopeQ(p), tc: p.tc, limit: p.limit })}`),
   run: (id: string) => call<RunDetail>(`api/runs/${id}`),

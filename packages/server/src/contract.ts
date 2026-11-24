@@ -142,6 +142,8 @@ export interface ProjectInfo {
     approve?: boolean;
     /** (v0.2) edit test case definitions in workspace mode (PATCH /api/test-cases/:key) */
     edit?: boolean;
+    /** (v0.5) assign plan items: a lead any, a tester take and give back (POST /api/plans/:key/assign) */
+    assign?: boolean;
     /** (v0.5) create, edit and remove test data (POST /api/fixtures, PATCH and DELETE /api/fixtures/:key) */
     data?: boolean;
     /** (v0.5) the server holds IW_SECRETS_KEY, so `iw:` secrets can be read (and, with `data`, written) */

@@ -86,6 +86,7 @@ function abilities({ deps, sharer }: Ctx, m: Model, who: B.Actor, role?: B.Role)
     ...{ declare: !!deps.declaredIdentity, upload: writer && files, share: sharer(who) && lead },
     ...{ run: role !== 'viewer', review: writer, approve: lead },
     edit: workspaceMode(m) && !!deps.bundleFiles && lead,
+    assign: workspaceMode(m) && !!deps.bundleFiles && writer,
     data: writer && files,
     secrets: !!deps.secretsKey,
   };
