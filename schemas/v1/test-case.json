@@ -169,6 +169,10 @@
       "items": {
         "type": "object",
         "properties": {
+          "use": {
+            "type": "string",
+            "pattern": "^SS-[1-9][0-9]*$"
+          },
           "instruction": {
             "type": "string",
             "minLength": 1
@@ -241,10 +245,6 @@
             }
           }
         },
-        "required": [
-          "instruction",
-          "expected"
-        ],
         "additionalProperties": false
       }
     },

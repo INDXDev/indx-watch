@@ -35,11 +35,13 @@ export function canonicalText(f: SeenFile, data = f.raw): string | null {
 export async function fix(input: FixInput) {
   const { b, deps } = input;
   const groups: Group[] = [['feature', b.features]];
-  groups.push(['useCase', b.useCases], ['testCase', b.testCases], ['fixture', b.fixtures], ['plan', b.plans]);
+  groups.push(['useCase', b.useCases], ['testCase', b.testCases], ['sharedStep', b.sharedSteps]);
+  groups.push(['fixture', b.fixtures], ['plan', b.plans]);
   const seen = new Set([...(deps.knownKeys ?? []), ...groups.flatMap(([, xs]) => xs.map((x) => x.data.key))]);
   for (const c of b.useCases.flatMap((u) => u.data.criteria)) seen.add(c.key);
   const x: Fix = { ...input, seen, data: new Map() };
-  for (const [kind, items] of groups)
+  // a shared step is not renumbered: the `use` that names it would not know which one it meant
+  for (const [kind, items] of groups.filter(([k]) => k !== 'sharedStep'))
     for (const key of new Set(items.map((it) => it.data.key))) {
       const dups = items.filter((it) => it.data.key === key);
       const keep = await keeper(dups, (it) => it.data.id, deps);
@@ -144,7 +146,7 @@ function renames(x: Fix, groups: Group[]): Map<string, string> {
 
 /** An item's file (test cases, plans) or directory not starting with its (new) key: key + kept slug, or title slug. */
 function renameToKey(x: Fix, kind: KeyKind, it: Item, renamed: Map<string, string>) {
-  const path = kind === 'testCase' || kind === 'plan' ? it.file : dirOf(it.file);
+  const path = ['testCase', 'plan', 'sharedStep'].includes(kind) ? it.file : dirOf(it.file);
   const key = (x.data.get(it.file)?.key as string | undefined) ?? it.data.key;
   const [last, ext] = [path.split('/').at(-1)!, path.endsWith('.toml') ? '.toml' : ''];
   if (last.startsWith(`${key}-`)) return;

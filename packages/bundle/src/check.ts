@@ -180,6 +180,7 @@ function checkNames({ b, err, warn }: Ctx) {
     ...b.features.map((x) => ['feature', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.useCases.map((x) => ['use case', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.testCases.map((x) => ['test case', x.data.id, x.data.key, x.file, last(x.file)] as const),
+    ...b.sharedSteps.map((x) => ['shared step', x.data.id, x.data.key, x.file, last(x.file)] as const),
     ...b.fixtures.map((x) => ['fixture', x.data.id, x.data.key, x.file, last(x.file, 1)] as const),
     ...b.plans.map((x) => ['plan', x.data.id, x.data.key, x.file, last(x.file)] as const),
     ...b.useCases.flatMap((x) => x.data.criteria.map((c) => ['criterion', c.id, c.key, x.file, ''] as const)),
@@ -284,7 +285,8 @@ async function checkAi(c: Ctx) {
   for (const t of c.b.testCases) await aiReady(c, t.data, t.file, async () => t.version);
   for (const f of c.b.fixtures) await aiReady(c, f.data, f.file, async () => f.version);
   for (const u of c.b.useCases) await aiReady(c, u.data, u.file, () => useCaseVersion(u.data));
-  for (const x of [...c.b.features, ...c.b.environments, ...c.b.releases, ...c.b.plans]) aiReviewed(c, x);
+  const reviewed = [...c.b.features, ...c.b.environments, ...c.b.releases, ...c.b.plans, ...c.b.sharedSteps];
+  for (const x of reviewed) aiReviewed(c, x);
   for (const u of c.b.useCases) aiCriteria(c, u);
 }
 
@@ -335,9 +337,14 @@ async function checkTranslations(c: Ctx) {
   }
   for (const x of b.testCases) {
     await i18n(x.file, x.data, TF['test-case']);
-    for (const [i, s] of x.data.steps.entries()) await i18n(x.file, s, TF.step, `steps[${i}].`);
+    // steps from a shared step are checked in its own file
+    for (const [i, s] of x.data.steps.entries()) if (!s.from) await i18n(x.file, s, TF.step, `steps[${i}].`);
     for (const [i, f] of (x.data.fixtures ?? []).entries())
       await i18n(x.file, f, TF['fixture-use'], `fixtures[${i}].`);
+  }
+  for (const x of b.sharedSteps) {
+    await i18n(x.file, x.data, TF['shared-step']);
+    for (const [i, s] of x.data.steps.entries()) if (!s.use) await i18n(x.file, s, TF.step, `steps[${i}].`);
   }
 }
 

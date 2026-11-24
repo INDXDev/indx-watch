@@ -6,7 +6,15 @@ import type { z } from 'zod';
 import { sha256Hex } from './hash.js';
 import { SCHEMA_VERSION } from './schema/common.js';
 import type { BlobPointer, Feature, FileType, Fixture } from './schema/definitions.js';
-import { FILE_TYPES, type Project, type TestCase, type UseCase } from './schema/definitions.js';
+import {
+  FILE_TYPES,
+  type Project,
+  type SharedStep,
+  type TestCase,
+  type TestCaseFile,
+  type UseCase,
+} from './schema/definitions.js';
+import { expandSteps, type StepIssue } from './steps.js';
 import { parseToml } from './toml.js';
 import type { Bundle, BundleFs, Loaded, LoadedTemplate, Problem } from './types.js';
 import { fixtureVersion, testCaseVersion } from './versions.js';
@@ -43,6 +51,7 @@ const RULES: [RegExp, FileType | 'template' | null][] = [
   [/^specs\/[^/]+\/feature\.toml$/, 'feature'],
   [/^specs\/[^/]+\/[^/]+\/use-case\.toml$/, 'use-case'],
   [/^specs\/[^/]+\/[^/]+\/TC-[^/]*\.toml$/, 'test-case'],
+  [/^steps\/SS-[^/]*\.toml$/, 'shared-step'],
   [/^fixtures\/[^/]+\/fixture\.toml$/, 'fixture'],
   [/^templates\/(test-case|use-case|fixture)\.[a-z0-9][a-z0-9-]*\.toml$/, 'template'],
   [/(^|\/)README\.md$|^\.gitignore$/, null],
@@ -185,8 +194,19 @@ async function loadFixture(l: Loader, fx: Loaded<Fixture>, stray: Set<string>) {
   return { ...fx, dataFiles, version: await fixtureVersion(fx.data, forVersion) };
 }
 
-/** Use cases with their feature key and test cases with their use case key and version. */
-async function specs(of: Awaited<ReturnType<typeof classify>>['of']) {
+/** Steps problems of one file (an unknown shared step, a cycle) as load problems. */
+const stepProblems = (file: string, issues: StepIssue[]): Problem[] =>
+  issues.map(({ code, path, message }) => ({ severity: 'error', code, file, path, message }));
+
+/**
+ * Use cases with their feature key and test cases with their use case key and version. A test case's
+ * `use` steps are expanded here, so its version covers the steps of the shared steps it uses (ADR 0015).
+ */
+async function specs(l: Loader, of: Awaited<ReturnType<typeof classify>>['of']) {
+  const sharedSteps = of<SharedStep>('shared-step');
+  const shared = new Map(sharedSteps.map((s) => [s.data.key, s.data.steps]));
+  for (const s of sharedSteps)
+    l.problems.push(...stepProblems(s.file, expandSteps(s.data.steps, shared, s.data.key).issues));
   const featureKey = new Map(of<Feature>('feature').map((f) => [dirOf(f.file), f.data.key]));
   const useCases = of<UseCase>('use-case').map((u) => {
     const dir = dirOf(dirOf(u.file));
@@ -197,11 +217,14 @@ async function specs(of: Awaited<ReturnType<typeof classify>>['of']) {
     useCases.flatMap((u) => u.data.criteria.map((c) => [c.key, c.text] as const)),
   );
   const testCases: Bundle['testCases'] = [];
-  for (const t of of<TestCase>('test-case')) {
+  for (const t of of<TestCaseFile>('test-case')) {
     const useCase = ucKey.get(dirOf(t.file)) ?? /UC-\d+/.exec(dirOf(t.file))?.[0] ?? '';
-    testCases.push({ ...t, useCase, version: await testCaseVersion(t.data, criterionText) });
+    const { steps, issues } = expandSteps(t.data.steps, shared);
+    l.problems.push(...stepProblems(t.file, issues));
+    const data = { ...t.data, steps } as TestCase;
+    testCases.push({ file: t.file, data, useCase, version: await testCaseVersion(data, criterionText) });
   }
-  return { useCases, testCases };
+  return { useCases, testCases, sharedSteps };
 }
 
 /** loadBundle plus every file seen, for check and fmt. */
@@ -214,9 +237,10 @@ export async function loadDetailed(fs: BundleFs): Promise<LoadResult & { files: 
   for (const fx of of<Fixture>('fixture')) fixtures.push(await loadFixture(l, fx, fixtureFiles));
   unknownFiles.push(...fixtureFiles);
   for (const f of unknownFiles.sort()) l.add('warning', 'unknown-file', f, 'File is not part of the format');
-  const { useCases, testCases } = await specs(of);
+  const { useCases, testCases, sharedSteps } = await specs(l, of);
   const invalidFiles = [...new Set(l.problems.filter((p) => p.severity === 'error').map((p) => p.file!))];
-  const bundle = { project, useCases, testCases, fixtures, templates, unknownFiles, invalidFiles } as Bundle;
+  const parts = { project, useCases, testCases, sharedSteps, fixtures, templates, unknownFiles };
+  const bundle = { ...parts, invalidFiles } as Bundle;
   for (const k of ['environment', 'release', 'feature', 'plan'])
     (bundle as never as Record<string, unknown>)[`${k}s`] = of(k as FileType);
   return { bundle, problems: l.problems, files: l.files };

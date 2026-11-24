@@ -10,6 +10,7 @@ import type {
   Plan,
   Project,
   Release,
+  SharedStep,
   TestCase,
   UseCase,
 } from './schema/definitions.js';
@@ -81,6 +82,8 @@ export interface Bundle {
   features: Loaded<Feature>[];
   useCases: LoadedUseCase[];
   testCases: LoadedTestCase[];
+  /** (v0.5) shared steps; test cases hold their steps expanded */
+  sharedSteps: Loaded<SharedStep>[];
   fixtures: LoadedFixture[];
   plans: Loaded<Plan>[];
   templates: LoadedTemplate[];
