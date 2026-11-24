@@ -184,6 +184,14 @@ The server enforces this table in one middleware before any route (Node and Work
 - **Loading data.** Data goes into a public deploy's bucket only from outside the app: the demo workflow publishes the sample into a local `file://` store with `iw push` and copies its objects into the R2 bucket with `wrangler r2 object put`; the Worker indexes them like any direct bucket write.
 - **`iw serve`** is unchanged: it has no public mode ([shared servers](#shared-servers)).
 
+## Patched servers
+
+*(v0.5)* A team may run a [patched build](../guides/customize.md#level-3-patches) of the server. That cannot weaken the trust model: `iw patch` refuses patches to the verdict, gate and status rules, to signing and identity, and to the secret scan ([list](./cli.md#iw-patch)), and the server does not load code from the bundle. What a patch can change, and so what a reader must be able to see, is everything else, so a patched build says so:
+
+- **Build id.** The hash of the patch set (SHA-256 of the patch files in order, first 8 hex digits) is baked into the build. `/healthz` and `GET /api/project` (`server.patches`), MCP `serverInfo.version` and report footers show `INDX Watch 0.1.3+p.ab12cd34 (patched)`; the web app shows the same in a note under the top bar.
+- **Records.** A patched server adds `client = { "version": "0.1.3", "patches": "ab12cd34" }` to each record it writes, before signing, so the marker is covered by the signature. Records of a patched server stay verified (the key is the same) and are never rejected; readers may show the marker. Unpatched servers write no `client`.
+- **Not a trust boundary.** The marker is honest-but-visible, not enforced: whoever holds the signing key could write records without it. It tells reviewers which build produced a result, nothing more.
+
 ## Share links
 *(v0.2)* A share link serves a frozen report snapshot; how links are created, opened and revoked is in [reports.md](./reports.md#share-links).
 

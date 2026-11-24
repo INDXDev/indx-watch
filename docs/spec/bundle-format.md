@@ -36,6 +36,13 @@ The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/in
 │   └── PLAN-1-v1-2-0-regression.toml
 ├── templates/
 │   └── test-case.web.toml            # partial files used by `iw new --template`
+├── ui/                               # (v0.5) optional: UI texts, theme and report logo, no code
+│   ├── messages.ja.json
+│   ├── theme.toml
+│   └── logo.png
+├── patches/                          # (v0.5) optional: `iw patch` files, not part of snapshots
+│   ├── patches.toml
+│   └── 0001-shorter-nav.patch
 ├── .gitignore                        # written by `iw init`: ignores cache/ and runs/
 ├── cache/                            # ignored: index.sqlite, sync state, fetched blobs
 └── runs/                             # ignored by default: local replica of the result store
@@ -46,6 +53,7 @@ Rules:
 - **Identity is the `id` inside a file**, not its path. Directory and file names are `{KEY}-{slug}`; the slug is cosmetic: `iw new` writes it from the title, and `iw check --fix` only rewrites the key part of a name (a title change keeps the slug). Moving or renaming a file never changes identity.
 - A use case directory must be inside a feature directory; test case files must be inside a use case directory. A test case may still cover ACs of other use cases.
 - Files and directories not described here produce a warning from `iw check` and are ignored, except `README.md` files, which are allowed anywhere. The secret scan still covers every file in the folder, because snapshots and exports pack them.
+- `ui/` and `patches/` *(v0.5)* are described in [Customizing](#customizing-v05). `patches/` is never loaded, scanned, snapshotted or uploaded.
 - Symbolic links are ignored: tools do not list them and refuse to read or write a path whose real location is outside the folder.
 - The folder is `.indx-watch/` at the repository root by default. Commands find it by walking up from the current directory; `--dir` or `IW_DIR` override this.
 
@@ -160,6 +168,8 @@ definition = "A code that reduces the order total."
 | `[decision_policy]` | no | Project defaults; a test case may override. |
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default: definitions sync through git) or `workspace` (*v0.2*: definitions also sync through the store, [workspace mode](./sync.md#workspace-mode-v02)). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](./sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](./security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](./security.md#roles)). |
+| `[tool]` | no | *(v0.5)* `indx_watch = "x.y.z"`: the version everything pins ([staying current](../roadmap.md)); `source = "github:<owner>/<repo>"`: a fork whose releases `iw doctor` and `iw update` follow instead of the npm package ([fork guide](../guides/fork.md)). |
+| `[report]` | no | *(v0.5)* `title`, `logo`, `footer` of reports ([Customizing](#customizing-v05)). |
 | `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](./security.md#signed-records). |
 
 ## `environments/<name>.toml`
@@ -520,6 +530,44 @@ source_hash = "862ca86fb166"
 
 *(v0.4)* One template is built in: `iw new tc --template bdd` creates a test case with `style = "bdd"` and a placeholder Given in `preconditions` (examples/shop's TC-4 is written this way). A file `templates/test-case.bdd.toml` replaces it.
 
+## Customizing *(v0.5)*
+
+Three extension points need no code and no fork. All are optional, plain data, served to the web app through `GET /api/project` and so work the same on `iw serve` and on the Worker. There are no server-side code plugins; bigger changes are [patches](../guides/customize.md#level-3-patches).
+
+**`ui/messages.<locale>.json`** (`en` or `ja`) overrides UI texts: one flat object of existing message keys (those of `packages/web/src/messages/en.json`) to plain text. Keep every `{placeholder}` of the original text and write no markup. Missing keys keep the built-in text.
+
+```json
+{ "nav.tests": "Checks", "home.title": "Where we stand" }
+```
+
+**`ui/theme.toml`** sets a few design tokens from `packages/web/src/tokens.css`. `[light]` and `[dark]` may set the colors `accent`, `accent-hover`, `accent-text`, `accent-soft`, `focus`, `bg`, `surface`, `surface-2`, `border`, `border-strong`, `text` and `text-muted` (hex, `rgb()` or `hsl()`); `[common]` may set `font-sans`, `font-mono` (font names), and `radius-sm`, `radius`, `radius-lg` (`px` or `rem`). Status colors are not themable: a status always keeps its meaning. `iw check` warns when a text color on `bg` or `surface`, or `accent-text` on `accent`, is below a 4.5:1 contrast.
+
+```toml
+[light]
+accent = "#0b6b50"
+accent-text = "#ffffff"
+
+[dark]
+accent = "#6fd3b0"
+accent-text = "#06231a"
+
+[common]
+radius = "4px"
+```
+
+**`[report]`** in `project.toml` brands [reports](./reports.md): `title` replaces the project name in the heading, `footer` replaces the generated-by line (a patched server still appends its [build](./security.md#patched-servers)), `logo` is a file in `ui/` (`.png`, `.jpg`, `.webp` or `.svg`, up to 200 KB) embedded at the top of HTML reports.
+
+```toml
+[report]
+title = "Shop QA"
+footer = "Shop QA team · qa@shop.test"
+logo = "ui/logo.png"
+```
+
+`iw check` rejects an unknown message key, a changed placeholder, markup (`<tag`), an unknown theme table or token, a value that is not a plain color, size or font list, an unknown `ui/` locale, and a `logo` that is missing, too big or outside `ui/`. A bundle with a problem here still loads; the invalid part is left out.
+
+**`patches/`** holds `patches.toml` (`base = "x.y.z"`, the upstream version the patches apply to) and the `*.patch` files made by [`iw patch`](./cli.md#iw-patch). It is local to the repository: not loaded, not secret-scanned, not in snapshots or exports.
+
 ## `.gitignore`
 
 `iw init` writes:
@@ -542,6 +590,7 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 
 - [x] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
 - [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
+- [ ] `iw check` accepts `ui/messages.<locale>.json`, `ui/theme.toml`, `[report]` and `patches/` as documented, and reports an unknown message key, a changed placeholder, markup, an unknown token or an unsafe value, and a bad `logo` as errors (bundle and CLI tests); `patches/` is not loaded, scanned or snapshotted.
 - [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
 - [x] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.
