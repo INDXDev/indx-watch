@@ -243,6 +243,14 @@ export const CommandData = {
       uc: z.string(),
       created: z.array(z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() })),
     }),
+    /** (v0.5) iw import testrail | testomatio: draft use cases and test cases from another tool's export */
+    z.object({
+      source: z.enum(['testrail', 'testomatio']),
+      files: z.array(z.string()),
+      created: z.array(z.object({ kind: z.string(), id: z.string(), key: z.string(), file: z.string() })),
+      /** cases left out because an earlier import already made them */
+      skipped: z.number(),
+    }),
   ]),
   deploy: z.object({
     resources: z.array(
