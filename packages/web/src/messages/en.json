@@ -518,5 +518,7 @@
   "bdd.guide.then": "Compare what you see with this sentence. Tick each And line that holds. Text in quotes must appear exactly as written.",
   "bdd.guideVerdict": "Everything matches: Pass. Anything is different: Fail, and write down what you saw, with a screenshot.",
   "bdd.editHint": "Scenario style: the preconditions are the Given lines. Write each step as When (what the tester does) and Then (what they should see).",
-  "custom.patched": "This app runs a patched build of INDX Watch ({build}). Results it records carry the same marker."
+  "custom.patched": "This app runs a patched build of INDX Watch ({build}). Results it records carry the same marker.",
+  "update.drift": "This app runs {version}; the project pins {pinned}. Run",
+  "update.driftLocal": "This app runs {version}; the project pins {pinned}. Start it again with"
 }

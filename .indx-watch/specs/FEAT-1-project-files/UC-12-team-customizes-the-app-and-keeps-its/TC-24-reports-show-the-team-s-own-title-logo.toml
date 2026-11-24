@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874H3AWQEKWE79YRR2YZCFP"
-key = "TC-20"
+key = "TC-24"
 title = "Reports show the team's own title, logo and footer"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.2"]
+covers = ["AC-12.2"]
 priority = "P2"
 mode = "manual"
 

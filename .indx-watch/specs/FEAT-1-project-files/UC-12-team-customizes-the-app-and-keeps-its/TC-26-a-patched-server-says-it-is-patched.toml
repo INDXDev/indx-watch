@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874H4BPHS68733DBRMDDS1V"
-key = "TC-22"
+key = "TC-26"
 title = "A patched server says it is patched"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.4"]
+covers = ["AC-12.4"]
 priority = "P2"
 mode = "manual"
 

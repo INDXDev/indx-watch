@@ -6,7 +6,8 @@ import type * as B from '@indx-watch/bundle';
 import { customerModel, isAssignee, type Principal, roleOf, sharedModel } from '@indx-watch/core';
 import type { AccessPolicy, ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
-import { buildVersion, patchesOf, VERSION } from './build.js';
+import PKG from '../package.json' with { type: 'json' };
+import { patchesOf, VERSION } from './build.js';
 import type { AppDeps } from './contract.js';
 import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
@@ -52,6 +53,8 @@ export interface ServerDeps extends AppDeps {
   secretsKey?: string;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
+  /** the version this server runs, in /healthz and /api/project (default: this package's; the Worker: IW_VERSION) */
+  version?: string;
   /** a public deploy: every request but GET, HEAD and `/mcp` answers 403 (docs/spec/security.md#public-deploys) */
   readOnly?: boolean;
 }
@@ -154,6 +157,7 @@ function appContext(deps: AppDeps) {
     /** may this actor create and revoke report share links */
     sharer: (a: B.Actor) => canShare(d, a),
     now: () => iso(d.now?.() ?? new Date()),
+    version: d.version ?? PKG.version,
     read: d.readFile ?? (async () => null),
     /** name and media type of blobs uploaded through this server (bounded) */
     uploads: new Map<string, { name: string; type: string }>(),
@@ -192,7 +196,7 @@ export function createApp(given: AppDeps): { fetch(request: Request): Promise<Re
     const html = c.res.headers.get('content-type')?.startsWith('text/html');
     if (html && !c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', CSP_APP);
   });
-  app.get('/healthz', (c) => c.json({ ok: true, version: buildVersion(), ...(patches && { patches }) }));
+  app.get('/healthz', (c) => c.json({ ok: true, version: x.version, ...(patches && { patches }) }));
   registerReadRoutes(app, x);
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);

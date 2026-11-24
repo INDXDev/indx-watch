@@ -121,11 +121,11 @@ export const HostingConfig = z.strictObject({
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
-/** (v0.5) the version everything pins, and the fork whose releases to follow */
+/** `[tool]` (v0.5): the INDX Watch version the project pins (docs/spec/bundle-format.md#projecttoml) and the fork whose releases to follow */
 export const Tool = z.strictObject({
   indx_watch: z
     .string()
-    .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/)
+    .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'an exact version such as 0.1.3')
     .optional(),
   source: z
     .string()

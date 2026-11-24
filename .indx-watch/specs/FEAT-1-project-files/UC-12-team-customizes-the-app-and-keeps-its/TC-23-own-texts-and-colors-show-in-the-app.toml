@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874H2TN02TJTGXTJEDMPG5M"
-key = "TC-19"
+key = "TC-23"
 title = "Own texts and colors show in the app"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1"]
+covers = ["AC-12.1"]
 priority = "P2"
 mode = "manual"
 

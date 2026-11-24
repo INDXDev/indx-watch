@@ -195,6 +195,10 @@ Every record carries an `actor` ([security](./security.md#identity)). The app sh
 
 **Read-only demo** *(v0.5)*: on a [public deploy](./security.md#public-deploys) (`readOnly` in `GET /api/project`) every visitor is an anonymous viewer, so the app hides the same actions and shows a notice under the top bar: "This is a read-only demo. Install INDX Watch to run tests: `npx indx-watch init`".
 
+### Version notice
+
+*(v0.5)* When `GET /api/project` has `server.pinned` (the project's `[tool] indx_watch`) and `server.outdated` (the running `server.version` is older; both sent to leads only), leads see one quiet line under the top bar: "This app runs 0.1.2; the project pins 0.1.3. Run `iw deploy`." (on `iw serve`: "Restart `iw serve` with that version."). It is computed from data the page already has: there is no outbound request, other roles never see it, and a project without `[tool]` or a server that is not older shows nothing. The comparison is one function, `compareVersions()` in `@indx-watch/core`, used by the server and `iw doctor`.
+
 ## CLI panel
 
 The **CLI** button opens a panel with the commands that match what you are looking at, each with a copy button. The commands use the real URLs of this server and store:

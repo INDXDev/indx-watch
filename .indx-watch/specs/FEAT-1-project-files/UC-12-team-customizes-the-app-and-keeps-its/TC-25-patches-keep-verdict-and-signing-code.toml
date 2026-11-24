@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874H3W72Q78S7C70W9AD0S8"
-key = "TC-21"
+key = "TC-25"
 title = "Patches keep verdict and signing code out of reach"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.3"]
+covers = ["AC-12.3"]
 priority = "P2"
 mode = "manual"
 

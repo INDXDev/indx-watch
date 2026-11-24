@@ -38,6 +38,7 @@ export {
  */
 export { computeStatus, evaluateGate, gateTestCases, planItemStatus, testCaseStatus } from './status.js';
 export * from './types.js';
+export { compareVersions, isOlderVersion } from './version.js';
 
 /** Extra options localize() reads at run time (the frozen signature stays unchanged). */
 export interface LocalizeOptions {
