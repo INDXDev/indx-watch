@@ -322,13 +322,16 @@ function Detail(props: { f: FixtureDetail; onEdit?: (() => void) | undefined; on
           <AccessList access={f.access} />
         </Section>
       )}
-      <ShareDialog
-        open={sharing}
-        title={`${f.key} ${f.data.title}`}
-        shared={f.data.shared_with}
-        onClose={() => setSharing(false)}
-        onSave={(shared_with) => api.editFixture(f.key, { shared_with }).then(props.onShared)}
-      />
+      {/* mounted only while open, so a cancelled edit does not come back next time */}
+      {sharing && (
+        <ShareDialog
+          open
+          title={`${f.key} ${f.data.title}`}
+          shared={f.data.shared_with}
+          onClose={() => setSharing(false)}
+          onSave={(shared_with) => api.editFixture(f.key, { shared_with }).then(props.onShared)}
+        />
+      )}
       {f.files.length > 0 && (
         <Section title={t('fx.files')}>
           <div className="table-wrap">

@@ -53,7 +53,10 @@ export type Via = z.infer<typeof Via>;
 export const VERIFIED_VIA: readonly Via[] = ['cloudflare-access', 'github-oidc', 'github', ...CI_VIA];
 export const Tag = z.string().regex(/^[a-z0-9][a-z0-9-]*$/);
 /** Secret references only, never values (docs/spec/security.md#secrets). */
-export const SecretRef = z.string().regex(/^(env|cf|gh|op|aws-sm|gcp-sm|vault|iw):[A-Za-z0-9_./-]+$/);
+// `iw:` names follow SecretName, so every reference that passes can name a secret kept by INDX Watch
+export const SecretRef = z
+  .string()
+  .regex(/^((env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+|iw:[A-Za-z0-9][A-Za-z0-9_.-]{0,63})$/);
 /** Name of a secret kept by INDX Watch itself (`iw:<name>`, docs/spec/security.md#secrets) */
 export const SecretName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/);
 /** Who an item is shared with: an email, `group:<name>` or `ci:access:<client id>` (docs/spec/security.md#sharing) */

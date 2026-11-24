@@ -1,10 +1,14 @@
 /** Sharing test data and secrets with people (docs/spec/security.md#sharing, #secrets). */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { type Actor, generateSecretsKey, type SecretRecord } from '@indx-watch/bundle';
+import { nodeFs } from '@indx-watch/bundle/node';
+import { definitionFiles } from '@indx-watch/sync';
 import { describe, expect, it } from 'vitest';
 import type { AccessOverview, FixtureDetail, ProjectInfo, SecretList, TestCaseDetail } from '../src/index.js';
 import { createApp, HttpError, type ServerDeps } from '../src/index.js';
 import { accessOf } from '../src/secrets.js';
-import { fakeDeps, req, shop } from './helpers.js';
+import { fakeDeps, req, SHOP, shop } from './helpers.js';
 
 const ROLES = { lead: ['QA-Leads'], tester: ['qa'], viewer: ['viv@shop.test', 'pat@shop.test'] };
 const human = (id: string): Actor => ({ kind: 'human', id, via: 'cloudflare-access' });
@@ -161,5 +165,69 @@ describe('secrets kept by INDX Watch', () => {
     PEOPLE.agent = { actor: { ...human('alex@shop.test'), kind: 'agent' }, groups: ['qa-leads'] };
     expect((await h.send('agent', '/api/secrets/x', { method: 'PUT', json: login })).status).toBe(403);
     delete PEOPLE.agent;
+
+    expect((await h.send('lead', '/api/secrets/x', { method: 'PUT', json: login })).status).toBe(201);
+    const record = h.written.find((r) => r.kind === 'secret')!;
+    const { memoryObjectStore } = await import('@indx-watch/store');
+    const app = createApp({ ...h.deps, mode: 'local', objects: memoryObjectStore() });
+    const key = `v1/log/${record.id.slice(4)}.json`;
+    const body = JSON.stringify({ v: 1, writer: 'x', records: [record] });
+    const put = await app.fetch(req(`/api/store/objects/${key}`, { method: 'PUT', body }));
+    expect(put.status).toBe(400);
+    expect(await put.text()).toContain('secret records are written by the server only');
+  });
+
+  it('keeps the value on an empty one, validates sharing, and hides sharing and forged history', async () => {
+    const h = await hosted();
+    await h.send('lead', '/api/secrets/staging-admin', { method: 'PUT', json: login });
+    const kept = await h.send('tester', '/api/secrets/staging-admin', { method: 'PUT', json: { value: '' } });
+    expect(kept.status).toBe(200);
+    const shown = await h.json<{ value: string }>('tester', '/api/secrets/staging-admin/reveal', {
+      method: 'POST',
+    });
+    expect(shown.value).toBe('hunter2!');
+    expect((await h.send('lead', '/api/secrets/y', { method: 'PUT', json: { value: '' } })).status).toBe(400);
+    const bad = { shared_with: 'group:qa' };
+    expect((await h.send('lead', '/api/secrets/staging-admin', { method: 'PUT', json: bad })).status).toBe(
+      400,
+    );
+    const rec = h.written.find((r) => r.kind === 'secret') as SecretRecord;
+    h.written.push({ ...rec, id: 'rec_01JF7Z3K0W8N2Q4R6S8T0V9997', at: '2099-01-01T00:00:00Z', notes: 'x' });
+    const [s] = (await h.json<SecretList>('lead', '/api/secrets')).secrets;
+    expect(s?.history.map((e) => e.action)).toEqual(['reveal', 'set', 'set']);
+  });
+});
+
+describe('sharing through bundle uploads', () => {
+  it('a tester cannot change a fixture not shared with them, nor unshare one from themselves', async () => {
+    // FX-4 of the shop is shared with group:qa; out@shop.test is a tester outside it
+    const roles = { ...ROLES, tester: ['qa', 'out@shop.test'] };
+    const h = await hosted({
+      roles,
+      bundleFiles: () => definitionFiles(nodeFs(SHOP)),
+      publishBundle: async () => undefined,
+    });
+    PEOPLE.outsider = { actor: human('out@shop.test'), groups: [] };
+    const toml = readFileSync(join(SHOP, 'fixtures/FX-4-review-photo/fixture.toml'), 'utf8');
+    const upload = (user: string, text: string) =>
+      h.send(user, '/api/bundle', {
+        method: 'POST',
+        json: {
+          files: [
+            {
+              name: 'fixture.toml',
+              path: 'fixtures/FX-4-review-photo/fixture.toml',
+              data: Buffer.from(text).toString('base64'),
+            },
+          ],
+          dryRun: true,
+        },
+      });
+    const unshared = toml.replace('shared_with = ["group:qa"]\n', '');
+    expect((await upload('outsider', unshared)).status).toBe(404);
+    expect((await upload('tester', toml.replace('group:qa', 'group:other'))).status).toBe(400);
+    expect((await upload('tester', toml.replace('Review photo', 'Review photo 2'))).status).toBe(200);
+    expect((await upload('lead', unshared)).status).toBe(200);
+    delete PEOPLE.outsider;
   });
 });

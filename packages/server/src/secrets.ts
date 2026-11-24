@@ -3,7 +3,7 @@
  * with IW_SECRETS_KEY, so only this server can read a value or write sharing that counts; every reveal is recorded.
  */
 import * as B from '@indx-watch/bundle';
-import { canSee, type Model, type Principal, roleOf } from '@indx-watch/core';
+import { canSee, customerModel, isAssignee, type Model, type Principal, roleOf } from '@indx-watch/core';
 import type { Context, Hono } from 'hono';
 import type { Ctx } from './app.js';
 import type { Access, AccessOverview, SecretInput, SecretList, SecretView } from './contract.js';
@@ -58,10 +58,11 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
       .filter((r) => r.action !== 'reveal')
       .sort((a, b) => (a.at === b.at ? (a.id < b.id ? 1 : -1) : a.at < b.at ? 1 : -1));
     for (const r of sorted) {
-      if (out.has(r.name)) continue;
+      // every record is opened (once), so the history can leave out the ones that do not count
       if (!opened.has(r.id)) opened.set(r.id, await s.open(r));
       const value = opened.get(r.id);
-      if (value != null) out.set(r.name, r.action === 'set' ? { record: r, value } : null);
+      if (value != null && !out.has(r.name))
+        out.set(r.name, r.action === 'set' ? { record: r, value } : null);
     }
     return new Map([...out].filter((e): e is [string, Current] => !!e[1]));
   }
@@ -79,17 +80,24 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
     return { role, who, all, secrets: new Map([...secrets].filter(([, s]) => sees(s))) };
   }
 
-  /** A customer sees no history and no access list: both name other people (docs/spec/security.md#roles). */
+  /**
+   * A customer sees no history, no access list and not whom it is shared with: they name other people
+   * (docs/spec/security.md#roles). The history leaves out `set` and `delete` records whose seal does not open.
+   */
   const view = (m: Model, { record: r }: Current, customer = false): SecretView => {
-    const { name, title, username, notes, shared_with, at, actor } = r;
+    const { name, title, username, notes, at, actor } = r;
+    const shared_with = customer && r.shared_with ? [] : r.shared_with;
     const history = m.secrets
-      .filter((e) => e.name === name)
+      .filter((e) => e.name === name && (e.action === 'reveal' || opened.get(e.id) != null))
       .sort((a, b) => (a.at < b.at ? 1 : -1))
       .slice(0, customer ? 0 : 50)
       .map((e) => ({ action: e.action, at: e.at, actor: e.actor }));
     return {
       ...{ name, ref: `iw:${name}`, title, username, notes, shared_with, at, actor, history },
-      ...{ usedBy: usersOf(m).get(name) ?? [], access: customer ? [] : accessOf(shared_with, x.deps.roles) },
+      ...{
+        usedBy: usersOf(m).get(name) ?? [],
+        access: customer ? [] : accessOf(r.shared_with, x.deps.roles),
+      },
     };
   };
 
@@ -145,13 +153,24 @@ export function registerSecretRoutes(app: Hono, x: Ctx) {
     const old = secrets.get(name);
     if (!old && (await current(all)).has(name))
       throw new HttpError(403, 'forbidden', `${name} is not shared with you`);
-    const value = input.value ?? old?.value ?? fail(bad('value: a new secret needs a value'));
+    // an empty value keeps the current one (docs/spec/web.md#secrets)
+    const value =
+      (typeof input.value === 'string' && input.value) ||
+      (old?.value ?? fail(bad('value: a new secret needs a value')));
     const text = (k: 'title' | 'username' | 'notes') =>
-      (k in input ? input[k]?.trim() : old?.record[k]) || undefined;
-    const shared_with =
-      input.shared_with === undefined ? old?.record.shared_with : (input.shared_with ?? undefined);
-    if (!canSee(shared_with, who, role)) throw bad('you would lose access: share it with yourself too');
-    const fields = { title: text('title'), username: text('username'), notes: text('notes'), shared_with };
+      (k in input ? String(input[k] ?? '').trim() : old?.record[k]) || undefined;
+    const list = input.shared_with;
+    if (list != null && (!Array.isArray(list) || list.some((e) => typeof e !== 'string')))
+      throw bad('shared_with: a list of emails and group:<name> entries, or null');
+    const shared_with = list === undefined ? old?.record.shared_with : (list ?? undefined);
+    const fixed = shared_with && [...new Set(shared_with.map((e) => e.trim()))];
+    if (!canSee(fixed, who, role)) throw bad('you would lose access: share it with yourself too');
+    const fields = {
+      title: text('title'),
+      username: text('username'),
+      notes: text('notes'),
+      shared_with: fixed,
+    };
     const r = await write(c, all, { action: 'set', name, ...fields }, value);
     return c.json(view({ ...all, secrets: [...all.secrets, r] }, { record: r, value }), old ? 200 : 201);
   });
@@ -189,11 +208,21 @@ async function accessOverview(c: Context, x: Ctx, secrets: Map<string, Current>)
   const id = c.req.query('who')?.trim().toLowerCase();
   if (!id) return c.json(out);
   const who: Principal = { id, groups: [] };
-  const role = roles ? roleOf(roles, who) : 'lead';
+  const role = roles ? (roleOf(roles, who) ?? roleOf(roles, who, isAssignee(m.plans, id))) : 'lead';
+  // a customer sees only the test data of their assigned test cases, and a team secret only when it uses it
+  const cm = role === 'customer' ? customerModel(m, who) : undefined;
+  const used = cm && usersOf(cm);
+  const reach = (type: 'fixture' | 'secret', key: string, shared?: string[]) =>
+    !cm ||
+    (type === 'fixture'
+      ? cm.fixtures.has(key)
+      : !!shared ||
+        (used?.get(key) ?? []).some((k) => canSee(cm.fixtures.get(k)?.data.shared_with, who, role)));
   const item = (type: 'fixture' | 'secret', key: string, title: string, shared?: string[]) => {
-    const can = canSee(shared, who, role) && !!role;
+    const inReach = !!role && reach(type, key, shared);
+    const can = inReach && canSee(shared, who, role);
     const why = !can ? 'none' : !roles ? 'everyone' : role === 'lead' ? 'lead' : shared ? 'shared' : 'team';
-    const groups = can ? [] : (shared ?? []).filter((e) => e.startsWith('group:'));
+    const groups = can || !inReach ? [] : (shared ?? []).filter((e) => e.startsWith('group:'));
     return { type, key, title, can, why, ...(groups.length && { groups }) } as const;
   };
   out.items = [

@@ -3,7 +3,7 @@
  * edited and removed on the Test data screen. The file changes are pure; committing them follows the bundle's mode.
  */
 import * as B from '@indx-watch/bundle';
-import { canSee, type Model } from '@indx-watch/core';
+import { canSee, type Model, type Principal } from '@indx-watch/core';
 import { headsOf, versionsByEntity } from '@indx-watch/sync';
 import type { Context } from 'hono';
 import type { Ctx } from './app.js';
@@ -195,6 +195,25 @@ async function commit(c: Context, x: Ctx, m: Model, base: Files, next: Files, bl
     message: 'test data edited in the app',
   });
   return out;
+}
+
+/**
+ * A non-lead may not change test data that is not shared with them, nor share it so that they would lose access
+ * (docs/spec/security.md#sharing); used by bundle uploads, which reach the same files as the fixture routes.
+ */
+export function guardSharing(base: Files, next: Files, who: Principal, role: B.Role | undefined) {
+  if (role === 'lead') return;
+  const { changed, removed } = changesOf(base, next);
+  const dirs = new Set(
+    [...changed, ...removed].filter((p) => p.startsWith('fixtures/')).map((p) => p.split('/', 2).join('/')),
+  );
+  for (const dir of dirs) {
+    const sharing = (f: Files) => tomlOf(f.get(`${dir}/fixture.toml`))?.shared_with as string[] | undefined;
+    const [before, after] = [base.has(`${dir}/fixture.toml`), next.has(`${dir}/fixture.toml`)];
+    if (before && !canSee(sharing(base), who, role)) throw notFound(`fixture ${dir}`);
+    if (after && !canSee(sharing(next), who, role))
+      throw bad(`${dir}: you would lose access: share it with yourself too`);
+  }
 }
 
 /** POST /api/fixtures, PATCH and DELETE /api/fixtures/:key (docs/spec/web.md#test-data). */
