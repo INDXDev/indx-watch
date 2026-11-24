@@ -19,15 +19,16 @@ export function CreateDialog({ open, onClose, onDone }: { open: boolean; onClose
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    await api.createFixture(await createInput(title, kind, { files, columns, account })).then(
-      (r) => {
-        onDone();
-        onClose();
-        window.location.hash = href.fixtures(r.key).replace(/^#/, '');
-      },
-      (x: unknown) => setError(errorText(x)),
-    );
-    setBusy(false);
+    try {
+      const r = await api.createFixture(await createInput(title, kind, { files, columns, account }));
+      onDone();
+      onClose();
+      window.location.hash = href.fixtures(r.key).replace(/^#/, '');
+    } catch (x) {
+      setError(errorText(x));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Dialog open={open} title={t('fx.new')} onClose={onClose}>

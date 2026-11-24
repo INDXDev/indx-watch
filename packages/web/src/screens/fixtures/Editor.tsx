@@ -55,9 +55,10 @@ export function Editor({ f, done }: { f: FixtureDetail; done(saved: boolean): vo
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const tooBig = (f.preview?.total ?? 0) > (f.preview?.rows?.length ?? 0);
-  const run = async (p: Promise<unknown>) => {
+  const run = async (p: () => Promise<unknown>) => {
     setBusy(true);
-    await p.then(
+    // p is async: a file that cannot be read rejects too
+    await p().then(
       () => done(true),
       (x: unknown) => setError(errorText(x)),
     );
@@ -65,7 +66,7 @@ export function Editor({ f, done }: { f: FixtureDetail; done(saved: boolean): vo
   };
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    await run(api.editFixture(f.key, await editInput(f, d, kind === 'dataset' && !tooBig)));
+    await run(async () => api.editFixture(f.key, await editInput(f, d, kind === 'dataset' && !tooBig)));
   };
   return (
     <form className="stack" onSubmit={save}>
@@ -216,13 +217,13 @@ function EditorActions(props: {
   fxKey: string;
   busy: boolean;
   cancel(): void;
-  run(p: Promise<unknown>): void;
+  run(p: () => Promise<unknown>): void;
 }) {
   const { fxKey, busy, run } = props;
   const { t } = useI18n();
   const [confirm, setConfirm] = useState(false);
   const remove = () =>
-    run(
+    run(() =>
       api.deleteFixture(fxKey).then(() => {
         window.location.hash = href.fixtures().replace(/^#/, '');
       }),
