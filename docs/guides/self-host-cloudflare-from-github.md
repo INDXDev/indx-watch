@@ -54,7 +54,7 @@ Running it again changes nothing that exists, so you can edit the workflows free
 Push the branch and open a pull request. The check workflow runs and, within a minute or two, the action posts one comment on the pull request and keeps it up to date on every push:
 
 - **The gate line**: passed or failed, with the pass, fail and untested counts and a link to the job.
-- **Test cases changed in this PR**: the use cases, criteria and test cases the PR added, changed (steps, covered criteria, data) or removed. Short by design: at most 20 lines.
+- **Test cases changed in this PR**: the use cases, criteria and test cases the PR added, changed (steps, covered criteria, data) or removed. Short by design: at most 20 lines. *(This section has not yet run on a real pull request.)*
 - **Suggested test cases**: the test cases whose automation files, definition or test data the PR touches.
 - The release report.
 

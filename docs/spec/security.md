@@ -112,7 +112,7 @@ default = "viewer"                     # optional: the role of a signed-in ident
 
 | Request | viewer | tester | lead | customer |
 |---|---|---|---|---|
-| Read the app and the API (`GET`), reports | ✓ | ✓ | ✓ | assigned items only |
+| Read the app and the API (`GET`), reports | ✓ | ✓ | ✓ | assigned items only; `GET /api/insights` is refused (403) |
 | `GET /api/store/*`, `/api/snapshots`, `/api/shares` | ✓ | ✓ | ✓ | — |
 | Manual runs and evidence (`POST /api/runs`, `POST /api/blobs`) | — | ✓ | ✓ | assigned test cases |
 | Reviews (`POST /api/runs/:id/judgements`) | — | ✓ | ✓ | — |

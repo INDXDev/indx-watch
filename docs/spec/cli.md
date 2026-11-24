@@ -81,9 +81,9 @@ When `dir` already has `.indx-watch/project.toml`, `init` changes nothing and ex
 
 | File | What it does |
 |---|---|
-| `.github/workflows/indx-watch.yml` | On pull requests and pushes to `main`: `iw check`, Playwright with the reporter (skipped without a `playwright.config.*`), then the [Action](./integrations.md#github-action) with `comment` and `check` (including [the test cases the PR changes](./integrations.md#github-action)); the release is read from `project.toml` |
-| `.github/workflows/indx-watch-deploy.yml` | On pushes to `main` that touch `.indx-watch/`, `package.json` or the lockfile, and by hand: `iw deploy` when `project.toml` has `[hosting]`, else a notice |
-| `.github/ISSUE_TEMPLATE/indx-watch-*.yml` | The issue forms of GitHub Issues (written by `githubTemplates()`; none until that workstream lands) |
+| `.github/workflows/indx-watch.yml` | On pull requests and pushes to `main`: `npx --yes indx-watch@<version> check` (the running version; `iw update` keeps it in step with `[tool]`), Playwright with the reporter (skipped without a `playwright.config.*`), then the [Action](./integrations.md#github-action) with `comment` and `check` (including [the test cases the PR changes](./integrations.md#github-action)); the release is read from `project.toml` |
+| `.github/workflows/indx-watch-deploy.yml` | On pushes to `main` that touch `.indx-watch/`, `package.json` or the lockfile, and by hand: `npx --yes indx-watch@<version> deploy` when `project.toml` has `[hosting]`, else a notice |
+| `.github/ISSUE_TEMPLATE/indx-watch-*.yml` | The issue forms of GitHub Issues (written by `githubTemplates()`) |
 
 The text output lists the files written and kept and names the repository secrets the deploy workflow reads (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`), never a value. Run it again to see `skipped` and no `secrets`.
 
@@ -618,7 +618,7 @@ Parts and states (`ok`, `outdated`, `unpinned`, `locally-edited`):
 7. `iw check`: errors make the command exit 1 (`CHECK_FAILED`) after the files are written.
 8. With `--deploy`, `iw deploy`.
 
-Before step 1 the patches of the project must still apply: `iw patch check --to <target>` *(T-508, when present)*; any failing patch refuses the update (exit 1, nothing written). `data`: `{ "from": string | null, "to": string, "dryRun": boolean, "steps": { "step": "tool" | "package" | "skills" | "workflow" | "schema" | "migrate" | "check" | "deploy", "changed": string[], "note"?: string }[], "install": string | null, "notes": string }`; `notes` is the changelog excerpt of the releases between the old pin and the target (also used as the pull request text).
+Before step 1 the patches of the project must still apply: `iw patch check --to <target>` (T-508); any failing patch refuses the update (exit 1, nothing written). `data`: `{ "from": string | null, "to": string, "dryRun": boolean, "steps": { "step": "tool" | "package" | "skills" | "workflow" | "schema" | "migrate" | "check" | "deploy", "changed": string[], "note"?: string }[], "install": string | null, "notes": string }`; `notes` is the changelog excerpt of the releases between the old pin and the target (also used as the pull request text).
 
 ### `iw keygen`
 
@@ -677,8 +677,8 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] *(v0.5)* `iw update --to <v>` writes `[tool]`, the `package.json` entry, `.mcp.json`, workflow versions and `#:schema` tags, prints the install command, and a second run changes nothing; `--dry-run` writes nothing; a locally edited skill copy is skipped with a warning; `iw update --workflow` writes a workflow that parses and refuses to overwrite one (tests).
 - [x] No command prompts when stdin is not a TTY.
 - [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.
-- [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
-- [ ] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
+- [x] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).
+- [x] `iw diff --base HEAD` after editing one step of TC-3 in a copy of the shop lists TC-3 under "Changed" with `steps`; without `--base` it exits 2.
 - [x] `iw import playwright-plan examples/shop/specs/coupon.plan.md --uc UC-2 --model m` in a copy of the shop creates one `draft`, `origin = "ai"` test case per scenario, and `iw check` reports 0 errors.
 - [x] `iw import testrail` on a small export with separated steps creates a draft use case per section and a draft criterion and test case per case, `iw check` reports 0 errors, and a second import creates nothing and reports `skipped` (CLI test).
 - [x] `iw import testomatio` on a folder of classical Markdown creates the same drafts from suites and tests, joins several `Expected` lines and warns about a step without one (CLI test).
