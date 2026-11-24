@@ -65,9 +65,8 @@ function guessKind(name: string, data: Uint8Array): Pick<B.Fixture, 'kind' | 'ro
       const rows = JSON.parse(text) as unknown;
       const key = Array.isArray(rows) && rows[0] && typeof rows[0] === 'object' && Object.keys(rows[0])[0];
       if (key) return { kind: 'dataset', row_key: key };
-    } catch (e) {
+    } catch {
       // not JSON: an ordinary file
-      if (!(e instanceof SyntaxError)) throw e;
     }
   }
   return { kind: 'file' };
