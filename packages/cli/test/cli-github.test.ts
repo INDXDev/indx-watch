@@ -23,7 +23,7 @@ describe('iw init --github', () => {
     expect(r.stdout).not.toContain('ghp_');
     for (const f of FLOWS) expect(existsSync(join(empty, f))).toBe(true);
     const deploy = readFileSync(join(empty, WORKFLOWS[1]!), 'utf8');
-    expect(deploy).toContain('run: npx --yes indx-watch deploy');
+    expect(deploy).toMatch(/run: npx --yes indx-watch@\d+\.\d+\.\d+\S* deploy/);
     expect(deploy).toContain('${{ secrets.CLOUDFLARE_API_TOKEN }}');
     expect(readFileSync(join(empty, WORKFLOWS[0]!), 'utf8')).toContain('uses: INDXDev/indx-watch@v0');
     // idempotent: an existing project only gets what is missing, and edits are kept

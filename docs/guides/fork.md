@@ -38,7 +38,7 @@ indx_watch = "0.5.0"
 source = "github:<you>/indx-watch"
 ```
 
-With `source`, `iw doctor` and `iw update` read the latest release from your fork's GitHub releases instead of the npm package, and `iw patch` fetches source from it. Without `source` they follow `INDXDev/indx-watch`.
+With `source`, `iw doctor` and `iw update` read the latest release from your fork's GitHub releases instead of the npm package, and `iw patch` fetches source from it. Without `source` they follow `INDXDev/indx-watch`. *(Not yet: today `iw patch` follows `source`, but `iw doctor` and `iw update` still read the npm package.)*
 
 ## Workflow template
 

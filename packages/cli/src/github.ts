@@ -7,6 +7,7 @@ import { repoOfRemote } from '@indx-watch/core';
 import type { Project } from './context.js';
 import type { InitGithubData } from './json.js';
 import { asset, git } from './util.js';
+import { VERSION } from './version.js';
 
 /** A file `iw init --github` writes, relative to the repository root. */
 export interface GithubFile {
@@ -127,11 +128,15 @@ export function openBrowser(url: string): void {
 const SECRETS = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
 
 /** Write the check and deploy workflows and the issue templates under `root`, only what is missing. */
-export function initGithub(root: string): InitGithubData {
+export function initGithub(root: string, pin: string = VERSION): InitGithubData {
   const from = asset('github', 'packages/cli/github');
   const flows = ['indx-watch', 'indx-watch-deploy'].map((n) => ({
     path: `.github/workflows/${n}.yml`,
-    content: readFileSync(join(from, `${n}.yml`), 'utf8'),
+    // `iw update` keeps the pinned version in step with [tool] (docs/spec/cli.md#iw-update)
+    content: readFileSync(join(from, `${n}.yml`), 'utf8').replaceAll(
+      'npx --yes indx-watch ',
+      `npx --yes indx-watch@${pin} `,
+    ),
   }));
   const data: InitGithubData = { root, written: [], skipped: [], secrets: [] };
   for (const f of [...flows, ...githubTemplates()]) {
