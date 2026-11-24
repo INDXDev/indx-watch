@@ -10,6 +10,16 @@ export { decide, runFacts } from './decide.js';
 export { type BundleDiff, bundleDiff, type DiffEntry, type DiffKind, type DiffPart } from './diff.js';
 /** impactedTestCases(model, changedPaths, bundlePrefix): test cases a change touches (docs/spec/concepts.md#impact-analysis). */
 export { globMatch, type ImpactReason, type ImpactSuggestion, impactedTestCases } from './impact.js';
+/** issueUrl, repoOfRemote, parseIssueUrl: prefilled GitHub issues (docs/spec/integrations.md#github-issues). */
+export {
+  FAILURE_TEMPLATE,
+  ISSUE_URL_MAX,
+  type IssueInput,
+  type IssueLink,
+  issueUrl,
+  parseIssueUrl,
+  repoOfRemote,
+} from './issue.js';
 /**
  * buildModel(bundle, records): unknown/invalid records are skipped and reported.
  * approvedBaseline(model, tcId, name, project): the current visual baseline (docs/spec/concepts.md#visual-baselines).
@@ -40,6 +50,7 @@ export {
  */
 export { computeStatus, evaluateGate, gateTestCases, planItemStatus, testCaseStatus } from './status.js';
 export * from './types.js';
+export { compareVersions, isOlderVersion } from './version.js';
 
 /** Extra options localize() reads at run time (the frozen signature stays unchanged). */
 export interface LocalizeOptions {
@@ -71,6 +82,8 @@ export function localize(
 /** Data for a release or plan report (docs/spec/reports.md#contents); rendering lives in the server package. */
 export interface ReportData {
   project: { key: string; name: string };
+  /** (v0.5) `[report]` of project.toml; `logo` is a data URI (docs/spec/reports.md#rendering-rules) */
+  brand?: { title?: string; footer?: string; logo?: string };
   scope: Scope;
   plan?: string | undefined;
   audience: 'internal' | 'customer';

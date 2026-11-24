@@ -35,6 +35,8 @@ export const ROUTES = {
   plan: 'GET /api/plans/:key',
   runs: 'GET /api/runs?tc=&release=&env=&limit=',
   run: 'GET /api/runs/:id',
+  issue:
+    'GET /api/issue?ref= (a run ID, TC-n, AC-n.m or UC-n → IssueResult: the prefilled GitHub issue; docs/spec/integrations.md#github-issues)',
   editTestCase:
     'PATCH /api/test-cases/:key (workspace mode; TestCaseEdit → { file, record? }; docs/spec/web.md#editing-in-workspace-mode)',
   createFixture: 'POST /api/fixtures (lead; FixtureInput → FixtureSaved; docs/spec/web.md#test-data)',
@@ -125,6 +127,8 @@ export interface ProjectInfo {
   /** (v0.4) keys of the features this identity owns; the web app starts in "My features" when not empty */
   owns?: string[];
   mode: 'local' | 'hosted';
+  /** (v0.5) where "Open as GitHub issue" goes: `[github] repo`, else the git remote; absent: the button is hidden */
+  github?: { repo: string };
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
   /** problems from loading the bundle (shown as a banner) */
   problems: { severity: string; message: string; file?: string }[];
@@ -148,8 +152,12 @@ export interface ProjectInfo {
   role?: import('@indx-watch/bundle').Role;
   /** (v0.5) a public deploy: anonymous viewers only, every write refused (docs/spec/security.md#public-deploys) */
   readOnly?: true;
+  /** (v0.5) the running version, `patches` (8 hex digits of the patch-set hash, docs/spec/security.md#patched-servers) only on a patched build; leads also get the project's `[tool]` pin and whether this server is older (docs/spec/web.md#version-notice) */
+  server: { version: string; pinned?: string; outdated?: true; patches?: string };
   /** newest bundle snapshot, when there is one */
   snapshot?: SnapshotSummary;
+  /** (v0.5) `ui/` of the bundle: message overrides per locale and the theme as CSS (docs/spec/bundle-format.md#customizing-v05) */
+  ui?: { messages: Partial<Record<'en' | 'ja', Record<string, string>>>; css?: string };
 }
 
 /** GET /api/shares item and DELETE /api/shares/:id response (docs/spec/reports.md#share-links); never the token. */
@@ -350,7 +358,7 @@ export interface RunDetail {
   judgements: Judgement[];
   decision: Decision;
   stale: boolean;
-  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown };
+  testCase: { key: string; title: string; currentVersion: string; i18n?: unknown; links?: string[] };
   /** run and judgement IDs whose verified `via` has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: string[];
   /** sha256 of this run's screenshots that are the current approved baseline of their name (v0.2) */
@@ -367,6 +375,8 @@ export interface TestCaseEdit {
   title?: string;
   priority?: string | null;
   steps?: { instruction: string; expected: string }[];
+  /** (v0.5) issue URLs of this test case; `null` removes them */
+  links?: string[] | null;
 }
 
 /**

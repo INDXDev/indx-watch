@@ -1,0 +1,43 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874HH3S79RWG6HAGZRVAKSB"
+key = "TC-21"
+title = "A lead sees that the app is older than the project pins"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.3"]
+priority = "P1"
+mode = "playwright"
+
+[[steps]]
+instruction = "Open the web app of a project that pins a newer version than the server runs"
+expected = "A quiet line names both versions and the command to run"
+
+[steps.i18n.ja]
+instruction = "サーバーより新しいバージョンをプロジェクトが指定している状態で、ウェブアプリを開く"
+expected = "両方のバージョンと実行するコマンドを示す控えめな 1 行が表示される"
+status = "machine"
+source_hash = "6865c7a263e7"
+
+[[steps]]
+instruction = "Open the web app of a project that pins the version the server runs"
+expected = "No such line appears"
+
+[steps.i18n.ja]
+instruction = "サーバーと同じバージョンをプロジェクトが指定している状態で、ウェブアプリを開く"
+expected = "そのような行は表示されない"
+status = "machine"
+source_hash = "b50d4bfd4343"
+
+[automation]
+files = ["e2e/update.spec.ts"]
+
+[i18n.ja]
+title = "アプリがプロジェクトの指定より古いとき、リードに知らせる"
+status = "machine"
+source_hash = "f96c021be1fd"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:39Z

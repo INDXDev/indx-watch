@@ -1,0 +1,62 @@
+# Opens one pull request when a newer INDX Watch is out. Written by `iw update --workflow`
+# (docs/guides/github-actions.md#keep-indx-watch-up-to-date). Settings, Actions, General: allow GitHub Actions to create pull requests.
+name: INDX Watch update
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Update INDX Watch
+        id: update
+        run: |
+          npx --yes indx-watch@latest update --json > "$RUNNER_TEMP/update.json"
+          node -e '
+            const fs = require("node:fs");
+            const { data } = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const out = (k, v) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${k}<<IW_EOF\n${v}\nIW_EOF\n`);
+            out("to", data.to);
+            out("install", data.install ?? "");
+            out("notes", data.notes ?? "");
+          ' "$RUNNER_TEMP/update.json"
+      - name: Install (keeps the lockfile in step with package.json)
+        if: steps.update.outputs.install != ''
+        env:
+          INSTALL: ${{ steps.update.outputs.install }}
+        run: $INSTALL || echo "::warning::$INSTALL failed; run it in the pull request branch"
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TO: ${{ steps.update.outputs.to }}
+          NOTES: ${{ steps.update.outputs.notes }}
+        run: |
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "INDX Watch is up to date"
+            exit 0
+          fi
+          branch=indx-watch/update
+          title="chore: update INDX Watch to $TO"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add -A
+          git commit -s -m "$title"
+          git push --force origin "$branch"
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/body.md"
+          if gh pr view "$branch" --json number > /dev/null 2>&1; then
+            gh pr edit "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi

@@ -22,6 +22,7 @@ import type {
   SecretRecord,
   ShareRecord,
   TestCase,
+  Ui,
   UseCase,
   VerdictValue,
   WaiverRecord,
@@ -124,6 +125,8 @@ export interface FixtureNode {
 
 export interface Model {
   project: Project;
+  /** (v0.5) message overrides and theme from `ui/` */
+  ui?: Ui;
   environments: Environment[];
   releases: Release[];
   plans: Plan[];

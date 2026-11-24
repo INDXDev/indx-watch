@@ -24,7 +24,7 @@ npx indx-watch init
 | `.agents/skills/` (the same seven skills, with `agents/openai.yaml`) and `.codex/config.toml` | Codex: the same skills appear as `$iw-setup`, `$iw-test`, … |
 | A marked block in `AGENTS.md` (and `@AGENTS.md` in an existing `CLAUDE.md`) | Both: tells the agent which skill to use for which job |
 
-Commit these files so everyone who clones the repository gets the same setup. After upgrading `indx-watch`, run `npx indx-watch skills install`; it updates only what it wrote, and removes the older recipe skills (`run-tests`, `release-report`, …) an earlier version installed. Details: [install](../spec/agents.md#install).
+Commit these files so everyone who clones the repository gets the same setup. After upgrading `indx-watch`, run `npx indx-watch@latest update` (*v0.5*; [`iw doctor`](../spec/cli.md#iw-doctor) shows what is out of date first): it moves the package entry, the skill copies, `.mcp.json`, workflow versions and schema URLs to one version, prints the install command and never runs it. `npx indx-watch skills install` alone refreshes only the agent files; it touches only what it wrote, and removes the older recipe skills (`run-tests`, `release-report`, …) an earlier version installed. Details: [install](../spec/agents.md#install).
 
 Just looking? `npx indx-watch init demo --example` creates a folder `demo` with the full shop bundle; `cd demo && npx indx-watch serve --open` then shows it in the web app with the sample results. Or open the read-only [live demo](https://indx-watch-demo.i-248.workers.dev).
 

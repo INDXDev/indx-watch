@@ -9,11 +9,13 @@ import { knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import enMessages from '../../../web/src/messages/en.json' with { type: 'json' };
 import { setupAgents } from '../agents.js';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { initGithub } from '../github.js';
 import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
+import { VERSION } from '../version.js';
 
 export { knownKeys };
 /** Where `iw fixture fetch` puts a pointer blob. */
@@ -146,7 +148,9 @@ export const specCommands: Record<string, Spec> = {
       const serve = `${bin} serve${str(a.target) ? ` --dir ${join(str(a.target)!, '.indx-watch')}` : ''} --open`;
       const withAgents = async (out: { data: object; text: string }) => {
         if (a.agents === false) return github({ ...out, text: `${out.text}\nThen: ${serve}` });
-        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
+        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both, {
+          version: VERSION,
+        });
         const say = a.example
           ? '"Can we ship?" (/iw-status, $iw-status)'
           : '"Set up testing for this repo" (/iw-setup, $iw-setup)';
@@ -174,7 +178,13 @@ export const specCommands: Record<string, Spec> = {
       const defaults = { default_environment: 'local', current_release: 'v0.1.0' };
       await fs.write(
         'project.toml',
-        iwb.formatToml('project', { ...project, source_locale: locale, locales: [locale], ...defaults }),
+        iwb.formatToml('project', {
+          ...project,
+          source_locale: locale,
+          locales: [locale],
+          ...defaults,
+          tool: { indx_watch: VERSION },
+        }),
       );
       await fs.write('.gitignore', 'cache/\nruns/\n');
       const { bundle } = await iwb.loadBundle(fs);
@@ -202,6 +212,7 @@ export const specCommands: Record<string, Spec> = {
       const sub = relative(p.root, p.dir) || '.';
       const deps: iwb.CheckDeps = {
         fix: !!a.fix,
+        uiMessages: enMessages,
         knownKeys: knownKeys(await p.replica.records()),
         hasBlob: async (sha) => (await p.replica.hasBlob(sha)) || existsSync(cacheBlob(p, sha)),
         onDefaultBranch: async (id) => !!git(p.root, 'grep', '-l', '-F', id, branch, '--', sub),

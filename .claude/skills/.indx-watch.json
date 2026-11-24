@@ -1,0 +1,19 @@
+{
+  "version": "0.1.2",
+  "files": {
+    "indx-watch/SKILL.md": "3afa46bc07ed7307a1f41fd8ca9e69bfd9259f18fa9f7226c043ffd381b26361",
+    "indx-watch/references/cli-json.md": "0353930e7d3c495a5093b81ebdfcf3abc9c516553526fcd22f5f1024c0ea1417",
+    "iw-data/SKILL.md": "6a7dd340898ab9c102dc078673b69dbfd83239ee4bcf9864dbea46bee72d0740",
+    "iw-data/references/manage-fixtures.md": "a151431972ff25f5f0e676198af1d2c95ba3bf0b0b4743a40de143e77f55e5e9",
+    "iw-design/SKILL.md": "0ad0c4c2884732cc3c53cb47452beae02551cc5a119512854d9cef6b279d09a7",
+    "iw-design/references/write-test-cases.md": "359f5c501ab86b534426ce476ef55a7b2f8b745ac49a6866e498b0dcde5305b4",
+    "iw-setup/SKILL.md": "afc33fbbbf86c7248894d6d88a463032e45fe1a50a876bb257697d85cfd2b85a",
+    "iw-setup/references/wiring.md": "63968c2761396b4deae34bd5986b2c9b549f451c946742bfffe700f9e7988826",
+    "iw-status/SKILL.md": "8ce43d7f86b65c2144f9c6e1be9f5fae9ced4350ef38e41ab8e9feb4ef7d76e0",
+    "iw-status/references/release-report.md": "247aba3a9f660a7e1ce2e2f824fb3ad295efead422503276fee2c2cce179d782",
+    "iw-test/SKILL.md": "d6ec7128cfad12be813142a09295f57571b0a8258c95ab9702d5831c9bcc609a",
+    "iw-test/references/run-tests.md": "a236c25dc502218ea9ac034e8e12786089878babecc87bb731cbf7e9a21cd663",
+    "iw-triage/SKILL.md": "cdcaf4e6f1935c9eccf9a1d54681d46f6b32b341f76e21382c9be9878171adfc",
+    "iw-triage/references/triage-failure.md": "540c0cc450d8b011ec3b0087ed3944c28f75405a60cc7d04e9418b662e5d194a"
+  }
+}

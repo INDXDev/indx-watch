@@ -6,6 +6,8 @@ import type * as B from '@indx-watch/bundle';
 import { customerModel, isAssignee, type Principal, roleOf, sharedModel } from '@indx-watch/core';
 import type { AccessPolicy, ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
+import PKG from '../package.json' with { type: 'json' };
+import { patchesOf, VERSION } from './build.js';
 import type { AppDeps } from './contract.js';
 import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
@@ -49,8 +51,12 @@ export interface ServerDeps extends AppDeps {
   removeFile?(path: string): Promise<void>;
   /** IW_SECRETS_KEY: without it `iw:` secrets cannot be read or written (docs/spec/security.md#secrets) */
   secretsKey?: string;
+  /** `owner/name` of the working copy's GitHub remote: the fallback of `[github] repo` for "Open as GitHub issue" (Node) */
+  githubRepo?: string;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
+  /** the version this server runs, in /healthz and /api/project (default: this package's; the Worker: IW_VERSION) */
+  version?: string;
   /** a public deploy: every request but GET, HEAD and `/mcp` answers 403 (docs/spec/security.md#public-deploys) */
   readOnly?: boolean;
 }
@@ -153,6 +159,7 @@ function appContext(deps: AppDeps) {
     /** may this actor create and revoke report share links */
     sharer: (a: B.Actor) => canShare(d, a),
     now: () => iso(d.now?.() ?? new Date()),
+    version: d.version ?? PKG.version,
     read: d.readFile ?? (async () => null),
     /** name and media type of blobs uploaded through this server (bounded) */
     uploads: new Map<string, { name: string; type: string }>(),
@@ -162,7 +169,13 @@ function appContext(deps: AppDeps) {
 export type Ctx = ReturnType<typeof appContext>;
 
 /** The Hono app: security middleware, then the read, write and store routes. */
-export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Response> } {
+export function createApp(given: AppDeps): { fetch(request: Request): Promise<Response> } {
+  // a patched build marks the records it writes, before they are signed (docs/spec/security.md#patched-servers)
+  const patches = patchesOf();
+  const client = { version: VERSION, patches: patches ?? '' };
+  const deps: AppDeps = patches
+    ? { ...given, writeRecord: (record) => given.writeRecord({ ...record, client }) }
+    : given;
   const x = appContext(deps);
   const app = new Hono();
   app.onError((e) => errorResponse(e));
@@ -185,7 +198,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
     const html = c.res.headers.get('content-type')?.startsWith('text/html');
     if (html && !c.res.headers.has('content-security-policy')) c.header('Content-Security-Policy', CSP_APP);
   });
-  app.get('/healthz', (c) => c.json({ ok: true }));
+  app.get('/healthz', (c) => c.json({ ok: true, version: x.version, ...(patches && { patches }) }));
   registerReadRoutes(app, x);
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);

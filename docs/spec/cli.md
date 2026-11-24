@@ -67,6 +67,8 @@ Create `.indx-watch/` in `dir` (default: current directory) with `project.toml` 
 | `--no-agents` | | Skip the agent setup below |
 | `--github` | | *(v0.5)* Also write the GitHub files below. Works in an existing project too: only the GitHub files are written, and `init` then exits 0 instead of 1 |
 
+*(v0.5)* `iw init` pins the project to the running version: `project.toml` gets `[tool] indx_watch = "<version>"` ([staying current](#iw-doctor)), and the agent setup writes `.mcp.json` as `npx -y indx-watch@<version> mcp`.
+
 Unless `--no-agents` is given, `iw init` also sets up Claude Code and Codex exactly like [`iw skills install`](#iw-skills-install) (both agents), in the git repository root of `dir`, or in `dir` itself when `init` creates it or it is outside git. The text output names the directory it set up.
 
 With `--example`, `init` also pulls the sample results from the copied store (`iw sync --pull-only`), so `iw status` and `iw serve` show them at once.
@@ -97,6 +99,8 @@ Validate the whole bundle: schemas, canonical formatting, references (`covers`, 
 | `--strict` | Treat warnings as errors |
 
 A TOML syntax error (`invalid-toml`) names the line and column and quotes the line (`… at line 37, column 3: [[[`). The text output ends with one summary line (`30 files, 1 error, 0 warnings`); when the check fails, that line is the error message on stderr and is not repeated on stdout.
+
+*(v0.5)* `ui/` and `[report]` are checked as described in [Customizing](./bundle-format.md#customizing-v05) (`invalid-ui`, `unknown-ui-key`, `ui-placeholder`, `ui-markup`, `invalid-logo`, `low-contrast`).
 
 Reference checks: see [concepts invariants](./concepts.md#invariants). With a `[store]` (or `IW_STORE`), records the store has two bodies of, as of the last sync, are `record-conflict` warnings ([merge rules](./sync.md#merge-rules)). *(v0.2)* A `<name>.conflict-<sha8>.<ext>` file left by a [workspace-mode](./sync.md#workspace-mode-v02) merge is a `workspace-conflict` error until it is deleted.
 
@@ -223,6 +227,17 @@ Record a run that was executed outside the browser runner — by a person in a t
 | `--from <run.json\|->` | Full run input as JSON (see [sync.md](./sync.md#run-record)) |
 
 `data`: `{ "run": RunRecord, "verdict": Verdict }`
+
+### `iw issue <ref>`
+
+*(v0.5)* Build the prefilled GitHub new-issue URL of a failure ([GitHub issues](./integrations.md#github-issues)). `<ref>` is a run ID, `TC-n`, `AC-n.m` or `UC-n`; a test case uses its latest run (the text comes from the run's failing steps, note and judgements), a criterion or use case gives its text and the test cases that cover it. The repository is `[github] repo` or the `origin` remote; without one the command exits 3 (`INVALID_CONFIG`) and says to add `[github] repo = "owner/name"`. Nothing is sent to GitHub: the URL is printed, and a person opens it and submits. Fields shortened or left out (length, secrets) are listed as warnings.
+
+| Flag | |
+|---|---|
+| `--open` | Open the page in the browser. People only: an agent gets exit 2 |
+| `--link <url>` | Store an http(s) issue URL in `links` of the test case (a run uses its test case; an AC or UC the use case), once, through the normal definition write; `iw sync` publishes it in workspace mode. Without a repository this alone works and prints no URL |
+
+`data`: `{ "ref": string, "run": string | null, "repo": string | null, "url": string | null, "title"?: string, "keys"?: string[], "trimmed"?: string[], "secrets"?: string[], "link": { "file": string, "key": string, "links": string[], "added": boolean } | null }`. `run` is the run the text comes from; `trimmed` and `secrets` name the fields that were shortened or left out.
 
 ### `iw run <tc-ref>`
 
@@ -407,6 +422,18 @@ Turn a [Playwright Test Agents](../research/platform-notes.md#playwright) planne
 
 `data`: `{ "plan": string, "uc": string, "created": { "kind", "id", "key", "file" }[] }`
 
+### `iw import github-issue <number | URL>`
+
+*(v0.5)* Import one GitHub issue as one **draft** use case ([GitHub issues](./integrations.md#github-issues)): `origin = "import"` (an agent writes `origin = "ai"` with `--model`), the issue title as `title`, `links = [<issue URL>]`, and one draft criterion per task-list item (`- [ ] …`, ticked or not). A rendered [test request form](./integrations.md#issue-forms) also sets `actor`, `goal` and `priority`; otherwise the actor is `User`, the goal the title and the priority the label `P0`–`P3` or `P2`. A number needs the repository (`[github] repo` or the `origin` remote). The issue is read through the `IssueSource` port: the REST adapter (`GITHUB_TOKEN` when set; none for public repositories), or `--from`. An issue with no task list is `INVALID_INPUT` (exit 2) and points to `/iw-design`. The same issue again changes nothing: `created` is `null` and `existing` names the use case.
+
+| Flag | |
+|---|---|
+| `--from <file.json\|->` | The output of `gh issue view <n> --json title,body,labels,url` instead of the API |
+| `--feature <FEAT>` | Feature (key or title) of the new use case; default: the feature a label names, else the only feature, else exit 2 |
+| `--model`, `--skill` | For an agent's draft (`--skill` defaults to `iw-design`) |
+
+`data`: `{ "issue": string, "created": { "kind", "id", "key", "file" } | null, "existing": string | null, "criteria": number }`
+
 ### `iw deploy`
 
 Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), using `wrangler`. Idempotent: lists existing resources before creating any. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md).
@@ -417,7 +444,25 @@ Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), usi
 | `--name <worker>` | Overrides `[hosting].name` |
 | `--public` | Allow deploying without Cloudflare Access: a read-only demo, *(v0.5)* anonymous visitors can only read ([public deploys](./security.md#public-deploys)) |
 
+*(v0.5)* The Worker is deployed with the version of the CLI that runs `iw deploy` as the variable `IW_VERSION`, so `GET /healthz` answers `{ "ok": true, "version": "0.1.3" }` and `GET /api/project` has `server.version`. `iw doctor --online` reads it back; the web app tells leads when the project pins a newer version than the app runs ([version notice](./web.md#version-notice)).
+
 `data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
+
+*(v0.5)* With `.indx-watch/patches/patches.toml`, `iw deploy` deploys the patched build from `cache/patched/dist` instead of the package's own `dist/`, and stops with `INVALID_CONFIG` when it was not built from the current patch files (run `iw patch apply`). The Worker then reports its [patched build](./security.md#patched-servers).
+
+### `iw patch`
+
+*(v0.5)* Keep your own changes to INDX Watch as patches against the upstream source, so you can still update ([customizing](../guides/customize.md#level-3-patches), [fork guide](../guides/fork.md)). Needs `git` and `pnpm` on the PATH (`EXTERNAL_TOOL` names which). `patches/patches.toml` records `base = "x.y.z"`, the upstream version (git tag `v<x.y.z>` of `source`, default `INDXDev/indx-watch`) the patches were made against, which is `[tool] indx_watch`.
+
+| Command | |
+|---|---|
+| `iw patch create <name>` | Prepare the upstream source at `v<base>` in `cache/upstream/` (once), then turn the edits made there (`git diff`) into `patches/NNNN-<name>.patch`. First call: prepares the folder and prints where to edit. |
+| `iw patch apply` | Apply every patch in order to a clean copy (`git apply --3way`), install and build it, and write the result to `cache/patched/dist/` with the patch-set hash (`patched.json`). `--dry-run` only applies, without building. |
+| `iw patch check [--to <version>]` | Dry-run the patches against `v<version>` (default: `base`). Exit 1 (`CONFLICT`) and the conflicting files when one does not apply; a refused file exits 2 (`INVALID_INPUT`). `iw update` runs this first. |
+
+A patch that touches a refused file is rejected by `create`, `apply` and `check`, listing the files: the verdict, gate and status rules (`packages/core/src/decide.ts`, `status.ts`, `roles.ts`), signing and identity (`packages/bundle/src/sign.ts`, `seal.ts`; `packages/server/src/oidc.ts`, `store-routes.ts`; `packages/store/src/node/identity.ts`, `packages/store/src/workers/index.ts`, `packages/store/src/adapters/github-oidc.ts`) and the secret scan (`packages/bundle/src/check.ts`). There is no override: a patched build's verdicts, gate, signatures and secret checks must stay those of upstream, or its results would not be comparable.
+
+`data`: `{ "action": "create" \| "apply" \| "check", "base": string, "to": string | null, "patches": { "file": string, "files": string[], "refused": string[], "applies": boolean | null }[], "conflicts": string[], "patch_hash": string | null, "dist": string | null }`
 
 ### `iw reindex`
 
@@ -433,15 +478,60 @@ Start the MCP server on stdio. See [agents.md](./agents.md#mcp-server). `iw serv
 
 ### `iw skills install`
 
-Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](./agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch mcp`) and a marked block in `AGENTS.md`.
+Set up the repository root (the git root, else the directory above `.indx-watch/`, else the current directory) for coding agents ([agents.md](./agents.md#install)): the shipped skills, the project MCP server `indx-watch` (`npx -y indx-watch@<version> mcp`; *(v0.5)* `<version>` is `[tool] indx_watch`, else the running version, and an unpinned `.mcp.json` entry is migrated to it) and a marked block in `AGENTS.md`.
 
 | Flag | Writes |
 |---|---|
 | `--claude` | `.claude/skills/<name>/`, `.mcp.json` (`mcpServers.indx-watch`), the `@AGENTS.md` line in an existing `CLAUDE.md` that lacks it |
+| `--force` | Overwrite locally edited skill copies too |
 | `--codex` | `.agents/skills/<name>/` with portable frontmatter and `agents/openai.yaml`, `.codex/config.toml` (`[mcp_servers.indx-watch]`) |
 | (neither) | Both of the above |
 
-Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](./agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. `data`: `{ "installed": string[], "files": string[], "removed": string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed) and the retired skill folders it removed.
+Both write the `<!-- indx-watch:start -->` … `<!-- indx-watch:end -->` block of `AGENTS.md` (created if missing). Re-running rewrites only what the command owns: the skill folders it installs, the `indx-watch` server entries and the marked block; other servers, tables and text stay as they are. An existing `[mcp_servers.indx-watch]` table is left unchanged. It also removes the folders of the recipe skills that indx-watch 0.1 installed and that INDX Watch wrote, so an upgrade converges on the same skills ([agents.md](./agents.md#install)); a changed one stays with an `agent-config` warning. A `.mcp.json` or `.codex/config.toml` that does not parse is skipped with an `agent-config` warning. *(v0.5)* Each skills folder gets a manifest `.indx-watch.json` (`{ "version", "files": { "<name>/<path>": "<sha256>" } }`) that records the package version and what was written; a skill folder with a file changed since then is *locally edited*: it is skipped with an `agent-config` warning (`--force` overwrites it). `data`: `{ "installed": string[], "files": string[], "removed": string[], "skipped"?: string[] }`: the skill folders, the files created or changed by this run (empty when nothing changed), the retired skill folders it removed and *(v0.5)* the locally edited folders it left alone.
+
+### `iw doctor`
+
+*(v0.5)* Is everything that pins INDX Watch on the same version? A read-only report that changes nothing and, by default, makes no network call. It compares each pinned part with the **target**: `[tool] indx_watch` when the project has one, else the running version.
+
+| Flag | |
+|---|---|
+| `--online` | Also ask for the newest published version (`ReleaseSource`: the npm registry) and read `/healthz` of the hosted app when `[store].url` is an `https://` URL. A failed request is a note, never an error |
+
+Parts and states (`ok`, `outdated`, `unpinned`, `locally-edited`):
+
+| Part | What is read | State |
+|---|---|---|
+| `tool` | `[tool] indx_watch` in `project.toml` | `unpinned` without it; with `--online`, `outdated` when a newer version exists |
+| `cli` | the running CLI | `outdated` when older than the pin |
+| `package` | the `indx-watch` entry of `package.json` (`dependencies`, `devDependencies`) | `outdated` when older than the target; absent entries are not listed |
+| `mcp` | `.mcp.json` `mcpServers.indx-watch` | `unpinned` for `npx -y indx-watch mcp`, `outdated` when the pinned version is older than the target |
+| `skills` | `.claude/skills/` and `.agents/skills/` | `locally-edited` when a file differs from its manifest hash; `outdated` when the manifest version is older; `unpinned` without a manifest (installed before v0.5) |
+| `workflow` | `version:` inputs of `INDXDev/indx-watch` steps and `indx-watch@x.y.z` in `.github/workflows/*.yml` | `outdated` when older; a workflow that names none follows `[tool]` (the action reads it) and is `unpinned` only without `[tool]` |
+| `worker` | `GET /healthz` of the hosted app (`--online` only) | `outdated` when older than the target |
+
+`data`: `{ "version": string, "pinned": string | null, "latest": string | null, "ok": boolean, "parts": { "part": string, "target": string, "version": string | null, "state": "ok" | "outdated" | "unpinned" | "locally-edited", "note"?: string }[], "releases": { "version": string, "breaking": boolean, "migrate": boolean }[] }`. `ok` is true when every part is `ok`; `releases` lists the releases after the target that the package knows (`releases.json`, generated from `CHANGELOG.md` at build time; `breaking` and `migrate` mark the ones to read first). The exit code is 0 either way; read `ok`. The next step for anything but `ok` is [`iw update`](#iw-update).
+
+### `iw update`
+
+*(v0.5)* Bring every pinned part to one version, in this order. Each step is idempotent: a second run changes nothing.
+
+| Flag | |
+|---|---|
+| `--to <version>` | Target (default: the running version, so `npx indx-watch@latest update` updates to the newest; `latest` asks `ReleaseSource`). A version other than the running one skips step 3, because the skills ship inside the package that runs |
+| `--dry-run` | Print every change, write nothing |
+| `--deploy` | Run [`iw deploy`](#iw-deploy) at the end (with `--dry-run`: its dry run) |
+| `--workflow` | Only write `.github/workflows/indx-watch-update.yml` ([weekly update pull request](../guides/github-actions.md#keep-indx-watch-up-to-date)) when it is missing, and nothing else |
+
+1. `[tool] indx_watch` in `project.toml` (added when missing).
+2. `package.json`: the `indx-watch` entry keeps its `^` or `~` and gets the target; then the install command of the detected package manager is printed (`data.install`). `iw update` never runs it.
+3. `iw skills install`: skill copies, `.mcp.json` pin and the `AGENTS.md` block; locally edited skill copies are skipped with a warning.
+4. `version:` inputs and `indx-watch@x.y.z` of workflows.
+5. `#:schema` URLs of the bundle move to the tag `v<target>`.
+6. `iw migrate`, only when a release after the old pin has `migrate` in `releases.json` or the bundle's `schema_version` is behind.
+7. `iw check`: errors make the command exit 1 (`CHECK_FAILED`) after the files are written.
+8. With `--deploy`, `iw deploy`.
+
+Before step 1 the patches of the project must still apply: `iw patch check --to <target>` *(T-508, when present)*; any failing patch refuses the update (exit 1, nothing written). `data`: `{ "from": string | null, "to": string, "dryRun": boolean, "steps": { "step": "tool" | "package" | "skills" | "workflow" | "schema" | "migrate" | "check" | "deploy", "changed": string[], "note"?: string }[], "install": string | null, "notes": string }`; `notes` is the changelog excerpt of the releases between the old pin and the target (also used as the pull request text).
 
 ### `iw keygen`
 
@@ -475,6 +565,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 | `IW_COMMIT` | writes | Build commit when git is unavailable |
 | `IW_CHECK_RUN_ID` | writes (GitHub Actions) | `${{ job.check_run_id }}`: makes `ci.url` link to the job instead of the run |
 | `IW_RUN_GROUP` | reporter | Groups runs of one execution (default: CI run + attempt, or one per invocation) |
+| `IW_RELEASES` | doctor, update | *(v0.5)* Path of a `releases.json` replacing the one shipped in the package (tests) |
 | `IW_NOW` | report | Fixed "generated at" time for reproducible reports |
 | `IW_SIGNING_KEY` | writes, serve, reporter | Secret from `iw keygen`: sign every record written ([signed records](./security.md#signed-records)) |
 | `IW_SECRETS_KEY` | serve | *(v0.5)* Secret from `iw keygen --secrets`: seal and open `iw:` secrets ([security](./security.md#secrets)) |
@@ -486,6 +577,7 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 
 ## Acceptance criteria
 
+- [x] `iw patch create` prepares the upstream source at `v<base>`, turns the edits into `patches/NNNN-<name>.patch` and `patches.toml`, and refuses a file of the refused list; `check --to` exits 1 naming the conflicting files and 2 for an unknown version; `apply` builds `cache/patched/dist` with the patch-set hash and `iw deploy` stops while it is stale; a missing git or pnpm exits 4 naming it (tests with a local git repository and a fake pnpm).
 - [x] Every command supports `--json` and its output validates against the schema in `packages/cli/src/json.ts` (tested for each command).
 - [x] Exit codes match the table for: valid bundle (0), invalid bundle (1), unknown flag (2), missing bundle (3), unreachable store (4).
 - [x] `iw new tc --uc UC-2 --title "x" --origin ai --model m --json` creates a `draft` file with `origin = "ai"` and an `[ai]` table, and `iw check` passes.
@@ -494,6 +586,8 @@ Runs `cloudflared access login <url>` so later commands can obtain a token with 
 - [x] `iw approve TC-9` with `IW_ACTOR_KIND=agent` exits 2.
 - [x] `iw baseline approve <run>` with `IW_ACTOR_KIND=agent` exits 2; by a human it writes a `baseline` record, and `iw judge <run> --visual` then appends `visual` judgements (`pass` for the same image, `diff` with `diff_ratio` for a changed one).
 - [x] `iw record TC-3 --verdict pass --evidence shot.png --json` writes one record to the local replica and stores the blob under its SHA-256.
+- [x] *(v0.5)* `iw doctor --json` on a temp copy of the shop reports `unpinned` for the project, an unpinned `.mcp.json` and skill copies without a manifest, and `ok` for each after `iw update`; a skill file edited by hand is `locally-edited`; it makes no network call without `--online` (tests).
+- [x] *(v0.5)* `iw update --to <v>` writes `[tool]`, the `package.json` entry, `.mcp.json`, workflow versions and `#:schema` tags, prints the install command, and a second run changes nothing; `--dry-run` writes nothing; a locally edited skill copy is skipped with a warning; `iw update --workflow` writes a workflow that parses and refuses to overwrite one (tests).
 - [x] No command prompts when stdin is not a TTY.
 - [x] `iw impact --changed examples/shop/tests/coupon.spec.ts --json` in a copy of the shop suggests TC-3 and TC-4 with an `automation` reason, and the human output is the "Suggested test cases" Markdown section; without `--changed` or `--base` it exits 2.
 - [ ] `iw init --github` in an empty directory writes `indx-watch.yml` and `indx-watch-deploy.yml` and names `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; a second run writes nothing, keeps edited files and names no secret (CLI test on a temp copy of the shop).

@@ -9,7 +9,7 @@ branding:
 
 inputs:
   version:
-    description: indx-watch npm version to run (default the action's tag, e.g. v0.1.0 → 0.1.0; otherwise latest).
+    description: indx-watch npm version to run (default `[tool] indx_watch` in project.toml, else the action's tag, e.g. v0.1.0 → 0.1.0; otherwise latest).
     required: false
     default: ""
   cli:
@@ -124,6 +124,11 @@ runs:
           iw() { node "$local_bin" "$@"; }
         else
           version="$IW_IN_VERSION"
+          if [ -z "$version" ]; then
+            # the project's own pin: [tool] indx_watch = "x.y.z" in project.toml
+            pin_file="${IW_IN_DIR:-.indx-watch}"; [ -f "$pin_file/project.toml" ] || pin_file="$pin_file/.indx-watch"
+            version="$(sed -n '/^\[tool\]/,/^\[/s/^indx_watch *= *"\([^"]*\)".*/\1/p' "$pin_file/project.toml" 2>/dev/null | head -n 1)"
+          fi
           if [ -z "$version" ]; then
             if [[ "$IW_ACTION_REF" =~ ^v[0-9] ]]; then version="${IW_ACTION_REF#v}"; else version=latest; fi
           fi

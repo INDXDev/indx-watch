@@ -5,7 +5,7 @@ import { type KeyKind, newId, nextCriterionKey, nextKey, parseRef } from './ids.
 import { zodProblems } from './load.js';
 import type { IdPrefix } from './schema/common.js';
 import { FILE_TYPES, type FileType } from './schema/definitions.js';
-import { formatToml } from './toml.js';
+import { formatToml, schemaRefOf } from './toml.js';
 import type { Bundle, BundleFs, Loaded } from './types.js';
 import { useCaseVersion } from './versions.js';
 
@@ -234,7 +234,13 @@ export async function writeDefinition(
     const message = `Invalid ${type}: ${details.map((d) => `${d.path} ${d.message}`).join('; ')}`;
     throw new BundleError('INVALID_INPUT', message, details);
   }
-  await fs.write(path, formatToml(type, res.data as Record<string, unknown>));
+  // a file keeps the schema ref of its first line; a new one takes the ref of project.toml (`iw update` sets both)
+  const head = async (p: string) => {
+    const bytes = await fs.read(p);
+    return bytes ? new TextDecoder().decode(bytes.subarray(0, 200)) : undefined;
+  };
+  const ref = schemaRefOf(await head(path)) ?? schemaRefOf(await head('project.toml'));
+  await fs.write(path, formatToml(type, res.data as Record<string, unknown>, ref));
 }
 
 /** Error with a code and problems, thrown by write operations. */

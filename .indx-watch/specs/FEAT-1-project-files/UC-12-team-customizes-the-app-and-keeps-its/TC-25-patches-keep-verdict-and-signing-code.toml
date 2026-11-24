@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874H3W72Q78S7C70W9AD0S8"
+key = "TC-25"
+title = "Patches keep verdict and signing code out of reach"
+status = "draft"
+origin = "ai"
+covers = ["AC-12.3"]
+priority = "P2"
+mode = "manual"
+
+[[steps]]
+instruction = "Run iw patch create, edit packages/core/src/status.ts in cache/upstream, run iw patch create again"
+expected = "The command is refused and names the file"
+
+[steps.i18n.ja]
+instruction = "iw patch create を実行し、cache/upstream の packages/core/src/status.ts を編集して、もう一度 iw patch create を実行する"
+expected = "コマンドが拒否され、そのファイル名が示される"
+status = "machine"
+source_hash = "0e2f5873e7bf"
+
+[[steps]]
+instruction = "Edit a web file instead and create the patch, then run iw patch check --to with a newer version that changes the same lines"
+expected = "It exits 1 and lists the conflicting file"
+
+[steps.i18n.ja]
+instruction = "代わりに Web のファイルを編集してパッチを作り、同じ行を変えた新しいバージョンに対して iw patch check --to を実行する"
+expected = "終了コード 1 で、競合したファイルが一覧表示される"
+status = "machine"
+source_hash = "1297a21f983e"
+
+[i18n.ja]
+title = "パッチは判定と署名のコードに触れられない"
+status = "machine"
+source_hash = "b1422a5e97e5"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:26Z
