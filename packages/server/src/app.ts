@@ -3,13 +3,14 @@
  * Routes and shapes: contract.ts. The actor always comes from deps.identity, never from a request body.
  */
 import type * as B from '@indx-watch/bundle';
-import { customerModel, isAssignee, type Principal, roleOf } from '@indx-watch/core';
+import { customerModel, isAssignee, type Principal, roleOf, sharedModel } from '@indx-watch/core';
 import type { AccessPolicy, ContextProvider } from '@indx-watch/store';
 import { type Context, Hono } from 'hono';
 import type { AppDeps } from './contract.js';
 import { canShare, errorResponse, HttpError, iso, notFound } from './http.js';
 import { registerMcpRoute } from './mcp.js';
 import { registerReadRoutes, registerStoreRoutes, registerWriteRoutes } from './routes.js';
+import { registerSecretRoutes } from './secrets.js';
 import { registerShareRoutes } from './shares.js';
 import type { ToolOutputs } from './tools.js';
 
@@ -45,6 +46,8 @@ export interface ServerDeps extends AppDeps {
   writeFile?(path: string, data: Uint8Array): Promise<void>;
   /** remove a definition file from the working tree after a workspace delete (Node) */
   removeFile?(path: string): Promise<void>;
+  /** IW_SECRETS_KEY: without it `iw:` secrets cannot be read or written (docs/spec/security.md#secrets) */
+  secretsKey?: string;
   /** the MCP tools' output schemas (CommandData, passed in by the CLI); `/mcp` is served only with them */
   toolOutputs?: ToolOutputs;
 }
@@ -85,6 +88,7 @@ export function crossSite(r: Request): string | undefined {
 
 /** Roles allowed per `METHOD /path`, first match (docs/spec/security.md#roles); anything else needs `lead`. */
 const PERMITS: [RegExp, B.Role[]][] = [
+  [/^GET \/api\/access$/, []],
   [/^\w+ \/mcp$/, ['tester', 'viewer']],
   [/^(GET|HEAD) \/api\/(store|snapshots|shares)\b/, ['tester', 'viewer']],
   [/^(GET|HEAD) /, ['tester', 'viewer', 'customer']],
@@ -92,6 +96,9 @@ const PERMITS: [RegExp, B.Role[]][] = [
   [/^(POST \/api\/runs\/[^/]+\/judgements|PUT \/api\/store\/.*)$/, ['tester']],
   // test data is shared work: testers add and edit it too (docs/spec/security.md#roles)
   [/^(POST \/api\/(fixtures|bundle)|(PATCH|DELETE) \/api\/fixtures\/[^/]+)$/, ['tester']],
+  // secrets: what each may see is decided per secret by its sharing (docs/spec/security.md#secrets)
+  [/^POST \/api\/secrets\/[^/]+\/reveal$/, ['tester', 'viewer', 'customer']],
+  [/^(PUT|DELETE) \/api\/secrets\/[^/]+$/, ['tester']],
 ];
 /** May this role make this request. Pure; tested. */
 export const permits = (role: B.Role | undefined, method: string, path: string) =>
@@ -128,10 +135,14 @@ function appContext(deps: AppDeps) {
     deps: d,
     actor,
     grant,
-    /** the current model; for a customer, restricted to the plan items assigned to them (null: no request) */
+    /**
+     * The current model (null: no request, everything); for a customer restricted to the plan items assigned to
+     * them, and without the data of fixtures not shared with the request's identity.
+     */
     model: async (c: Context | null) => {
       const [m, g] = [(await deps.loadModel()).model, c && (await grant(c))];
-      return g?.role === 'customer' ? customerModel(m, g.who) : m;
+      if (!g) return m;
+      return sharedModel(g.role === 'customer' ? customerModel(m, g.who) : m, g.who, g.role);
     },
     /** may this actor create and revoke report share links */
     sharer: (a: B.Actor) => canShare(d, a),
@@ -170,6 +181,7 @@ export function createApp(deps: AppDeps): { fetch(request: Request): Promise<Res
   registerWriteRoutes(app, x);
   registerStoreRoutes(app, x);
   registerShareRoutes(app, x);
+  registerSecretRoutes(app, x);
   if (x.deps.toolOutputs) registerMcpRoute(app, x, x.deps.toolOutputs);
   return { fetch: async (request: Request) => app.fetch(request) };
 }

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Sharing test data and secrets like a shared drive: fixtures and secrets are shared with the whole team or only with listed emails and `group:` names (`shared_with`; leads always have access). The Test data screen gains a Share dialog, "Who has access" per item, a Secrets tab and, for leads, an Access tab that shows everything one email can open and why. On the hosted app with roles, people see only the data shared with them (T-411).
+- Secrets kept by INDX Watch: `iw:<name>` references to a login ID and a value sealed with AES-256-GCM under the server's `IW_SECRETS_KEY` (`iw keygen --secrets`), stored as `secret` records; the value is shown only to people it is shared with, next to an account's login ID on the Test data screen and the test case page, and every view is recorded (T-411).
+
 ## [0.1.1] - 2026-11-23
 
 ### Added

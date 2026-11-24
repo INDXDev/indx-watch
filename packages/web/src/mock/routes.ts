@@ -150,6 +150,8 @@ export const routes: [string, RegExp, Handler][] = [
   ['POST', /^api\/runs\/(run_\w+)\/judgements$/, review],
   ['POST', /^api\/runs\/(run_\w+)\/baselines$/, approveBaseline],
   ['GET', /^api\/report$/, report],
+  ['GET', /^api\/secrets$/, () => json({ available: false, secrets: [] })],
+  ['GET', /^api\/access$/, () => json({ people: [], groups: [] })],
 ];
 
 /** A stand-in for the server-rendered report (docs/spec/reports.md); the real one comes from packages/server. */

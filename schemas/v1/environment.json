@@ -57,7 +57,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+            "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault|iw):[A-Za-z0-9_./-]+$"
           }
         }
       },
@@ -85,7 +85,7 @@
             },
             "secret_ref": {
               "type": "string",
-              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault|iw):[A-Za-z0-9_./-]+$"
             }
           },
           "required": [
@@ -109,7 +109,7 @@
             },
             "secret_ref": {
               "type": "string",
-              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault):[A-Za-z0-9_./-]+$"
+              "pattern": "^(env|cf|gh|op|aws-sm|gcp-sm|vault|iw):[A-Za-z0-9_./-]+$"
             }
           },
           "required": [

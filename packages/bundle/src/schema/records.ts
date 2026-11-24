@@ -3,7 +3,7 @@
  * FROZEN CONTRACT for v0.1: additive changes only.
  */
 import { z } from 'zod';
-import { FxVersion, idOf, Locale, RecordSig, Sha256, TcVersion, Via } from './common.js';
+import { FxVersion, idOf, Locale, RecordSig, SecretName, Sha256, Sharee, TcVersion, Via } from './common.js';
 import { DateTime, EvidenceKind, JudgeKind } from './definitions.js';
 
 /** http(s) URLs only: other schemes (javascript:, file:) are never rendered as links. */
@@ -256,6 +256,31 @@ export const ShareRecord = z.strictObject({
 });
 export type ShareRecord = z.infer<typeof ShareRecord>;
 
+/**
+ * (v0.5) A secret kept by INDX Watch was set, deleted or revealed (docs/spec/security.md#secrets). Written by the
+ * server only. `set` and `delete` carry `sealed`: the value encrypted with the server's IW_SECRETS_KEY and bound to
+ * every other field, so a record whose sharing was changed by anyone but the key holder does not count.
+ */
+export const SecretRecord = z.strictObject({
+  kind: z.literal('secret'),
+  id: idOf('rec'),
+  ...envelope,
+  action: z.enum(['set', 'delete', 'reveal']),
+  name: SecretName,
+  title: z.string().optional(),
+  /** the login ID that goes with the value, shown in the clear */
+  username: z.string().optional(),
+  notes: z.string().optional(),
+  /** absent: the whole team (docs/spec/security.md#sharing) */
+  shared_with: z.array(Sharee).optional(),
+  /** set and delete: base64url(IV ‖ AES-256-GCM ciphertext) */
+  sealed: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+});
+export type SecretRecord = z.infer<typeof SecretRecord>;
+
 export const AnyRecord = z.discriminatedUnion('kind', [
   RunRecord,
   JudgementRecord,
@@ -266,6 +291,7 @@ export const AnyRecord = z.discriminatedUnion('kind', [
   RetractionRecord,
   BaselineRecord,
   ShareRecord,
+  SecretRecord,
 ]);
 export type AnyRecord = z.infer<typeof AnyRecord>;
 export type RecordKind = AnyRecord['kind'];

@@ -1751,6 +1751,152 @@
         "action"
       ],
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "secret"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^rec_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "v": {
+          "type": "number",
+          "const": 1
+        },
+        "project": {
+          "type": "string",
+          "pattern": "^prj_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "human",
+                "ci",
+                "agent"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "via": {
+              "type": "string",
+              "enum": [
+                "git",
+                "github",
+                "github-oidc",
+                "cloudflare-access",
+                "env",
+                "browser",
+                "gitlab",
+                "circleci",
+                "buildkite"
+              ]
+            },
+            "model": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "via"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "playwright",
+            "agent",
+            "cli",
+            "ci",
+            "import"
+          ]
+        },
+        "sig": {
+          "type": "object",
+          "properties": {
+            "alg": {
+              "type": "string",
+              "const": "Ed25519"
+            },
+            "kid": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+          },
+          "required": [
+            "alg",
+            "kid",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "set",
+            "delete",
+            "reveal"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "shared_with": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(group:\\S.*|ci:access:\\S+|[^@\\s:]+@[^@\\s]+)$"
+          }
+        },
+        "sealed": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "v",
+        "project",
+        "at",
+        "actor",
+        "source",
+        "action",
+        "name"
+      ],
+      "additionalProperties": false
     }
   ],
   "$id": "https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/record.json",

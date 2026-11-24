@@ -3,7 +3,7 @@
  * edited and removed on the Test data screen. The file changes are pure; committing them follows the bundle's mode.
  */
 import * as B from '@indx-watch/bundle';
-import type { Model } from '@indx-watch/core';
+import { canSee, type Model } from '@indx-watch/core';
 import { headsOf, versionsByEntity } from '@indx-watch/sync';
 import type { Context } from 'hono';
 import type { Ctx } from './app.js';
@@ -135,6 +135,8 @@ export async function applyFixture(next: Files, input: FixtureInput, file?: stri
     files.add(name);
   }
   if (input.account) data.account = input.account;
+  if (input.shared_with !== undefined)
+    data.shared_with = input.shared_with && [...new Set(input.shared_with.map((e) => String(e).trim()))];
   data.files = files.size ? [...files] : undefined;
   writeFixture(next, at, data);
   return { file: at, blobs };
@@ -199,7 +201,7 @@ async function commit(c: Context, x: Ctx, m: Model, base: Files, next: Files, bl
 export async function saveFixture(c: Context, x: Ctx, how: 'create' | 'edit' | 'delete') {
   const who = await x.actor(c);
   if (who.kind === 'agent') throw new HttpError(403, 'forbidden', 'agents write drafts with iw new');
-  const { role } = await x.grant(c);
+  const { role, who: principal } = await x.grant(c);
   if (role !== 'lead' && role !== 'tester')
     throw new HttpError(403, 'forbidden', 'a lead or tester edits test data');
   const m = await x.model(c);
@@ -212,12 +214,17 @@ export async function saveFixture(c: Context, x: Ctx, how: 'create' | 'edit' | '
   const next = new Map(base);
   const want = c.req.param('key')?.toUpperCase();
   const found = [...base].find(([p, d]) => FX_FILE.test(p) && String(tomlOf(d)?.key).toUpperCase() === want);
-  const fx = how === 'create' ? undefined : { file: found?.[0] ?? fail(notFound('fixture')) };
+  // a fixture not shared with this identity cannot be changed, nor shared so that it would lose access
+  const sharing = (p?: string) => tomlOf(p ? next.get(p) : undefined)?.shared_with as string[] | undefined;
+  const mine = (p: string) => canSee(sharing(p), principal, role);
+  const fx =
+    how === 'create' ? undefined : { file: found && mine(found[0]) ? found[0] : fail(notFound('fixture')) };
   let saved = { file: fx?.file ?? '', blobs: [] as Uint8Array[] };
   if (how === 'delete') {
     const dir = fx!.file.slice(0, fx!.file.lastIndexOf('/') + 1);
     for (const p of base.keys()) if (p.startsWith(dir)) next.delete(p);
   } else saved = await applyFixture(next, input, fx?.file);
+  if (how !== 'delete' && !mine(saved.file)) throw bad('you would lose access: share it with yourself too');
   const out = await commit(c, x, m, base, next, saved.blobs);
   const key = String(tomlOf(next.get(saved.file))?.key ?? want ?? '');
   return c.json({ key, file: saved.file, ...out } satisfies FixtureSaved, how === 'create' ? 201 : 200);

@@ -258,6 +258,7 @@ function nodeDeps(l: Local, models: Models, opts: NodeServerOptions, evidence?: 
     context: SN.processContext({ cwd: dir }),
     readFile: (path) => fs.read(path),
     declaredIdentity: !opts.identityHeader,
+    secretsKey: process.env.IW_SECRETS_KEY,
     bundleFiles: () => definitionFiles(fs),
     records: () => l.records(),
     writeFile: (path, data) => fs.write(path, data).then(() => void models.invalidate()),

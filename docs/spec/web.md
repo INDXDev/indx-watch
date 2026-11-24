@@ -236,6 +236,23 @@ You can upload definitions in three ways:
 - **Files** download from the detail (`GET /api/blobs/:sha256`).
 - **Where it goes.** The server applies the change to the current definitions, runs `iw check` (including the secret scan) and refuses errors (400) before writing anything, then writes it like an [upload](#upload): files in `.indx-watch/` on `iw serve` in git mode, a bundle snapshot on a hosted app in git mode, and `file` records in workspace mode, so that `iw sync` brings the change to every working copy. In git mode on a hosted app the screen warns that changes made there are replaced by the next publish from the repository.
 - **API.** `POST /api/fixtures`, `PATCH /api/fixtures/:key` (`FixtureInput` → `FixtureSaved`) and `DELETE /api/fixtures/:key` in [`contract.ts`](../../packages/server/src/contract.ts). Agents get 403: they write drafts with `iw new` or the `iw-data` skill.
+- **Tabs.** *(v0.5)* Test data, [Secrets](#secrets) and, for leads, [Access](#access) sit as tabs above the screen (`#/fixtures`, `#/secrets`, `#/access`).
+
+### Sharing
+
+*(v0.5)* Rules: [security → sharing](security.md#sharing).
+
+- The list marks restricted fixtures "Restricted" and fixtures not shared with the viewer "Not shared with you"; such a fixture's detail and its card on the test case page show only its name and say whom to ask.
+- "Share" on a fixture or a secret (for whoever can edit it) opens the share dialog: *Everyone on the team* or *Only the people and groups below*, a field to add an email or `group:<name>`, the list with a remove button per entry and "you" next to the viewer's own entry (prefilled when switching to restricted), and a line naming the leads, who always have access. Without roles the dialog says that everyone who opens the app has access. Saving a fixture's sharing is an edit (`PATCH /api/fixtures/:key` with `shared_with`; `null` for the team), a secret's a `PUT /api/secrets/:name`.
+- "Who has access" on a fixture or a secret lists each entry with why: lead, team (with the role), or shared.
+
+### Secrets
+
+*(v0.5)* The Secrets tab (`#/secrets`, `#/secrets/<name>`) lists the secrets kept by INDX Watch that are shared with the viewer ([security](security.md#secrets)): title and `iw:<name>` reference (with copy), the login ID (with copy), the value as dots with a *Show* button (each show is recorded; then *Copy* and *Hide*), the fixtures and environments using it, and who changed it last. Opening one also shows who has access and its history (changed, deleted, viewed: who and when). "New secret" (with `can.data` and `can.secrets`) asks for the name, title, login ID, value and notes; "Edit" changes them (an empty value keeps the current one) or deletes the secret. Without `IW_SECRETS_KEY` the tab explains how to set it. Accounts whose `secret_ref` is an `iw:` reference show the password the same way on the Test data screen and on the test case page, next to the login ID.
+
+### Access
+
+*(v0.5)* For leads, the Access tab (`#/access?who=<email>`) picks a person (the field suggests the people the project knows) and lists every fixture and secret with ✓ or ✕ and why (lead, shared with the team, shared with them, or not shared, "unless a member of group:…").
 
 ## Clone
 
@@ -257,6 +274,7 @@ You can upload definitions in three ways:
 - [x] The CLI panel shows `npx indx-watch clone <url>` with this server's clone source, and the copy button copies it (e2e `@TC-12`).
 - [x] Dropping a changed `TC-3` file previews "1 changed" with the check result. On a hosted app the upload publishes a `bundle` record, and the app serves the new title at once (server and Worker tests).
 - [x] An upload with a secret finding is refused, and nothing is written (server test).
+- [x] Creating a secret on the Secrets tab, showing it, pointing FX-3's account at `iw:<name>` and showing the password on FX-3 and on TC-7, restricting FX-1 with the share dialog and opening the Access tab work against `iw serve` with `IW_SECRETS_KEY` (checked by hand with Playwright screenshots; server tests cover the rules).
 - [x] A run that claims `via = "github"` without a valid signature comes from the API with `unverified: true` and is shown with the "unverified" chip instead of ✓ (server and Worker tests; the chip itself is not tested automatically).
 - [x] `POST /api/runs/<run>/baselines` by a human writes a `baseline` record, after which the run detail lists that screenshot in `baselines`; an agent gets 403 and a non-PNG or unknown blob 400 (server test; the button itself is not tested automatically).
 - [x] `#/tests?f=flaky` lists only test cases with a flake rate, highest first, and Focus keeps that order (web unit test of the ordering; the list itself is not tested automatically).

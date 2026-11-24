@@ -217,8 +217,8 @@ async function pushable(c: SyncContext, local: AnyRecord[]): Promise<AnyRecord[]
   for (const r of local) {
     if (c.pushed.has(r.id) || retracted.has(r.id) || c.foreign(r, 'in the local replica')) continue;
     // Every caller (iw sync, iw serve, the Playwright reporter) gets the same per-record secret scan.
-    // Not over `sig`: a signature is random base64url, so it can look like an API key, and it is no secret.
-    const text = JSON.stringify({ ...r, sig: undefined });
+    // Not over `sig` or `sealed`: random base64url can look like an API key, and neither is a secret in the clear.
+    const text = JSON.stringify({ ...r, sig: undefined, sealed: undefined });
     const found = scanSecrets(`runs/${r.id}`, text).filter((x) => x.severity === 'error');
     if (found.length) {
       c.result.held = [...(c.result.held ?? []), ...found];

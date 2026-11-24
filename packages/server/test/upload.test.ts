@@ -137,6 +137,7 @@ describe('POST /api/bundle and GET /api/snapshots', () => {
       approve: true,
       edit: false,
       data: true,
+      secrets: false,
     });
     f.setActor({ ...ALEX, kind: 'agent', model: 'claude-opus-5-5' });
     expect((await a.fetch(req('/api/bundle', { json: body }))).status).toBe(403);

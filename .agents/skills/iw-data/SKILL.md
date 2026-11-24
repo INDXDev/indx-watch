@@ -59,7 +59,7 @@ Say what each test case has and what is missing, then ask one question per new f
 
 ## Secrets
 
-Never write a password, token or key into a fixture, data file, step, note, commit or the chat, and never ask the person to paste one. An account names an `env:NAME` reference; tell the person which variable to set (`SHOP_CUSTOMER_PASSWORD`). If the secret scan flags a file, remove the value; never work around the scan.
+Never write a password, token or key into a fixture, data file, step, note, commit or the chat, and never ask the person to paste one. An account names an `env:NAME` reference; tell the person which variable to set (`SHOP_CUSTOMER_PASSWORD`). If the team keeps passwords in INDX Watch (an `iw:<name>` reference already used, or a hosted app with secrets), name `iw:<name>` instead and tell the person to add the password on the app's Test data → Secrets tab, where they can also choose who it is shared with; you cannot create or read those values. If the secret scan flags a file, remove the value; never work around the scan.
 
 ## 6. Stop for a person
 
