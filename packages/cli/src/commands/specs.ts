@@ -9,10 +9,13 @@ import { assignPlan, knownKeys, NEW_KINDS } from '@indx-watch/server';
 import { cloudflareAccessPolicy } from '@indx-watch/store';
 import { indexedRecords, openNodeIndex, openReplica } from '@indx-watch/store/node';
 import { fileStateStore } from '@indx-watch/sync/node';
+import enMessages from '../../../web/src/messages/en.json' with { type: 'json' };
 import { setupAgents } from '../agents.js';
 import { problemLine, type Spec } from '../cli.js';
 import * as cx from '../context.js';
+import { initGithub } from '../github.js';
 import { type Args, asset, B, type Ctx, csv, fail, git, iso, many, P, S, str } from '../util.js';
+import { VERSION } from '../version.js';
 
 export { knownKeys };
 /** Where `iw fixture fetch` puts a pointer blob. */
@@ -119,26 +122,41 @@ export const specCommands: Record<string, Spec> = {
         default: true,
         description: 'Set up Claude Code and Codex (--no-agents skips)',
       },
+      github: B('Write the GitHub workflows and issue templates (only what is missing)'),
     },
     async run(ctx, a) {
       const target = resolve(ctx.cwd, str(a.target) ?? '.');
       const fresh = !existsSync(target); // a new directory is its own repository root
       const [dir, bin] = [join(target, '.indx-watch'), binOf()];
       const again = `Already set up (${dir}). To refresh the agent files: ${bin} skills install`;
-      if (existsSync(join(dir, 'project.toml'))) fail('CONFLICT', again);
+      const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
+      // the files of --github, written last; an existing project only gets these
+      const github = (out: { data: object; text: string }) => {
+        if (!a.github) return out;
+        const g = initGithub(root);
+        const list = (what: string, l: string[]) => (l.length ? `\n${what}: ${l.join(' ')}` : '');
+        const secrets = g.secrets.length ? `\nAdd these repository secrets: ${g.secrets.join(' ')}` : '';
+        const text = `${out.text}${list('Wrote', g.written)}${list('Kept', g.skipped)}${secrets}`;
+        return { ...out, data: { ...out.data, github: g }, text };
+      };
+      if (existsSync(join(dir, 'project.toml')))
+        return a.github
+          ? github({ data: { dir, files: [] }, text: `Already set up (${dir})` })
+          : fail('CONFLICT', again);
       const fs = nodeFs(dir);
       // agent-first next steps, runnable as printed
       const serve = `${bin} serve${str(a.target) ? ` --dir ${join(str(a.target)!, '.indx-watch')}` : ''} --open`;
       const withAgents = async (out: { data: object; text: string }) => {
-        if (a.agents === false) return { ...out, text: `${out.text}\nThen: ${serve}` };
-        const root = (!fresh && git(target, 'rev-parse', '--show-toplevel')) || target;
-        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both);
+        if (a.agents === false) return github({ ...out, text: `${out.text}\nThen: ${serve}` });
+        const { warnings, ...agents } = await setupAgents(root, asset('../skills', 'skills'), both, {
+          version: VERSION,
+        });
         const say = a.example
           ? '"Can we ship?" (/iw-status, $iw-status)'
           : '"Set up testing for this repo" (/iw-setup, $iw-setup)';
         const next = `Next: open Claude Code or Codex in ${root} and say ${say}, or run \`${serve}\``;
         const text = `${out.text}\nSet up Claude Code and Codex in ${root} (${bin} skills install)\n${next}`;
-        return { data: { ...out.data, agents }, warnings, text };
+        return { ...github({ data: { ...out.data, agents }, text }), warnings };
       };
       if (a.example) return withAgents(await copyExample(ctx, fs, dir, target));
       // letters and digits, without leading digits, at most 10
@@ -160,7 +178,13 @@ export const specCommands: Record<string, Spec> = {
       const defaults = { default_environment: 'local', current_release: 'v0.1.0' };
       await fs.write(
         'project.toml',
-        iwb.formatToml('project', { ...project, source_locale: locale, locales: [locale], ...defaults }),
+        iwb.formatToml('project', {
+          ...project,
+          source_locale: locale,
+          locales: [locale],
+          ...defaults,
+          tool: { indx_watch: VERSION },
+        }),
       );
       await fs.write('.gitignore', 'cache/\nruns/\n');
       const { bundle } = await iwb.loadBundle(fs);
@@ -188,6 +212,7 @@ export const specCommands: Record<string, Spec> = {
       const sub = relative(p.root, p.dir) || '.';
       const deps: iwb.CheckDeps = {
         fix: !!a.fix,
+        uiMessages: enMessages,
         knownKeys: knownKeys(await p.replica.records()),
         hasBlob: async (sha) => (await p.replica.hasBlob(sha)) || existsSync(cacheBlob(p, sha)),
         onDefaultBranch: async (id) => !!git(p.root, 'grep', '-l', '-F', id, branch, '--', sub),

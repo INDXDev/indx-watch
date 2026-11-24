@@ -223,6 +223,16 @@ export interface Content {
     github: Benefit & { checks: { name: string; detail: string; pass: boolean }[]; link: Link };
     items: (Benefit & { icon: 'data' | 'sync' | 'people' | 'audit' | 'secret' })[];
   };
+  /** The GitHub-to-Cloudflare flow, after Vercel's "Develop. Preview. Ship." row; the same seven steps as the guide's diagram. */
+  selfHost: {
+    kicker: string;
+    title: string;
+    lead: string;
+    steps: { title: string; body: string }[];
+    note: string;
+    code: string;
+    guide: Link;
+  };
   /** Open source and self-hosting, after Supabase's "Open source from day one". */
   openSource: {
     kicker: string;

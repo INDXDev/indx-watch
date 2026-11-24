@@ -1,0 +1,42 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874B5SF44GFA61YQ0YZTQ9T"
+key = "TC-27"
+title = "Open as GitHub issue from the web app"
+status = "draft"
+origin = "ai"
+covers = ["AC-13.1", "AC-13.2"]
+priority = "P2"
+mode = "playwright"
+
+[[steps]]
+instruction = "Open a test case page of a project whose project.toml has [github] repo"
+expected = "The Open as GitHub issue button links to the prefilled new-issue page of that repository"
+
+[steps.i18n.ja]
+instruction = "project.toml に [github] repo がある プロジェクトのテストケースのページを開く"
+expected = "「GitHub の Issue として開く」ボタンが、そのリポジトリの入力済みの新規 Issue ページへのリンクになっている"
+status = "machine"
+source_hash = "dcbd6698ada5"
+
+[[steps]]
+instruction = "Click it, then paste an issue URL"
+expected = "The app shows the command that stores the link; after running it the page shows Related issue #42"
+
+[steps.i18n.ja]
+instruction = "ボタンを押してから Issue の URL を貼り付ける"
+expected = "リンクを保存するコマンドが表示され、実行後にページに「関連 Issue #42」が表示される"
+status = "machine"
+source_hash = "623be82c7db4"
+
+[automation]
+files = ["e2e/issue.spec.ts"]
+
+[i18n.ja]
+title = "Web アプリから GitHub の Issue として開く"
+status = "machine"
+source_hash = "2f5ed5fb16a3"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:56:11Z

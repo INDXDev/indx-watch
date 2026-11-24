@@ -543,5 +543,14 @@
   "assign.giveBack": "担当を戻す",
   "assign.col": "選択",
   "assign.action": "操作",
-  "assign.readOnly": "定義はリポジトリで管理されています。割り当ては次のコマンドで: iw assign --plan {plan}"
+  "assign.readOnly": "定義はリポジトリで管理されています。割り当ては次のコマンドで: iw assign --plan {plan}",
+  "issue.open": "GitHub の Issue として開く",
+  "issue.related": "関連 Issue {label}",
+  "issue.opened": "GitHub で Issue を送信してから、その URL をここに貼り付けると、このテストケースに紐づきます。INDX Watch が GitHub に書き込むことはありません。",
+  "issue.paste": "Issue の URL を貼り付け",
+  "issue.save": "リンクを保存",
+  "issue.cli": "作業コピーで次のコマンドを実行してください:",
+  "custom.patched": "このアプリは INDX Watch のパッチ適用ビルド（{build}）で動いています。ここで記録した結果にも同じ印が付きます。",
+  "update.drift": "このアプリは {version} で動いていますが、プロジェクトは {pinned} を指定しています。次を実行してください：",
+  "update.driftLocal": "このアプリは {version} で動いていますが、プロジェクトは {pinned} を指定しています。次のコマンドで起動し直してください："
 }

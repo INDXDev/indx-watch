@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874HAYPE0C2NP4GTQ0G8QC0"
-key = "TC-20"
+key = "TC-33"
 title = "A tester takes and gives back but cannot assign others"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.3"]
+covers = ["AC-15.3"]
 priority = "P1"
 mode = "manual"
 

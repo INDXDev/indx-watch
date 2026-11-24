@@ -212,7 +212,7 @@ Who may change an assignee (hosted app; without [roles](./security.md#roles) and
 
 ## Versions and staleness
 
-- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, guidance and translations do not.
+- **Test case version** = `tcv:` + the first 12 hex characters of SHA-256 over the canonical TOML body (no header) of a table with, in this order: `covers`, `criteria` (the text of each covered criterion, in `covers` order), `mode`, `preconditions`, `fixtures`, `steps` (without their `i18n` tables), `judges`, `decision_policy`. Absent fields are omitted, and so are the [guidance fields](./bundle-format.md#specsfeatuctc-n-slugtoml) (`purpose`, `start`, `start_note`, each step's `checks`, each fixture reference's `use`, `note` and `i18n`): they explain how to run the test, while `expected` stays the contract. Rewording a covered acceptance criterion therefore makes earlier results stale; title, tags, priority, status, notes, `links`, guidance and translations do not.
 - **Fixture version** = `fxv:` + 12 hex of SHA-256 over: the canonical TOML body of the fixture without `title`, `status`, `origin`, `approved_by`, `approved_version`, `tags`, `notes`, `ai`, `x`, `i18n`; a newline; then one line per data file, sorted by name: `<name> <sha256 of the content>` (for a pointer, its `sha256`). Text data files (`.csv`, `.json`, `.txt`, `.md`, `.toml`, `.yaml`, …) are hashed with CRLF read as LF, so a Windows checkout gives the same version.
 - A run records the test case version and the version of every fixture it used.
 - A result is **stale** when its test case version differs from the current one, or any fixture version it used differs from the current version of that fixture.
@@ -271,6 +271,20 @@ Changed paths are relative to the repository root with `/` separators, as `git d
 3. **fixture**: lies inside the directory of a fixture the test case references.
 
 Each suggestion carries every reason that applies (`kind`, the changed `file`, and for `automation` the matching entry as `pattern`). Suggestions are ordered by priority (P0 first), then key. Drafts are included; their definition `status` tells them apart.
+
+## Bundle diff
+
+`bundleDiff(base, head)` says what a change did to the definitions: which use cases (UC), acceptance criteria (AC) and test cases (TC) were added, changed or removed between two loaded bundles, for example the bundle at a pull request's base commit and at its head. It is information only (like [impact analysis](#impact-analysis)): it changes no verdict, status or gate check.
+
+Items match by `id`, so renumbering a key is a change, not a removal plus an addition. A changed item lists what differs:
+
+| Item | `what` |
+|---|---|
+| Test case | `title`; `steps` (the steps, in order); `criteria` (the covered criteria, or the text of one of them); `data` (the fixture references, or the version of a referenced fixture); `details` (anything else, such as mode, priority or preconditions) |
+| Use case | `title`; `details` (actor, goal, priority, status, links …) |
+| Criterion | `title` (its text) |
+
+Translations and field order count only when they change the stored value. Results are ordered use cases, criteria, test cases, each by key. Runs are not part of a bundle diff.
 
 ## Feature owners
 

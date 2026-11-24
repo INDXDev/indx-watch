@@ -29,7 +29,7 @@ Your job is to explain a failure with evidence and propose the next action. Deci
    | **Needs a human**       | Evidence is missing or ambiguous, or the AC itself is unclear. Say so; do not guess.                                                                                                             |
 
 6. **Propose the next action.**
-   - Product bug → an issue text: title; affected keys (`UC-n`, `AC-n.m`, `TC-n`) and priority; steps from the TC; expected vs actual with on-screen text quoted exactly; run ID, commit, environment, CI link; evidence file names. File it (e.g. with `gh issue create`) only if the user asks.
+   - Product bug → `iw issue <run-id> --json`: a prefilled GitHub new-issue URL (title, keys and priority, steps, expected, actual, run, commit, environment; secrets left out, length capped). Do not write the text by hand and never `gh issue create`: give the URL to the person, who submits it, then `iw issue <TC-n> --link <issue URL>`.
    - Test problem → a concrete diff for the test code or the TC file. A substantial TC change goes back to `status = "draft"` (see [write-test-cases.md](../../iw-design/references/write-test-cases.md)). Re-run with `iw-test` after the human accepts it.
    - Environment or data → what to fix (start the app, set variable `X`, re-seed `FX-n`), then re-run.
    - If the team may accept a known failure of a P1–P3 test case, suggest the human runs `iw waive TC-n --release <version> --reason "…"`. P0 failures cannot be waived.

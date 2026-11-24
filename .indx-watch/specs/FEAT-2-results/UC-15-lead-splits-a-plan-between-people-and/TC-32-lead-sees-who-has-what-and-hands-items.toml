@@ -1,11 +1,11 @@
 #:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
 
 id = "tc_01M874HA8Z7XCE3DRTKE31VYRH"
-key = "TC-19"
+key = "TC-32"
 title = "Lead sees who has what and hands items out"
 status = "draft"
 origin = "ai"
-covers = ["AC-11.1", "AC-11.2", "AC-11.4"]
+covers = ["AC-15.1", "AC-15.2", "AC-15.4"]
 priority = "P1"
 mode = "playwright"
 start = "/"

@@ -7,7 +7,7 @@ import { SiteFooter, SiteHeader } from './landing/chrome';
 import { Features } from './landing/features';
 import { Hero } from './landing/hero';
 import { Roles } from './landing/roles';
-import { Agents, Closing, Compare, Faq, OpenSource, Start, Strengths, Why, WorksWith } from './landing/sections';
+import { Agents, Closing, Compare, Faq, OpenSource, SelfHost, Start, Strengths, Why, WorksWith } from './landing/sections';
 import { RoleProvider } from './role';
 
 export function Landing({ t }: { t: Content }) {
@@ -22,6 +22,7 @@ export function Landing({ t }: { t: Content }) {
         <Why t={t} />
         <Agents t={t} />
         <Strengths t={t} />
+        <SelfHost t={t} />
         <OpenSource t={t} />
         <Compare t={t} />
         <Start t={t} />

@@ -139,8 +139,15 @@ export function reportData(model: Model, scope: Scope, opts: ReportOptions): Rep
   const who = (a: Actor) =>
     customer ? (a.name && !a.name.includes('@') ? a.name : QA_TEAM) : (a.name ?? a.id);
   const status = computeStatus(model, scope);
+  const { title, footer } = model.project.report ?? {};
+  const brand = {
+    ...(title && { title }),
+    ...(footer && { footer }),
+    ...(model.ui?.logo && { logo: model.ui.logo }),
+  };
   return {
     project: { key: model.project.key, name: model.project.name },
+    ...(Object.keys(brand).length && { brand }),
     scope,
     plan: opts.plan,
     audience: opts.audience,

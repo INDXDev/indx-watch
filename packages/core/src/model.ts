@@ -277,6 +277,7 @@ export function buildModel(
   const runs = buildRuns({ index, set, unverified, warnings, flagged });
   const model: Model = {
     project: p,
+    ...(bundle.ui && { ui: bundle.ui }),
     environments: bundle.environments.map((e) => e.data),
     releases: bundle.releases.map((r) => r.data),
     plans: bundle.plans.map((pl) => pl.data),

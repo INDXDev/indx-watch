@@ -36,6 +36,13 @@ The Zod schemas in [`packages/bundle/src/schema/`](https://github.com/INDXDev/in
 │   └── PLAN-1-v1-2-0-regression.toml
 ├── templates/
 │   └── test-case.web.toml            # partial files used by `iw new --template`
+├── ui/                               # (v0.5) optional: UI texts, theme and report logo, no code
+│   ├── messages.ja.json
+│   ├── theme.toml
+│   └── logo.png
+├── patches/                          # (v0.5) optional: `iw patch` files, not part of snapshots
+│   ├── patches.toml
+│   └── 0001-shorter-nav.patch
 ├── .gitignore                        # written by `iw init`: ignores cache/ and runs/
 ├── cache/                            # ignored: index.sqlite, sync state, fetched blobs
 └── runs/                             # ignored by default: local replica of the result store
@@ -46,6 +53,7 @@ Rules:
 - **Identity is the `id` inside a file**, not its path. Directory and file names are `{KEY}-{slug}`; the slug is cosmetic: `iw new` writes it from the title, and `iw check --fix` only rewrites the key part of a name (a title change keeps the slug). Moving or renaming a file never changes identity.
 - A use case directory must be inside a feature directory; test case files must be inside a use case directory. A test case may still cover ACs of other use cases.
 - Files and directories not described here produce a warning from `iw check` and are ignored, except `README.md` files, which are allowed anywhere. The secret scan still covers every file in the folder, because snapshots and exports pack them.
+- `ui/` and `patches/` *(v0.5)* are described in [Customizing](#customizing-v05). `patches/` is never loaded, scanned, snapshotted or uploaded.
 - Symbolic links are ignored: tools do not list them and refuse to read or write a path whose real location is outside the folder.
 - The folder is `.indx-watch/` at the repository root by default. Commands find it by walking up from the current directory; `--dir` or `IW_DIR` override this.
 
@@ -60,7 +68,7 @@ key = "TC-3"
 
 | Rule | Detail |
 |---|---|
-| Schema line | Line 1 is `#:schema <url>` for that file type, line 2 is blank. Tombi and Taplo use it for completion and validation. See [platform notes](../research/platform-notes.md#toml-and-editor-tooling). |
+| Schema line | Line 1 is `#:schema <url>` for that file type, line 2 is blank. Tombi and Taplo use it for completion and validation. *(v0.5)* The URL names a git ref: `main`, or a version tag such as `v0.1.3` (`iw update` moves every file to the tag of the pinned version, so the schema matches the CLI). Each file keeps its own ref, `iw fmt` and `iw check` accept either, and a new file takes the ref of `project.toml`. See [platform notes](../research/platform-notes.md#toml-and-editor-tooling). |
 | Encoding | UTF-8, LF line endings, exactly one trailing newline, no trailing whitespace, no tabs. Readers treat CRLF as LF (a Windows checkout with `core.autocrlf` gives the same values and versions); `iw fmt` writes LF. In multi-line strings, spaces at the end of a line are written as `\u0020`. |
 | Key order | The order in which fields are listed in this spec (= the Zod schema), except that every value written as a table or array of tables comes after all plain values, as TOML requires. A table that contains only sub-tables gets no header of its own (`[hooks.seed]`, not `[hooks]` + `[hooks.seed]`). Unknown keys are errors, except inside an `[x]` table, which is free-form and sorted alphabetically. |
 | Optional fields | Omitted when empty (empty string, empty array, empty table). Booleans are written as given, `false` included. |
@@ -160,6 +168,9 @@ definition = "A code that reduces the order total."
 | `[decision_policy]` | no | Project defaults; a test case may override. |
 | `[store]` | no | Omit for local-only use. `url` schemes: `file://` (`file:///abs/path`, or `file://../rel` = a path relative to the `.indx-watch/` directory — not a WHATWG URL), `s3://bucket/prefix`, `https://` (a hosted INDX Watch). S3 options: `endpoint`, `region`, `force_path_style`. `mode`: `git` (default: definitions sync through git) or `workspace` (*v0.2*: definitions also sync through the store, [workspace mode](./sync.md#workspace-mode-v02)). `evidence`: `on-demand` (default), `all`, `none`. Credentials never go here. See [sync.md](./sync.md). |
 | `[hosting]` | no | Read by `iw deploy`. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md). *(v0.2)* `oidc_repositories`: GitHub repositories (`owner/name` or numeric repository ID) whose Actions OIDC tokens the hosted server exchanges for record signatures, pinned by `iw deploy` ([GitHub OIDC](./security.md#github-oidc)). *(v0.3)* `[hosting.roles]`: `lead`, `tester`, `viewer` and `customer` each list Access user emails, group emails, group names or group IDs (and `ci:access:<client id>` for service tokens); optional `default` is the role of a signed-in identity that matches none. Pinned by `iw deploy` as the Worker variable `ROLES`; without it every identity is `lead` ([roles](./security.md#roles)). |
+| `[github]` | no | *(v0.5)* `repo = "owner/name"`: where [Open as GitHub issue](./integrations.md#github-issues) and `iw issue` open new issues. Without it the CLI and `iw serve` use the `origin` remote; a Worker needs it. |
+| `[tool]` | no | *(v0.5)* `indx_watch = "0.1.3"`: the one INDX Watch version this project pins (an exact `x.y.z`). `iw init` writes it; `iw update` changes it; `iw doctor` compares every other pinned part with it: the `.mcp.json` entry, installed skill copies, workflow inputs, the Worker. The GitHub Action runs this version when its `version` input is empty. Without `[tool]` a project behaves as before and `iw doctor` reports it as `unpinned` ([staying current](./cli.md#iw-doctor)). *(v0.5)* `source = "github:<owner>/<repo>"`: a fork whose releases `iw doctor` and `iw update` follow instead of the npm package ([fork guide](../guides/fork.md)). |
+| `[report]` | no | *(v0.5)* `title`, `logo`, `footer` of reports ([Customizing](#customizing-v05)). |
 | `[[signing_keys]]` | no | *(v0.2)* Public keys whose record signatures readers trust: `kid`, `public_key` (raw Ed25519, base64url), optional `via` (the verified `via` values the key may vouch for; default all) and `note`. Public keys are not secrets; `iw keygen` prints the entry. See [security.md](./security.md#signed-records). |
 
 ## `environments/<name>.toml`
@@ -382,6 +393,7 @@ source_hash = "72d5db16627a"
 | `[[steps]]` | yes | `instruction`, `expected`, optional `checks` (string[]: yes/no observations that together make up `expected`, one per thing to look at), optional `evidence` (`screenshot`, `video`, `trace`, `log`, `file`), optional `[steps.i18n.<locale>]` (with `status` and `source_hash` like every translation). Steps are numbered by position, starting at 1. |
 | `[[judges]]` | no | `kind` (`assert`, `visual`, `llm`, `human`) plus `rubric` (string[]) for `llm` and `baseline` for `visual` (the screenshot evidence name to compare, e.g. `"confirmation.png"`; without it every PNG screenshot of the run is compared with its [approved baseline](./concepts.md#visual-baselines); the threshold is `[decision_policy] visual_threshold`). Default: `human` for `manual`, `assert` for `playwright`. For `agent`, `iw run` judges with the `llm` rubric, or with the steps' expected results when there is none. |
 | `[decision_policy]` | no | Overrides project defaults for this test case. |
+| `links` | no | *(v0.5)* Issue URLs about this test case (`https://github.com/owner/name/issues/42`; http(s) only), written by `iw issue --link` and the app. Not part of the version. The web app shows them as Related issue #42. |
 | `[automation]` | no | `files`: paths (from the repository root) of automated tests that implement this test case; an entry may be a glob (`tests/coupon/**/*.spec.ts`) or end in `/` for a folder (a leading `./` is ignored), which [impact analysis](./concepts.md#impact-analysis) matches against changed files (`iw check --fix` rewrites `@TC-n` tags only in plain paths). The link itself is the tag `@TC-3` (see [integrations](./integrations.md#playwright-reporter)). |
 
 **Placeholders.** `{{FX-1.code}}` inserts column `code` of the selected row of fixture `FX-1`; `{{env.base_url}}` inserts an environment field. Text in double quotes is a literal on-screen string of the app under test and is never translated ([i18n.md](./i18n.md#literal-strings)).
@@ -520,6 +532,44 @@ source_hash = "862ca86fb166"
 
 *(v0.4)* One template is built in: `iw new tc --template bdd` creates a test case with `style = "bdd"` and a placeholder Given in `preconditions` (examples/shop's TC-4 is written this way). A file `templates/test-case.bdd.toml` replaces it.
 
+## Customizing *(v0.5)*
+
+Three extension points need no code and no fork. All are optional, plain data, served to the web app through `GET /api/project` and so work the same on `iw serve` and on the Worker. There are no server-side code plugins; bigger changes are [patches](../guides/customize.md#level-3-patches).
+
+**`ui/messages.<locale>.json`** (`en` or `ja`) overrides UI texts: one flat object of existing message keys (those of `packages/web/src/messages/en.json`) to plain text. Keep every `{placeholder}` of the original text and write no markup. Missing keys keep the built-in text.
+
+```json
+{ "nav.tests": "Checks", "home.title": "Where we stand" }
+```
+
+**`ui/theme.toml`** sets a few design tokens from `packages/web/src/tokens.css`. `[light]` and `[dark]` may set the colors `accent`, `accent-hover`, `accent-text`, `accent-soft`, `focus`, `bg`, `surface`, `surface-2`, `border`, `border-strong`, `text` and `text-muted` (hex, `rgb()` or `hsl()`); `[common]` may set `font-sans`, `font-mono` (font names), and `radius-sm`, `radius`, `radius-lg` (`px` or `rem`). Status colors are not themable: a status always keeps its meaning. `iw check` warns when a text color on `bg` or `surface`, or `accent-text` on `accent`, is below a 4.5:1 contrast.
+
+```toml
+[light]
+accent = "#0b6b50"
+accent-text = "#ffffff"
+
+[dark]
+accent = "#6fd3b0"
+accent-text = "#06231a"
+
+[common]
+radius = "4px"
+```
+
+**`[report]`** in `project.toml` brands [reports](./reports.md): `title` replaces the project name in the heading, `footer` replaces the generated-by line (a patched server still appends its [build](./security.md#patched-servers)), `logo` is a file in `ui/` (`.png`, `.jpg`, `.webp` or `.svg`, up to 200 KB) embedded at the top of HTML reports.
+
+```toml
+[report]
+title = "Shop QA"
+footer = "Shop QA team · qa@shop.test"
+logo = "ui/logo.png"
+```
+
+`iw check` rejects an unknown message key, a changed placeholder, markup (`<tag`), an unknown theme table or token, a value that is not a plain color, size or font list, an unknown `ui/` locale, and a `logo` that is missing, too big or outside `ui/`. A bundle with a problem here still loads; the invalid part is left out.
+
+**`patches/`** holds `patches.toml` (`base = "x.y.z"`, the upstream version the patches apply to) and the `*.patch` files made by [`iw patch`](./cli.md#iw-patch). It is local to the repository: not loaded, not secret-scanned, not in snapshots or exports.
+
 ## `.gitignore`
 
 `iw init` writes:
@@ -542,6 +592,7 @@ Teams that prefer results in git can delete the `runs/` line: run records are im
 
 - [x] Every TOML example on this page that contains an `id` is byte-identical to the corresponding file in `examples/shop/.indx-watch/` (a test extracts the code blocks and compares), and the bundle passes `iw check`.
 - [x] For every file in `examples/shop/.indx-watch/`, parse → format is byte-identical (CI round-trip test).
+- [ ] `iw check` accepts `ui/messages.<locale>.json`, `ui/theme.toml`, `[report]` and `patches/` as documented, and reports an unknown message key, a changed placeholder, markup, an unknown token or an unsafe value, and a bad `logo` as errors (bundle and CLI tests); `patches/` is not loaded, scanned or snapshotted.
 - [x] `pnpm schemas` regenerates `schemas/v1/*.json` with no diff (CI).
 - [x] A file with an unknown key outside `[x]` fails `iw check` with the file path and key.
 - [x] A fixture data file larger than `inline_max_bytes` added via `iw fixture add` becomes a `*.blob.toml` pointer whose hash matches the content.

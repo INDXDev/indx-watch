@@ -98,6 +98,10 @@ Gate checks, counts by status and the use case table move to **Release details**
 
 *(v0.2)* In the run viewer, every PNG screenshot (in a step or in other evidence) that is the current [approved baseline](./concepts.md#visual-baselines) of its test case carries a "Baseline" chip. The others have an **Approve as baseline** button. It posts `POST /api/runs/<run>/baselines` with the screenshot's SHA-256; the server writes a `baseline` record with the request's identity and refuses agents and CI actors (403). The chip appears at once. Approving never changes the run's verdict; `iw judge <run> --visual` compares later runs with the new baseline. `visual` judgements show their `diff_ratio` as a percentage next to the verdict.
 
+### Open as GitHub issue
+
+*(v0.5)* The run viewer and the [test case page](#test-case-page) show **Open as GitHub issue** when `GET /api/project` has `github.repo` (`[github] repo`, else the working copy's remote; never for customers). It fetches `GET /api/issue?ref=<run or TC>` and opens the prefilled new-issue page in a new tab, so a person reads the text and submits it; the app sends nothing. Beside it, **Paste the issue URL** takes the URL of the issue they created and stores it in the test case's `links`: through `PATCH /api/test-cases/:key` in workspace mode; in git mode the app shows the command `iw issue TC-n --link <url>` to run instead. Linked issues show as **Related issue #42** (a link to GitHub) on the test case page, the run viewer (the test case's links) and the use case. Only http(s) links are rendered.
+
 ### Reviews
 
 The run viewer ends with a review form: **This run needs a person's decision** on a `needs_review` run, else **Add a review**. A review appends a `judgement` and never edits the run. Under the [decision policy](./concepts.md#decision-policy) (rule 1) the latest human judgement decides, whoever wrote it, so on your own run the form reads **Change your verdict** and says that your review counts like anyone else's and that a second opinion needs a teammate.
@@ -201,6 +205,10 @@ Every record carries an `actor` ([security](./security.md#identity)). The app sh
 
 **Read-only demo** *(v0.5)*: on a [public deploy](./security.md#public-deploys) (`readOnly` in `GET /api/project`) every visitor is an anonymous viewer, so the app hides the same actions and shows a notice under the top bar: "This is a read-only demo. Install INDX Watch to run tests: `npx indx-watch init`".
 
+### Version notice
+
+*(v0.5)* When `GET /api/project` has `server.pinned` (the project's `[tool] indx_watch`) and `server.outdated` (the running `server.version` is older; both sent to leads only), leads see one quiet line under the top bar: "This app runs 0.1.2; the project pins 0.1.3. Run `iw deploy`." (on `iw serve`: "Restart `iw serve` with that version."). It is computed from data the page already has: there is no outbound request, other roles never see it, and a project without `[tool]` or a server that is not older shows nothing. The comparison is one function, `compareVersions()` in `@indx-watch/core`, used by the server and `iw doctor`.
+
 ## CLI panel
 
 The **CLI** button opens a panel with the commands that match what you are looking at, each with a copy button. The commands use the real URLs of this server and store:
@@ -293,10 +301,12 @@ You can upload definitions in three ways:
 - **UI strings** come from `messages/{en,ja}.json` ([i18n](./i18n.md#ui-locales)). Counted nouns use ICU plurals (`{count, plural, one {# file} other {# files}}`), picked with the locale's plural rules.
 - **Content** (titles, steps, criteria, fixture names, environment guides, release and plan titles) is resolved with `localize()` everywhere it is shown, including list rows, Home and the CLI panel's titles. Raw `title` fields are never rendered directly.
 - When an item's title uses a `machine` translation, a "Machine translation" switch sits next to the title (once per item, not on every field). Pressing it shows the original text of every content field on the page until it is pressed again. A stale translation shows the source text with a "Translation outdated" badge.
+- *(v0.5)* A project may override UI texts per locale, set a few theme tokens and brand reports with the optional `ui/` folder ([Customizing](./bundle-format.md#customizing-v05)); `GET /api/project` carries them as `ui = { messages, css }` and the app applies them before it renders, so the built-in texts and colors are the fallback. A patched server shows a quiet note with its build id ([patched servers](./security.md#patched-servers)).
 - The language the tester read is recorded on runs (`locale`) and on reviews (`judgement.locale`).
 
 ## Acceptance criteria
 
+- [ ] With `ui/messages.en.json` overriding one key and `ui/theme.toml` setting `accent`, the app shows the new text and color on `iw serve` (server and web tests); a project without `ui/` looks as before; on a patched server the note shows the build id (web and server tests).
 - [x] Home shows the verdict hero, four summary cards, your queue and recent activity. The gate checks are inside Release details (e2e `@TC-12`).
 - [x] With examples/shop, Home says "7 of 8 tests pass · 2 drafts not counted until approved", TC-9 and TC-10 carry a Draft chip in the queue and the Tests tree, and AC-5.1 reads "No approved test"; a project fresh from `iw init` shows "No test cases yet" with `/iw-setup` on Home and Tests (e2e `@TC-12`).
 - [x] The bar's language switch turns the app Japanese and back, and the choice survives a reload (e2e `@TC-12`).
@@ -313,6 +323,7 @@ You can upload definitions in three ways:
 - [x] On the hosted app, the Report screen creates a share link for the previewed report, shows its URL once and revokes it (server tests of the API; the screen itself is not tested automatically).
 - [x] A customer's Home lists only their assigned plan items with Run actions (the API side is covered by the customer UAT end-to-end test in `packages/server/test/uat.test.ts`; the page itself is not tested automatically).
 - [x] With roles configured, `GET /api/project` gives a viewer `can.run`, `can.review` and `can.approve` false and a customer only `can.run`; with no roles every flag is true (server tests; the hidden buttons are not tested automatically).
+- [x] With `[github] repo` set, the run viewer and the test case page show Open as GitHub issue, which opens the prefilled form page; pasting the issue URL shows Related issue #42 (e2e `@TC-27`). Without a repository the button is hidden.
 - [x] TC-4 in examples/shop (`style = "bdd"`) shows the Scenario (BDD) chip, the How to run this scenario guide and Given / When / Then labels, and 前提 / もし / ならば after switching to Japanese; TC-3 (no `style`) shows Preconditions, Steps and Expected (checked by hand with Playwright screenshots against `iw serve`).
 - [x] A viewer who owns Checkout (alex@shop.test) gets `owns: ["FEAT-2"]`, and `mine=1` narrows status and the spec tree to TC-3–TC-6; the app asks with `mine=1` until "All features" is chosen, which the browser keeps (server test, web unit tests and e2e `@TC-17`).
 - [x] In Japanese, the release title, queue titles and the test case title come from `[i18n.ja]`. The "Machine translation" switch shows the original (e2e `@TC-12`).
@@ -325,4 +336,4 @@ You can upload definitions in three ways:
 - [x] `POST /api/fixtures` creates a dataset from a table as CSV; `PATCH` changes its title, notes and rows, adds and removes a file; `DELETE` removes the folder; deleting a used fixture, an unsafe file name or a plain password as `secret_ref` is refused with nothing written; an agent gets 403 (server test). Creating, editing a table and saving on the screen was checked in a browser.
 - [x] In workspace mode on a Worker, uploading a PDF, editing the new fixture and deleting it write `file` records (the delete as `deleted` versions), and the fixture is gone from the API afterwards (Worker test).
 - [x] A tester may add and edit test data and upload files that only touch `fixtures/`; a viewer gets 403 (server tests).
-- [x] *(v0.5, T-514)* The plan in Release details shows one row per assignee with item count and a status bar (with text), the unassigned items and the automation mix; in workspace mode a lead selects rows, assigns, unassigns or splits with a preview, "Unassigned only" filters, and a tester takes or gives back (e2e `@TC-19`; role rules in `packages/server/test/assign.test.ts`).
+- [x] *(v0.5, T-514)* The plan in Release details shows one row per assignee with item count and a status bar (with text), the unassigned items and the automation mix; in workspace mode a lead selects rows, assigns, unassigns or splits with a preview, "Unassigned only" filters, and a tester takes or gives back (e2e `@TC-32`; role rules in `packages/server/test/assign.test.ts`).

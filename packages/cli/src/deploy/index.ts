@@ -10,6 +10,7 @@ import { HostingConfig, SigningKey } from '@indx-watch/bundle';
 import { parse } from 'smol-toml';
 import type { z } from 'zod';
 import type { CommandData } from '../json.js';
+import { patchedDist } from '../patch.js';
 import { type DeployPlan, planDeploy, renderConfig, resourceNames } from './plan.js';
 import {
   DeployError,
@@ -42,6 +43,8 @@ export interface DeployOptions {
   distDir?: string;
   /** keys the Worker trusts; deploy() reads them from project.toml */
   signingKeys?: SigningKey[];
+  /** the CLI version, pinned on the Worker */
+  version?: string;
 }
 
 /** Read [hosting] from project.toml and deploy. */
@@ -88,7 +91,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
   }
   const outDir = join(opts.dir, 'cache', 'deploy');
   const configPath = join(outDir, 'wrangler.jsonc');
-  const dist = opts.distDir ?? defaultDistDir();
+  const dist = opts.distDir ?? (await patchedDist(opts.dir)) ?? defaultDistDir();
   const worker = join(dist, 'worker.js');
   const assets = join(dist, 'web');
   const planOpts = {
@@ -98,6 +101,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
     ...(opts.name ? { name: opts.name } : {}),
     ...(opts.public ? { public: true } : {}),
     signingKeys: opts.signingKeys,
+    ...(opts.version ? { version: opts.version } : {}),
   };
   const names = resourceNames(hosting, opts.name);
   // names become wrangler arguments: no flags, no shell characters

@@ -543,5 +543,14 @@
   "assign.giveBack": "Give back",
   "assign.col": "Select",
   "assign.action": "Action",
-  "assign.readOnly": "Definitions come from the repository here. Assign with: iw assign --plan {plan}"
+  "assign.readOnly": "Definitions come from the repository here. Assign with: iw assign --plan {plan}",
+  "issue.open": "Open as GitHub issue",
+  "issue.related": "Related issue {label}",
+  "issue.opened": "Submit the issue on GitHub, then paste its URL here so this test case links to it. INDX Watch never writes to GitHub.",
+  "issue.paste": "Paste the issue URL",
+  "issue.save": "Save link",
+  "issue.cli": "Run this in your working copy:",
+  "custom.patched": "This app runs a patched build of INDX Watch ({build}). Results it records carry the same marker.",
+  "update.drift": "This app runs {version}; the project pins {pinned}. Run",
+  "update.driftLocal": "This app runs {version}; the project pins {pinned}. Start it again with"
 }

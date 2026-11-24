@@ -26,7 +26,9 @@ import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { deploy } from '../deploy/index.js';
 import { TOOL_OUTPUTS } from '../tools.js';
+import { toolPin } from '../upkeep.js';
 import { type Args, asset, B, type Ctx, fail, git, here, P, S, str } from '../util.js';
+import { VERSION } from '../version.js';
 
 const oneOf = <T extends string>(v: unknown, values: readonly T[], flag: string): T | undefined =>
   v === undefined || values.includes(v as T)
@@ -181,7 +183,7 @@ export const appCommands: Record<string, Spec> = {
       const warnings: Problem[] = [];
       const warn = (message: string) =>
         warnings.push({ severity: 'warning', code: 'unknown-resources', message });
-      const opts = { dir, dryRun: !!a['dry-run'], public: !!a.public, log: ctx.log, warn };
+      const opts = { dir, dryRun: !!a['dry-run'], public: !!a.public, log: ctx.log, warn, version: VERSION };
       const data = await deploy(str(a.name) ? { ...opts, name: str(a.name) } : opts);
       return { data, warnings, text: data.url ? `Deployed to ${data.url}` : data.commands.join('\n') };
     },
@@ -192,15 +194,24 @@ export const appCommands: Record<string, Spec> = {
     args: {
       claude: B('Claude Code (.claude/skills/, .mcp.json)'),
       codex: B('Codex and other Agent Skills clients (.agents/skills/, .codex/config.toml)'),
+      force: B('Overwrite skill copies that were edited by hand'),
     },
     async run(ctx, a) {
       const bundle = findBundleDir(ctx.cwd, { ...ctx.env, IW_DIR: str(a.dir) ?? ctx.env.IW_DIR });
       const root = git(ctx.cwd, 'rev-parse', '--show-toplevel') ?? (bundle ? resolve(bundle, '..') : ctx.cwd);
       const both = !a.claude && !a.codex;
       const to = { claude: !!a.claude || both, codex: !!a.codex || both };
-      const { warnings, ...data } = await setupAgents(root, asset('../skills', 'skills'), to);
+      const opts = {
+        version: VERSION,
+        pin: (await toolPin(bundle ?? undefined)) ?? VERSION,
+        force: !!a.force,
+      };
+      const { warnings, ...data } = await setupAgents(root, asset('../skills', 'skills'), to, opts);
       const gone = data.removed.length ? `\nRemoved (no longer shipped):\n${data.removed.join('\n')}` : '';
-      const text = `Installed:\n${data.installed.join('\n')}${gone}\n${data.files.length} files written`;
+      const kept = data.skipped.length
+        ? `\nLeft alone (edited by hand; --force overwrites):\n${data.skipped.join('\n')}`
+        : '';
+      const text = `Installed:\n${data.installed.join('\n')}${gone}${kept}\n${data.files.length} files written`;
       return { data, warnings, text };
     },
   },

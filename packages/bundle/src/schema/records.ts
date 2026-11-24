@@ -99,6 +99,8 @@ const envelope = {
   at: DateTime,
   actor: Actor,
   source: Source,
+  /** (v0.5) the build of a patched server that wrote this record (docs/spec/security.md#patched-servers) */
+  client: z.strictObject({ version: z.string(), patches: z.string() }).optional(),
   /** signature of a trusted writer (v0.2, docs/spec/sync.md#signed-records) */
   sig: RecordSig.optional(),
 };

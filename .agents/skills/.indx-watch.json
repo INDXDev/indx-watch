@@ -1,0 +1,26 @@
+{
+  "version": "0.1.2",
+  "files": {
+    "indx-watch/SKILL.md": "30d0151d9d855ecf90ff62d7799c0956469f86ce4e423294554ad3c763dd51c8",
+    "indx-watch/references/cli-json.md": "0353930e7d3c495a5093b81ebdfcf3abc9c516553526fcd22f5f1024c0ea1417",
+    "indx-watch/agents/openai.yaml": "9a8f45e33e4313353da3a5aaef49b89b2ff32d0697c76a08b3bfa4874059b09d",
+    "iw-data/SKILL.md": "d338d3a4ddc605588da388da89018d0010e939c9744416363755ff32fa1c2a83",
+    "iw-data/references/manage-fixtures.md": "a151431972ff25f5f0e676198af1d2c95ba3bf0b0b4743a40de143e77f55e5e9",
+    "iw-data/agents/openai.yaml": "13e874cf09eff6d20d295cd491833331dec12fb5b93d651b8c68cd623dd2b271",
+    "iw-design/SKILL.md": "c6055b1977794b9f7c8bf38b37c7959b6396e3747ebdac8d7f39fe6dd14580fa",
+    "iw-design/references/write-test-cases.md": "359f5c501ab86b534426ce476ef55a7b2f8b745ac49a6866e498b0dcde5305b4",
+    "iw-design/agents/openai.yaml": "7f079a1a74d1ae0ed54e7b613b607d2ef889c125f4b66414333996ce48fb37b1",
+    "iw-setup/SKILL.md": "657a405b2b7f4d6747bcb50add59d417d2f48605c5c7b6698faedb0bdaf55c1f",
+    "iw-setup/references/wiring.md": "63968c2761396b4deae34bd5986b2c9b549f451c946742bfffe700f9e7988826",
+    "iw-setup/agents/openai.yaml": "a8b885e6d1a6ae7224a24ecaffbfe297468fe72602a0c2583a32cd4176a061b7",
+    "iw-status/SKILL.md": "8f8bdf3ac9567653b2951c49629f15ea50f25621c5ea1bebe6ad77f970df5e66",
+    "iw-status/references/release-report.md": "247aba3a9f660a7e1ce2e2f824fb3ad295efead422503276fee2c2cce179d782",
+    "iw-status/agents/openai.yaml": "7c017b83407ed6f21c72333dd01b257be6f85a86da07822b00bd8924ed8c7877",
+    "iw-test/SKILL.md": "6f8da5a879606267c418f3b7a468379930b478ffc15140d662f57bb5895447ea",
+    "iw-test/references/run-tests.md": "a236c25dc502218ea9ac034e8e12786089878babecc87bb731cbf7e9a21cd663",
+    "iw-test/agents/openai.yaml": "37329f6ff03650843feaddbea3cc7b905587d9e846f87bf871d6ad937cbf094f",
+    "iw-triage/SKILL.md": "2795272c7117ca4ff5048db2c02fb60aa1e91552e0d81f1d21f5ec0d8f256fb6",
+    "iw-triage/references/triage-failure.md": "540c0cc450d8b011ec3b0087ed3944c28f75405a60cc7d04e9418b662e5d194a",
+    "iw-triage/agents/openai.yaml": "061eb0e9d248bac8d1caf9aa83a35ac9f0b2b075fb8524a576eca6de822b148c"
+  }
+}

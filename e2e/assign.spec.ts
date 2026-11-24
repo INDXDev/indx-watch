@@ -14,7 +14,7 @@ const onDisk = (dir: string) =>
     ].map((m) => [m[1], m[2]]),
   );
 
-test('see who has what and hand items out', { tag: ['@TC-19'] }, async ({ page }) => {
+test('see who has what and hand items out', { tag: ['@TC-32'] }, async ({ page }) => {
   const dir = shopCopy();
   const project = join(dir, '.indx-watch/project.toml');
   writeFileSync(project, readFileSync(project, 'utf8').replace(/^mode = "git"/m, 'mode = "workspace"'));

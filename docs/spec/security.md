@@ -169,7 +169,7 @@ The server enforces this table in one middleware before any route (Node and Work
 
 ## Hosted app
 
-- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz`, `POST /api/sign` (which requires a GitHub OIDC token instead, [GitHub OIDC](#github-oidc)) and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
+- The Worker requires `Cf-Access-Jwt-Assertion` on every route except `/healthz` (which answers `{ "ok": true, "version": "…" }` to anyone, *(v0.5)* so the running version is not secret; `GET /api/project` repeats it, and the project's pin only to leads), `POST /api/sign` (which requires a GitHub OIDC token instead, [GitHub OIDC](#github-oidc)) and, from v0.2, share links (`/s/<token>`, [below](#share-links)).
 - The MCP endpoint `/mcp` is one of those routes: it resolves the identity exactly like `/api`, and its writes record that identity with `kind = "agent"` ([agents.md](./agents.md#mcp-server)). It has no `approve`, `review` or `waive` tool, and `new` only writes AI drafts, at paths inside the bundle.
 - `iw deploy` prints the Access setup steps and refuses to deploy publicly unless `--public` is passed; a public deploy is read-only ([below](#public-deploys)).
 - Uploads are capped (default 25 MB per blob) and served with `Content-Disposition: attachment` unless the media type is an image, to avoid stored XSS from HTML evidence.
@@ -185,6 +185,14 @@ The server enforces this table in one middleware before any route (Node and Work
 - **The web app.** `GET /api/project` returns `readOnly: true`, the `viewer` role and every `can` flag false; the app hides run, review, upload and test-data actions and shows a notice that this is a read-only demo and how to install INDX Watch ([web.md](./web.md#identity)).
 - **Loading data.** Data goes into a public deploy's bucket only from outside the app: the demo workflow publishes the sample into a local `file://` store with `iw push` and copies its objects into the R2 bucket with `wrangler r2 object put`; the Worker indexes them like any direct bucket write.
 - **`iw serve`** is unchanged: it has no public mode ([shared servers](#shared-servers)).
+
+## Patched servers
+
+*(v0.5)* A team may run a [patched build](../guides/customize.md#level-3-patches) of the server. That cannot weaken the trust model: `iw patch` refuses patches to the verdict, gate and status rules, to signing and identity, and to the secret scan ([list](./cli.md#iw-patch)), and the server does not load code from the bundle. What a patch can change, and so what a reader must be able to see, is everything else, so a patched build says so:
+
+- **Build id.** The hash of the patch set (SHA-256 of the patch files in order, first 8 hex digits) is baked into the build. `/healthz` and `GET /api/project` (`server.patches`), MCP `serverInfo.version` and report footers show `INDX Watch 0.1.3+p.ab12cd34 (patched)`; the web app shows the same in a note under the top bar.
+- **Records.** A patched server adds `client = { "version": "0.1.3", "patches": "ab12cd34" }` to each record it writes, before signing, so the marker is covered by the signature. Records of a patched server stay verified (the key is the same) and are never rejected; readers may show the marker. Unpatched servers write no `client`.
+- **Not a trust boundary.** The marker is honest-but-visible, not enforced: whoever holds the signing key could write records without it. It tells reviewers which build produced a result, nothing more.
 
 ## Share links
 *(v0.2)* A share link serves a frozen report snapshot; how links are created, opened and revoked is in [reports.md](./reports.md#share-links).

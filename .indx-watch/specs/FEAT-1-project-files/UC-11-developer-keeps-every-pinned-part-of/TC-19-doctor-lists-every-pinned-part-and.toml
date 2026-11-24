@@ -1,0 +1,43 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/test-case.json
+
+id = "tc_01M874HF8SM7SBAN4YAEYM7RVR"
+key = "TC-19"
+title = "Doctor lists every pinned part and changes nothing"
+status = "draft"
+origin = "ai"
+covers = ["AC-11.1"]
+priority = "P1"
+mode = "playwright"
+
+[[steps]]
+instruction = "Run \"iw doctor\" in a project whose package.json, .mcp.json and a workflow pin an older version"
+expected = "Each part is listed as ok, outdated, unpinned or locally-edited, and no file changes"
+
+[steps.i18n.ja]
+instruction = "package.json・.mcp.json・ワークフローが古いバージョンを指しているプロジェクトで「iw doctor」を実行する"
+expected = "各部分が ok・outdated・unpinned・locally-edited のいずれかで一覧され、ファイルは変わらない"
+status = "machine"
+source_hash = "a5b02105ccf2"
+
+[[steps]]
+instruction = "Edit an installed skill file by hand and run \"iw doctor\" again"
+expected = "The skill copies are locally-edited"
+
+[steps.i18n.ja]
+instruction = "インストール済みのスキルのファイルを手で編集し、もう一度「iw doctor」を実行する"
+expected = "スキルのコピーが locally-edited と表示される"
+status = "machine"
+source_hash = "8ac37042a3ff"
+
+[automation]
+files = ["e2e/update.spec.ts"]
+
+[i18n.ja]
+title = "doctor は固定された各部分を一覧し、何も変更しない"
+status = "machine"
+source_hash = "390eef9be3f6"
+
+[ai]
+model = "claude-sonnet-5-5"
+skill = "iw-design"
+created_at = 2026-11-24T15:59:37Z
