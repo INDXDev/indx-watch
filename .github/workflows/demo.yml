@@ -45,11 +45,11 @@ jobs:
     steps:
       # runner.temp is not available in job-level env, so DEMO_DIR is set here.
       - run: echo "DEMO_DIR=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
