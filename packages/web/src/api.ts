@@ -11,6 +11,7 @@ import type {
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
+  Insights,
   IssueResult,
   ManualRunInput,
   ManualRunResult,
@@ -41,6 +42,7 @@ export type {
   FixtureDetail,
   FixtureInput,
   FixtureSaved,
+  Insights,
   IssueResult,
   ProjectInfo,
   RunDetail,
@@ -156,6 +158,7 @@ const mineQ = (s: Scope) => ({ ...scopeQ(s), mine: s.mine ? '1' : undefined });
 
 export const api = {
   project: () => call<ProjectInfo>('api/project'),
+  insights: (release?: string) => call<Insights>(`api/insights${query({ release })}`),
   status: (s: Scope) => call<StatusResult>(`api/status${query(mineQ(s))}`),
   specs: (s: Scope) => call<SpecTree>(`api/specs${query(mineQ(s))}`),
   testCase: (key: string, s: Scope) => call<TestCaseDetail>(`api/test-cases/${key}${query(scopeQ(s))}`),

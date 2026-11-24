@@ -372,6 +372,40 @@ Field paths: `title`, `description`, `actor`, `goal`, `preconditions`, `purpose`
 
 `data` (list): `{ "ref": string | null, "locale": string, "fields": { "ref": string, "path": string, "source": string, "text"?: string, "state": "missing" | "machine" | "reviewed" | "stale" }[] }`. `data` (write): `{ "ref", "locale", "file", "status", "written": string[] }`.
 
+### `iw notify`
+
+*(v0.5)* Send what changed since the last notification to Slack ([notifications](./integrations.md#notifications)). Meant for CI and cron; run `iw sync --pull-only` (or `iw status --sync`) first so it sees the newest results.
+
+| Flag | |
+|---|---|
+| `--since <time>` | ISO date-time or a duration (`90m`, `2h`, `1d`) instead of the state's time; for CI jobs without the state file |
+| `--state <file>` | State file (default `cache/notify-state.json` in the bundle folder) |
+| `--dry-run` | Print the messages; send nothing and keep the state |
+
+`data` (`NotifyData`): `{ "sent": number, "dryRun": boolean, "baseline": boolean, "since": string | null, "messages": { "event": "gate_changed" | "run_failed" | "run_needs_review" | "assigned" | "approval_waiting", "text": string, "url"?: string }[] }`. `baseline` is true on the first run, which writes the state and sends nothing. `sent` is the number of messages posted (0 with `--dry-run`). Missing `[notify] slack_webhook` or an unset environment variable is `INVALID_CONFIG` (exit 3); a refused or failed post is `STORE_ERROR` (exit 4) and keeps the state. Agents may run it with `--dry-run` only; sending needs a person or CI (`CLAUDECODE=1` is refused without `--dry-run`).
+
+### `iw insights`
+
+*(v0.5)* The numbers of the web app's [Insights](./web.md#insights) view, from the one function `insights()` ([definitions](./concepts.md#insights)).
+
+| Flag | Default | |
+|---|---|---|
+| `--release <version>` | `project.current_release` | The release for the assignee and feature tables |
+
+`data` (`InsightsData`):
+
+```json
+{
+  "release": "v1.2.0",
+  "releases": [ { "version": "v1.1.0", "state": "released", "tests": 8, "passRate": 0.875, "coverage": 1, "flaky": 1, "gate": true } ],
+  "assignees": [ { "assignee": "alex@shop.test", "todo": 1, "review": 0, "blocked": 0, "done": 3 }, { "assignee": null, "todo": 2, "review": 0, "blocked": 0, "done": 0 } ],
+  "features": [ { "key": "FEAT-1", "title": "Checkout", "tests": 4, "pass": 3, "fail": 1, "open": 0 } ],
+  "manual": { "median": 95, "samples": 6, "byRelease": [ { "version": "v1.1.0", "median": 95, "samples": 6 } ] }
+}
+```
+
+`passRate` and `median` are `null` without a sample; durations are seconds. Text output is one small table per block.
+
 ### `iw serve`
 
 If the port is in use, `iw serve` exits at once with `CONFLICT` (exit 1) and suggests `--port <n>`. A `--port` that is not a whole number from 0 to 65535 is a usage error (exit 2).

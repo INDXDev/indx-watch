@@ -175,6 +175,17 @@ The Focus **runner** turns a series of tests into a session (`#/tc/<TC>/run?sess
 
 `#/tc/<TC>/run` opens the same page with the runner already open, without a session unless the URL has one (`?session=`). The run viewer lists each step's checks with ✓ or ✗, worded from the current test case in the chosen language; when the step now has a different number of checks than were recorded, they read "Check 1", "Check 2", ….
 
+### Insights
+
+*(v0.5, T-524)* **Insights** (`#/insights`, the nav item after Report) shows how the project moves, not whether to ship. It is calm: five cards, no filters beyond the scope menu's release, no animation. The server answers `GET /api/insights?release=` from `insights()` in core ([definitions](./concepts.md#insights)); the screen only draws.
+
+1. **Pass rate and coverage by release**: one line chart (two lines, 0–100 %) over the releases, oldest to newest; the lines are labelled at their last point, not in a legend.
+2. **Progress by assignee** and **by feature**: one horizontal bar per row, split into done, in review, blocked and to do (feature rows: pass, fail, open), with the counts written at the end of the row. Unassigned has its own row.
+3. **Median manual run time**: the latest value as a large number ("1 min 35 s") with the samples behind it, and the median per release in its numbers table.
+4. **Flaky test cases by release**: bars with the number of flaky test cases and the ready total.
+
+Every chart is plain SVG or CSS drawn with the theme tokens (`--accent`, `--pass`, `--fail`, `--surface-2`); colour is never the only carrier (rows carry numbers, lines carry end labels). Each chart is followed by its numbers as a real `<table>` inside "Show the numbers" so screen readers and keyboard users get the same data; the SVG itself has a `role="img"` and a one-sentence `aria-label`. A project with no results shows "Nothing to show yet" instead of empty axes. Every string is in `en.json` and `ja.json` under `insights.*`. Customers do not get the screen (the route answers 403 for the `customer` role).
+
 ### Report
 
 Home's **Share report** opens `#/report`: a preview of the server-rendered HTML report with the audience (customer by default), the language and the plan (or the whole release), plus "Open HTML" and "Download Markdown".

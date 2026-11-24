@@ -121,6 +121,16 @@ export const HostingConfig = z.strictObject({
 });
 export type HostingConfig = z.infer<typeof HostingConfig>;
 
+/** (v0.5) Slack notifications: `slack_webhook` is a secret reference, never the URL (docs/spec/integrations.md#notifications) */
+export const NotifyConfig = z.strictObject({
+  slack_webhook: SecretRef.optional(),
+  locale: Locale.optional(),
+  app_url: z
+    .string()
+    .regex(/^https?:\/\/[^\s]+$/i)
+    .optional(),
+});
+export type NotifyConfig = z.infer<typeof NotifyConfig>;
 /** (v0.5) The repository issues are opened in (docs/spec/bundle-format.md#projecttoml). */
 export const GithubConfig = z.strictObject({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/) });
 /** `[tool]` (v0.5): the INDX Watch version the project pins (docs/spec/bundle-format.md#projecttoml) and the fork whose releases to follow */
@@ -160,6 +170,8 @@ export const Project = z.strictObject({
   fixtures: z.strictObject({ inline_max_bytes: z.number().int().positive().optional() }).optional(),
   store: StoreConfig.optional(),
   hosting: HostingConfig.optional(),
+  /** (v0.5) where `iw notify` posts (docs/spec/integrations.md#notifications) */
+  notify: NotifyConfig.optional(),
   github: GithubConfig.optional(),
   /** public keys whose record signatures readers trust (v0.2, docs/spec/security.md#signed-records) */
   signing_keys: z.array(SigningKey).optional(),

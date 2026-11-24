@@ -14,6 +14,7 @@ export type Route = (
   | { name: 'access' }
   | { name: 'uploads' }
   | { name: 'report' }
+  | { name: 'insights' }
   | { name: 'notFound'; path: string }
 ) & { query: Query };
 
@@ -24,6 +25,7 @@ const PATTERNS: [RegExp, (m: RegExpMatchArray) => Bare][] = [
   [/^\/activity$/, () => ({ name: 'activity' })],
   [/^\/uploads$/, () => ({ name: 'uploads' })],
   [/^\/report$/, () => ({ name: 'report' })],
+  [/^\/insights$/, () => ({ name: 'insights' })],
   [/^\/tc\/(TC-\d+)$/, (m) => ({ name: 'testCase', key: m[1]! })],
   [/^\/tc\/(TC-\d+)\/run$/, (m) => ({ name: 'runner', key: m[1]! })],
   [/^\/runs\/(run_[0-9A-Za-z]+)$/, (m) => ({ name: 'run', id: m[1]! })],
@@ -66,6 +68,7 @@ export const href = {
   access: (who?: string) => `#/access${qs({ who })}`,
   uploads: () => '#/uploads',
   report: () => '#/report',
+  insights: () => '#/insights',
 };
 
 export const navigate = (to: string): void => {

@@ -150,6 +150,15 @@ describe('roles on the hosted app', () => {
     expect((await approve('lead')).status).toBe(201);
   });
 
+  it('GET /api/insights is for the team: viewers read it, customers are refused', async () => {
+    const { send } = await hosted();
+    expect((await send('viewer', '/api/insights')).status).toBe(200);
+    expect((await send('tester', '/api/insights')).status).toBe(200);
+    const r = await send('customer', '/api/insights');
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { error: { code: string } }).error.code).toBe('forbidden');
+  });
+
   it('a default role lets unmatched identities in; no roles at all means lead', async () => {
     const d = await hosted({ ...ROLES, default: 'viewer' });
     const p = (await (await d.send('nobody', '/api/project')).json()) as ProjectInfo;

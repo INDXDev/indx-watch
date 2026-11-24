@@ -1,0 +1,69 @@
+#:schema https://raw.githubusercontent.com/INDXDev/indx-watch/main/schemas/v1/use-case.json
+
+id = "uc_01M874D367G745BR8B71WA3FSQ"
+key = "UC-18"
+title = "Team hears about changes in Slack"
+status = "draft"
+origin = "ai"
+actor = "Lead"
+goal = "Learn when a gate flips, a run fails or work is assigned, without opening the app"
+priority = "P2"
+
+[[criteria]]
+id = "ac_01M874D367G745BR8B71WA3FSM"
+key = "AC-18.1"
+text = "iw notify posts one Slack message for what changed since the last run and nothing for an unchanged project"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
+
+[criteria.i18n.ja]
+text = "iw notify は前回から変わったことを Slack に 1 通で送り、変更がなければ何も送らない"
+status = "machine"
+source_hash = "23b56100194c"
+
+[[criteria]]
+id = "ac_01M874D367G745BR8B71WA3FSN"
+key = "AC-18.2"
+text = "The first run only saves a baseline and sends nothing"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
+
+[criteria.i18n.ja]
+text = "初回は基準の状態を保存するだけで、何も送らない"
+status = "machine"
+source_hash = "2b573b897776"
+
+[[criteria]]
+id = "ac_01M874D367G745BR8B71WA3FSP"
+key = "AC-18.3"
+text = "The webhook is read from an env: reference and never printed"
+status = "draft"
+origin = "ai"
+
+[criteria.ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z
+
+[criteria.i18n.ja]
+text = "Webhook は env: 参照から読み、表示しない"
+status = "machine"
+source_hash = "f5b1270cb9b6"
+
+[i18n.ja]
+title = "チームが Slack で変更を知る"
+actor = "リード"
+goal = "アプリを開かなくても、ゲートの変化・実行の失敗・割り当てを知る"
+status = "machine"
+source_hash = "06e18ce2a5ff"
+
+[ai]
+model = "claude-sonnet-5-5"
+created_at = 2026-11-24T15:57:14Z

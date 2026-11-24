@@ -14,6 +14,7 @@ import type {
 } from '@indx-watch/bundle';
 import type {
   Decision,
+  Insights,
   Model,
   ReportData,
   Scope,
@@ -27,6 +28,7 @@ export const ROUTES = {
   health: 'GET /healthz',
   project: 'GET /api/project',
   status: 'GET /api/status?release=&env=',
+  insights: 'GET /api/insights?release= (v0.5; not for customers; docs/spec/concepts.md#insights)',
   specs: 'GET /api/specs?release=&env=',
   testCase: 'GET /api/test-cases/:key?release=&env=',
   fixtures: 'GET /api/fixtures',
@@ -518,4 +520,4 @@ export interface RenderOptions {
   evidenceBase?: string;
 }
 
-export type { ReportData, StatusResult };
+export type { Insights, ReportData, StatusResult };

@@ -7,7 +7,7 @@ description: "Dated facts about Cloudflare, S3, Playwright and agent tooling, wi
 
 Dated facts about the platforms and libraries INDX Watch depends on. Each fact has a source.
 
-Last verified: 2026-11-19
+Last verified: 2026-11-25
 
 ## How to use this file
 
@@ -261,6 +261,10 @@ Latest versions on npm as of 2026-11-19 (source: `https://registry.npmjs.org/<pa
 | `tsup` | 9.0.0 | 2026-10-14 | Bundler named in the architecture. 9.x needs Node `^22.18 \|\| ^24.11 \|\| >=26` |
 | `pnpm` | 12.21.0 | 2026-11-13 | Pin via `packageManager` |
 
+## Slack incoming webhooks
+
+- A webhook URL looks like `https://hooks.slack.com/services/T…/B…/…` and contains a secret; Slack searches for leaked ones and revokes them. (verified 2026-11-25, https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks)
+- Send an HTTP POST with `Content-type: application/json` and a body with at least `text`; links in mrkdwn text are `<https://example.com|label>`. Success is HTTP 200 with the body `ok`; failures are 400, 403 or 404 with a short error string such as `invalid_payload` or `no_active_hooks`. The page states no rate limit and no text length limit, so the adapter caps a post at 20 lines. (verified 2026-11-25, same page)
 ## TestRail and testomat.io exports
 
 Used by `iw import testrail` and `iw import testomatio` (T-522, [cli.md](../spec/cli.md#iw-import-testrail-casescsv)).
@@ -281,6 +285,7 @@ Used by `iw import testrail` and `iw import testomatio` (T-522, [cli.md](../spec
 
 ## Changelog
 
+- 2026-11-25: Added Slack incoming webhooks (T-523).
 - 2026-11-25: Added the TestRail CSV and testomat.io classical Markdown export formats (T-522).
 - 2026-11-25: Added GitHub issue forms, new-issue URL prefill and the issue REST endpoint (T-517).
 - 2026-11-21: `node:sqlite` loading and the tsup `node:` prefix (T-210).

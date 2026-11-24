@@ -1,6 +1,6 @@
 /** Contract tests shared by port adapters (ObjectStore: docs/spec/sync.md#acceptance-criteria). */
 import { describe, expect, it } from 'vitest';
-import type { BrowserProvider, LlmClient, ObjectStore } from '../src/ports.js';
+import type { BrowserProvider, LlmClient, Notifier, ObjectStore } from '../src/ports.js';
 import { createResultStore } from '../src/result-store.js';
 
 const text = (b: Uint8Array | null) => (b ? new TextDecoder().decode(b) : null);
@@ -205,6 +205,27 @@ export function llmClientContract(name: string, make: () => Promise<LlmClient>) 
         expect(j.reason).not.toBe('');
         expect(j.model).not.toBe('');
       }
+    });
+  });
+}
+
+/** Notifier: nothing to send is not a post; messages arrive in order. `delivered()` is every text seen so far. */
+export function notifierContract(
+  name: string,
+  make: () => Promise<{ notifier: Notifier; delivered(): string[] }>,
+) {
+  describe(`Notifier contract: ${name}`, () => {
+    it('delivers the texts of its messages in order and nothing for an empty list', async () => {
+      const { notifier, delivered } = await make();
+      await notifier.send([]);
+      expect(delivered()).toEqual([]);
+      await notifier.send([
+        { event: 'run_failed', text: 'TC-3 failed in v1.2.0.', url: 'https://watch.shop.test/#/runs/run_1' },
+        { event: 'approval_waiting', text: '1 draft waits for approval: TC-9.' },
+      ]);
+      const all = delivered().join('\n');
+      expect(all.indexOf('TC-3 failed')).toBeGreaterThanOrEqual(0);
+      expect(all.indexOf('TC-9')).toBeGreaterThan(all.indexOf('TC-3 failed'));
     });
   });
 }

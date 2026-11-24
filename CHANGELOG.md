@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `iw notify [--since] [--state] [--dry-run] [--json]` and the `Notifier` port with a Slack incoming-webhook adapter and a fake (T-523): Slack messages in the project language, with links to the hosted app, when a release gate flips, a run fails or needs review, plan items are assigned, or AI drafts wait for approval; configured by `[notify]` (`slack_webhook` secret reference, `locale`, `app_url`) and made for CI with a state file or `--since`.
+- Insights (T-524): pass rate and coverage by release, progress by assignee and feature, median manual run time and flaky test cases, as accessible SVG/CSS charts with number tables in the web app (en and ja), `GET /api/insights` and `iw insights --json`.
 - Shared steps (T-521): `steps/SS-n-<slug>.toml` holds steps that test cases reuse with a step `use = "SS-n"`. They are expanded when the bundle loads, and editing one makes results of every test case that uses it stale. `iw check` reports unknown references and cycles, `iw new ss` and `iw translate SS-n` work on them, and the web app marks such steps "from SS-1" (ADR 0015).
 - `iw import testrail <cases.csv>` and `iw import testomatio <dir|file.md>` (T-522): turn TestRail CSV exports and testomat.io classical Markdown into draft use cases, criteria and test cases that pass `iw check`; importing again skips what was already imported.
 - Assignee board on the plan screen (T-514): one row per assignee with a status bar, Unassigned only, bulk Assign / Unassign, Take and Give back, and a Split dialog with preview; writes in workspace mode (lead assigns anyone, tester takes or gives back their own).

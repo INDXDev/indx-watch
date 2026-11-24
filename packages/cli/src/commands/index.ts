@@ -5,6 +5,7 @@ import { patchCommands } from '../patch.js';
 import { appCommands } from './app.js';
 import { dataCommands } from './data.js';
 import { issueCommands } from './issue.js';
+import { notifyCommands } from './notify.js';
 import { resultCommands } from './results.js';
 import { shareCommands } from './share.js';
 import { specCommands } from './specs.js';
@@ -17,6 +18,7 @@ export const COMMANDS: Record<string, Spec> = {
   ...issueCommands,
   ...shareCommands,
   ...appCommands,
+  ...notifyCommands,
   ...patchCommands,
   ...upkeepCommands,
   mcp: mcpCommand,

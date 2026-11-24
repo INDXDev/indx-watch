@@ -134,6 +134,50 @@ The job summary needs no permissions; `comment` needs `pull-requests: write` and
 
 **Suggested test cases.** On a pull request, the comment and the check-run summary carry a "Suggested test cases" section between the gate line and the report: the output of [`iw impact`](./cli.md#iw-impact) for the files the pull request changes, read with `gh api repos/<repo>/pulls/<n>/files` (works with a read-only token; GitHub lists at most 3,000 files). It lists each test case whose `[automation].files`, own file, use case or fixtures the change touches, with the reason ([impact analysis](./concepts.md#impact-analysis)), or says that none is linked. When the files cannot be read, or the `version` input pins a CLI without `iw impact` (before T-304), the section is left out with a warning. The token reaches only that `gh api` call, not the `npx indx-watch` commands.
 
+## Notifications
+
+*(v0.5, T-523)* INDX Watch can post what changed to Slack. It is driven from CI or cron (`iw notify`); the hosted Worker has no scheduler and sends nothing by itself.
+
+```toml
+# project.toml
+[notify]
+slack_webhook = "env:SLACK_WEBHOOK_URL"   # a secret reference, never the URL itself
+locale = "ja"                             # language of the messages; default: source_locale
+app_url = "https://watch.shop.test"       # makes every message link to the hosted app
+```
+
+The webhook URL contains a secret, so it is only ever a [secret reference](./security.md#secrets). The CLI resolves `env:NAME` from its environment; an `iw:` reference is kept by a server and a command line cannot open it, so `iw notify` refuses it (`INVALID_CONFIG`) and says to use `env:`. Without `[notify]`, or while `slack_webhook` is not set, `iw notify` says so and sends nothing (exit 0 with `--dry-run`, otherwise `INVALID_CONFIG`).
+
+### Events
+
+One pure function, `notifyEvents()` in `packages/core`, compares the model with the last state ([below](#notification-state)) and returns the messages. Nothing is a verdict; the events only repeat what `decide()`, `evaluateGate()` and `planItemStatus()` say.
+
+| Event | When | Message (en) |
+|---|---|---|
+| `gate_changed` | the gate of a release that is not `released` passed before and fails now, or the reverse | `Release v1.2.0 is ready to ship.` / `Release v1.2.0 is not ready: 2 checks fail.` |
+| `run_failed` | a run recorded after the last notification decides `fail` | `TC-3 failed in v1.2.0 (staging).` |
+| `run_needs_review` | such a run decides `needs_review` | `TC-8 needs a review in v1.2.0.` |
+| `assigned` | a plan item now has an assignee it did not have in the state; one message per plan and assignee | `3 test cases in PLAN-1 are assigned to alex@shop.test: TC-1, TC-2, TC-3.` |
+| `approval_waiting` | draft use cases or test cases that were not in the state; one message | `2 drafts wait for approval: TC-12, UC-5.` |
+
+Runs of retracted records and runs older than the state are skipped. Messages are in `[notify].locale` (`en` or `ja`; any other language falls back to English). With `app_url`, a message links to the run (`#/runs/<id>`), the test case (`#/tc/TC-3`), the Home screen or the Tests screen. Messages carry keys, titles and counts only: no notes, no run reasons, no fixture values.
+
+### Notification state
+
+The state is a small JSON file, `cache/notify-state.json` in the bundle folder (override with `--state <file>`):
+
+```json
+{ "v": 1, "at": "2026-11-25T08:00:00Z", "gates": { "v1.2.0": false }, "assigned": { "PLAN-1#TC-3": "alex@shop.test" }, "drafts": ["TC-12"] }
+```
+
+- It is written after a successful send only, so a failed send is retried by the next run. `--dry-run` writes nothing.
+- The first run, with no state, writes the baseline and sends nothing, so switching notifications on does not flood a channel with the history.
+- `--since <time>` (an ISO date-time or a duration such as `90m`, `2h`, `1d`) is for CI jobs that cannot keep the file: run events use that time instead of `at`, and the previous gate is computed from the records written up to that time. Assignments and drafts still come from the state file; without one they are not reported.
+- In GitHub Actions keep the file with `actions/cache`, or pass `--since` matching the schedule.
+
+### Notifier port and Slack adapter
+
+`Notifier.send(messages)` ([ports](../architecture.md#ports-and-adapters)). The Slack adapter posts one JSON `{ "text": … }` request to the webhook, one line per message (`<url|label>` links), at most 20 lines and then "…and n more". The URL must be `https://hooks.slack.com/…`; any other host is refused before a request is made. A non-200 answer fails with a `StoreError` that names the status and the answer's text but never the URL. A fake in tests records what it was given. Platform facts: [platform notes](../research/platform-notes.md#slack-incoming-webhooks).
 **Test cases changed in this PR.** *(v0.5)* Between the gate line and the suggested test cases, the comment and the check-run summary carry "Test cases changed in this PR": the output of [`iw diff`](./cli.md#iw-diff) for the pull request's base commit (`github.event.pull_request.base.sha`, fetched with `git fetch --depth=1`) against the checked-out bundle. It lists the use cases, criteria and test cases added, changed (steps, covered criteria, data) and removed, in at most 20 lines, or says that none changed ([bundle diff](./concepts.md#bundle-diff)). When the base cannot be fetched, or the `version` input pins a CLI without `iw diff`, the section is left out with a warning.
 
 ### Workflows written by `iw init --github`
