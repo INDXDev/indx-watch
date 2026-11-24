@@ -112,7 +112,7 @@ A **composite action** at the repository root (`action.yml`) wraps the CLI; ther
 
 | Input | Default | |
 |---|---|---|
-| `version` | the action's tag | `indx-watch` npm version to run |
+| `version` | `[tool] indx_watch`, else the action's tag | `indx-watch` npm version to run. *(v0.5)* When empty, the action reads `[tool] indx_watch` from `project.toml` first, so one pin covers the CLI, the MCP entry, the skills and the Action |
 | `cli` | `auto` | `npm` runs `npx indx-watch@<version>`; `local` runs `packages/cli/dist/bin.js` from the action's own checkout (this repository's CI, after `pnpm build`); `auto` uses the local build when present |
 | `dir` | `.indx-watch` discovery | |
 | `release`, `environment` | project defaults | Scope |

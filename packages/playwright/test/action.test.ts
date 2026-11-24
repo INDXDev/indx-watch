@@ -205,6 +205,30 @@ describe('action.yml main step with a fake CLI: sync, status and report', () => 
     expect(readFileSync(summary, 'utf8')).toBe('# Readiness\n\n');
   });
 
+  it('runs the version of [tool] indx_watch when the version input is empty (the input wins, then the action tag)', () => {
+    const bin = join(tmp(), 'bin');
+    mkdirSync(bin);
+    const fake = join(tmp(), 'action/packages/cli/dist/bin.js');
+    writeFileSync(
+      join(bin, 'npx'),
+      `#!/bin/sh\necho "$2" >> "${join(tmp(), 'npx')}"\nshift 2\nexec node "${fake}" "$@"\n`,
+    );
+    chmodSync(join(bin, 'npx'), 0o755);
+    const pinned = 'schema_version = 1\n\n[tool]\nindx_watch = "0.3.1"\n\n[store]\nurl = "s3://b/p"\n';
+    const used = (env: Record<string, string>, project: string) => {
+      writeFileSync(join(tmp(), 'npx'), '');
+      const run = runMain(tmp(), { IW_IN_CLI: 'npm', PATH: `${bin}:${process.env.PATH}`, ...env }, project);
+      expect(run.res.status, run.res.stdout + run.res.stderr).toBe(0);
+      return readFileSync(join(tmp(), 'npx'), 'utf8').split('\n')[0];
+    };
+    expect(used({}, pinned)).toBe('indx-watch@0.3.1');
+    expect(used({ IW_IN_VERSION: '0.2.0' }, pinned)).toBe('indx-watch@0.2.0');
+    expect(used({ IW_ACTION_REF: 'v0.1.2' }, PROJECT_WITH_STORE)).toBe('indx-watch@0.1.2');
+    expect(used({}, PROJECT_WITH_STORE)).toBe('indx-watch@latest');
+    // [tool] is the last table of the file
+    expect(used({}, 'schema_version = 1\n\n[tool]\nindx_watch = "0.4.0"\n')).toBe('indx-watch@0.4.0');
+  });
+
   it('skips the snapshot off the default branch', () => {
     const branch = runMain(tmp(), {
       GITHUB_REF: 'refs/heads/feature',

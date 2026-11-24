@@ -42,6 +42,8 @@ export interface DeployOptions {
   distDir?: string;
   /** keys the Worker trusts; deploy() reads them from project.toml */
   signingKeys?: SigningKey[];
+  /** the CLI version, pinned on the Worker */
+  version?: string;
 }
 
 /** Read [hosting] from project.toml and deploy. */
@@ -98,6 +100,7 @@ export async function runDeploy(hosting: HostingConfig, opts: DeployOptions): Pr
     ...(opts.name ? { name: opts.name } : {}),
     ...(opts.public ? { public: true } : {}),
     signingKeys: opts.signingKeys,
+    ...(opts.version ? { version: opts.version } : {}),
   };
   const names = resourceNames(hosting, opts.name);
   // names become wrangler arguments: no flags, no shell characters
