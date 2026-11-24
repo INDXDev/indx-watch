@@ -213,6 +213,14 @@ function Notices({ info }: { info: ProjectInfo }) {
           {t('readOnly.notice')} <code>npx indx-watch init</code>
         </p>
       )}
+      {info.server?.outdated && info.server.pinned && (
+        <p className="problems" role="note" data-testid="version-drift">
+          {t(info.mode === 'hosted' ? 'update.drift' : 'update.driftLocal', {
+            ...{ version: info.server.version, pinned: info.server.pinned },
+          })}{' '}
+          <code>{info.mode === 'hosted' ? 'iw deploy' : `npx indx-watch@${info.server.pinned} serve`}</code>
+        </p>
+      )}
       {info.problems.length > 0 && (
         <div className="problems" role="status">
           <button
