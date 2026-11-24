@@ -5,6 +5,8 @@ description: "Deploy the INDX Watch server to Cloudflare Workers with R2, D1 and
 
 # Self-host on Cloudflare
 
+Want it from GitHub, with a workflow that deploys on every merge? See [Self-host on Cloudflare from GitHub](./self-host-cloudflare-from-github.md).
+
 `iw deploy` puts the same server and web UI that `iw serve` runs locally on Cloudflare Workers. Results go to an R2 bucket (the store), the query index lives in D1, and Cloudflare Access decides who gets in. Your team then syncs with `iw sync` against the Worker's URL and opens the UI in a browser. The command reference is [cli.md](../spec/cli.md#iw-deploy); the security model is [security.md](../spec/security.md#hosted-app).
 
 ```mermaid

@@ -47,7 +47,12 @@
           },
           {
             "group": "Share and host",
-            "pages": ["guides/s3-sync", "guides/self-host-cloudflare", "guides/self-host-node"]
+            "pages": [
+              "guides/s3-sync",
+              "guides/self-host-cloudflare-from-github",
+              "guides/self-host-cloudflare",
+              "guides/self-host-node"
+            ]
           }
         ]
       },

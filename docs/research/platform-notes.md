@@ -133,6 +133,9 @@ Last verified: 2026-11-19
 
 ### Limits
 
+- Workers Free allows 100,000 requests per day; requests for static assets are free and unlimited. (verified 2026-11-25, https://developers.cloudflare.com/workers/platform/pricing/)
+- The number of users the Zero Trust Free plan includes (commonly quoted as 50) could not be confirmed on the account-limits page, so the guides do not state it. (unverified, https://developers.cloudflare.com/cloudflare-one/account-limits/)
+
 - Workers: CPU per request is 10 ms on Free and 30 s by default on Paid (up to 5 min). Memory is 128 MB. Subrequests are 50 on Free and 10,000 by default on Paid. `waitUntil` has 30 s. Static asset files: 20,000 on Free, 100,000 on Paid. (verified 2026-11-19, https://developers.cloudflare.com/workers/platform/limits/)
 - The request body limit depends on the zone plan: 100 MB on Free and Pro, 200 MB on Business, up to 5 GB on Enterprise. Send large evidence straight to R2 with presigned URLs. (verified 2026-11-19, https://developers.cloudflare.com/workers/platform/limits/)
 

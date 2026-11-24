@@ -127,4 +127,5 @@ iw report --format html --out report.html          # one self-contained file to 
 - [Testing with Claude Code or Codex](./testing-with-agents.md): every job, what you say and what you approve
 - [Writing good test cases](./writing-test-cases.md) and [fixtures](./fixtures.md)
 - Link automated tests: [Playwright](./playwright.md), then [GitHub Actions](./github-actions.md)
+- Keep tests in git and run the app on your own Cloudflare account, with a PR comment on every pull request: `npx indx-watch init --github`, then [Self-host on Cloudflare from GitHub](./self-host-cloudflare-from-github.md)
 - Share results with your team: [S3 sync](./s3-sync.md)
