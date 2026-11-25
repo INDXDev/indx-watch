@@ -29,7 +29,7 @@ function team() {
   git(seed, 'init', '-q', '-b', 'main');
   git(seed, 'add', '.');
   git(seed, 'commit', '-q', '-m', 'seed');
-  git(root, 'init', '-q', '--bare', 'origin.git');
+  git(root, 'init', '-q', '--bare', '-b', 'main', 'origin.git');
   git(seed, 'push', '-q', join(root, 'origin.git'), 'main');
   const clone = (name: string) => {
     git(root, 'clone', '-q', join(root, 'origin.git'), name);
