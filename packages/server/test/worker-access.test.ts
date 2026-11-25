@@ -160,9 +160,13 @@ describe('worker: browser uploads', () => {
     });
     expect(res.status).toBe(201);
     const p = await get<ProjectInfo>('/api/project');
+    // it builds on the CI snapshot of commit a1b2c3d: that commit plus TC-3, which is not in git yet
     expect(p.snapshot).toMatchObject({
       source: 'manual',
       actor: { id: 'kim@shop.test', via: 'cloudflare-access' },
+      commit: 'a1b2c3d',
+      dirty: true,
+      unsynced: [tc3],
     });
     expect(p.share.clone).toBe('https://watch.example.com');
     const tc = await get<{ data: { title: string } }>('/api/test-cases/TC-3');

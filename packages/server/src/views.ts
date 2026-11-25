@@ -221,7 +221,7 @@ export function planViews(model: Model): Promise<PlanView[]> {
 
 /** A bundle record as listed on the Uploads screen (docs/spec/web.md#upload). */
 export function snapshotSummary(r: Model['snapshots'][number], model: Model): SnapshotSummary {
-  const { id, at, actor, source, commit, ref, files, dirty, message, sha256 } = r;
+  const { id, at, actor, source, commit, ref, files, dirty, message, sha256, unsynced } = r;
   const flag = model.unverified?.has(id) && { unverified: true as const };
-  return { id, at, actor, source, commit, ref, files, dirty, message, sha256, ...flag };
+  return { id, at, actor, source, commit, ref, files, dirty, message, sha256, unsynced, ...flag };
 }

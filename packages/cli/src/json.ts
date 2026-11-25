@@ -335,12 +335,33 @@ export const CommandData = {
     ImportIssueData,
   ]),
   issue: IssueData,
+  /** (v0.5) iw pull: hosted changes written into the working tree */
+  pull: z.object({
+    snapshot: z.string().nullable(),
+    written: z.array(z.string()),
+    removed: z.array(z.string()),
+    conflicts: z.array(z.string()),
+  }),
   deploy: z.object({
     resources: z.array(
       z.object({ type: z.enum(['r2', 'd1', 'worker']), name: z.string(), exists: z.boolean() }),
     ),
     commands: z.array(z.string()),
     url: z.string().nullable(),
+    /** (v0.5) the Worker was deployed; false when only the definitions were published (no Cloudflare login) */
+    worker: z.boolean().optional(),
+    /** (v0.5) the definitions published to the hosted app, null when not published (docs/spec/cli.md#iw-deploy) */
+    published: z
+      .object({
+        snapshot: z.string().nullable(),
+        files: z.number(),
+        unchanged: z.boolean(),
+        merged: z.array(z.string()),
+        unsynced: z.array(z.string()),
+        url: z.string().nullable(),
+      })
+      .nullable()
+      .optional(),
   }),
   /** iw patch create | apply | check */
   'patch create': PATCH,

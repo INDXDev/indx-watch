@@ -153,6 +153,7 @@ async function projectInfo(c: Context, x: Ctx) {
     releases: await Promise.all(m.releases.map(release)),
     environments: await Promise.all(m.environments.map(env)),
     ...{ identity: who, mode: deps.mode, problems: customer ? [] : problems, role },
+    definitions: workspaceMode(m) ? 'workspace' : 'git',
     ...(github && !customer && { github: { repo: github } }),
     owns: ownedFeatures(m, principal),
     sync: deps.syncInfo?.() ?? { configured: false },

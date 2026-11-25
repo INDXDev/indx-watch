@@ -24,11 +24,12 @@ import { fileStateStore } from '@indx-watch/sync/node';
 import { setupAgents } from '../agents.js';
 import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
-import { deploy } from '../deploy/index.js';
+import { DeployError, deploy } from '../deploy/index.js';
 import { TOOL_OUTPUTS } from '../tools.js';
 import { toolPin } from '../upkeep.js';
 import { type Args, asset, B, type Ctx, fail, git, here, P, S, str } from '../util.js';
 import { VERSION } from '../version.js';
+import { publishDefinitions } from './publish.js';
 
 const oneOf = <T extends string>(v: unknown, values: readonly T[], flag: string): T | undefined =>
   v === undefined || values.includes(v as T)
@@ -173,19 +174,83 @@ export const appCommands: Record<string, Spec> = {
   },
 
   deploy: {
-    description: 'Deploy the server to Cloudflare Workers with R2 and D1 (wrangler)',
+    description:
+      'Deploy the server to Cloudflare (wrangler) and publish the definitions; without a Cloudflare login, publish the definitions only',
     args: {
       ...{ 'dry-run': B('Print resources and commands, change nothing'), name: S('Worker name') },
       public: B('Allow deploying without Cloudflare Access'),
+      'definitions-only': B(
+        'Only publish the definitions to the hosted app (needs an Access login, no Cloudflare login)',
+      ),
+      force: B('Publish without merging: replace the hosted definitions with this working copy'),
+      message: S('Shown on the Uploads screen'),
     },
     async run(ctx, a) {
-      const { dir } = await cx.openProject(ctx, a);
+      const p = await cx.openProject(ctx, a);
       const warnings: Problem[] = [];
       const warn = (message: string) =>
         warnings.push({ severity: 'warning', code: 'unknown-resources', message });
-      const opts = { dir, dryRun: !!a['dry-run'], public: !!a.public, log: ctx.log, warn, version: VERSION };
-      const data = await deploy(str(a.name) ? { ...opts, name: str(a.name) } : opts);
-      return { data, warnings, text: data.url ? `Deployed to ${data.url}` : data.commands.join('\n') };
+      const opts = {
+        dir: p.dir,
+        dryRun: !!a['dry-run'],
+        public: !!a.public,
+        log: ctx.log,
+        warn,
+        version: VERSION,
+      };
+      const store = p.bundle.project.data.store?.url;
+      let data: Awaited<ReturnType<typeof deploy>> | null = null;
+      if (!a['definitions-only']) {
+        try {
+          data = await deploy(str(a.name) ? { ...opts, name: str(a.name) } : opts);
+        } catch (e) {
+          const noLogin = e instanceof DeployError && e.reason === 'no-login';
+          if (!noLogin || !store || !/^https:\/\//.test(store)) throw e;
+          ctx.log(
+            `${e.message}.\nPublishing the definitions to ${store} through Cloudflare Access instead; the Worker itself is not redeployed.`,
+          );
+        }
+      }
+      const worker = !!data;
+      if (opts.dryRun)
+        return {
+          data: { ...(data ?? { resources: [], commands: [], url: null }), worker, published: null },
+          warnings,
+          text: data?.commands.join('\n') ?? '',
+        };
+      if (!store) {
+        if (!worker)
+          fail('INVALID_CONFIG', 'No [store] in project.toml: there is no hosted app to publish to');
+        return { data: { ...data!, worker, published: null }, warnings, text: `Deployed to ${data!.url}` };
+      }
+      const pin = worker ? undefined : ((await toolPin(p.dir)) ?? VERSION);
+      const publish = () =>
+        publishDefinitions(ctx, p, a, {
+          force: !!a.force,
+          pin,
+          ...(str(a.message) && { message: str(a.message) }),
+        });
+      // after a Worker deploy, a failed publish (no Access token in this shell) leaves the Worker deployed: warn
+      const published = worker
+        ? await publish().catch((e: Error) => {
+            warnings.push({
+              severity: 'warning',
+              code: 'not-published',
+              message: `Definitions not published: ${e.message}`,
+            });
+            return null;
+          })
+        : await publish();
+      const what = published
+        ? published.unchanged
+          ? 'definitions unchanged'
+          : `published ${published.files} files as ${published.snapshot}${published.merged.length ? ` (merged ${published.merged.join(', ')})` : ''}`
+        : 'definitions not published';
+      const head = worker
+        ? `Deployed to ${data!.url ?? 'Cloudflare'}`
+        : 'Worker not redeployed (no Cloudflare login)';
+      const out = data ?? { resources: [], commands: [], url: null };
+      return { data: { ...out, worker, published }, warnings, text: `${head}; ${what}` };
     },
   },
 

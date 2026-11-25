@@ -247,6 +247,12 @@ function Notices({ info }: { info: ProjectInfo }) {
           <code>{info.mode === 'hosted' ? 'iw deploy' : `npx indx-watch@${info.server.pinned} serve`}</code>
         </p>
       )}
+      {!!info.snapshot?.unsynced?.length && info.can.upload && (
+        <p className="problems" role="note" data-testid="unsynced">
+          {t('sync.unsyncedNotice', { count: info.snapshot.unsynced.length })}{' '}
+          <a href="#/uploads">{t('sync.whatToDo')}</a>
+        </p>
+      )}
       {info.problems.length > 0 && (
         <div className="problems" role="status">
           <button

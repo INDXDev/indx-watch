@@ -94,7 +94,10 @@ export function cliCommands(info: ProjectInfo, route: Route, release?: string) {
       ? { key: 'clone', cmd: `npx indx-watch clone ${clone}` }
       : { key: 'cloneGit', cmd: 'git clone <this repository> && npx indx-watch serve' },
   );
-  out.push({ key: 'push', cmd: 'npx indx-watch push' });
+  // a hosted app in git mode: publish merged with what the app has, and bring its changes back (docs/spec/sync.md#data-flow-and-conflicts)
+  if (info.mode === 'hosted' && info.definitions !== 'workspace')
+    out.push({ key: 'deploy', cmd: 'npx indx-watch deploy' }, { key: 'pull', cmd: 'npx indx-watch pull' });
+  else out.push({ key: 'push', cmd: 'npx indx-watch push' });
   const tc = route.name === 'testCase' || route.name === 'runner' ? route.key : undefined;
   if (tc) {
     out.push({ key: 'record', cmd: `npx indx-watch record ${tc} --verdict pass` });

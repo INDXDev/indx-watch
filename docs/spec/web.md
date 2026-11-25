@@ -229,7 +229,7 @@ The **CLI** button opens a panel with the commands that match what you are looki
 | Tab | Command | When shown |
 |---|---|---|
 | Clone | `npx indx-watch clone <url>` | Always. `<url>` is this hosted app, or the `[store].url` locally |
-| Upload | `npx indx-watch push` | Always |
+| Upload | `npx indx-watch push`; *(v0.5)* on a hosted app in git mode `npx indx-watch deploy` and `npx indx-watch pull` instead | Always |
 | Run | `npx indx-watch record TC-3 --verdict pass` | On a test case |
 | Playwright | `IW_REPORTER=1 npx playwright test --grep @TC-3` | On a test case with automation |
 | Report | `npx indx-watch report --release v1.2.0 --format html` | On Home and Report |
@@ -271,11 +271,22 @@ You can upload definitions in three ways:
 
 **What an upload does.**
 
-- **Hosted:** it publishes a new bundle snapshot, as `iw push` does, attributed to you. The hosted app switches to it at once. In git mode the next snapshot from the repository (CI's `iw sync --snapshot`, `iw push`) replaces it, so changes made only in the app do not last; teams that edit in the app use workspace mode.
+- **Hosted:** it publishes a new bundle snapshot, as `iw push` does, attributed to you. The hosted app switches to it at once. *(v0.5)* In git mode the snapshot keeps the `commit` of the one it builds on and lists the files it changed as `unsynced` (not in git yet). The next `iw deploy` from the repository merges them in rather than dropping them, and `iw pull` brings them into a working copy to commit ([data flow](./sync.md#data-flow-and-conflicts)); `iw push`, `iw deploy --force` and CI's `iw sync --snapshot` still replace them.
 - *(v0.5)* **Workspace mode** (hosted or local): every changed file is a `file` record, and a removed one a `deleted` version, as in [the editor](#editing-in-workspace-mode). The store is the source of truth: everyone sees the change at once, and `iw sync` writes it into every working copy ([sync.md](./sync.md#workspace-mode-v02)).
 - **Local:** it writes the files into `.indx-watch/` as uploaded (and removes the files a whole-folder upload no longer has). You then review and commit them with git like any other edit.
 
-**Uploads screen.** It lists snapshots from `bundle` records: who, when, from where (a commit, or "browser upload"), file count, and the current one. Each row can be downloaded as a `.tar`.
+**Uploads screen.** It lists snapshots from `bundle` records: who, when, from where (a commit, or "browser upload"), file count, *(v0.5)* how many files are not in git, and the current one. Each row can be downloaded as a `.tar`.
+
+### Sync status
+
+*(v0.5)* On a hosted app in git mode (`definitions: "git"` in `GET /api/project`), the Uploads screen starts with a **Sync status** card, so nobody has to guess what is where ([data flow](./sync.md#data-flow-and-conflicts)):
+
+- **What is shown:** the commit and branch of the current snapshot, who published it and when.
+- **What is not in git:** when the snapshot has `unsynced` files, a warning lists them (up to 20) and says how they get into the repository: `npx indx-watch pull` in a working copy, review, commit, `git push` (with a copy button). Otherwise one line says everything shown is in git, with the commit.
+- **How changes travel:** a table of the four kinds of change (test files edited in the repository; uploads and test data edited in the app; results, reviews and secrets recorded in the app; results from Playwright, CI or `iw record`), when each shows up in the app and when (or whether) it reaches git.
+- **Conflicts:** one line on what happens when two people change the same file.
+
+The commands under it are `npx indx-watch deploy` and `npx indx-watch clone <url>`. Anyone who can upload also sees one quiet line under the bar while the current snapshot has `unsynced` files ("2 changes made in this app are not in git yet. What to do"), linking here.
 
 ## Test data
 
@@ -285,7 +296,7 @@ You can upload definitions in three ways:
 - **Edit.** "Edit" on a fixture opens it in place: name, notes, and by kind the table (cells, add or remove rows and columns, the row key), the seed JSON, the account's username, secret reference and public fields, and the files (add, replace by name, remove). Saving writes only what changed. A table with more than 1,000 rows is edited in a working copy. A dataset stored as JSON stays JSON, with every value a string.
 - **Delete.** "Delete" asks once in the page, then removes the fixture's folder. It is refused while a test case uses the fixture, because `iw check` would fail.
 - **Files** download from the detail (`GET /api/blobs/:sha256`).
-- **Where it goes.** The server applies the change to the current definitions, runs `iw check` (including the secret scan) and refuses errors (400) before writing anything, then writes it like an [upload](#upload): files in `.indx-watch/` on `iw serve` in git mode, a bundle snapshot on a hosted app in git mode, and `file` records in workspace mode, so that `iw sync` brings the change to every working copy. In git mode on a hosted app the screen warns that changes made there are replaced by the next publish from the repository.
+- **Where it goes.** The server applies the change to the current definitions, runs `iw check` (including the secret scan) and refuses errors (400) before writing anything, then writes it like an [upload](#upload): files in `.indx-watch/` on `iw serve` in git mode, a bundle snapshot on a hosted app in git mode, and `file` records in workspace mode, so that `iw sync` brings the change to every working copy. In git mode on a hosted app the screen says that changes made there are kept by the next deploy and reach the repository through `iw pull` ([sync status](#sync-status)).
 - **API.** `POST /api/fixtures`, `PATCH /api/fixtures/:key` (`FixtureInput` → `FixtureSaved`) and `DELETE /api/fixtures/:key` in [`contract.ts`](https://github.com/INDXDev/indx-watch/blob/main/packages/server/src/contract.ts). Agents get 403: they write drafts with `iw new` or the `iw-data` skill.
 - **Tabs.** *(v0.5)* Test data, [Secrets](#secrets) and, for leads, [Access](#access) sit as tabs above the screen (`#/fixtures`, `#/secrets`, `#/access`).
 

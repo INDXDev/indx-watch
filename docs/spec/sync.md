@@ -207,7 +207,7 @@ A full listing fetches every log object, so a fresh clone of a store with 100,00
 
 ### Snapshots from people *(v0.2)*
 
-Besides CI (`iw sync --snapshot` on the default branch), a person can publish a snapshot with `iw push` or by uploading files in the hosted web app ([web.md](./web.md#upload)). These `bundle` records carry `dirty: true` when the working tree had uncommitted changes, an optional `message`, and `commit_time` set to the upload time when there is no clean commit, so the newest upload wins under the "by `commit_time`, then `at`" order the hosted server uses. A browser upload has `source = "manual"` and no `commit`.
+Besides CI (`iw sync --snapshot` on the default branch), a person can publish a snapshot with *(v0.5)* `iw deploy` (merged with the newest snapshot, [data flow](#publishing-definitions-with-iw-deploy)), `iw push` or by uploading files in the hosted web app ([web.md](./web.md#upload)). These `bundle` records carry `dirty: true` when the working tree had uncommitted changes, an optional `message`, and `commit_time` set to the upload time when there is no clean commit, so the newest upload wins under the "by `commit_time`, then `at`" order the hosted server uses. A browser upload (and a Test data edit) has `source = "manual"`; *(v0.5)* when the snapshot it builds on has a `commit`, it keeps that `commit` with `dirty: true` and adds the files it changed or removed to the base's `unsynced`, so `iw deploy` and `iw pull` can merge it. Otherwise it has no `commit`.
 
 ## Workspace mode (v0.2)
 
@@ -241,6 +241,78 @@ For teams without git, definitions also sync through the store, Drive-style ([AD
 **The hosted server** shows the current content of the `file` records as its definitions whenever the store holds any (otherwise the newest [bundle snapshot](#snapshots-from-people-v02)), including conflict files, so its problems banner shows `workspace-conflict` too. Its editor ([web.md](./web.md#editing-in-workspace-mode)), *(v0.5)* uploads and the [Test data](./web.md#test-data) screen write `file` records (a removed file as a `deleted` version) with the request's verified identity (and the server's signature). `iw serve` in workspace mode writes the same record to its replica and the file to the working tree. Like bundle snapshots, `file` records are trusted as they are: whoever can write to the store can change definitions, so give direct bucket access only to people who may edit; their signatures only change how the editor's identity is shown.
 
 v0.1 tools reject `[store] mode = "workspace"` and skip `file` records.
+
+## Data flow and conflicts
+
+*(v0.5)* This section is the one map of **where each kind of data lives, which command or event moves it, and where two people can collide**. It covers git mode (the default) on a hosted app; [workspace mode](#workspace-mode-v02) replaces the definition parts with `file` records and a field-level merge.
+
+### Where data lives
+
+| Place | What it holds | Source of truth for |
+|---|---|---|
+| Git repository, `.indx-watch/` | Definitions: project, use cases, criteria, test cases, fixtures, environments, releases, plans, `ui/` | Definitions |
+| Working copy, `.indx-watch/runs/` and `cache/` (not in git) | The local replica of records and blobs; sync cursors; the `node:sqlite` index | Nothing: a cache of the store plus records not pushed yet |
+| Result store (R2 bucket behind the Worker, or `s3://`, `file://`) | The append-only log of records (runs, reviews, waivers, deployments, `secret` records, `bundle` snapshot records), blobs (evidence, fixture files, snapshot tarballs) | Results, reviews, secrets, and which definitions the app shows |
+| D1 (hosted) | The index of the store and the current definitions | Nothing: rebuilt from the store |
+| Worker variables (set by `iw deploy`) | `ACCESS_TEAM`, `ACCESS_AUD`, `SIGNING_KEYS`, `OIDC_REPOSITORIES`, `ROLES`, `IW_VERSION`, read from the local `project.toml` at deploy time, never from a snapshot | Who gets in, which keys are trusted, roles |
+| Worker secrets (`wrangler secret put`) | `IW_SECRETS_KEY`, `IW_SIGNING_KEY`, `IW_ACCESS_POLICY`, `CLOUDFLARE_API_TOKEN` | Secret keys |
+
+### What moves, when, and how
+
+| Data | From → to | When | Needs |
+|---|---|---|---|
+| Definitions | working copy → git remote | `git push` | git access |
+| Definitions | working copy → store (a `bundle` snapshot) | `iw deploy` (after the Worker deploy, or alone with `--definitions-only` / without a Cloudflare login), merged with the newest snapshot ([below](#publishing-definitions-with-iw-deploy)) | an Access login (`iw login`) or service token |
+| Definitions | CI checkout → store | the GitHub Action's `iw sync --snapshot` on the default branch, when the definitions changed and the tree is clean; replaces, no merge | an Access service token or bucket credentials |
+| Definitions | working copy → store | `iw push`: replaces, no merge | as above |
+| Definitions | browser → store | Upload, Test data edits: a new snapshot built on the open one, with its `commit`, `dirty: true` and `unsynced` | Access login, role `lead` (fixtures: `tester` too) |
+| Definitions | store → working copy | `iw pull` (three-way, [below](#bringing-hosted-changes-into-git-with-iw-pull)), or `iw clone` for a new copy | Access login |
+| Worker code and variables | working copy → Cloudflare | `iw deploy` with a Cloudflare login (`wrangler login` or `CLOUDFLARE_API_TOKEN`); the `indx-watch-deploy` workflow on a push to the default branch | a Cloudflare API token |
+| Results recorded in the app | browser → store | at once (the Worker writes the record) | Access login |
+| Results from Playwright, `iw record`, `iw run` | working copy → local replica → store | written locally first; pushed by the reporter at the end of a run, by `iw sync`, or by `iw serve`'s background sync | store credentials or an Access login |
+| Records in the store | store → D1 | the Worker's own writes at once; uploads through `/api/store` on receipt; direct bucket writes within 5 s on a read request and once a minute (cron) | — |
+| Records in the store | store → working copy | `iw sync` (pull), `iw pull`, `iw deploy` (they pull first) | as above |
+| Secrets | browser → store | the Secrets tab writes sealed `secret` records; never to git | `IW_SECRETS_KEY` on the Worker |
+
+Results, reviews and secrets never reach git; definitions reach the app only as snapshots. The Uploads screen shows which snapshot the app is on and which of its files are not in git ([web](./web.md#sync-status)).
+
+### Which definitions the app shows
+
+The Worker shows the newest `bundle` record by `commit_time`, then `at`, then `id`. A snapshot published by `iw deploy` (and by people, `iw push`, the browser) sets `commit_time` to the publish time, so the newest publish wins; a CI snapshot uses its commit's time. `unsynced` lists the files whose content differs from the record's `commit`: changes that are in the app but not in that commit.
+
+### Publishing definitions with `iw deploy`
+
+`iw deploy` publishes the working copy's definitions merged with what the app shows, so two people publishing from different branches, or a publish after an edit in the app, never silently drop the other side:
+
+1. **Checks.** `iw check` must pass. Outside CI, the bundle must be committed (`git status` clean) and `HEAD` must be on a remote branch (pushed), so the next publisher can find the commit; `--force` skips this and the merge. Without a Cloudflare login, the Worker must run at least the version the project pins (`/healthz`), or definitions it cannot load would replace the working ones.
+2. **Pull** the store's records, and take the newest snapshot (*theirs*) and its files.
+3. **Base.** The merge base of `HEAD` and theirs' `commit` (fetched first when missing; a shallow checkout is unshallowed). A snapshot without a commit (a browser upload into an app whose snapshot had none, or one made before v0.5) has no base: the deploy stops and asks for `git pull` or `--force`.
+4. **Three-way merge by file** over the definition files (what a snapshot packs) of *mine* (the working tree), *theirs* and *base* (the files at the merge base):
+   - mine equals theirs, or theirs equals base → mine;
+   - mine equals base → theirs (changed only on the hosted side: kept, and listed as `merged`);
+   - otherwise → **conflict**: the deploy stops (exit 1, `CONFLICT`) naming the files, and publishes nothing.
+5. **Check the merged result.** Two sides can each add a different file with the same key (two new `TC-7`s); the result then fails `iw check` and the deploy stops the same way.
+6. **Publish** the merged files as a snapshot with `commit = HEAD`, `commit_time` = now, and `unsynced` = the files that differ from `HEAD` (with `dirty: true` when there are any), then push results.
+
+### Bringing hosted changes into git with `iw pull`
+
+`iw pull` runs steps 2–4 and writes into the working tree instead of publishing: theirs-only changes are written (or removed), and for each conflict your file stays and the hosted version is written beside it as `<name>.conflict-<sha8>.<ext>` (a deletion on the hosted side is only listed). `iw check` fails with `workspace-conflict` while such a file exists, so neither `iw deploy` nor a pull request can go on until someone merges it by hand and deletes it. Then: `iw check --fix` (renumbers a key used twice), commit, `git push`, `iw deploy`. The working tree must be committed first.
+
+### Where conflicts can happen
+
+| Situation | What happens | Resolution |
+|---|---|---|
+| Two people change the same definition file on different branches | Normal git merge when the branches meet | Resolve in git |
+| Two deploys change different files | The second merges the first's changes in; both are kept; `unsynced` lists the first's files until they are in git | Merge the branches in git as usual (or `iw pull`) |
+| Two deploys change the same file | The second stops (`CONFLICT`), nothing is published | `git pull` (merge the other branch) or `iw pull`; resolve; deploy |
+| An edit in the app and a deploy change the same file | The deploy stops | `iw pull` writes the app's version as a `.conflict` file; merge it; commit, push, deploy |
+| Both sides add the same key in different files | The merged result fails `iw check`; the deploy stops | `iw pull`, `iw check --fix`, commit, push, deploy |
+| `iw push`, `iw deploy --force`, or CI's `iw sync --snapshot` publishes a newer snapshot | It replaces the definitions without a merge: changes only in the app disappear from it | They stay in older snapshots: download from Uploads, or avoid replacing publishers when people edit in the app |
+| Two people record results | No conflict: records are append-only with their own IDs; the same ID with two bodies follows the [merge rules](#merge-rules) | — |
+| Two people change a secret | The newest `set` or `delete` that opens wins ([security](./security.md#secrets)) | — |
+| `[hosting]` (roles, Access, keys) changes in git | Not applied by a definitions publish: the Worker keeps the variables of its last full deploy | Someone with a Cloudflare login runs `iw deploy`, or merge to the default branch so the deploy workflow runs |
+
+**Known limits.** CI's `iw sync --snapshot` does not merge yet: on a team that also edits in the app, publish from CI with `iw deploy` (the `indx-watch-deploy` workflow does) rather than through the GitHub Action's snapshot. The merge is by whole file, not by field; two edits to different fields of one test case are a conflict.
 
 ## The hosted server and the index
 

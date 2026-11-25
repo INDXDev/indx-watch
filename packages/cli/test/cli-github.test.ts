@@ -19,7 +19,12 @@ describe('iw init --github', () => {
     const r = iwJson(dir, 'init', ['init', 'app', '--github', '--no-agents']);
     expect(r.code, r.stderr).toBe(0);
     expect(r.json.data.github).toMatchObject({ root: empty, written: FLOWS, skipped: [] });
-    expect(r.json.data.github.secrets).toEqual(['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']);
+    expect(r.json.data.github.secrets).toEqual([
+      'CLOUDFLARE_API_TOKEN',
+      'CLOUDFLARE_ACCOUNT_ID',
+      'CF_ACCESS_CLIENT_ID',
+      'CF_ACCESS_CLIENT_SECRET',
+    ]);
     expect(r.stdout).not.toContain('ghp_');
     for (const f of FLOWS) expect(existsSync(join(empty, f))).toBe(true);
     const deploy = readFileSync(join(empty, WORKFLOWS[1]!), 'utf8');

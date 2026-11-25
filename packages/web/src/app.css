@@ -2091,3 +2091,8 @@ tr:last-child td {
 .access-list li {
   gap: var(--space-2);
 }
+
+/* Uploads → Sync status (docs/spec/web.md#sync-status) */
+.sync-status .callout {
+  margin: 12px 0;
+}

@@ -326,7 +326,13 @@ function create(env: Env, key: string, toolOutputs?: ToolOutputs) {
       await loadModel().catch(() => undefined); // opens the newest snapshot; none yet → empty
       return new Map(view.files);
     },
-    publishBundle: (next, info) => publish(store, deps, next, info),
+    publishBundle: async (next, info) => {
+      // an edit in the app builds on the open snapshot: keep its commit so `iw deploy` can merge (docs/spec/sync.md#data-flow-and-conflicts)
+      const recs = await index.records();
+      const base = recs.find((r): r is BundleRecord => r.kind === 'bundle' && r.id === view.snapshot?.id);
+      const unsynced = [...new Set([...(base?.unsynced ?? []), ...info.changed, ...info.removed])].sort();
+      return publish(store, deps, next, { ...info, commit: base?.commit, unsynced });
+    },
     signForGithub: githubOidcSigning({
       verifier: S.githubOidcVerifier(),
       repositories: pinnedRepositories(env.OIDC_REPOSITORIES),
@@ -342,7 +348,7 @@ async function publish(
   store: Store,
   deps: ServerDeps,
   files: Map<string, Uint8Array>,
-  info: { actor: Actor; message?: string },
+  info: { actor: Actor; message?: string; commit?: string | undefined; unsynced: string[] },
 ) {
   const fs = memoryBundleFs(new Map(files));
   const [snap, { bundle }] = [await snapshotBundle(fs), await loadBundle(fs)];
@@ -352,6 +358,7 @@ async function publish(
   const record = BundleRecordSchema.parse({
     ...{ kind: 'bundle', id: newId('rec'), v: 1, project, at, actor: info.actor, source: 'manual' },
     ...{
+      ...(info.commit && { commit: info.commit, dirty: true, unsynced: info.unsynced }),
       commit_time: at,
       sha256: sha,
       definitions_hash: snap.hash,
