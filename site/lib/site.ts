@@ -41,5 +41,7 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://indx-watch
 
 /** The setup guide on this site, per language. */
 export const SETUP_PATH = { en: '/setup/', ja: '/ja/setup/' } as const;
+/** The team guide (daily work by role), per language. */
+export const TEAM_PATH = { en: '/team/', ja: '/ja/team/' } as const;
 
 export const INIT_COMMAND = 'npx indx-watch init';

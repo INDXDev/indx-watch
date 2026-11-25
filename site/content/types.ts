@@ -139,6 +139,7 @@ export interface Content {
     github: string;
     getStarted: string;
     setup: string;
+    team: string;
     menu: string;
     otherLanguage: string;
     otherLanguageLabel: string;
@@ -292,6 +293,26 @@ export interface SetupStep {
   blocks: SetupBlock[];
 }
 
+/** The labels a step and its blocks need, shared by the setup guide and the team guide. */
+export interface StepLabels {
+  copy: string;
+  copied: string;
+  you: string;
+  agent: string;
+  step: string;
+  doneLabel: string;
+}
+
+/** A flow played like the demo: nodes joined by labelled arrows, one caption per node. */
+export interface FlowContent {
+  nodes: { title: string; caption: string; items: string[] }[];
+  edges: string[];
+  label: string;
+  play: string;
+  pause: string;
+  captions: string[];
+}
+
 /** The words of the setup guide (/setup/, /ja/setup/), one object per language. */
 export interface SetupContent {
   locale: Locale;
@@ -324,4 +345,19 @@ export interface SetupContent {
   doneLabel: string;
   /** the animated walk through the architecture: one caption per node */
   flow: { label: string; play: string; pause: string; captions: string[] };
+}
+
+/** The words of the team guide (/team/, /ja/team/): daily work by role, one object per language. */
+export interface TeamContent {
+  locale: Locale;
+  path: '/team/' | '/ja/team/';
+  meta: { title: string; description: string };
+  hero: { kicker: string; title: string; lead: string; setup: Link };
+  pick: { title: string; roles: { id: string; title: string; who: string; jobs: string[] }[] };
+  cycle: { kicker: string; title: string; lead: string; flow: FlowContent };
+  roles: { id: string; kicker: string; title: string; lead: string; steps: SetupStep[] }[];
+  matrix: { kicker: string; title: string; lead: string; cols: string[]; rows: { task: string; cells: string[] }[]; yes: string };
+  people: { kicker: string; title: string; lead: string; items: { title: string; body: string; code: string }[] };
+  closing: { title: string; lead: string; demo: string; setup: string };
+  labels: StepLabels;
 }

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import type { Content, SetupContent } from '@/content/types';
+import type { Content, SetupContent, TeamContent } from '@/content/types';
 import { SITE_URL } from './site';
 
 export const viewport: Viewport = {
@@ -50,5 +50,14 @@ export function setupMetadata(s: SetupContent): Metadata {
   return {
     ...base,
     alternates: { canonical: s.path, languages: { en: '/setup/', ja: '/ja/setup/', 'x-default': '/setup/' } },
+  };
+}
+
+/** The team guide's metadata. */
+export function teamMetadata(g: TeamContent): Metadata {
+  const base = pageMetadata({ locale: g.locale, path: g.path, meta: { ...g.meta, ogAlt: g.meta.title } });
+  return {
+    ...base,
+    alternates: { canonical: g.path, languages: { en: '/team/', ja: '/ja/team/', 'x-default': '/team/' } },
   };
 }

@@ -102,11 +102,15 @@ From [`components/ui.tsx`](components/ui.tsx) and the classes in §3 of the styl
 
 Commands and outputs are copied from the CLI and `docs/guides/`; when a command or its output changes, change the guide with it.
 
+## The team guide
+
+`/team/` and `/ja/team/` ([`components/team.tsx`](components/team.tsx), words in [`content/team-en.ts`](content/team-en.ts) and [`content/team-ja.ts`](content/team-ja.ts)) are the daily counterpart of the setup guide, with the same parts: a role picker (QA, engineers, product managers) whose items jump to situations, one release played as a flow between the roles, then per role the situations as numbered steps, each with a **You should see** line. It ends with who usually does what and the four decisions only people make. Names, keys and numbers come from `examples/shop`; a waiver example must use a test case that is not P0.
+
 ## Checking a change
 
 ```bash
 pnpm typecheck && pnpm build
-pnpm preview    # http://localhost:3000, /ja/, /setup/ and /ja/setup/
+pnpm preview    # http://localhost:3000, /ja/, /setup/, /ja/setup/, /team/ and /ja/team/
 ```
 
 Look at the page at 1440 px and 390 px wide, in light and dark, in English and Japanese, and with each role (`?for=tester`, `?for=product`). Play each demo chapter to the end.

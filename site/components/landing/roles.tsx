@@ -9,6 +9,7 @@ import { Rich } from '../rich';
 import { RolePanel, RoleSwitch } from '../role';
 import { Screenshot } from '../screenshot';
 import { SectionHead, TextLink } from '../ui';
+import { TEAM_PATH } from '@/lib/site';
 
 /** The first lines of TC-3, enough to show the shape of a test case. */
 const TOML_SHORT = TOML_TC3.split('\n[steps.i18n.ja]')[0].replace(/^#:schema.*\n\n/, '');
@@ -70,6 +71,7 @@ export function Roles({ t }: { t: Content }) {
             </RolePanel>
           );
         })}
+        <TextLink href={TEAM_PATH[t.locale]}>{t.nav.team}</TextLink>
       </div>
     </section>
   );

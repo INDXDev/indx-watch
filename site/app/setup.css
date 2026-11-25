@@ -706,3 +706,88 @@
 .su-node .caption {
   padding-right: 28px;
 }
+
+/* Team guide: role cards with their situations, the who-does-what table, the four human decisions. */
+.tm-pick li.card {
+  display: flex;
+  flex-direction: column;
+}
+.tm-pick h3 {
+  margin-top: 0;
+  font-size: 19px;
+}
+.tm-pick h3 a {
+  color: var(--ink);
+}
+.tm-pick h3 a::after {
+  content: " →";
+  color: var(--faint);
+}
+.tm-jobs {
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+  border-top: 1px solid var(--line);
+  display: block !important;
+  font-size: 14px;
+}
+.tm-jobs li a {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--ink-2);
+}
+.tm-jobs li a:hover {
+  color: var(--accent);
+}
+.tm-matrix {
+  min-width: 640px;
+}
+.tm-matrix td {
+  text-align: center;
+}
+.tm-matrix thead th:not(:first-child) {
+  text-align: center;
+}
+.tm-matrix .tm-agent {
+  background: var(--bg-subtle);
+}
+.tm-dash {
+  color: var(--faint);
+}
+.tm-text {
+  font-size: 13px;
+  color: var(--muted);
+}
+.tm-people {
+  margin-top: clamp(56px, 7vw, 88px);
+}
+.tm-people-title {
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.15;
+  letter-spacing: var(--track-h2);
+}
+.tm-people .lead {
+  margin-top: 14px;
+  max-width: 680px;
+}
+.tm-people-grid {
+  margin-top: 28px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .tm-people-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .tm-people-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* keep the visually hidden labels inside the scrolling table, so they never widen the page on a phone */
+.su .table-scroll {
+  position: relative;
+}
+.tm-pick .tm-jobs li {
+  padding: 0;
+}

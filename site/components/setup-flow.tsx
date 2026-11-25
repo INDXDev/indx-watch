@@ -7,13 +7,13 @@
  * motion every node is lit and every caption is listed. Without JavaScript the static list is complete.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { SetupContent } from '@/content/types';
+import type { FlowContent } from '@/content/types';
 import { Rich } from './rich';
 
 const STEP_MS = 4200;
 
-export function ArchFlow({ s }: { s: SetupContent }) {
-  const a = s.arch;
+export function ArchFlow({ f }: { f: FlowContent }) {
+  const a = f;
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(-1);
   const [playing, setPlaying] = useState(true);
@@ -67,7 +67,7 @@ export function ArchFlow({ s }: { s: SetupContent }) {
         ))}
       </ol>
       <div className="su-flow-bar">
-        <p className="caption">{s.flow.label}</p>
+        <p className="caption">{f.label}</p>
         {!still && (
           <button
             type="button"
@@ -76,12 +76,12 @@ export function ArchFlow({ s }: { s: SetupContent }) {
             aria-pressed={!playing}
           >
             {playing ? '❚❚' : '▶'}
-            <span className="visually-hidden">{playing ? s.flow.pause : s.flow.play}</span>
+            <span className="visually-hidden">{playing ? f.pause : f.play}</span>
           </button>
         )}
       </div>
       <ol className="su-captions" aria-live="off">
-        {s.flow.captions.map((c, i) => (
+        {f.captions.map((c, i) => (
           <li key={c} className={still || i === active || active < 0 ? 'is-on' : ''}>
             <button type="button" onClick={() => setActive(i)} disabled={still}>
               <span className="su-caption-n">{i + 1}</span>

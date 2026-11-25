@@ -1,14 +1,15 @@
 /** The site header and footer (Vercel, Linear): brand, section links, language, GitHub, one primary button. */
 import type { Content } from '@/content/types';
-import { DOCS, GITHUB_URL, SETUP_PATH } from '@/lib/site';
+import { DOCS, GITHUB_URL, SETUP_PATH, TEAM_PATH } from '@/lib/site';
 import { GitHubIcon, Icon, Logo } from '../ui';
 
-/** Which page the header and footer sit on: the landing page or the setup guide. */
-export type Page = 'home' | 'setup';
+/** Which page the header and footer sit on: the landing page, the setup guide or the team guide. */
+export type Page = 'home' | 'setup' | 'team';
 
 function otherLocale(t: Content, page: Page) {
   const otherLang = t.locale === 'en' ? 'ja' : 'en';
-  return { other: page === 'setup' ? SETUP_PATH[otherLang] : otherLang === 'ja' ? '/ja/' : '/', otherLang };
+  const paths = { setup: SETUP_PATH, team: TEAM_PATH, home: { en: '/', ja: '/ja/' } } as const;
+  return { other: paths[page][otherLang], otherLang };
 }
 
 /** Section links work from either page: `#features` on the landing page, `/#features` elsewhere. */
@@ -37,6 +38,9 @@ export function SiteHeader({ t, page = 'home' }: { t: Content; page?: Page }) {
             <a href={SETUP_PATH[t.locale]} aria-current={page === 'setup' ? 'page' : undefined}>
               {t.nav.setup}
             </a>
+            <a href={TEAM_PATH[t.locale]} aria-current={page === 'team' ? 'page' : undefined}>
+              {t.nav.team}
+            </a>
             <a href={DOCS.home}>{t.nav.docs}</a>
           </nav>
           <div className="header-actions">
@@ -49,7 +53,7 @@ export function SiteHeader({ t, page = 'home' }: { t: Content; page?: Page }) {
               <span className="gh-label">{t.nav.github}</span>
             </a>
             <span className="header-divider" aria-hidden="true" />
-            <a className="btn btn-primary btn-sm" href={page === 'setup' ? '#install' : '#start'}>
+            <a className="btn btn-primary btn-sm" href={page === 'setup' ? '#install' : page === 'team' ? SETUP_PATH[t.locale] : '#start'}>
               {t.nav.getStarted}
             </a>
           </div>

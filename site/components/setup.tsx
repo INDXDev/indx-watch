@@ -3,7 +3,7 @@
  * header, footer and primitives; references and section order are in site/DESIGN.md#the-setup-guide.
  */
 import { Fragment } from 'react';
-import type { Content, SetupBlock, SetupContent, SetupStep } from '@/content/types';
+import type { Content, SetupBlock, SetupContent, SetupStep, StepLabels } from '@/content/types';
 import { DEMO_URL, INIT_COMMAND } from '@/lib/site';
 import { CodePanel } from './code';
 import { CopyButton, CopyCommand } from './copy-command';
@@ -25,7 +25,7 @@ function commands(code: string): string {
     .join('\n');
 }
 
-function Terminal({ title, code, s }: { title?: string; code: string; s: SetupContent }) {
+function Terminal({ title, code, s }: { title?: string; code: string; s: StepLabels }) {
   let continued = false;
   return (
     <figure className="su-term">
@@ -72,7 +72,7 @@ function Terminal({ title, code, s }: { title?: string; code: string; s: SetupCo
   );
 }
 
-function Block({ b, s }: { b: SetupBlock; s: SetupContent }) {
+function Block({ b, s }: { b: SetupBlock; s: StepLabels }) {
   switch (b.kind) {
     case 'terminal':
       return <Terminal title={b.title} code={b.code} s={s} />;
@@ -128,7 +128,8 @@ function Block({ b, s }: { b: SetupBlock; s: SetupContent }) {
   }
 }
 
-function Step({ step, n, s }: { step: SetupStep; n: number; s: SetupContent }) {
+/** One numbered step: text on the left, its terminal, file, chat or screen on the right. */
+export function Step({ step, n, s }: { step: SetupStep; n: number; s: StepLabels }) {
   return (
     <li className="su-step" id={step.id} aria-labelledby={`${step.id}-title`}>
       <div className="su-step-text">
@@ -260,7 +261,7 @@ export function Setup({ t, s }: { t: Content; s: SetupContent }) {
         <section className="section section-subtle" aria-labelledby="architecture">
           <div className="wrap">
             <SectionHead id="architecture" kicker={s.arch.kicker} title={s.arch.title} lead={s.arch.lead} layout="split" />
-            <ArchFlow s={s} />
+            <ArchFlow f={{ ...s.flow, nodes: s.arch.nodes, edges: s.arch.edges }} />
             <div className="su-stores">
               <h3 className="caption">{s.arch.storesTitle}</h3>
               <dl>

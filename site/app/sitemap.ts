@@ -5,11 +5,14 @@ export const dynamic = 'force-static';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const languages = { en: `${SITE_URL}/`, ja: `${SITE_URL}/ja/` };
+  const team = { en: `${SITE_URL}/team/`, ja: `${SITE_URL}/ja/team/` };
   const setup = { en: `${SITE_URL}/setup/`, ja: `${SITE_URL}/ja/setup/` };
   return [
     { url: `${SITE_URL}/`, changeFrequency: 'weekly', priority: 1, alternates: { languages } },
     { url: `${SITE_URL}/ja/`, changeFrequency: 'weekly', priority: 0.9, alternates: { languages } },
     { url: `${SITE_URL}/setup/`, changeFrequency: 'weekly', priority: 0.8, alternates: { languages: setup } },
     { url: `${SITE_URL}/ja/setup/`, changeFrequency: 'weekly', priority: 0.7, alternates: { languages: setup } },
+    { url: `${SITE_URL}/team/`, changeFrequency: 'weekly', priority: 0.8, alternates: { languages: team } },
+    { url: `${SITE_URL}/ja/team/`, changeFrequency: 'weekly', priority: 0.7, alternates: { languages: team } },
   ];
 }

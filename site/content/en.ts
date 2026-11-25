@@ -20,6 +20,7 @@ export const en: Content = {
     github: 'GitHub',
     getStarted: 'Get started',
     setup: 'Setup',
+    team: 'Team guide',
     menu: 'Sections',
     otherLanguage: '日本語',
     otherLanguageLabel: 'このページを日本語で読む',
@@ -660,6 +661,7 @@ export const en: Content = {
         title: 'Guides',
         links: [
           { label: 'Setup guide', href: '/setup/' },
+          { label: 'Team guide', href: '/team/' },
           { label: 'Quickstart', href: DOCS.quickstart },
           { label: 'Testing with agents', href: DOCS.agents },
           { label: 'Playwright', href: DOCS.playwright },
