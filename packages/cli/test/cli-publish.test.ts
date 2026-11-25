@@ -92,6 +92,20 @@ describe('commands: deploy --definitions-only and pull', () => {
     expect(iw(b, ['check']).code).toBe(1);
   });
 
+  it('a squash merge of the published branch is not a conflict', () => {
+    const { a, b } = team();
+    const [x] = caseFiles(a);
+    retitle(a, x, 'On a branch', 'feat');
+    expect(iwJson(a, 'deploy', ['deploy', '--definitions-only']).code).toBe(0);
+    // B squash-merges A's branch into main (so A's commit is not in main's history) and changes X again
+    git(b, 'fetch', '-q', 'origin', 'feat');
+    git(b, 'merge', '-q', '--squash', 'FETCH_HEAD');
+    git(b, 'commit', '-q', '-m', 'squash');
+    retitle(b, x, 'After the squash', 'main');
+    const byB = iwJson(b, 'deploy', ['deploy', '--definitions-only']);
+    expect([byB.code, byB.json.data?.published?.merged]).toEqual([0, []]);
+  });
+
   it('refuses to publish uncommitted or unpushed changes', () => {
     const { a } = team();
     const [x] = caseFiles(a);

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `iw deploy` and `iw pull` no longer report every file as a conflict after the published branch was squash- or rebase-merged: a hosted file that the branch's git history already had counts as merged. A snapshot whose commit git cannot find merges against an empty base instead of stopping.
+- The version check before a definitions-only publish reads `/healthz` with the store's Access credentials; behind Cloudflare Access it was always skipped with a warning.
+
 ## [0.1.3] - 2026-11-25
 
 ### Added

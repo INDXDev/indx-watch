@@ -284,11 +284,12 @@ The Worker shows the newest `bundle` record by `commit_time`, then `at`, then `i
 
 `iw deploy` publishes the working copy's definitions merged with what the app shows, so two people publishing from different branches, or a publish after an edit in the app, never silently drop the other side:
 
-1. **Checks.** `iw check` must pass. Outside CI, the bundle must be committed (`git status` clean) and `HEAD` must be on a remote branch (pushed), so the next publisher can find the commit; `--force` skips this and the merge. Without a Cloudflare login, the Worker must run at least the version the project pins (`/healthz`), or definitions it cannot load would replace the working ones.
+1. **Checks.** `iw check` must pass. Outside CI, the bundle must be committed (`git status` clean) and `HEAD` must be on a remote branch (pushed), so the next publisher can find the commit; `--force` skips this and the merge. Without a Cloudflare login, the Worker must run at least the version the project pins (`/healthz`, read with the same Access credentials as the store), or definitions it cannot load would replace the working ones.
 2. **Pull** the store's records, and take the newest snapshot (*theirs*) and its files.
-3. **Base.** The merge base of `HEAD` and theirs' `commit` (fetched first when missing; a shallow checkout is unshallowed). A snapshot without a commit (a browser upload into an app whose snapshot had none, or one made before v0.5) has no base: the deploy stops and asks for `git pull` or `--force`.
+3. **Base.** The merge base of `HEAD` and theirs' `commit` (fetched first when missing; a shallow checkout is unshallowed). A snapshot without a commit (a browser upload into an app whose snapshot had none, or one made before v0.5), or with a commit git cannot find, has an empty base.
 4. **Three-way merge by file** over the definition files (what a snapshot packs) of *mine* (the working tree), *theirs* and *base* (the files at the merge base):
    - mine equals theirs, or theirs equals base → mine;
+   - theirs equals a version of that file in `HEAD`'s history → mine. A squash or rebase merge leaves the snapshot's commit off the branch, so its merge base is too old; the file's own history shows that the branch already has theirs and changed it since;
    - mine equals base → theirs (changed only on the hosted side: kept, and listed as `merged`);
    - otherwise → **conflict**: the deploy stops (exit 1, `CONFLICT`) naming the files, and publishes nothing.
 5. **Check the merged result.** Two sides can each add a different file with the same key (two new `TC-7`s); the result then fails `iw check` and the deploy stops the same way.

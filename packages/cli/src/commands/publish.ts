@@ -4,9 +4,11 @@
  * working tree. Both use one three-way merge by file whose base is the merge base of HEAD and the
  * snapshot's commit, so changes on different files combine and the same file changed twice is a conflict.
  */
+import { createHash } from 'node:crypto';
 import * as iwb from '@indx-watch/bundle';
 import { isOlderVersion } from '@indx-watch/core';
 import { memoryBundleFs } from '@indx-watch/server';
+import { accessHeaders } from '@indx-watch/store/node';
 import { definitionFiles, pointerBlobs, syncOnce } from '@indx-watch/sync';
 import { unpackTar } from 'modern-tar';
 import type * as cx from '../context.js';
@@ -44,7 +46,9 @@ function requirePushed(ctx: Ctx, p: cx.Project, what: string): void {
 /** The Worker must read what this CLI writes: refuse when it runs an older version than the project pins. */
 async function requireCurrentWorker(ctx: Ctx, url: string, pin: string): Promise<void> {
   if (!/^https:\/\//.test(url)) return;
-  const res = await fetch(new URL('/healthz', url), { signal: AbortSignal.timeout(5000) }).catch(() => null);
+  const headers = await accessHeaders(url.replace(/\/+$/, ''), ctx.env).catch(() => ({}));
+  const signal = AbortSignal.timeout(5000);
+  const res = await fetch(new URL('/healthz', url), { headers, signal }).catch(() => null);
   const version = res?.ok
     ? ((await res.json().catch(() => ({}))) as { version?: string }).version
     : undefined;
@@ -90,19 +94,18 @@ async function threeWay(p: cx.Project, theirs: Files, commit?: string) {
   const shallow = git(p.dir, 'rev-parse', '--is-shallow-repository') === 'true';
   if (commit && !has(commit)) git(p.dir, 'fetch', '--quiet', ...(shallow ? ['--unshallow'] : []));
   const base = (commit && has(commit) && git(p.dir, 'merge-base', 'HEAD', commit)) || null;
-  const old = base && (await filesAt(p, base));
-  if (!old)
-    return fail(
-      'CONFLICT',
-      `The hosted definitions${commit ? ` (commit ${commit.slice(0, 8)})` : ' (a browser upload)'} are not in your git history: git fetch / git pull, or pass --force to replace them`,
-    );
+  const old = (base && (await filesAt(p, base))) || (new Map() as Files);
+  // after a squash or rebase merge the base is too old: theirs that HEAD's history already had is not news
+  const blob = (t: Uint8Array) => createHash('sha1').update(`blob ${t.length}\0`).update(t).digest('hex');
+  const log = (path: string) => git(p.dir, 'log', '--raw', '--no-abbrev', '--format=', 'HEAD', '--', path);
+  const known = (path: string, t?: Uint8Array) => !!t && !!log(path)?.includes(blob(t));
   const mine = await definitionFiles(p.fs);
   const out: Files = new Map(mine);
   const merged: string[] = [];
   const conflicts: string[] = [];
   for (const path of new Set([...mine.keys(), ...theirs.keys()])) {
     const [m, t, b] = [mine.get(path), theirs.get(path), old.get(path)];
-    if (same(m, t) || same(t, b)) continue;
+    if (same(m, t) || same(t, b) || known(path, t)) continue;
     if (!same(m, b)) conflicts.push(path);
     else {
       merged.push(path);
