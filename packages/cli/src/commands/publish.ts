@@ -52,7 +52,7 @@ async function requireCurrentWorker(ctx: Ctx, url: string, pin: string): Promise
   if (isOlderVersion(version, pin))
     fail(
       'CONFLICT',
-      `The hosted app runs INDX Watch ${version} and this project needs ${pin}: someone with a Cloudflare login must run \`iw deploy\` (or the indx-watch-deploy workflow) first`,
+      `The hosted app runs INDX Watch ${version} and this publish needs ${pin}: run the version the project pins (npx indx-watch@<[tool] indx_watch>), or ask someone with a Cloudflare login to run \`iw deploy\` (or the indx-watch-deploy workflow) first`,
     );
 }
 

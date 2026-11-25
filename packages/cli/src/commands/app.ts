@@ -17,7 +17,7 @@ import {
   type Via,
 } from '@indx-watch/bundle';
 import { findBundleDir } from '@indx-watch/bundle/node';
-import { type Model, reportData } from '@indx-watch/core';
+import { isOlderVersion, type Model, reportData } from '@indx-watch/core';
 import { renderReport, reportTexts } from '@indx-watch/server';
 import { startNodeServer } from '@indx-watch/server/node';
 import { fileStateStore } from '@indx-watch/sync/node';
@@ -223,7 +223,9 @@ export const appCommands: Record<string, Spec> = {
           fail('INVALID_CONFIG', 'No [store] in project.toml: there is no hosted app to publish to');
         return { data: { ...data!, worker, published: null }, warnings, text: `Deployed to ${data!.url}` };
       }
-      const pin = worker ? undefined : ((await toolPin(p.dir)) ?? VERSION);
+      // the Worker must read what this CLI writes: at least the pinned version and this CLI's own
+      const pinned = (await toolPin(p.dir)) ?? VERSION;
+      const pin = worker ? undefined : isOlderVersion(pinned, VERSION) ? VERSION : pinned;
       const publish = () =>
         publishDefinitions(ctx, p, a, {
           force: !!a.force,
