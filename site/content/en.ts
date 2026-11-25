@@ -19,6 +19,7 @@ export const en: Content = {
     docs: 'Docs',
     github: 'GitHub',
     getStarted: 'Get started',
+    setup: 'Setup',
     menu: 'Sections',
     otherLanguage: '日本語',
     otherLanguageLabel: 'このページを日本語で読む',
@@ -597,6 +598,7 @@ export const en: Content = {
     ],
     sample: 'Want to look around first? Start from the sample shop:',
     sampleCode: 'npx indx-watch init demo --example',
+    guide: { label: 'The full setup guide, from install to the team on Cloudflare', href: '/setup/' },
   },
   faq: {
     kicker: 'FAQ',
@@ -657,6 +659,7 @@ export const en: Content = {
       {
         title: 'Guides',
         links: [
+          { label: 'Setup guide', href: '/setup/' },
           { label: 'Quickstart', href: DOCS.quickstart },
           { label: 'Testing with agents', href: DOCS.agents },
           { label: 'Playwright', href: DOCS.playwright },

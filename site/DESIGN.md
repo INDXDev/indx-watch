@@ -18,6 +18,7 @@ These are the pages we copy. They change over time, so look again before a large
 | [Sentry](https://sentry.io) | "Get started in minutes": numbered steps with the command in each | Get started |
 | [Vercel](https://vercel.com) deploy flow | A numbered row (develop, preview, ship) showing what happens from git push to production | Self-hosting |
 | [Resend](https://resend.com) | The announcement chip above the headline | Hero |
+| [Stripe Docs](https://docs.stripe.com) and [Clerk quickstarts](https://clerk.com/docs) | Numbered steps with the text on the left (sticky) and the terminal, file or screen on the right | Setup guide |
 
 ## Page order
 
@@ -90,11 +91,22 @@ From [`components/ui.tsx`](components/ui.tsx) and the classes in §3 of the styl
 - It plays only while on screen, loops, pauses on request and never moves faster than a person can read.
 - To add a beat, add a time to the chapter's `…Times` function and render from it. Move the pointer with `<Pointer target>` and a `data-target` on the element; scroll with `<ScrollView to>`.
 
+## The setup guide
+
+`/setup/` and `/ja/setup/` ([`components/setup.tsx`](components/setup.tsx), words in [`content/setup-en.ts`](content/setup-en.ts) and [`content/setup-ja.ts`](content/setup-ja.ts), styles in [`app/setup.css`](app/setup.css)) take an engineer from `npx indx-watch init` to the team testing on their own Cloudflare, on one page. It shares the header, footer, tokens and primitives with the landing page. Its order lowers the load before any command appears:
+
+1. **Hero**: what the page gets you, what you need, the contents, and how far to go (three paths, each a phase further).
+2. **Architecture**: four boxes (laptop, GitHub, Cloudflare, team) played like the demo ([`components/setup-flow.tsx`](components/setup-flow.tsx)): one lit at a time with a caption, only on screen, pausable, all lit with reduced motion. Then where each thing is kept.
+3. **Phases** 1–3 with numbered steps. Every step says who does it and how often, why in one paragraph, the commands, and a green **You should see** line, so nobody moves on with a broken step.
+4. **Every day**, **Recipes** ("If you want to…"), **Troubleshooting**, closing.
+
+Commands and outputs are copied from the CLI and `docs/guides/`; when a command or its output changes, change the guide with it.
+
 ## Checking a change
 
 ```bash
 pnpm typecheck && pnpm build
-pnpm preview    # http://localhost:3000 and /ja/
+pnpm preview    # http://localhost:3000, /ja/, /setup/ and /ja/setup/
 ```
 
 Look at the page at 1440 px and 390 px wide, in light and dark, in English and Japanese, and with each role (`?for=tester`, `?for=product`). Play each demo chapter to the end.

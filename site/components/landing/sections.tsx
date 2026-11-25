@@ -342,6 +342,7 @@ export function Start({ t }: { t: Content }) {
           <span>{s.sample}</span>
           <CopyCommand command={s.sampleCode} copy={t.hero.copy} copied={t.hero.copied} />
         </div>
+        <TextLink href={s.guide.href}>{s.guide.label}</TextLink>
       </div>
     </section>
   );

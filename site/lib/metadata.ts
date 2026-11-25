@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import type { Content } from '@/content/types';
+import type { Content, SetupContent } from '@/content/types';
 import { SITE_URL } from './site';
 
 export const viewport: Viewport = {
@@ -11,7 +11,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export function pageMetadata(t: Content): Metadata {
+/** What a page's metadata needs: its language, path and words. */
+type PageInfo = Pick<Content, 'locale' | 'meta'> & { path: string };
+
+export function pageMetadata(t: PageInfo): Metadata {
   return {
     metadataBase: new URL(SITE_URL),
     title: t.meta.title,
@@ -38,5 +41,14 @@ export function pageMetadata(t: Content): Metadata {
       description: t.meta.description,
       images: ['/og.png'],
     },
+  };
+}
+
+/** The setup guide's metadata: its own title, description and language alternates. */
+export function setupMetadata(s: SetupContent): Metadata {
+  const base = pageMetadata({ locale: s.locale, path: s.path, meta: { ...s.meta, ogAlt: s.meta.title } });
+  return {
+    ...base,
+    alternates: { canonical: s.path, languages: { en: '/setup/', ja: '/ja/setup/', 'x-default': '/setup/' } },
   };
 }

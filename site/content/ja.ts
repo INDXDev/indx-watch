@@ -19,6 +19,7 @@ export const ja: Content = {
     docs: 'ドキュメント',
     github: 'GitHub',
     getStarted: 'はじめる',
+    setup: 'セットアップ',
     menu: 'セクション',
     otherLanguage: 'English',
     otherLanguageLabel: 'Read this page in English',
@@ -593,6 +594,7 @@ export const ja: Content = {
     ],
     sample: 'まず触ってみたいなら、サンプルのショップから:',
     sampleCode: 'npx indx-watch init demo --example',
+    guide: { label: 'インストールからチームの利用開始までの、セットアップガイド', href: '/ja/setup/' },
   },
   faq: {
     kicker: 'FAQ',
@@ -653,6 +655,7 @@ export const ja: Content = {
       {
         title: 'ガイド',
         links: [
+          { label: 'セットアップガイド', href: '/ja/setup/' },
           { label: 'クイックスタート', href: DOCS.quickstart },
           { label: 'エージェントでテスト', href: DOCS.agents },
           { label: 'Playwright', href: DOCS.playwright },
