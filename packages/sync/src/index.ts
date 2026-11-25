@@ -45,6 +45,8 @@ export interface SyncOptions {
     /** `iw push`: publish even when not clean, unless the newest snapshot has the same definitions */
     manual?: boolean;
     message?: string;
+    /** files whose content differs from `commit` (the record's `unsynced`) */
+    unsynced?: string[];
     /** signs the bundle record (IW_SIGNING_KEY, docs/spec/security.md#signed-records) */
     sign?: <R extends AnyRecord>(record: R) => Promise<R>;
   };

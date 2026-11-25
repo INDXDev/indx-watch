@@ -44,7 +44,7 @@ npx indx-watch init --github
 This creates `.indx-watch/` (or leaves an existing one alone) and writes, only when missing:
 
 - `.github/workflows/indx-watch.yml`: on every pull request and push to `main` it runs `iw check`, your Playwright tests with the INDX Watch reporter, and then the INDX Watch action, which writes the **PR comment** and a **check run**.
-- `.github/workflows/indx-watch-deploy.yml`: on a push to `main` that changes `.indx-watch/` or your dependencies, it runs `iw deploy`.
+- `.github/workflows/indx-watch-deploy.yml`: on a push to `main` that changes `.indx-watch/` or your dependencies, it runs `iw deploy`, which deploys the Worker and *(v0.5)* publishes the definitions, merged with what the app has ([data flow](../spec/sync.md#data-flow-and-conflicts)).
 - The GitHub issue templates, when they ship with your version.
 
 Running it again changes nothing that exists, so you can edit the workflows freely. It ends with the names of the two repository secrets you add in step 3. Then ask your agent "Set up testing for this repo" (`/iw-setup`) to fill in the features, release and owners, review the drafts, and commit the files on a branch.
@@ -76,9 +76,23 @@ Do this once, by hand, so you can see each step.
    ```
 
    Copy the Access application's Audience tag into `[hosting].access_aud`, commit, and deploy again ([Put Cloudflare Access in front](./self-host-cloudflare.md#3-put-cloudflare-access-in-front)).
-4. Add the repository secrets the deploy workflow reads (**Settings → Secrets and variables → Actions**, or `gh secret set`): `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Never put them in a file.
+4. Add the repository secrets the deploy workflow reads (**Settings → Secrets and variables → Actions**, or `gh secret set`): `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for the Worker, and `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`, an Access service token with a *Service Auth* policy on the app ([CI: service tokens](./self-host-cloudflare.md#ci-service-tokens)), for publishing the definitions. Never put them in a file.
 
-From now on, merging a pull request that changes `.indx-watch/` redeploys the app. Run **Actions → indx-watch-deploy → Run workflow** to deploy by hand.
+From now on, merging a pull request that changes `.indx-watch/` redeploys the app and publishes its test cases. Run **Actions → indx-watch-deploy → Run workflow** to deploy by hand.
+
+## Teammates without a Cloudflare account
+
+*(v0.5)* Only the deploy workflow (or whoever set up the app) needs a Cloudflare API token. Everyone else needs two things: write access to the repository, and a place in the Access policy of the app (an email or group the admin adds once in Zero Trust → Access → Applications → the app → Policies). Then, from their own laptop:
+
+```bash
+npx indx-watch login https://shop-watch.example.workers.dev   # once; opens the Access login
+git switch -c tests/coupon-limits                              # edit .indx-watch/ (or ask your agent)
+npx indx-watch check
+git commit -am "test: coupon limits" && git push -u origin HEAD
+npx indx-watch deploy                                         # no Cloudflare login: publishes the definitions only
+```
+
+`iw deploy` without a Cloudflare login says so and publishes the definitions through Access, merged with what the app shows: changes others published, and edits made in the app, are kept. If someone changed the same file, it stops and names the file; `npx indx-watch pull` brings the app's version in as a `.conflict` file to merge, then commit, push and deploy again. Changes made in the app (uploads, test data) reach git the same way: `iw pull`, review, commit, push. The app's **Uploads → Sync status** card shows which commit it is on and what is not in git yet. The Worker itself (new INDX Watch versions, `[hosting]` changes such as roles) is only updated by someone with a Cloudflare login or by the workflow on `main`; a definitions publish refuses while the Worker is older than the version the project pins.
 
 ## 4. Let results flow
 

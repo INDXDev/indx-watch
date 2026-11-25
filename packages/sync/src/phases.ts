@@ -302,6 +302,7 @@ async function publishSnapshot(c: SyncContext, local: AnyRecord[]): Promise<void
         files: snap.files,
         ...(b.manual && !b.clean && { dirty: true }),
         ...(b.message && { message: b.message }),
+        ...(b.unsynced?.length && { unsynced: b.unsynced }),
       }),
     );
     await opts.replica.putRecord(record);

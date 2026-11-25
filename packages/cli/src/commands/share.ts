@@ -12,6 +12,7 @@ import type { Spec } from '../cli.js';
 import * as cx from '../context.js';
 import { type Args, B, type Ctx, fail, many, P, S, str } from '../util.js';
 import { logWarnings, openStore, snapshotOf } from './data.js';
+import { pullDefinitions } from './publish.js';
 
 /** relative, no `..` or hidden segments, outside cache/, runs/ and patches/ */
 const SAFE_PATH = /^(?!(?:cache|runs|patches)\/)(?:(?!\.)[^/\\:]+\/)*(?!\.)[^/\\:]+$/;
@@ -207,6 +208,36 @@ export const shareCommands: Record<string, Spec> = {
       const text = r.snapshot
         ? `Uploaded ${checked.files} files as ${r.snapshot}${hosted ? `\nView: ${hosted}` : ''}`
         : 'Definitions unchanged since the newest snapshot; pushed results only';
+      return { data, text };
+    },
+  },
+
+  pull: {
+    description:
+      'Bring definitions changed in the hosted app (or published from another branch) into the working tree',
+    args: { store: S('Store URL override') },
+    async run(ctx, a) {
+      const p = await cx.openProject(ctx, a);
+      const data = await pullDefinitions(ctx, p, a);
+      const lines = [
+        ...data.written.map((f) => `updated ${f}`),
+        ...data.removed.map((f) => `removed ${f}`),
+        ...data.conflicts.map((f) => `conflict ${f}`),
+      ];
+      const next = data.conflicts.length
+        ? 'Merge each .conflict file into the file beside it and delete it (iw check fails until then), then commit and git push.'
+        : lines.length
+          ? 'Review the changes (git diff), run iw check --fix if a key is used twice, then commit and git push.'
+          : 'Already up to date with the hosted app.';
+      const text = [...lines, next].join('\n');
+      if (data.conflicts.length)
+        fail(
+          'CONFLICT',
+          `${data.conflicts.length} file(s) changed both here and in the hosted app`,
+          [],
+          data,
+          text,
+        );
       return { data, text };
     },
   },

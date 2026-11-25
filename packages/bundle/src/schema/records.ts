@@ -194,6 +194,8 @@ export const BundleRecord = z.strictObject({
   dirty: z.boolean().optional(),
   /** free text from `iw push --message` or the upload dialog (v0.2) */
   message: z.string().optional(),
+  /** (v0.5) definition files whose content differs from `commit`: changes not in git yet (docs/spec/sync.md#data-flow-and-conflicts) */
+  unsynced: z.array(z.string()).optional(),
 });
 export type BundleRecord = z.infer<typeof BundleRecord>;
 

@@ -336,7 +336,7 @@ Write a [log snapshot](./sync.md#log-snapshots-v02) to the store: the newest sna
 
 ### `iw push`
 
-Upload everything in one step: sync results (like `iw sync`), then publish a bundle snapshot of the current definitions so hosted viewers and `iw clone` get them. This is the terminal side of the web app's [Upload](./web.md#upload). Unlike `iw sync --snapshot`, it publishes even from a dirty working tree or a branch other than the default, because a person asked for it. The snapshot records `dirty: true` and the commit, if there is one. Refused while `iw check` has errors (exit 1, `CHECK_FAILED`). It skips the upload when the definitions are unchanged since the newest snapshot in the store.
+Upload everything in one step: sync results (like `iw sync`), then publish a bundle snapshot of the current definitions so hosted viewers and `iw clone` get them. It **replaces** the hosted definitions without merging; in a git repository whose app is also edited by others, use [`iw deploy`](#iw-deploy), which merges ([data flow](./sync.md#data-flow-and-conflicts)). This is the terminal side of the web app's [Upload](./web.md#upload). Unlike `iw sync --snapshot`, it publishes even from a dirty working tree or a branch other than the default, because a person asked for it. The snapshot records `dirty: true` and the commit, if there is one. Refused while `iw check` has errors (exit 1, `CHECK_FAILED`). It skips the upload when the definitions are unchanged since the newest snapshot in the store.
 
 | Flag | |
 |---|---|
@@ -344,6 +344,16 @@ Upload everything in one step: sync results (like `iw sync`), then publish a bun
 | `--message <text>` | Free text shown on the Uploads screen |
 
 `data`: `{ "snapshot": string | null, "files": number, "unchanged": boolean, "pushed": { "records": number, "blobs": number }, "url": string | null }`. `url` is the hosted app's Uploads screen when the store is a hosted app.
+
+### `iw pull`
+
+*(v0.5)* Bring the definitions changed in the hosted app (uploads, Test data edits) or published from another branch into the working tree: pull the store's records, take the newest snapshot and three-way merge it by file with the working tree, using the merge base of `HEAD` and the snapshot's commit ([data flow](./sync.md#bringing-hosted-changes-into-git-with-iw-pull)). Files changed only on the hosted side are written or removed. A file changed on both sides keeps yours and gets the hosted version beside it as `<name>.conflict-<sha8>.<ext>`; `iw check` fails until it is merged and deleted, and the command exits 1 (`CONFLICT`) with the data. Refused while `.indx-watch/` has uncommitted changes, and when the snapshot's commit is not in the local history after a `git fetch` (exit 1, `CONFLICT`). Afterwards: review (`git diff`), `iw check --fix` if a key is used twice, commit, `git push`.
+
+| Flag | |
+|---|---|
+| `--store <url>` | Override `[store].url` |
+
+`data`: `{ "snapshot": string | null, "written": string[], "removed": string[], "conflicts": string[] }`. `conflicts` holds the written conflict files, and hosted deletions of files you changed as `"<path> (deleted in the hosted app: …)"`.
 
 ### `iw clone <source> [dir]`
 
@@ -523,17 +533,26 @@ The test cases are `mode = "manual"`. A step without an expected result gets "De
 
 ### `iw deploy`
 
-Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), using `wrangler`. Idempotent: lists existing resources before creating any. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md).
+Deploy the same server to Cloudflare Workers with R2 (store) and D1 (index), using `wrangler`, then *(v0.5)* publish the definitions to it. Idempotent: lists existing resources before creating any. See [guides/self-host-cloudflare.md](../guides/self-host-cloudflare.md).
 
 | Flag | |
 |---|---|
 | `--dry-run` | Print the resources and the exact `wrangler` commands, change nothing |
 | `--name <worker>` | Overrides `[hosting].name` |
 | `--public` | Allow deploying without Cloudflare Access: a read-only demo, *(v0.5)* anonymous visitors can only read ([public deploys](./security.md#public-deploys)) |
+| `--definitions-only` | *(v0.5)* Skip the Worker; only publish the definitions (needs an Access login, no Cloudflare login) |
+| `--force` | *(v0.5)* Publish without the git checks and the merge: replace the hosted definitions with the working copy's |
+| `--message <text>` | *(v0.5)* Shown on the Uploads screen |
 
-*(v0.5)* The Worker is deployed with the version of the CLI that runs `iw deploy` as the variable `IW_VERSION`, so `GET /healthz` answers `{ "ok": true, "version": "0.1.3" }` and `GET /api/project` has `server.version`. `iw doctor --online` reads it back; the web app tells leads when the project pins a newer version than the app runs ([version notice](./web.md#version-notice)).
+*(v0.5)* **Two parts, two kinds of access.** Deploying the Worker needs a Cloudflare login (`wrangler login`, or `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`). Publishing the definitions needs only what `iw sync` needs for an `https://` store: an Access login (`iw login <url>`) or service token. So:
 
-`data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null }`
+- With a Cloudflare login, `iw deploy` deploys the Worker and then, when `[store].url` is set, publishes the definitions. A failed publish (for example no Access token in that shell, as in CI without a service token) is a warning (`not-published`); the Worker stays deployed.
+- Without a Cloudflare login, and with an `https://` `[store].url` (the hosted app), `iw deploy` says so and only publishes the definitions, as with `--definitions-only`. It refuses (exit 1, `CONFLICT`) when the Worker's `/healthz` version is older than `[tool] indx_watch` or than the running CLI, whichever is newer: the app could not load what this CLI writes (run the pinned version, `npx indx-watch@<pin>`), so someone with a Cloudflare login must deploy the Worker first. `[hosting]` changes (roles, Access, signing keys) need a Worker deploy too.
+- **Publishing merges** with the newest snapshot, three-way by file, and stops on a conflict without publishing; outside CI it first requires `.indx-watch/` to be committed and `HEAD` to be on a remote branch. The full algorithm and the conflict table: [data flow and conflicts](./sync.md#publishing-definitions-with-iw-deploy).
+
+The Worker is deployed with the version of the CLI that runs `iw deploy` as the variable `IW_VERSION`, so `GET /healthz` answers `{ "ok": true, "version": "0.1.3" }` and `GET /api/project` has `server.version`. `iw doctor --online` reads it back; the web app tells leads when the project pins a newer version than the app runs ([version notice](./web.md#version-notice)).
+
+`data`: `{ "resources": { "type": "r2" \| "d1" \| "worker", "name": string, "exists": boolean }[], "commands": string[], "url": string | null, "worker": boolean, "published": { "snapshot": string | null, "files": number, "unchanged": boolean, "merged": string[], "unsynced": string[], "url": string | null } | null }`. `worker` is false when only the definitions were published (then `resources` and `commands` are empty); `merged` lists the files kept from the hosted side, `unsynced` the published files that differ from `HEAD`.
 
 *(v0.5)* With `.indx-watch/patches/patches.toml`, `iw deploy` deploys the patched build from `cache/patched/dist` instead of the package's own `dist/`, and stops with `INVALID_CONFIG` when it was not built from the current patch files (run `iw patch apply`). The Worker then reports its [patched build](./security.md#patched-servers).
 

@@ -134,6 +134,8 @@ export interface ProjectInfo {
   /** (v0.4) keys of the features this identity owns; the web app starts in "My features" when not empty */
   owns?: string[];
   mode: 'local' | 'hosted';
+  /** (v0.5) where definitions live: `git` (a repository, published as snapshots) or `workspace` (the store) */
+  definitions?: 'git' | 'workspace';
   /** (v0.5) where "Open as GitHub issue" goes: `[github] repo`, else the git remote; absent: the button is hidden */
   github?: { repo: string };
   sync: { configured: boolean; store?: string; lastSyncAt?: string; lastError?: string };
@@ -202,6 +204,8 @@ export interface SnapshotSummary {
   dirty?: boolean;
   message?: string;
   sha256: string;
+  /** (v0.5) files that differ from `commit`: changes made outside git, not in the repository yet */
+  unsynced?: string[];
   /** the actor claims a verified `via` but the record has no valid signature (docs/spec/security.md#signed-records) */
   unverified?: true;
 }

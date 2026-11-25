@@ -125,7 +125,12 @@ export function openBrowser(url: string): void {
 }
 
 /** Repository secrets the deploy workflow reads (docs/guides/self-host-cloudflare-from-github.md). */
-const SECRETS = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
+const SECRETS = [
+  'CLOUDFLARE_API_TOKEN',
+  'CLOUDFLARE_ACCOUNT_ID',
+  'CF_ACCESS_CLIENT_ID',
+  'CF_ACCESS_CLIENT_SECRET',
+];
 
 /** Write the check and deploy workflows and the issue templates under `root`, only what is missing. */
 export function initGithub(root: string, pin: string = VERSION): InitGithubData {

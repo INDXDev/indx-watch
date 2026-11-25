@@ -21,6 +21,8 @@ export class DeployError extends Error {
   constructor(
     readonly code: ErrorCode,
     message: string,
+    /** `no-login`: neither `wrangler login` nor CLOUDFLARE_API_TOKEN; `iw deploy` then publishes the definitions only */
+    readonly reason?: 'no-login',
   ) {
     super(message);
     this.name = 'DeployError';
@@ -80,6 +82,7 @@ export async function discover(run: Run, names: { worker: string; bucket: string
     throw new DeployError(
       'EXTERNAL_TOOL',
       'wrangler is not logged in: run `npx wrangler login`, or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID',
+      'no-login',
     );
   }
   const d1 = await listD1(run);
