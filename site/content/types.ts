@@ -138,6 +138,7 @@ export interface Content {
     docs: string;
     github: string;
     getStarted: string;
+    setup: string;
     menu: string;
     otherLanguage: string;
     otherLanguageLabel: string;
@@ -258,6 +259,7 @@ export interface Content {
     steps: { title: string; body: string; code: string }[];
     sample: string;
     sampleCode: string;
+    guide: Link;
   };
   faq: { kicker: string; title: string; items: { q: string; a: string }[] };
   cta: { title: string; lead: string; demo: string; github: string };
@@ -266,4 +268,60 @@ export interface Content {
     columns: { title: string; links: Link[] }[];
     copyright: string;
   };
+}
+
+/** One block on the right of a setup step: a terminal, a file, an agent chat, a screenshot or a PR comment. */
+export type SetupBlock =
+  | { kind: 'terminal'; title?: string; code: string }
+  | { kind: 'file'; file: string; code: string }
+  | { kind: 'chat'; lines: { who: 'you' | 'agent'; text: string }[] }
+  | { kind: 'shot'; image: string; alt: string }
+  | { kind: 'pr'; title: string; lines: { tone: 'pass' | 'fail' | 'info'; text: string }[] };
+
+export interface SetupStep {
+  id: string;
+  title: string;
+  /** who does it and how often, e.g. "Developer · once" */
+  who: string;
+  body: string;
+  /** what the reader sees when the step worked, so nobody moves on with a broken step */
+  done: string;
+  items?: string[];
+  note?: string;
+  link?: Link;
+  blocks: SetupBlock[];
+}
+
+/** The words of the setup guide (/setup/, /ja/setup/), one object per language. */
+export interface SetupContent {
+  locale: Locale;
+  path: '/setup/' | '/ja/setup/';
+  meta: { title: string; description: string };
+  hero: { kicker: string; title: string; lead: string; primary: Link; secondary: Link };
+  toc: string;
+  needs: { title: string; items: string[] };
+  paths: { title: string; lead: string; items: { title: string; steps: string; body: string }[] };
+  arch: {
+    kicker: string;
+    title: string;
+    lead: string;
+    nodes: { title: string; caption: string; items: string[] }[];
+    edges: string[];
+    stores: { what: string; where: string }[];
+    storesTitle: string;
+  };
+  phases: { id: string; kicker: string; title: string; lead: string; steps: SetupStep[] }[];
+  daily: { kicker: string; title: string; lead: string; steps: { title: string; body: string }[] };
+  recipes: { kicker: string; title: string; lead: string; items: { title: string; body: string; code: string; link?: Link }[] };
+  trouble: { kicker: string; title: string; head: [string, string]; rows: { symptom: string; fix: string }[] };
+  closing: { title: string; lead: string; demo: string };
+  copy: string;
+  copied: string;
+  you: string;
+  agent: string;
+  step: string;
+  /** label of the success line under each step */
+  doneLabel: string;
+  /** the animated walk through the architecture: one caption per node */
+  flow: { label: string; play: string; pause: string; captions: string[] };
 }

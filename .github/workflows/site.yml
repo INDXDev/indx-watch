@@ -51,6 +51,8 @@ jobs:
         run: |
           grep -q '<html lang="en"' out/index.html
           grep -q '<html lang="ja"' out/ja/index.html
+          grep -q '<html lang="en"' out/setup/index.html
+          grep -q '<html lang="ja"' out/ja/setup/index.html
           test -f out/sitemap.xml && test -f out/robots.txt && test -f out/og.png
 
   deploy:

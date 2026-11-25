@@ -1,0 +1,708 @@
+/*
+ * The setup guide (/setup/, /ja/setup/). Built from the tokens and primitives in globals.css; only the parts
+ * the landing page does not have live here. References: site/DESIGN.md#the-setup-guide.
+ */
+
+/* Hero: the headline and needs on the left, the table of contents on the right (Stripe Docs, Vercel Docs). */
+.su-hero {
+  padding-bottom: clamp(56px, 7vw, 88px);
+}
+.su-hero h1 {
+  max-width: 16ch;
+  font-size: clamp(36px, 5vw, 60px);
+}
+:lang(ja) .su-hero h1 {
+  font-size: clamp(30px, 4.2vw, 50px);
+}
+.su-hero .hero-lead {
+  min-height: 0;
+}
+.su-hero .hero-actions {
+  margin-top: 28px;
+}
+.su-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: 48px;
+  align-items: start;
+}
+.su-needs {
+  margin-top: 36px;
+  padding: 20px 22px;
+  max-width: 620px;
+}
+.su-needs h2 {
+  margin-bottom: 10px;
+}
+.su-needs strong {
+  font-weight: 600;
+}
+.su-toc {
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+  margin-top: 28px;
+  padding: 20px 22px;
+  font-size: 14px;
+}
+.su-toc-phase {
+  margin-top: 16px;
+  font-weight: 500;
+}
+.su-toc-phase a {
+  color: var(--ink);
+}
+.su-toc ol {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.su-toc li a {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+  color: var(--muted);
+}
+.su-toc li a:hover {
+  color: var(--ink);
+}
+.su-toc-n {
+  flex: none;
+  width: 20px;
+  font: 12px / 22px var(--font-mono);
+  color: var(--faint);
+}
+
+/* Paths: three cards, each a phase further (Sentry's plan picker). */
+.su-paths {
+  margin-top: clamp(48px, 6vw, 72px);
+}
+.su-paths ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.su-paths li {
+  padding: 22px;
+}
+.su-path-steps {
+  font: 500 12px var(--font-mono);
+  color: var(--accent);
+}
+:lang(ja) .su-path-steps {
+  font-family: var(--font-sans);
+}
+.su-paths h3 {
+  margin-top: 8px;
+  font-size: 17px;
+  letter-spacing: var(--track-h3);
+}
+.su-paths p {
+  margin-top: 6px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+.su-paths-lead {
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+/* Architecture: four boxes joined by labelled arrows, then where each thing is kept. */
+.su-arch {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 72px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.su-arch-item {
+  position: relative;
+}
+.su-node {
+  height: 100%;
+  padding: 20px;
+}
+.su-node h3 {
+  margin-top: 6px;
+  font-size: 18px;
+  letter-spacing: var(--track-h3);
+}
+.su-node ul {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.su-node li {
+  padding: 3px 0;
+}
+.su-edge {
+  position: absolute;
+  top: 50%;
+  right: -72px;
+  width: 72px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  color: var(--faint);
+}
+.su-edge::before {
+  content: "→";
+  font-size: 16px;
+}
+.su-stores {
+  margin-top: 48px;
+}
+.su-stores dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 14px 0 0;
+}
+.su-stores dl > div {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-strong);
+}
+.su-stores dt {
+  font-weight: 500;
+  font-size: 15px;
+}
+.su-stores dd {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Steps: text left, the terminal, file or screen right (Stripe Docs, Clerk quickstarts). */
+.su-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.su-step {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 24px 56px;
+  padding: 48px 0;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: calc(var(--header-h) + 16px);
+}
+.su-step:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.su-step-text {
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+  align-self: start;
+}
+.su-step-n {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.su-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 600 14px var(--font-mono);
+}
+.su-step h3 {
+  margin-top: 16px;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: var(--track-h3);
+}
+.su-body {
+  margin-top: 12px;
+  font-size: 15.5px;
+  color: var(--muted);
+}
+.su-body strong,
+.su-note strong,
+.su-items strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.su-items {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.su-note {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--accent-soft);
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.su-step-visual {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+.su-step-visual .frame-view {
+  max-height: 420px;
+}
+.su-file pre {
+  max-height: 360px;
+}
+
+/* Terminal: always dark, `$` prompts faint, output muted, a copy button for the commands only. */
+.su-term {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0d0d10;
+  overflow: hidden;
+}
+.su-term .terminal-bar {
+  border-bottom-color: #222228;
+}
+.su-term-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.su-term pre {
+  margin: 0;
+  padding: 16px 18px;
+  overflow-x: auto;
+  font: 13px / 1.7 var(--font-mono);
+  color: #e4e4e7;
+}
+.su-term code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  overflow-wrap: normal;
+}
+.su-prompt {
+  color: #6b6b73;
+  user-select: none;
+}
+.su-out {
+  color: #9a9aa3;
+}
+.su-comment {
+  color: #6b6b73;
+}
+.copy-btn {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #2c2c32;
+  border-radius: 999px;
+  background: transparent;
+  color: #a0a0a9;
+  font: 12px var(--font-sans);
+  cursor: pointer;
+}
+.copy-btn:hover {
+  color: #fff;
+  border-color: #4a4a52;
+}
+.su-chat .terminal-bar {
+  border-bottom-color: #222228;
+}
+
+/* The pull request comment. */
+.su-pr {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.su-pr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--muted);
+}
+.su-pr ul {
+  margin: 0;
+  padding: 10px 14px 12px;
+  list-style: none;
+  font-size: 14px;
+}
+.su-pr li {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+}
+.su-pr li > span {
+  flex: none;
+  width: 14px;
+  text-align: center;
+}
+.su-pr-pass > span {
+  color: var(--pass);
+}
+.su-pr-fail {
+  font-weight: 500;
+}
+.su-pr-fail > span {
+  color: var(--fail);
+}
+.su-pr-info > span {
+  color: var(--faint);
+}
+
+/* Every-day loop: the landing page's flow row with five steps. */
+.su-daily {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* Recipes: cards with a title, one line and the command (Supabase docs' "Quick links"). */
+.su-recipes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.su-recipes li {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+}
+.su-recipes h3 {
+  font-size: 16.5px;
+  letter-spacing: var(--track-h3);
+}
+.su-recipes p {
+  margin-top: 6px;
+  flex: 1;
+  font-size: 14px;
+  color: var(--muted);
+}
+.su-recipes pre {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--night);
+  color: #e4e4e7;
+  font: 12.5px / 1.6 var(--font-mono);
+  overflow-x: auto;
+}
+.su-recipes pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  overflow-wrap: normal;
+}
+.su-recipes .text-link {
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+/* Troubleshooting table. */
+.su-trouble {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.su-trouble th,
+.su-trouble td {
+  padding: 14px 18px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.su-trouble thead th {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--bg-subtle);
+}
+.su-trouble tbody th {
+  width: 40%;
+  font-weight: 500;
+}
+.su-trouble td {
+  color: var(--muted);
+}
+.su-trouble tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.nav a[aria-current="page"] {
+  color: var(--ink);
+}
+
+@media (max-width: 1100px) {
+  .su-arch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .su-arch-item:nth-child(2) .su-edge {
+    display: none;
+  }
+  .su-stores dl,
+  .su-daily {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 960px) {
+  .su-hero-grid,
+  .su-step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .su-toc,
+  .su-step-text {
+    position: static;
+  }
+  .su-paths ol,
+  .su-recipes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .su-arch,
+  .su-stores dl,
+  .su-daily {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .su-arch {
+    gap: 44px;
+  }
+  .su-edge {
+    top: auto;
+    bottom: -44px;
+    right: auto;
+    left: 0;
+    width: 100%;
+    height: 44px;
+    transform: none;
+  }
+  .su-arch-item:nth-child(2) .su-edge {
+    display: grid;
+  }
+  .su-edge::before {
+    content: "↓";
+  }
+  .su-edge {
+    grid-template-columns: auto;
+    justify-items: start;
+    padding-left: 20px;
+  }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .su-recipes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The success line under each step: what you should see before you move on. */
+.su-done {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--pass) 30%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pass) 6%, var(--card));
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.su-done-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pass);
+}
+.su-done strong {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* The architecture played: one node lit at a time, a dot on the arrow, a caption per node. */
+.su-node {
+  position: relative;
+  transition:
+    border-color 0.4s,
+    box-shadow 0.4s,
+    opacity 0.4s;
+}
+.su-arch-item:not(.is-lit) .su-node {
+  opacity: 0.55;
+}
+.su-arch-item.is-active .su-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.su-node-n {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 600 12px var(--font-mono);
+}
+.su-edge-label {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  line-height: 1.3;
+  font: 11px var(--font-mono);
+  color: var(--muted);
+}
+:lang(ja) .su-edge-label {
+  font-family: var(--font-sans);
+}
+.su-edge i {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0;
+}
+.su-edge.is-moving i {
+  animation: su-travel 1.4s ease-in-out 2.4s forwards;
+}
+@keyframes su-travel {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(56px);
+  }
+}
+.su-flow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 32px;
+}
+.su-flow-bar .btn {
+  width: 36px;
+  padding: 0;
+  font-size: 11px;
+}
+.su-captions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.su-captions button {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 2px solid var(--line);
+  background: none;
+  color: var(--faint);
+  font: inherit;
+  font-size: 14.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 0.4s,
+    border-color 0.4s;
+}
+.su-captions button:disabled {
+  cursor: default;
+}
+.su-captions .is-on button {
+  border-top-color: var(--accent);
+  color: var(--ink);
+}
+.su-caption-n {
+  flex: none;
+  font: 600 12px / 22px var(--font-mono);
+  color: var(--accent);
+}
+@media (max-width: 1100px) {
+  .su-captions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .su-captions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .su-edge-label {
+    position: static;
+    margin-left: 12px;
+    text-align: left;
+  }
+  .su-edge i {
+    left: 22px;
+    top: 4px;
+    margin: 0;
+  }
+  @keyframes su-travel {
+    0% {
+      opacity: 0;
+      transform: translateY(0);
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .su-node,
+  .su-captions button {
+    transition: none;
+  }
+  .su-edge i {
+    display: none;
+  }
+}
+@media (max-width: 960px) {
+  /* on a phone the contents list shows only the phases; the steps are numbered on the page */
+  .su-toc ol {
+    display: none;
+  }
+}
+.su-node .caption {
+  padding-right: 28px;
+}

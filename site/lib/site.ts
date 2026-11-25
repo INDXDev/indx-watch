@@ -14,6 +14,7 @@ export const DOCS = {
   agents: docs('guides/testing-with-agents.md'),
   webApp: docs('guides/web-app.md'),
   fixtures: docs('guides/fixtures.md'),
+  writing: docs('guides/writing-test-cases.md'),
   playwright: docs('guides/playwright.md'),
   githubActions: docs('guides/github-actions.md'),
   selfHost: docs('guides/self-host-cloudflare.md'),
@@ -37,5 +38,8 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://indx-watch
   /\/$/,
   '',
 );
+
+/** The setup guide on this site, per language. */
+export const SETUP_PATH = { en: '/setup/', ja: '/ja/setup/' } as const;
 
 export const INIT_COMMAND = 'npx indx-watch init';

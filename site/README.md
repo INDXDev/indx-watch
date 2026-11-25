@@ -1,6 +1,6 @@
 # INDX Watch landing page
 
-The public landing page of INDX Watch, in English (`/`) and Japanese (`/ja/`). It is a Next.js (App Router) app exported as static files. It lives in this repository but is **not part of the `indx-watch` package**: `site/` is its own pnpm workspace with its own lockfile, so `pnpm install` at the repository root never installs Next.js, and root lint, typecheck, tests and the npm tarball ignore it.
+The public landing page of INDX Watch, in English (`/`) and Japanese (`/ja/`), and the setup guide (`/setup/`, `/ja/setup/`). It is a Next.js (App Router) app exported as static files. It lives in this repository but is **not part of the `indx-watch` package**: `site/` is its own pnpm workspace with its own lockfile, so `pnpm install` at the repository root never installs Next.js, and root lint, typecheck, tests and the npm tarball ignore it.
 
 ## Develop
 
@@ -21,6 +21,7 @@ Before changing how the page looks, read [DESIGN.md](DESIGN.md): the pages it co
 | `content/en.ts`, `content/ja.ts` | All words on the page, one object per language (`content/types.ts`). Write Japanese as Japanese, not as a translation. |
 | `content/code.ts` | Excerpts from [`examples/shop`](../examples/shop) and the demo's terminal output; keep them in step with the files and tools they quote. |
 | `components/landing.tsx`, `components/landing/` | The page, shared by both languages: one component per section. |
+| `components/setup.tsx`, `content/setup-*.ts`, `app/setup.css` | The setup guide (`/setup/`, `/ja/setup/`): install to the team on Cloudflare, one page ([DESIGN.md](DESIGN.md#the-setup-guide)). |
 | `components/demo/` | The product demo: four chapters drawn as HTML on a scaled 1200 × 720 canvas ([DESIGN.md](DESIGN.md#the-demo)). |
 | `components/role.tsx` | The reader's role (developer, tester, product manager), kept in `?for=` and followed by the hero, demo and For teams tabs. |
 | `components/ui.tsx` | Primitives: section header, text link, logo, icons. |

@@ -1,14 +1,22 @@
 /** The site header and footer (Vercel, Linear): brand, section links, language, GitHub, one primary button. */
 import type { Content } from '@/content/types';
-import { DOCS, GITHUB_URL } from '@/lib/site';
+import { DOCS, GITHUB_URL, SETUP_PATH } from '@/lib/site';
 import { GitHubIcon, Icon, Logo } from '../ui';
 
-function otherLocale(t: Content) {
-  return { other: t.locale === 'en' ? '/ja/' : '/', otherLang: t.locale === 'en' ? 'ja' : 'en' };
+/** Which page the header and footer sit on: the landing page or the setup guide. */
+export type Page = 'home' | 'setup';
+
+function otherLocale(t: Content, page: Page) {
+  const otherLang = t.locale === 'en' ? 'ja' : 'en';
+  return { other: page === 'setup' ? SETUP_PATH[otherLang] : otherLang === 'ja' ? '/ja/' : '/', otherLang };
 }
 
-export function SiteHeader({ t }: { t: Content }) {
-  const { other, otherLang } = otherLocale(t);
+/** Section links work from either page: `#features` on the landing page, `/#features` elsewhere. */
+const section = (t: Content, page: Page, href: string) => (page === 'home' || !href.startsWith('#') ? href : `${t.path}${href}`);
+
+export function SiteHeader({ t, page = 'home' }: { t: Content; page?: Page }) {
+  const { other, otherLang } = otherLocale(t, page);
+  const at = (href: string) => section(t, page, href);
   return (
     <>
       <a className="skip" href="#main">
@@ -21,11 +29,14 @@ export function SiteHeader({ t }: { t: Content }) {
             <span>INDX Watch</span>
           </a>
           <nav aria-label={t.nav.menu} className="nav">
-            <a href="#features">{t.nav.product}</a>
-            <a href="#roles">{t.nav.roles}</a>
-            <a href="#platform">{t.nav.platform}</a>
-            <a href="#compare">{t.nav.compare}</a>
-            <a href="#faq">{t.nav.faq}</a>
+            <a href={at('#features')}>{t.nav.product}</a>
+            <a href={at('#roles')}>{t.nav.roles}</a>
+            <a href={at('#platform')}>{t.nav.platform}</a>
+            <a href={at('#compare')}>{t.nav.compare}</a>
+            <a href={at('#faq')}>{t.nav.faq}</a>
+            <a href={SETUP_PATH[t.locale]} aria-current={page === 'setup' ? 'page' : undefined}>
+              {t.nav.setup}
+            </a>
             <a href={DOCS.home}>{t.nav.docs}</a>
           </nav>
           <div className="header-actions">
@@ -38,7 +49,7 @@ export function SiteHeader({ t }: { t: Content }) {
               <span className="gh-label">{t.nav.github}</span>
             </a>
             <span className="header-divider" aria-hidden="true" />
-            <a className="btn btn-primary btn-sm" href="#start">
+            <a className="btn btn-primary btn-sm" href={page === 'setup' ? '#install' : '#start'}>
               {t.nav.getStarted}
             </a>
           </div>
@@ -48,8 +59,8 @@ export function SiteHeader({ t }: { t: Content }) {
   );
 }
 
-export function SiteFooter({ t }: { t: Content }) {
-  const { other, otherLang } = otherLocale(t);
+export function SiteFooter({ t, page = 'home' }: { t: Content; page?: Page }) {
+  const { other, otherLang } = otherLocale(t, page);
   return (
     <footer className="site-footer">
       <div className="wrap">
@@ -67,7 +78,7 @@ export function SiteFooter({ t }: { t: Content }) {
               <ul>
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <a href={l.href}>{l.label}</a>
+                    <a href={section(t, page, l.href)}>{l.label}</a>
                   </li>
                 ))}
               </ul>

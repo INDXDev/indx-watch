@@ -46,3 +46,22 @@ export function CopyCommand({ command, copy, copied }: { command: string; copy: 
     </div>
   );
 }
+
+/** A small copy button for a block of commands (the setup guide's terminals). */
+export function CopyButton({ text, copy, copied }: { text: string; copy: string; copied: string }) {
+  const [done, setDone] = useState(false);
+  async function onCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setDone(true);
+      window.setTimeout(() => setDone(false), 2000);
+    } catch {
+      // without clipboard access the commands are still selectable text
+    }
+  }
+  return (
+    <button type="button" className="copy-btn" onClick={onCopy} aria-label={copy}>
+      {done ? copied : copy}
+    </button>
+  );
+}
