@@ -86,7 +86,7 @@ Clone the repository first (`git clone https://github.com/INDXDev/indx-watch && 
 
 ```console
 $ docker build -t indx-watch .                                   # latest release from npm
-$ docker build -t indx-watch --build-arg IW_VERSION=0.1.2 .      # a specific version
+$ docker build -t indx-watch --build-arg IW_VERSION=0.1.3 .      # a specific version
 $ (cd packages/cli && npm pack --pack-destination ../..) && docker build -t indx-watch .   # this checkout
 ```
 

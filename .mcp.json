@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "indx-watch@0.1.2",
+        "indx-watch@0.1.3",
         "mcp"
       ]
     }
