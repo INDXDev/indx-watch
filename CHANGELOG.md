@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-25
+
 ### Added
 
 - Deploy without a Cloudflare login, and merge instead of replace: `iw deploy` publishes the definitions after deploying the Worker, and without a Cloudflare login (or with `--definitions-only`) publishes only the definitions through Cloudflare Access, refusing while the Worker is older than the pinned version. Publishing is a three-way merge by file with the app's newest snapshot from the git merge base: changes on different files combine, the same file changed on both sides stops the deploy and names it, and a merged result that fails `iw check` (a key used twice) stops it too. Outside CI the bundle must be committed and pushed first; `--force` replaces. `iw pull` brings the app's changes (uploads, test data edits, other branches' publishes) into the working tree and writes `<name>.conflict-<sha8>.<ext>` files for conflicts. `bundle` records gain `unsynced` (files not in the recorded commit); browser uploads keep the commit they build on. The Uploads screen gains a Sync status card (what is shown, what is not in git yet, how each kind of change travels, in English and Japanese) and a notice while files are not in git; the CLI panel offers `deploy` and `pull` on a hosted app in git mode. The `indx-watch-deploy` workflow fetches full history and passes an Access service token. Data flow and conflicts are specified in docs/spec/sync.md.
@@ -145,7 +147,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw translate` keeps every `--set`, not only the last.
 - The remaining acceptance criteria are tested (T-117, #6).
 
-[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/INDXDev/indx-watch/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/INDXDev/indx-watch/releases/tag/v0.1.0

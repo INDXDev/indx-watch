@@ -14,6 +14,7 @@ Milestones (v0.1–v0.4) are groups of tasks, not npm versions. The npm package 
 | [0.1.0](https://github.com/INDXDev/indx-watch/blob/main/CHANGELOG.md#010---2026-11-21) (2026-11-21) | v0.1 (T-101–T-118) and, from v0.2, T-202, T-204, T-211 and T-213–T-216 |
 | [0.1.1](https://github.com/INDXDev/indx-watch/blob/main/CHANGELOG.md#011---2026-11-23) (2026-11-23) | The rest of v0.2, all of v0.3, and v0.4 up to T-409 |
 | [0.1.2](https://github.com/INDXDev/indx-watch/blob/main/CHANGELOG.md#012---2026-11-24) (2026-11-24) | T-410 and T-411 (test data and sharing in the web app) and the release audit fixes |
+| [0.1.3](https://github.com/INDXDev/indx-watch/blob/main/CHANGELOG.md#013---2026-11-25) (2026-11-25) | v0.5 (self-hosting upkeep, customization, plans, shared steps, importers, notify, insights) and deploying with only Cloudflare Access, merging definitions through git |
 
 ## v0.1 — file-first core
 
