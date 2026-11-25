@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-25
+
 ### Fixed
 
 - `iw deploy` and `iw pull` no longer report every file as a conflict after the published branch was squash- or rebase-merged: a hosted file that the branch's git history already had counts as merged. A snapshot whose commit git cannot find merges against an empty base instead of stopping.
@@ -152,7 +154,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `iw translate` keeps every `--set`, not only the last.
 - The remaining acceptance criteria are tested (T-117, #6).
 
-[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/INDXDev/indx-watch/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/INDXDev/indx-watch/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/INDXDev/indx-watch/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/INDXDev/indx-watch/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/INDXDev/indx-watch/compare/v0.1.0...v0.1.1
